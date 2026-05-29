@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Palette, Sliders, Smartphone, Image, RefreshCw, 
-  ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles
+  ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,
+  Clock
 } from 'lucide-react';
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {
