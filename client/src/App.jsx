@@ -72,6 +72,14 @@ function App() {
     };
   }, []);
 
+  // Sync body class dynamically for CSS scroll rules
+  useEffect(() => {
+    if (deviceMode) {
+      document.body.classList.remove('mode-tv', 'mode-remote');
+      document.body.classList.add(`mode-${deviceMode}`);
+    }
+  }, [deviceMode]);
+
   const toggleDeviceMode = () => {
     setDeviceMode(prev => prev === 'tv' ? 'remote' : 'tv');
   };
@@ -111,7 +119,13 @@ function App() {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ 
+      position: 'relative', 
+      width: '100vw', 
+      height: deviceMode === 'tv' ? '100vh' : 'auto', 
+      minHeight: '100vh',
+      overflow: deviceMode === 'tv' ? 'hidden' : 'visible'
+    }}>
       {deviceMode === 'remote' ? (
         <RemoteControl 
           state={state} 

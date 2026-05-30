@@ -448,8 +448,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                 <div className="toggle-info">
                   <CloudRain size={18} style={{ color: '#60a5fa' }} />
                   <div>
-                    <div className="toggle-label">Align with Weather (Rain)</div>
-                    <div className="toggle-desc">Give heavy preference to rain photos when raining</div>
+                    <div className="toggle-label">Atmospheric & News Sentiment Alignment</div>
+                    <div className="toggle-desc">Fuse local weather and global news sentiment to set the room mood</div>
                   </div>
                 </div>
                 <label className="switch-wrapper">
@@ -461,6 +461,41 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   <span className="switch-slider"></span>
                 </label>
               </div>
+
+              {state.alignWeather && (
+                <div style={{ 
+                  padding: '12px 14px', 
+                  background: 'rgba(0, 0, 0, 0.25)', 
+                  borderRadius: '12px', 
+                  border: '1px solid rgba(255,255,255,0.05)', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '8px',
+                  marginTop: '4px',
+                  marginBottom: '10px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
+                    <span style={{ opacity: 0.6 }}>Local Physical Weather</span>
+                    <span style={{ fontWeight: 600, color: '#fbbf24' }}>
+                      {state.physicalWeather ? `${state.physicalWeather.temp}°C, ${state.physicalWeather.condition}` : 'Loading...'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
+                    <span style={{ opacity: 0.6 }}>Global News Sentiment</span>
+                    <span style={{ fontWeight: 600, color: state.newsSentiment?.score < -0.1 ? '#ef4444' : state.newsSentiment?.score > 0.1 ? '#10b981' : '#a855f7' }}>
+                      {state.newsSentiment ? `${state.newsSentiment.label} (${state.newsSentiment.score})` : 'Calculating...'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                    <span style={{ opacity: 0.6 }}>Active Wallpaper Mood</span>
+                    <span style={{ fontWeight: 600, color: 'var(--accent-color)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {state.physicalWeather?.weatherMatch === 'Snowy' || state.physicalWeather?.weatherMatch === 'Rainy'
+                        ? state.physicalWeather.weatherMatch
+                        : state.newsSentiment?.weatherMatch || 'Cloudy'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

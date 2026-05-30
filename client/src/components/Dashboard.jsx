@@ -622,7 +622,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                   onClick={() => socket.emit('toggle-align-weather', !state.alignWeather)}
                   className={`desktop-settings-item ${state.alignWeather ? 'active' : ''}`}
                 >
-                  <span>Align with Weather (Rain)</span>
+                  <span>Weather & News Alignment</span>
                   <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.alignWeather ? 'ON' : 'OFF'}</span>
                 </div>
               </div>

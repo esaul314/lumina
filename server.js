@@ -88,7 +88,18 @@ let screensaverState = {
   slideshowInterval: 120000, // Default to 2 minutes cycle duration (120,000ms)
   alignTimeOfDay: false,     // Align images with time of day (show dark/night photos at night)
   alignWeather: false,       // Align images with weather (show rain photos when raining)
-  nightPercentage: 50        // Percentage of evening/night photos to show at night (0-100%)
+  nightPercentage: 50,       // Percentage of evening/night photos to show at night (0-100%)
+  newsSentiment: {
+    score: 0,
+    label: 'Overcast / Calm',
+    weatherMatch: 'Cloudy',
+    headlinesCount: 0
+  },
+  physicalWeather: {
+    temp: 15,
+    condition: 'Cloudy / Overcast',
+    weatherMatch: 'Cloudy'
+  }
 };
 
 // Curated high-definition stunning wallpapers (Scenic/Cosmic/Art/Liminal)
@@ -209,7 +220,50 @@ function tagPhotosWithKeywords(photos, defaultIsNight = false) {
                    titleLower.includes('jungle') ||
                    titleLower.includes('stream') ||
                    titleLower.includes('lake') ||
+                   titleLower.includes('puddle') ||
                    titleLower.includes('drizzle');
+
+    // Check sunny keywords
+    const isSunny = titleLower.includes('sun') ||
+                    titleLower.includes('sunny') ||
+                    titleLower.includes('clear') ||
+                    titleLower.includes('bright') ||
+                    titleLower.includes('golden') ||
+                    titleLower.includes('morning') ||
+                    titleLower.includes('summer') ||
+                    titleLower.includes('daylight') ||
+                    titleLower.includes('drenched') ||
+                    titleLower.includes('warm');
+
+    // Check cloudy/foggy/moody keywords
+    const isCloudy = titleLower.includes('mist') ||
+                     titleLower.includes('cloud') ||
+                     titleLower.includes('cloudy') ||
+                     titleLower.includes('fog') ||
+                     titleLower.includes('foggy') ||
+                     titleLower.includes('mist-veiled') ||
+                     titleLower.includes('misty') ||
+                     titleLower.includes('hazy') ||
+                     titleLower.includes('overcast') ||
+                     titleLower.includes('moody') ||
+                     titleLower.includes('shadow') ||
+                     titleLower.includes('pale') ||
+                     titleLower.includes('eerie') ||
+                     titleLower.includes('familiar') ||
+                     titleLower.includes('empty') ||
+                     titleLower.includes('silent') ||
+                     titleLower.includes('deserted') ||
+                     titleLower.includes('abandoned') ||
+                     titleLower.includes('quiet');
+
+    // Check snowy keywords
+    const isSnowy = titleLower.includes('snow') ||
+                    titleLower.includes('snowy') ||
+                    titleLower.includes('winter') ||
+                    titleLower.includes('ice') ||
+                    titleLower.includes('frozen') ||
+                    titleLower.includes('cold') ||
+                    titleLower.includes('alpine');
                    
     return {
       url: photo.url,
@@ -217,7 +271,10 @@ function tagPhotosWithKeywords(photos, defaultIsNight = false) {
       author: photo.author,
       source: photo.source || 'curated',
       isNight: photo.isNight !== undefined ? photo.isNight : isNight,
-      isRain: photo.isRain !== undefined ? photo.isRain : isRain
+      isRain: photo.isRain !== undefined ? photo.isRain : isRain,
+      isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunny,
+      isCloudy: photo.isCloudy !== undefined ? photo.isCloudy : isCloudy,
+      isSnowy: photo.isSnowy !== undefined ? photo.isSnowy : isSnowy
     };
   });
 }
@@ -288,14 +345,42 @@ async function fetchRedditImages(subreddit, category, count = 25) {
 
       // Keyword tagging for weather/time alignment
       const isNight = titleLower.includes('night') || titleLower.includes('dark') || 
-                      titleLower.includes('milky way') || titleLower.includes('midnight') || 
-                      titleLower.includes('stars') || titleLower.includes('moon') ||
-                      titleLower.includes('sunset') || titleLower.includes('dusk') ||
+                      titleLower.includes('twilight') || titleLower.includes('midnight') || 
+                      titleLower.includes('stars') || titleLower.includes('moon') || 
+                      titleLower.includes('sunset') || titleLower.includes('evening') || 
+                      titleLower.includes('3 am') || titleLower.includes('eclipse') ||
+                      titleLower.includes('space') || titleLower.includes('nebula') ||
+                      titleLower.includes('stardust') ||
                       category === 'Cosmic Space';
 
       const isRain = titleLower.includes('rain') || titleLower.includes('rainy') || 
                      titleLower.includes('wet') || titleLower.includes('storm') || 
+                     titleLower.includes('water') || titleLower.includes('dewy') ||
+                     titleLower.includes('jungle') || titleLower.includes('stream') ||
+                     titleLower.includes('lake') || titleLower.includes('puddle') ||
                      titleLower.includes('drizzle') || titleLower.includes('shower');
+
+      const isSunny = titleLower.includes('sun') || titleLower.includes('sunny') ||
+                      titleLower.includes('clear') || titleLower.includes('bright') ||
+                      titleLower.includes('golden') || titleLower.includes('morning') ||
+                      titleLower.includes('summer') || titleLower.includes('daylight') ||
+                      titleLower.includes('drenched') || titleLower.includes('warm');
+
+      const isCloudy = titleLower.includes('mist') || titleLower.includes('cloud') ||
+                       titleLower.includes('cloudy') || titleLower.includes('fog') ||
+                       titleLower.includes('foggy') || titleLower.includes('mist-veiled') ||
+                       titleLower.includes('misty') || titleLower.includes('hazy') ||
+                       titleLower.includes('overcast') || titleLower.includes('moody') ||
+                       titleLower.includes('shadow') || titleLower.includes('pale') ||
+                       titleLower.includes('eerie') || titleLower.includes('familiar') ||
+                       titleLower.includes('empty') || titleLower.includes('silent') ||
+                       titleLower.includes('deserted') || titleLower.includes('abandoned') ||
+                       titleLower.includes('quiet');
+
+      const isSnowy = titleLower.includes('snow') || titleLower.includes('snowy') ||
+                      titleLower.includes('winter') || titleLower.includes('ice') ||
+                      titleLower.includes('frozen') || titleLower.includes('cold') ||
+                      titleLower.includes('alpine');
 
       photos.push({
         url: imageUrl,
@@ -303,7 +388,10 @@ async function fetchRedditImages(subreddit, category, count = 25) {
         author: author,
         source: 'reddit',
         isNight: isNight,
-        isRain: isRain
+        isRain: isRain,
+        isSunny: isSunny,
+        isCloudy: isCloudy,
+        isSnowy: isSnowy
       });
     }
     
@@ -348,6 +436,79 @@ async function fetchPicsumImages(count = 30) {
 // Background dynamic server weather cache to drive dynamic wallpaper weighting
 let serverWeatherData = null;
 
+// Heuristic News Sentiment lists for environmental atmospheric correlation
+const positiveWords = ['hope', 'breakthrough', 'success', 'win', 'wins', 'won', 'celebrate', 'celebrates', 'celebration', 'good', 'great', 'growth', 'rising', 'rise', 'agreement', 'peace', 'sunny', 'love', 'bright', 'positive', 'joy', 'happy', 'heals', 'healing', 'cure', 'cured', 'recovery', 'recovers', 'innovation', 'advancement', 'progress', 'benefit', 'beautiful', 'friendly', 'smile', 'smiles', 'gains', 'gain', 'optimism', 'optimistic', 'green'];
+
+const negativeWords = ['crash', 'tragedy', 'crisis', 'tension', 'tensions', 'storm', 'storms', 'war', 'conflict', 'clash', 'clashes', 'dispute', 'protest', 'protests', 'strike', 'strikes', 'attack', 'attacks', 'killed', 'death', 'dead', 'fear', 'panic', 'drop', 'drops', 'dropped', 'decline', 'declines', 'inflation', 'threat', 'threatens', 'threatened', 'danger', 'dangerous', 'dread', 'disaster', 'damage', 'damages', 'damaged', 'concern', 'concerns', 'worries', 'worry', 'loss', 'losses', 'lost', 'fired', 'firing', 'collapse', 'collapses', 'collapsed', 'arrest', 'arrests', 'arrested', 'accused', 'charge', 'charges', 'investigation', 'probe'];
+
+async function updateNewsSentiment() {
+  try {
+    console.log('News Sentiment: Fetching headlines from Google News RSS...');
+    const res = await fetch('https://news.google.com/rss?hl=en-CA&gl=CA&ceid=CA:en');
+    if (!res.ok) {
+      console.warn('News Sentiment: Failed to fetch Google News RSS');
+      return;
+    }
+    const text = await res.text();
+    const titleRegex = /<title>([^<]+)<\/title>/g;
+    let match;
+    let posCount = 0;
+    let negCount = 0;
+    let count = 0;
+    while ((match = titleRegex.exec(text)) !== null) {
+      const headline = match[1].toLowerCase();
+      // Skip the main feed title itself
+      if (headline.includes('google news') && count === 0) {
+        count++;
+        continue;
+      }
+      positiveWords.forEach(w => {
+        const regex = new RegExp('\\b' + w + '\\b', 'g');
+        const matches = headline.match(regex);
+        if (matches) posCount += matches.length;
+      });
+      negativeWords.forEach(w => {
+        const regex = new RegExp('\\b' + w + '\\b', 'g');
+        const matches = headline.match(regex);
+        if (matches) negCount += matches.length;
+      });
+      count++;
+    }
+
+    const totalMatches = posCount + negCount;
+    let score = 0;
+    if (totalMatches > 0) {
+      score = (posCount - negCount) / (totalMatches + 1);
+    }
+
+    let label = 'Overcast / Calm';
+    let weatherMatch = 'Cloudy';
+
+    if (score <= -0.1) {
+      label = 'Stormy / Tense';
+      weatherMatch = 'Rainy';
+    } else if (score >= 0.1) {
+      label = 'Sunny / Hopeful';
+      weatherMatch = 'Sunny';
+    } else {
+      label = 'Overcast / Calm';
+      weatherMatch = 'Cloudy';
+    }
+
+    screensaverState.newsSentiment = {
+      score: parseFloat(score.toFixed(3)),
+      label: label,
+      weatherMatch: weatherMatch,
+      headlinesCount: count
+    };
+
+    console.log(`News Sentiment: Success! Score=${score.toFixed(3)} (${label}) -> Correlated weather mood: ${weatherMatch}`);
+    io.emit('state-sync', screensaverState);
+  } catch (err) {
+    console.error('Failed to update news sentiment:', err.message);
+  }
+}
+
 async function updateServerWeather() {
   try {
     const loc = await getIpLocation();
@@ -361,42 +522,99 @@ async function updateServerWeather() {
         current: data.current,
         daily: data.daily
       };
+      
+      // Classify WMO weather code for dynamic wallpaper mapping
+      if (data.current) {
+        const code = data.current.weather_code;
+        let physicalMatch = 'Cloudy';
+        let physicalCond = 'Cloudy';
+
+        if (code === 0) {
+          physicalMatch = 'Sunny';
+          physicalCond = 'Sunny / Clear';
+        } else if ([1, 2, 3, 45, 48].includes(code)) {
+          physicalMatch = 'Cloudy';
+          physicalCond = 'Cloudy / Overcast';
+        } else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) {
+          physicalMatch = 'Rainy';
+          physicalCond = 'Rainy / Stormy';
+        } else if ([71, 73, 75, 77, 85, 86].includes(code)) {
+          physicalMatch = 'Snowy';
+          physicalCond = 'Snowy / Wintry';
+        }
+
+        screensaverState.physicalWeather = {
+          temp: Math.round(data.current.temperature_2m),
+          condition: physicalCond,
+          weatherMatch: physicalMatch
+        };
+      }
+      
       console.log('Server weather cache updated successfully.');
+      io.emit('state-sync', screensaverState);
     }
   } catch (err) {
     console.error('Failed to update server weather cache:', err.message);
   }
 }
 
-// Update weather every 15 minutes
+// Update weather every 15 minutes, news every 30 minutes
 setInterval(updateServerWeather, 15 * 60 * 1000);
 setTimeout(updateServerWeather, 3000);
+setInterval(updateNewsSentiment, 30 * 60 * 1000);
+setTimeout(updateNewsSentiment, 5000);
 
-// Dynamic atmospheric photo selector engine
+// Dynamic atmospheric photo selector engine (Fused Weather & Sentiment Alignment)
 function getSmartPhoto(direction = 'next') {
   const list = screensaverState.photosList;
   if (!list || list.length === 0) return null;
 
-  let isRaining = false;
   let isNight = false;
 
+  // Determine current day/night state
   if (serverWeatherData && serverWeatherData.current) {
-    const code = serverWeatherData.current.weather_code;
-    isRaining = [51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code) || serverWeatherData.current.precipitation > 0;
     isNight = serverWeatherData.current.is_day === 0;
   } else {
     const hour = new Date().getHours();
     isNight = hour >= 18 || hour < 6;
   }
 
+  // Determine physical and sentiment weather states
+  const physicalMatch = screensaverState.physicalWeather?.weatherMatch || 'Cloudy';
+  const newsMatch = screensaverState.newsSentiment?.weatherMatch || 'Cloudy';
+
   let candidates = [...list];
 
-  // 1. Weather alignment (heavy preference to rain photos when raining)
-  if (screensaverState.alignWeather && isRaining) {
-    const rainPhotos = list.filter(p => p.isRain);
-    if (rainPhotos.length > 0 && Math.random() < 0.75) {
-      candidates = rainPhotos;
-      console.log(`Smart Photo: Weather alignment active (Raining). Matching photos: ${rainPhotos.length}`);
+  // 1. Environmental Weather Smart Alignment (Physical + Sentiment Fusion!)
+  if (screensaverState.alignWeather) {
+    let weatherCandidates = [];
+    
+    // Physical weather gets primary preference
+    if (physicalMatch === 'Snowy') {
+      weatherCandidates = list.filter(p => p.isSnowy);
+      console.log(`Smart Photo [Weather]: Snowy conditions active. Matching snowy photos: ${weatherCandidates.length}`);
+    } else if (physicalMatch === 'Rainy') {
+      weatherCandidates = list.filter(p => p.isRain);
+      console.log(`Smart Photo [Weather]: Rainy conditions active. Matching rainy photos: ${weatherCandidates.length}`);
+    } else {
+      // If the physical weather is Clear or Cloudy, we fuse it with news sentiment!
+      // News sentiment weather is either Rainy, Cloudy, or Sunny.
+      const targetMatch = newsMatch; 
+      if (targetMatch === 'Rainy') {
+        weatherCandidates = list.filter(p => p.isRain || p.isCloudy);
+        console.log(`Smart Photo [News-Weather Fusion]: News sentiment is stormy/tense -> matching Rainy/Moody photos: ${weatherCandidates.length}`);
+      } else if (targetMatch === 'Sunny') {
+        weatherCandidates = list.filter(p => p.isSunny);
+        console.log(`Smart Photo [News-Weather Fusion]: News sentiment is positive/sunny -> matching Sunny photos: ${weatherCandidates.length}`);
+      } else {
+        weatherCandidates = list.filter(p => p.isCloudy);
+        console.log(`Smart Photo [News-Weather Fusion]: News sentiment is neutral/calm -> matching Cloudy/Moody photos: ${weatherCandidates.length}`);
+      }
+    }
+
+    // Apply with a 80% preference probability to maintain some surprise/variety
+    if (weatherCandidates.length > 0 && Math.random() < 0.8) {
+      candidates = weatherCandidates;
     }
   }
 
@@ -406,15 +624,17 @@ function getSmartPhoto(direction = 'next') {
     const nightThreshold = (screensaverState.nightPercentage || 50) / 100;
     if (nightPhotos.length > 0 && Math.random() < nightThreshold) {
       candidates = nightPhotos;
-      console.log(`Smart Photo: Time alignment active (Night, Ratio=${screensaverState.nightPercentage}%). Matching photos: ${nightPhotos.length}`);
+      console.log(`Smart Photo [Time]: Time alignment active (Night, Ratio=${screensaverState.nightPercentage}%). Matching night photos: ${nightPhotos.length}`);
     }
   }
 
   if (candidates.length > 0) {
+    // If we narrowed down the list, select a random candidate from that narrowed atmospheric subset
     if (candidates.length < list.length) {
       const randIdx = Math.floor(Math.random() * candidates.length);
       return candidates[randIdx];
     } else {
+      // Regular sequential fallback if no atmospheric filtering happened
       const currentIndex = list.findIndex(p => p.url === screensaverState.activePhoto.url);
       const step = direction === 'next' ? 1 : -1;
       const nextIndex = (currentIndex + step + list.length) % list.length;

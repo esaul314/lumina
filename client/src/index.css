@@ -970,3 +970,11 @@ input:checked + .switch-slider:before {
   border-color: var(--accent-color);
   color: #fff;
 }
+
+/* Enable normal vertical scrolling for the Remote Control mode on smartphones */
+body.mode-remote {
+  overflow: auto !important;
+  height: auto !important;
+  min-height: 100vh;
+}
+
