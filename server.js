@@ -620,6 +620,45 @@ if (process.env.NODE_ENV !== 'test') {
   setTimeout(updateNewsSentiment, 5000);
 }
 
+// Combines multiple categories with equal representation in a round-robin interleaved fashion
+function combineFeedsBalanced(categories, collections) {
+  // 1. Get the list of photos for each selected category and shuffle each individually
+  const lists = categories.map(cat => {
+    const list = [...(collections[cat] || [])];
+    // Fisher-Yates shuffle to randomize photos for this specific run
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  }).filter(list => list.length > 0);
+
+  if (lists.length === 0) return [];
+  if (lists.length === 1) return lists[0];
+
+  // 2. Interleave them in round-robin fashion to guarantee perfectly balanced representation (e.g. 50-50, 33-33-33)
+  const combined = [];
+  const maxLen = Math.max(...lists.map(l => l.length));
+  
+  for (let i = 0; i < maxLen; i++) {
+    for (let j = 0; j < lists.length; j++) {
+      const list = lists[j];
+      combined.push(list[i % list.length]);
+    }
+  }
+
+  // Deduplicate consecutive identical URLs (in case of modulo wrap-arounds for very small collections)
+  const finalPhotos = [];
+  for (const photo of combined) {
+    if (finalPhotos.length > 0 && finalPhotos[finalPhotos.length - 1].url === photo.url) {
+      continue;
+    }
+    finalPhotos.push(photo);
+  }
+
+  return finalPhotos;
+}
+
 // Dynamic atmospheric photo selector engine (Fused Weather & Sentiment Alignment)
 function getSmartPhoto(direction = 'next') {
   const list = screensaverState.photosList;
@@ -895,16 +934,8 @@ async function updateFeedsDaily() {
   if (updatedAny) {
     const activeCategory = screensaverState.currentCategory;
     const currentCats = activeCategory ? activeCategory.split(',') : [];
-    let combinedPhotos = [];
-    for (const catName of currentCats) {
-      if (curatedCollections[catName]) {
-        combinedPhotos = combinedPhotos.concat(curatedCollections[catName]);
-      }
-    }
-    if (combinedPhotos.length === 0) {
-      combinedPhotos = curatedCollections['Scenic Nature'] || [];
-    }
-    screensaverState.photosList = combinedPhotos;
+    const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
+    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []);
     io.emit('state-sync', screensaverState);
   }
 }
@@ -978,12 +1009,7 @@ app.get('/api/photos', async (req, res) => {
 
       if (validCategories.length > 0) {
         screensaverState.currentCategory = validCategories.join(',');
-        
-        let combinedPhotos = [];
-        for (const catName of validCategories) {
-          combinedPhotos = combinedPhotos.concat(curatedCollections[catName]);
-        }
-        screensaverState.photosList = combinedPhotos;
+        screensaverState.photosList = combineFeedsBalanced(validCategories, curatedCollections);
         
         // Immediately pick a smart starting photo from the newly selected category
         const smartPhoto = getSmartPhoto('next');
@@ -999,18 +1025,10 @@ app.get('/api/photos', async (req, res) => {
     }
     
     // For the JSON response:
-    // If screensaverState.currentCategory is a combined list, combine all photos for the response
+    // Serve the balanced and randomized combined photos list
     const currentCats = screensaverState.currentCategory ? screensaverState.currentCategory.split(',') : [];
-    let responsePhotos = [];
-    for (const catName of currentCats) {
-      if (curatedCollections[catName]) {
-        responsePhotos = responsePhotos.concat(curatedCollections[catName]);
-      }
-    }
-    if (responsePhotos.length === 0) {
-      responsePhotos = curatedCollections['Scenic Nature'] || [];
-    }
-    res.json(responsePhotos);
+    const responsePhotos = combineFeedsBalanced(currentCats, curatedCollections);
+    res.json(responsePhotos.length > 0 ? responsePhotos : (curatedCollections['Scenic Nature'] || []));
   } catch (error) {
     console.error('Failed to fetch photos from curated list', error.message);
     res.json(curatedCollections['Scenic Nature']);
@@ -1087,12 +1105,7 @@ io.on('connection', (socket) => {
 
     if (validCategories.length > 0) {
       screensaverState.currentCategory = validCategories.join(',');
-      
-      let combinedPhotos = [];
-      for (const catName of validCategories) {
-        combinedPhotos = combinedPhotos.concat(curatedCollections[catName]);
-      }
-      screensaverState.photosList = combinedPhotos;
+      screensaverState.photosList = combineFeedsBalanced(validCategories, curatedCollections);
       
       // Immediately pick a smart photo from the newly selected category to display
       const smartPhoto = getSmartPhoto('next');
