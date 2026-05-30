@@ -99,13 +99,26 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
   - Lumina maintains a keyless, multi-source wallpaper aggregator pulling from **Reddit subreddits** (`/r/EarthPorn`, `/r/spaceporn`, `/r/astrophotography`, `/r/AbstractArt`, `/r/Generative`, `/r/LiminalSpace`), **Lorem Picsum** random HD photography, and the **Unsplash search API** (NAPI).
   - Feeds are automatically limited to `2000` photos maximum per category and stored in `curated_collections.json` to enable offline resilience.
 * **Automated Keyword Tagging**:
-  - During crawler execution, crawled images are scanned for keyword tags.
-  - Photos are evaluated for `isNight` (e.g. title has "night", "dark", "milky way", "moon", "sunset", "stars") and `isRain` (e.g. title has "rain", "rainy", "wet", "storm", "drizzle").
-  - On startup, the system parses all pre-loaded seed collections and automatically runs tag classification on them.
-* **Smart Weighted Photo Selector**:
-  - Toggled via the new environmental switches.
-  - When active, the system monitors weather and time of day. Night is identified by `is_day === 0` (or local hour >= 18 or < 6). Rain is identified by weather code or active precipitation.
-  - Selecting next/prev wallpaper uses a weighted candidate selection: **75% chance** of serving a rain-tagged photo when it is raining, and a user-customizable ratio (**0-100%**) of night-themed photos when it is night. Falls back to smooth sequential rotation when no constraints match.
+  - During crawler execution and startup initialization, all images are dynamically scanned for keyword tags to support environmental matching.
+  - Keywords are matched to classify photos across five atmospheric states:
+    - `isNight`: Matches sunset, midnight, night, stars, dark, space, moon, etc.
+    - `isRain`: Matches rain, storm, wet, stream, dewy, drizzle, puddle, etc.
+    - `isSunny`: Matches sun, clear, bright, golden, morning, summer, daylight, warm, etc.
+    - `isCloudy`: Matches mist, fog, cloud, misty, hazy, overcast, moody, eerie, shadow, silent, empty, etc.
+    - `isSnowy`: Matches snow, winter, ice, frozen, cold, alpine, etc.
+* **Fused Weather & News Sentiment Smart Alignment**:
+  - Toggled via the **Atmospheric & News Sentiment Alignment** panel on the Remote Control.
+  - The system merges **live meteorological conditions** (retrieved from Open-Meteo) with **today's global news sentiment** (scraped from Google News RSS):
+    - **News Sentiment Analyzer**: Scrapes today's latest top headlines in real-time, matching words against heuristic positive and negative lexicons to calculate a net emotional score.
+    - **Correlation Mapping**: 
+      - Highly negative sentiment (score $\le -0.1$) maps to **Stormy/Rainy** wallpapers (reflecting a turbulent, dark day).
+      - Highly positive sentiment (score $\ge 0.1$) maps to **Sunny/Golden** wallpapers (reflecting a bright, optimistic day).
+      - Neutral sentiment maps to **Cloudy/Moody** wallpapers.
+    - **Atmospheric Fusion Rule**: 
+      - If physical weather reports active snowfall, **Snowy** photos are prioritized.
+      - If physical weather reports active rainfall, **Rainy** photos are prioritized.
+      - Otherwise, the room's mood is set by **today's global news sentiment** (prioritizing Sunny, Cloudy, or Rainy/Moody wallpapers accordingly).
+    - Photos matching these atmospheric filters are served with an **80% preference weight** to preserve surprise while aligning the living space with the emotional and physical state of the world outside. Under night hours, this integrates with the user's evening/night photo ratio slider.
 
 ### 5. API Endpoints
 * `GET /api/weather`: Resolves location weather from the free Open-Meteo API. 
