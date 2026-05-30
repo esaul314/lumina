@@ -318,14 +318,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div className="toggle-desc">Overlay current local time and date</div>
                   </div>
                 </div>
-                <label className="switch-wrapper">
-                  <input 
-                    type="checkbox" 
-                    checked={state.widgets.clock}
-                    onChange={() => handleToggleWidget('clock', state.widgets.clock)}
-                  />
-                  <span className="switch-slider"></span>
-                </label>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => handleToggleWidget('clock', state.widgets.clock)}
+                >
+                  <span className={`switch-slider ${state.widgets.clock ? 'checked' : ''}`}></span>
+                </div>
               </div>
 
               <div className="widget-toggle-item">
@@ -336,14 +334,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div className="toggle-desc">Show temperature and 3-day forecast</div>
                   </div>
                 </div>
-                <label className="switch-wrapper">
-                  <input 
-                    type="checkbox" 
-                    checked={state.widgets.weather}
-                    onChange={() => handleToggleWidget('weather', state.widgets.weather)}
-                  />
-                  <span className="switch-slider"></span>
-                </label>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => handleToggleWidget('weather', state.widgets.weather)}
+                >
+                  <span className={`switch-slider ${state.widgets.weather ? 'checked' : ''}`}></span>
+                </div>
               </div>
 
               <div className="widget-toggle-item">
@@ -354,14 +350,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div className="toggle-desc">Floating glowing dust motes</div>
                   </div>
                 </div>
-                <label className="switch-wrapper">
-                  <input 
-                    type="checkbox" 
-                    checked={state.widgets.particles}
-                    onChange={() => handleToggleWidget('particles', state.widgets.particles)}
-                  />
-                  <span className="switch-slider"></span>
-                </label>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => handleToggleWidget('particles', state.widgets.particles)}
+                >
+                  <span className={`switch-slider ${state.widgets.particles ? 'checked' : ''}`}></span>
+                </div>
               </div>
 
               <div className="widget-toggle-item">
@@ -372,14 +366,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div className="toggle-desc">Soft colors breathing on borders</div>
                   </div>
                 </div>
-                <label className="switch-wrapper">
-                  <input 
-                    type="checkbox" 
-                    checked={state.widgets.auraglow}
-                    onChange={() => handleToggleWidget('auraglow', state.widgets.auraglow)}
-                  />
-                  <span className="switch-slider"></span>
-                </label>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => handleToggleWidget('auraglow', state.widgets.auraglow)}
+                >
+                  <span className={`switch-slider ${state.widgets.auraglow ? 'checked' : ''}`}></span>
+                </div>
               </div>
 
               <div className="widget-toggle-item">
@@ -390,14 +382,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div className="toggle-desc">Ken Burns motion effect</div>
                   </div>
                 </div>
-                <label className="switch-wrapper">
-                  <input 
-                    type="checkbox" 
-                    checked={state.widgets.animations}
-                    onChange={() => handleToggleWidget('animations', state.widgets.animations)}
-                  />
-                  <span className="switch-slider"></span>
-                </label>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => handleToggleWidget('animations', state.widgets.animations)}
+                >
+                  <span className={`switch-slider ${state.widgets.animations ? 'checked' : ''}`}></span>
+                </div>
               </div>
             </div>
           </div>
@@ -413,14 +403,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div className="toggle-desc">Show dark/night pictures during evening & night</div>
                   </div>
                 </div>
-                <label className="switch-wrapper">
-                  <input 
-                    type="checkbox" 
-                    checked={state.alignTimeOfDay}
-                    onChange={() => socket.emit('toggle-align-time', !state.alignTimeOfDay)}
-                  />
-                  <span className="switch-slider"></span>
-                </label>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => socket.emit('toggle-align-time', !state.alignTimeOfDay)}
+                >
+                  <span className={`switch-slider ${state.alignTimeOfDay ? 'checked' : ''}`}></span>
+                </div>
               </div>
 
               {state.alignTimeOfDay && (
@@ -452,14 +440,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div className="toggle-desc">Fuse local weather and global news sentiment to set the room mood</div>
                   </div>
                 </div>
-                <label className="switch-wrapper">
-                  <input 
-                    type="checkbox" 
-                    checked={state.alignWeather}
-                    onChange={() => socket.emit('toggle-align-weather', !state.alignWeather)}
-                  />
-                  <span className="switch-slider"></span>
-                </label>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => socket.emit('toggle-align-weather', !state.alignWeather)}
+                >
+                  <span className={`switch-slider ${state.alignWeather ? 'checked' : ''}`}></span>
+                </div>
               </div>
 
               {state.alignWeather && (

@@ -978,3 +978,15 @@ body.mode-remote {
   min-height: 100vh;
 }
 
+/* Pure-div switch toggle slider active states */
+.switch-slider.checked {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+.switch-slider.checked:before {
+  transform: translateX(20px);
+  background-color: #fff;
+}
+
+
