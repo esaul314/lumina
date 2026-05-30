@@ -935,12 +935,14 @@ io.on('connection', (socket) => {
   
   // Change Wallpaper category
   socket.on('change-category', async (category) => {
+    console.log(`[SOCKET EVENT] change-category received: "${category}"`);
     // Normalise singular/plural spelling discrepancies (e.g. Liminal Space vs Liminal Spaces)
     let targetCategory = category;
     if (category === 'Liminal Space' || category === 'Liminal Spaces') {
       targetCategory = 'Liminal Spaces';
     }
 
+    console.log(`[SOCKET EVENT] normalized category: "${targetCategory}". curatedCollections exists? ${!!curatedCollections[targetCategory]}`);
     if (curatedCollections[targetCategory]) {
       screensaverState.currentCategory = targetCategory;
       screensaverState.photosList = curatedCollections[targetCategory];
@@ -949,11 +951,16 @@ io.on('connection', (socket) => {
       const smartPhoto = getSmartPhoto('next');
       if (smartPhoto) {
         screensaverState.activePhoto = smartPhoto;
+        console.log(`[SOCKET EVENT] Selected smart starting photo: "${smartPhoto.title}"`);
       } else if (screensaverState.photosList.length > 0) {
         screensaverState.activePhoto = screensaverState.photosList[Math.floor(Math.random() * screensaverState.photosList.length)];
+        console.log(`[SOCKET EVENT] Selected random starting photo: "${screensaverState.activePhoto.title}"`);
       }
       
+      console.log(`[SOCKET EVENT] Broadcasting state-sync with category: "${screensaverState.currentCategory}"`);
       io.emit('state-sync', screensaverState);
+    } else {
+      console.error(`[SOCKET EVENT] ERROR: Category "${targetCategory}" is missing in curatedCollections keys:`, Object.keys(curatedCollections));
     }
   });
 

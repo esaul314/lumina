@@ -234,15 +234,20 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
               {categories.map((cat, idx) => {
                 const isActive = state.currentCategory === cat;
                 return (
-                  <button 
+                  <div 
                     key={idx}
                     onClick={() => handleCategoryChange(cat)}
                     className="remote-btn"
+                    role="button"
                     style={{
                       background: isActive ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                       borderColor: isActive ? 'var(--accent-color)' : 'rgba(255, 255, 255, 0.06)',
                       justifyContent: 'space-between',
-                      padding: '16px'
+                      padding: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      width: '100%'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -255,7 +260,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                       <span style={{ fontWeight: 500 }}>{cat} Feed</span>
                     </div>
                     {isActive && <Check size={18} style={{ color: 'var(--accent-color)' }} />}
-                  </button>
+                  </div>
                 );
               })}
             </div>
