@@ -442,6 +442,51 @@ async function fetchPicsumImages(count = 30) {
   }
 }
 
+async function fetchLexicaImages(query, count = 25) {
+  try {
+    console.log(`Lexica Crawler: Fetching query "${query}"...`);
+    const res = await fetch(`https://lexica.art/api/v1/search?q=${encodeURIComponent(query)}`);
+    if (!res.ok) {
+      console.warn(`Lexica Crawler: Failed to fetch, status=${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    if (!data || !data.images) return [];
+
+    const photos = [];
+    for (const img of data.images) {
+      if (!img.src || photos.length >= count) continue;
+      
+      // Filter out vertical/portrait images to maintain landscape standard for smart screen TV
+      if (img.width && img.height && img.width < img.height) continue;
+
+      let title = img.prompt || 'AI Generative Creation';
+      // Clean up prompt title: strip newlines/tabs and truncate if too long
+      title = title.replace(/[\r\n\t]+/g, ' ').trim();
+      if (title.length > 55) {
+        title = title.substring(0, 52) + '...';
+      }
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+
+      photos.push({
+        url: img.src,
+        title: title,
+        author: 'Lexica AI Art',
+        source: 'lexica',
+        isNight: false,
+        isRain: false
+      });
+    }
+
+    console.log(`Lexica Crawler: Loaded ${photos.length} AI photos.`);
+    return photos;
+  } catch (err) {
+    console.error('Lexica crawler failed:', err.message);
+    return [];
+  }
+}
+
 // Background dynamic server weather cache to drive dynamic wallpaper weighting
 let serverWeatherData = null;
 
@@ -798,6 +843,46 @@ async function updateFeedsDaily() {
       console.log(`Unsplash: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
       updatedAny = true;
     }
+  }
+
+  // 4. Crawl Lexica Art (Dedicated AI-based image source)
+  try {
+    let aiList = curatedCollections['AI Creations'] || [];
+    const initialAiLength = aiList.length;
+    const existingAiUrls = new Set(aiList.map(item => item.url));
+
+    const lexicaQueries = [
+      'surreal digital art dreamscape',
+      'cyberpunk neon city street',
+      'futuristic sci-fi landscape spacescape',
+      'abstract generative fractal geometry'
+    ];
+
+    for (const query of lexicaQueries) {
+      const lexicaPhotos = await fetchLexicaImages(query, 15);
+      for (const p of lexicaPhotos) {
+        if (!existingAiUrls.has(p.url)) {
+          aiList.push(p);
+          existingAiUrls.add(p.url);
+        }
+      }
+    }
+
+    if (aiList.length > 2000) {
+      const originalCuratedCount = Math.min(12, aiList.length);
+      const originals = aiList.slice(0, originalCuratedCount);
+      const dynamicAdded = aiList.slice(originalCuratedCount);
+      const allowedDynamic = 2000 - originalCuratedCount;
+      aiList = originals.concat(dynamicAdded.slice(-allowedDynamic));
+    }
+
+    curatedCollections['AI Creations'] = aiList;
+    if (aiList.length > initialAiLength) {
+      console.log(`Lexica AI: Added ${aiList.length - initialAiLength} photos to "AI Creations" (Total: ${aiList.length})`);
+      updatedAny = true;
+    }
+  } catch (err) {
+    console.error('Lexica daily crawl failed:', err.message);
   }
 
   try {
