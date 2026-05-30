@@ -451,7 +451,7 @@ function Dashboard({ state, socket, connectionInfo }) {
           {state.activePhoto && (
             <div className="glass-widget photo-info-widget">
               <span className="photo-category">
-                {state.currentCategory}
+                {state.currentCategory ? state.currentCategory.split(',').join(' + ') : ''}
               </span>
               <div className="photo-title">
                 {state.activePhoto.title}
@@ -512,11 +512,24 @@ function Dashboard({ state, socket, connectionInfo }) {
               <span className="desktop-settings-section-title">Visual Feed</span>
               <div className="desktop-settings-list">
                 {['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations'].map((cat) => {
-                  const isActive = state.currentCategory === cat;
+                  const isActive = state.currentCategory ? state.currentCategory.split(',').includes(cat) : false;
                   return (
                     <div
                       key={cat}
-                      onClick={() => socket.emit('change-category', cat)}
+                      onClick={() => {
+                        const currentCats = state.currentCategory ? state.currentCategory.split(',') : [];
+                        let newCats;
+                        if (currentCats.includes(cat)) {
+                          if (currentCats.length > 1) {
+                            newCats = currentCats.filter(c => c !== cat);
+                          } else {
+                            newCats = currentCats;
+                          }
+                        } else {
+                          newCats = [...currentCats, cat];
+                        }
+                        socket.emit('change-category', newCats.join(','));
+                      }}
                       className={`desktop-settings-item ${isActive ? 'active' : ''}`}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

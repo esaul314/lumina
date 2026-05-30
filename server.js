@@ -809,7 +809,17 @@ async function updateFeedsDaily() {
 
   if (updatedAny) {
     const activeCategory = screensaverState.currentCategory;
-    screensaverState.photosList = curatedCollections[activeCategory] || [];
+    const currentCats = activeCategory ? activeCategory.split(',') : [];
+    let combinedPhotos = [];
+    for (const catName of currentCats) {
+      if (curatedCollections[catName]) {
+        combinedPhotos = combinedPhotos.concat(curatedCollections[catName]);
+      }
+    }
+    if (combinedPhotos.length === 0) {
+      combinedPhotos = curatedCollections['Scenic Nature'] || [];
+    }
+    screensaverState.photosList = combinedPhotos;
     io.emit('state-sync', screensaverState);
   }
 }
@@ -865,34 +875,57 @@ app.get('/api/weather', async (req, res) => {
 app.get('/api/photos', async (req, res) => {
   let { category } = req.query;
   
-  // Normalise singular/plural spelling discrepancies (e.g. Liminal Space vs Liminal Spaces)
-  if (category === 'Liminal Space' || category === 'Liminal Spaces') {
-    category = 'Liminal Spaces';
-  }
-  if (category === 'AI Creation' || category === 'AI Creations') {
-    category = 'AI Creations';
-  }
-  
   try {
-    if (category && curatedCollections[category]) {
-      screensaverState.currentCategory = category;
-      screensaverState.photosList = curatedCollections[category];
-      
-      // Immediately pick a smart starting photo from the newly selected category
-      const smartPhoto = getSmartPhoto('next');
-      if (smartPhoto) {
-        screensaverState.activePhoto = smartPhoto;
-      } else if (screensaverState.photosList.length > 0) {
-        screensaverState.activePhoto = screensaverState.photosList[Math.floor(Math.random() * screensaverState.photosList.length)];
+    if (category) {
+      // Split the category parameter by commas to support combined feeds
+      const selectedCategories = category.split(',').map(c => {
+        let catName = c.trim();
+        if (catName === 'Liminal Space' || catName === 'Liminal Spaces') {
+          return 'Liminal Spaces';
+        }
+        if (catName === 'AI Creation' || catName === 'AI Creations') {
+          return 'AI Creations';
+        }
+        return catName;
+      });
+
+      const validCategories = selectedCategories.filter(catName => !!curatedCollections[catName]);
+
+      if (validCategories.length > 0) {
+        screensaverState.currentCategory = validCategories.join(',');
+        
+        let combinedPhotos = [];
+        for (const catName of validCategories) {
+          combinedPhotos = combinedPhotos.concat(curatedCollections[catName]);
+        }
+        screensaverState.photosList = combinedPhotos;
+        
+        // Immediately pick a smart starting photo from the newly selected category
+        const smartPhoto = getSmartPhoto('next');
+        if (smartPhoto) {
+          screensaverState.activePhoto = smartPhoto;
+        } else if (screensaverState.photosList.length > 0) {
+          screensaverState.activePhoto = screensaverState.photosList[Math.floor(Math.random() * screensaverState.photosList.length)];
+        }
+        
+        // Broadcast unified state-sync to all clients to keep remote and TV dashboard highlighted perfectly
+        io.emit('state-sync', screensaverState);
       }
-      
-      // Broadcast unified state-sync to all clients to keep remote and TV dashboard highlighted perfectly
-      io.emit('state-sync', screensaverState);
     }
     
-    const targetCategory = screensaverState.currentCategory;
-    const images = curatedCollections[targetCategory] || curatedCollections['Scenic Nature'];
-    res.json(images);
+    // For the JSON response:
+    // If screensaverState.currentCategory is a combined list, combine all photos for the response
+    const currentCats = screensaverState.currentCategory ? screensaverState.currentCategory.split(',') : [];
+    let responsePhotos = [];
+    for (const catName of currentCats) {
+      if (curatedCollections[catName]) {
+        responsePhotos = responsePhotos.concat(curatedCollections[catName]);
+      }
+    }
+    if (responsePhotos.length === 0) {
+      responsePhotos = curatedCollections['Scenic Nature'] || [];
+    }
+    res.json(responsePhotos);
   } catch (error) {
     console.error('Failed to fetch photos from curated list', error.message);
     res.json(curatedCollections['Scenic Nature']);
@@ -952,16 +985,29 @@ io.on('connection', (socket) => {
   // Change Wallpaper category
   socket.on('change-category', async (category) => {
     console.log(`[SOCKET EVENT] change-category received: "${category}"`);
-    // Normalise singular/plural spelling discrepancies (e.g. Liminal Space vs Liminal Spaces)
-    let targetCategory = category;
-    if (category === 'Liminal Space' || category === 'Liminal Spaces') {
-      targetCategory = 'Liminal Spaces';
-    }
+    
+    // Split the category parameter by commas to support combined feeds
+    const selectedCategories = category.split(',').map(c => {
+      let catName = c.trim();
+      if (catName === 'Liminal Space' || catName === 'Liminal Spaces') {
+        return 'Liminal Spaces';
+      }
+      if (catName === 'AI Creation' || catName === 'AI Creations') {
+        return 'AI Creations';
+      }
+      return catName;
+    });
 
-    console.log(`[SOCKET EVENT] normalized category: "${targetCategory}". curatedCollections exists? ${!!curatedCollections[targetCategory]}`);
-    if (curatedCollections[targetCategory]) {
-      screensaverState.currentCategory = targetCategory;
-      screensaverState.photosList = curatedCollections[targetCategory];
+    const validCategories = selectedCategories.filter(catName => !!curatedCollections[catName]);
+
+    if (validCategories.length > 0) {
+      screensaverState.currentCategory = validCategories.join(',');
+      
+      let combinedPhotos = [];
+      for (const catName of validCategories) {
+        combinedPhotos = combinedPhotos.concat(curatedCollections[catName]);
+      }
+      screensaverState.photosList = combinedPhotos;
       
       // Immediately pick a smart photo from the newly selected category to display
       const smartPhoto = getSmartPhoto('next');
@@ -973,10 +1019,10 @@ io.on('connection', (socket) => {
         console.log(`[SOCKET EVENT] Selected random starting photo: "${screensaverState.activePhoto.title}"`);
       }
       
-      console.log(`[SOCKET EVENT] Broadcasting state-sync with category: "${screensaverState.currentCategory}"`);
+      console.log(`[SOCKET EVENT] Broadcasting state-sync with categories: "${screensaverState.currentCategory}"`);
       io.emit('state-sync', screensaverState);
     } else {
-      console.error(`[SOCKET EVENT] ERROR: Category "${targetCategory}" is missing in curatedCollections keys:`, Object.keys(curatedCollections));
+      console.error(`[SOCKET EVENT] ERROR: None of the categories in "${category}" exist in curatedCollections keys:`, Object.keys(curatedCollections));
     }
   });
 

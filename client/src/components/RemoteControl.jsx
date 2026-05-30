@@ -66,7 +66,18 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
   // Change Photo Category Helper
   const handleCategoryChange = (categoryName) => {
-    socket.emit('change-category', categoryName);
+    const currentCats = state.currentCategory ? state.currentCategory.split(',') : [];
+    let newCats;
+    if (currentCats.includes(categoryName)) {
+      if (currentCats.length > 1) {
+        newCats = currentCats.filter(c => c !== categoryName);
+      } else {
+        newCats = currentCats;
+      }
+    } else {
+      newCats = [...currentCats, categoryName];
+    }
+    socket.emit('change-category', newCats.join(','));
   };
 
   // Activate Screensaver Immediately
@@ -232,7 +243,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
             <span className="remote-section-title">Curated Scenic Categories</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {categories.map((cat, idx) => {
-                const isActive = state.currentCategory === cat;
+                const isActive = state.currentCategory ? state.currentCategory.split(',').includes(cat) : false;
                 return (
                   <div 
                     key={idx}

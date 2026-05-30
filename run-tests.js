@@ -177,6 +177,13 @@ async function runIntegrationTests() {
       assert.ok(aiNormalizedPhotos.length > 0, 'normalized AI Creations list should not be empty');
       assert.ok(aiNormalizedPhotos.every(p => p.url), 'every AI Creation photograph must have a valid url attribute');
     });
+
+    const combinedPhotos = await fetchJson(`${baseUrl}/api/photos?category=Scenic%20Nature,Cosmic%20Space`);
+    assertTest('GET /api/photos successfully merges and serves combined feeds (Scenic Nature, Cosmic Space)', () => {
+      assert.ok(Array.isArray(combinedPhotos), 'combined photos list must be returned as an array');
+      assert.ok(combinedPhotos.length > 0, 'combined list should not be empty');
+      assert.ok(combinedPhotos.every(p => p.url), 'every photograph must have a valid url attribute');
+    });
     
   } catch (err) {
     console.log(`  ${COLORS.yellow}⚠ SKIP:${COLORS.reset} Integration tests skipped (Lumina server is not actively listening on port 5000).`);
