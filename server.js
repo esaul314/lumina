@@ -630,7 +630,12 @@ app.get('/api/weather', async (req, res) => {
 
 // Serve highly curated majestic images locally
 app.get('/api/photos', async (req, res) => {
-  const { category } = req.query;
+  let { category } = req.query;
+  
+  // Normalise singular/plural spelling discrepancies (e.g. Liminal Space vs Liminal Spaces)
+  if (category === 'Liminal Space' || category === 'Liminal Spaces') {
+    category = 'Liminal Spaces';
+  }
   
   try {
     if (category && curatedCollections[category]) {
@@ -710,9 +715,15 @@ io.on('connection', (socket) => {
   
   // Change Wallpaper category
   socket.on('change-category', async (category) => {
-    if (curatedCollections[category]) {
-      screensaverState.currentCategory = category;
-      screensaverState.photosList = curatedCollections[category];
+    // Normalise singular/plural spelling discrepancies (e.g. Liminal Space vs Liminal Spaces)
+    let targetCategory = category;
+    if (category === 'Liminal Space' || category === 'Liminal Spaces') {
+      targetCategory = 'Liminal Spaces';
+    }
+
+    if (curatedCollections[targetCategory]) {
+      screensaverState.currentCategory = targetCategory;
+      screensaverState.photosList = curatedCollections[targetCategory];
       
       // Immediately pick a smart photo from the newly selected category to display
       const smartPhoto = getSmartPhoto('next');
