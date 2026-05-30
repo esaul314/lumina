@@ -217,6 +217,15 @@ chmod +x launch.sh
 
 ---
 
+## 🤖 AI Agent & Developer Guidelines
+
+If you are an AI agent or developer modifying this codebase, you **MUST** strictly adhere to the following operational instructions:
+1. **Mandatory Git Commits**: Proactively make atomic, structured Git commits at **every substantive change** (e.g., adding a feature, fixing a bug, updating configurations). Do not wait until the end of the work session to commit all files.
+2. **Hardened Error Boundaries & Self-Healing**: Never let errors cascade or crash the main server daemon. Wrap all system-level commands (DBus Mutter polling, `pactl` audio checks, `scaling_governor` operations) in robust try/catch blocks with fail-safe recovery fallbacks.
+3. **Loop & Skip Protections**: Always rate-limit and boundary-constrain recursive transitions or skip skips. Do not allow rapid high-frequency socket events to flood the client interfaces under error or offline conditions.
+
+---
+
 ## 🔮 Active Backlog & Future Developer Roadmap
 
 If you are an AI agent or a developer tasked with extending Lumina, here are excellent planned features you could implement:

@@ -8,6 +8,53 @@ const os = require('os');
 const { exec } = require('child_process');
 
 
+// --- PRODUCTION-GRADE SELF-HEALING & EMAIL NOTIFICATIONS ---
+function sendEmailAlert(subject, body) {
+  const alertEmail = process.env.ALERT_EMAIL || 'alex@localhost'; // Default to local user or environment config
+  if (!alertEmail) return;
+
+  console.log(`Self-Healing: Attempting to send email alert to ${alertEmail}...`);
+  
+  const escapedSubject = subject.replace(/"/g, '\\"').replace(/\n/g, ' ');
+  const escapedBody = body.replace(/"/g, '\\"');
+  
+  // Zero-dependency mail execution using native Linux standard mail/sendmail commands
+  const mailCmd = `echo "${escapedBody}" | mail -s "${escapedSubject}" "${alertEmail}"`;
+  
+  exec(mailCmd, (err) => {
+    if (err) {
+      console.warn('Mail command failed, trying sendmail fallback:', err.message);
+      const sendmailCmd = `(echo "Subject: ${escapedSubject}"; echo ""; echo "${escapedBody}") | sendmail "${alertEmail}"`;
+      exec(sendmailCmd, (smErr) => {
+        if (smErr) {
+          console.warn('All native Linux email utilities failed to send warning:', smErr.message);
+        } else {
+          console.log('Email alert successfully sent via sendmail!');
+        }
+      });
+    } else {
+      console.log('Email alert successfully sent via mail command!');
+    }
+  });
+}
+
+// Global Process Crash Boundaries (Self-Healing Interceptors)
+process.on('uncaughtException', (err) => {
+  console.error('CRITICAL: Uncaught Exception intercepted:', err);
+  sendEmailAlert(
+    '⚠️ LUMINA SYSTEM ALERT: Uncaught Exception Intercepted',
+    `Lumina has intercepted an uncaught exception on your smart display server.\n\nError Message:\n${err.message}\n\nStack Trace:\n${err.stack}\n\nAction: The daemon has successfully self-healed and continues running.`
+  );
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('CRITICAL: Unhandled Promise Rejection intercepted:', reason);
+  sendEmailAlert(
+    '⚠️ LUMINA SYSTEM ALERT: Unhandled Promise Rejection Intercepted',
+    `Lumina has intercepted an unhandled promise rejection on your smart display server.\n\nReason:\n${reason}\n\nAction: The daemon has successfully self-healed and continues running.`
+  );
+});
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -651,6 +698,15 @@ io.on('connection', (socket) => {
       io.emit('state-sync', screensaverState);
     }
   });
+
+  // Client media loading failure notifier (Self-Healing Alert Trigger)
+  socket.on('report-media-failure', ({ category, failedUrls, message }) => {
+    console.error(`CLIENT ERROR REPORT: Media loading failed in category "${category}":`, message);
+    sendEmailAlert(
+      '🚨 LUMINA CRITICAL ALERT: Display Feed Failure Detected',
+      `Lumina screensaver client has reported a media loading failure on your smart display.\n\nCategory: ${category}\n\nProblem: ${message}\n\nFailed Wallpaper URLs:\n${failedUrls.join('\n')}\n\nAction: The client is rate-limiting skips and holding an offline visual boundary. Please check your network connection.`
+    );
+  });
   
   // Change Wallpaper category
   socket.on('change-category', async (category) => {
@@ -885,7 +941,26 @@ setInterval(() => {
 }, 2000);
 
 
-const PORT = process.env.PORT || 5000;
+let PORT = process.env.PORT || 5000;
+
+// Port Conflict Interceptor (Self-Healing Network Listener)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    const fallbackPort = parseInt(PORT, 10) + 1;
+    console.error(`Self-Healing: Port ${PORT} is already bound! Trying fallback port ${fallbackPort}...`);
+    sendEmailAlert(
+      '⚠️ LUMINA SYSTEM WARNING: Port Collision Intercepted',
+      `Port collision detected on default port ${PORT}.\n\nAction: Lumina is automatically healing by binding to fallback port ${fallbackPort}.`
+    );
+    PORT = fallbackPort;
+    setTimeout(() => {
+      server.listen(PORT, '0.0.0.0');
+    }, 1000);
+  } else {
+    console.error('Core Server Error:', err.message);
+  }
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Lumina Core backend running at http://localhost:${PORT}`);
   console.log(`Mobile Remote accessible at your local network IPs:`);

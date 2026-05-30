@@ -129,6 +129,13 @@ function Dashboard({ state, socket, connectionInfo }) {
       const maxFailures = state.photosList ? state.photosList.length : 5;
       if (consecutiveFailuresRef.current >= maxFailures) {
         console.error('All photos in current feed failed to load. Network might be down. Stopping infinite skip loop.');
+        
+        // Report critical alert back to the server to trigger an email alert!
+        socket.emit('report-media-failure', {
+          category: state.currentCategory,
+          failedUrls: state.photosList ? state.photosList.map(p => p.url) : [state.activePhoto.url],
+          message: 'All wallpapers in this feed failed to load. The display client is likely offline.'
+        });
         return;
       }
 
