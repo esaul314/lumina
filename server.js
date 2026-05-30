@@ -157,6 +157,13 @@ const defaultCuratedCollections = {
     { url: 'https://images.unsplash.com/photo-1679097467437-6a9f93b0363d?q=80&w=2560&auto=format&fit=crop', title: 'Endless Abandoned Corridor of the Backrooms', author: 'Arie Oldman' },
     { url: 'https://images.unsplash.com/photo-1684895309257-dc0facb0eecc?q=80&w=2560&auto=format&fit=crop', title: 'Empty Escalator Drifting into Concrete Darkness', author: 'Sam Operchuck' },
     { url: 'https://images.unsplash.com/photo-1549490349-8643362247b5?q=80&w=2560&auto=format&fit=crop', title: 'Eerie Empty Fluorescent Room', author: 'Maria Orlova' }
+  ],
+  'AI Creations': [
+    { url: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=2560&auto=format&fit=crop', title: 'Holographic Neon Mountain Peak', author: 'Google DeepMind AI' },
+    { url: 'https://images.unsplash.com/photo-1617791160505-6f006e121980?q=80&w=2560&auto=format&fit=crop', title: 'Surreal Purple Digital Dreamscape', author: 'Google DeepMind AI' },
+    { url: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=2560&auto=format&fit=crop', title: 'Futuristic Cyberpunk Neon Megacity', author: 'Google DeepMind AI' },
+    { url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=2560&auto=format&fit=crop', title: 'Cyberpunk Anime Street in Midnight Rain', author: 'Google DeepMind AI' },
+    { url: 'https://images.unsplash.com/photo-1620121692029-d088224ddc74?q=80&w=2560&auto=format&fit=crop', title: 'Abstract Floating 3D Geometries', author: 'Google DeepMind AI' }
   ]
 };
 
@@ -293,7 +300,8 @@ const searchQueries = {
   'Scenic Nature': 'scenic nature landscape mountains forest',
   'Cosmic Space': 'cosmic space nebula galaxy stars',
   'Abstract Art': 'abstract art painting minimalist geometric',
-  'Liminal Spaces': 'liminal spaces empty corridor backrooms'
+  'Liminal Spaces': 'liminal spaces empty corridor backrooms',
+  'AI Creations': 'surreal digital art generative midjourney cyberpunk futuristic'
 };
 
 // Subreddits list for categories (a new robust feed source!)
@@ -301,7 +309,8 @@ const categorySubreddits = {
   'Scenic Nature': ['EarthPorn', 'LandscapePhotography'],
   'Cosmic Space': ['spaceporn', 'astrophotography'],
   'Abstract Art': ['AbstractArt', 'Generative'],
-  'Liminal Spaces': ['LiminalSpace']
+  'Liminal Spaces': ['LiminalSpace'],
+  'AI Creations': ['aiArt', 'Midjourney', 'StableDiffusion']
 };
 
 async function fetchRedditImages(subreddit, category, count = 25) {
@@ -859,6 +868,9 @@ app.get('/api/photos', async (req, res) => {
   // Normalise singular/plural spelling discrepancies (e.g. Liminal Space vs Liminal Spaces)
   if (category === 'Liminal Space' || category === 'Liminal Spaces') {
     category = 'Liminal Spaces';
+  }
+  if (category === 'AI Creation' || category === 'AI Creations') {
+    category = 'AI Creations';
   }
   
   try {

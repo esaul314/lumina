@@ -64,7 +64,7 @@ The Node.js backend handles state synchronization, API data proxying, local netw
 ### 1. Core State Management
 The server manages a centralized `screensaverState` object, which is broadcasted to all connected clients (TV and Remote controls) on change:
 * `activePhoto`: `{ url, title, author }` (Current background image)
-* `currentCategory`: `"Scenic Nature" | "Cosmic Space" | "Abstract Art" | "Liminal Spaces"`
+* `currentCategory`: `"Scenic Nature" | "Cosmic Space" | "Abstract Art" | "Liminal Spaces" | "AI Creations"`
 * `theme`: `"Zen Retreat" | "Cosmic Night" | "Art Museum" | "Cyberpunk Rain"`
 * `widgets`: `{ clock, weather, particles, auraglow, animations }` (Booleans)
 * `photosList`: Array of photo objects within the current category.

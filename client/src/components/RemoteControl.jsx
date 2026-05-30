@@ -84,7 +84,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     }
   };
 
-  const categories = ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces'];
+  const categories = ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations'];
   const themes = ['Zen Retreat', 'Cosmic Night', 'Art Museum', 'Cyberpunk Rain'];
 
   return (
@@ -256,6 +256,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                         {cat === 'Cosmic Space' && '✨'}
                         {cat === 'Abstract Art' && '🎨'}
                         {cat === 'Liminal Spaces' && '🚪'}
+                        {cat === 'AI Creations' && '🤖'}
                       </span>
                       <span style={{ fontWeight: 500 }}>{cat} Feed</span>
                     </div>

@@ -511,7 +511,7 @@ function Dashboard({ state, socket, connectionInfo }) {
             <div className="desktop-settings-section">
               <span className="desktop-settings-section-title">Visual Feed</span>
               <div className="desktop-settings-list">
-                {['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces'].map((cat) => {
+                {['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations'].map((cat) => {
                   const isActive = state.currentCategory === cat;
                   return (
                     <div
@@ -525,6 +525,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                           {cat === 'Cosmic Space' && '✨'}
                           {cat === 'Abstract Art' && '🎨'}
                           {cat === 'Liminal Spaces' && '🚪'}
+                          {cat === 'AI Creations' && '🤖'}
                         </span>
                         <span>{cat} Feed</span>
                       </span>

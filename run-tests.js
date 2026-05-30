@@ -170,6 +170,13 @@ async function runIntegrationTests() {
       assert.ok(normalizedPhotos.length > 0, 'normalized list should not be empty');
       assert.ok(normalizedPhotos.every(p => p.url), 'every photograph must have a valid url attribute');
     });
+
+    const aiNormalizedPhotos = await fetchJson(`${baseUrl}/api/photos?category=AI%20Creation`);
+    assertTest('GET /api/photos successfully normalizes category spelling (AI Creation -> AI Creations)', () => {
+      assert.ok(Array.isArray(aiNormalizedPhotos), 'AI Creations photos list must be returned as an array');
+      assert.ok(aiNormalizedPhotos.length > 0, 'normalized AI Creations list should not be empty');
+      assert.ok(aiNormalizedPhotos.every(p => p.url), 'every AI Creation photograph must have a valid url attribute');
+    });
     
   } catch (err) {
     console.log(`  ${COLORS.yellow}⚠ SKIP:${COLORS.reset} Integration tests skipped (Lumina server is not actively listening on port 5000).`);
