@@ -558,11 +558,13 @@ async function updateServerWeather() {
   }
 }
 
-// Update weather every 15 minutes, news every 30 minutes
-setInterval(updateServerWeather, 15 * 60 * 1000);
-setTimeout(updateServerWeather, 3000);
-setInterval(updateNewsSentiment, 30 * 60 * 1000);
-setTimeout(updateNewsSentiment, 5000);
+if (process.env.NODE_ENV !== 'test') {
+  // Update weather every 15 minutes, news every 30 minutes
+  setInterval(updateServerWeather, 15 * 60 * 1000);
+  setTimeout(updateServerWeather, 3000);
+  setInterval(updateNewsSentiment, 30 * 60 * 1000);
+  setTimeout(updateNewsSentiment, 5000);
+}
 
 // Dynamic atmospheric photo selector engine (Fused Weather & Sentiment Alignment)
 function getSmartPhoto(direction = 'next') {
@@ -803,15 +805,17 @@ async function updateFeedsDaily() {
   }
 }
 
-// Trigger initial update shortly after launch (delayed 5s to avoid locking startup CPU)
-setTimeout(() => {
-  updateFeedsDaily().catch(err => console.error('Error in initial feed update:', err));
-}, 5000);
+if (process.env.NODE_ENV !== 'test') {
+  // Trigger initial update shortly after launch (delayed 5s to avoid locking startup CPU)
+  setTimeout(() => {
+    updateFeedsDaily().catch(err => console.error('Error in initial feed update:', err));
+  }, 5000);
 
-// Schedule daily updates checks (every 4 hours to verify 24h delta)
-setInterval(() => {
-  updateFeedsDaily().catch(err => console.error('Error in scheduled feed update:', err));
-}, 4 * 60 * 60 * 1000);
+  // Schedule daily updates checks (every 4 hours to verify 24h delta)
+  setInterval(() => {
+    updateFeedsDaily().catch(err => console.error('Error in scheduled feed update:', err));
+  }, 4 * 60 * 60 * 1000);
+}
 
 // Geolocation helper
 async function getIpLocation() {
@@ -1137,46 +1141,48 @@ function killKioskBrowser() {
   });
 }
 
-// Mutter DBus Idle polling every 2 seconds
-setInterval(() => {
-  const dbusCmd = 'DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus" busctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime';
-  exec(dbusCmd, (err, stdout) => {
-    if (err) {
-      // Fallback if not running GNOME core session
-      return;
-    }
-    
-    const match = stdout.trim().match(/t\s+(\d+)/);
-    if (match) {
-      const idleMs = parseInt(match[1], 10);
-      const isIdle = idleMs >= screensaverState.inactivityTimeout; // 10 minutes
+if (process.env.NODE_ENV !== 'test') {
+  // Mutter DBus Idle polling every 2 seconds
+  setInterval(() => {
+    const dbusCmd = 'DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus" busctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime';
+    exec(dbusCmd, (err, stdout) => {
+      if (err) {
+        // Fallback if not running GNOME core session
+        return;
+      }
       
-      // Check if a movie is playing by listing sink-inputs and checking for active sound playback
-      exec('pactl list sink-inputs', (pactlErr, pactlStdout) => {
-        let isMoviePlaying = false;
-        if (!pactlErr && pactlStdout) {
-          // An active audio stream will have 'Corked: no' or 'pulse.corked = "false"'
-          isMoviePlaying = pactlStdout.toLowerCase().includes('corked: no') || pactlStdout.toLowerCase().includes('pulse.corked = "false"');
-        }
-
-        // Screensaver activates if system is idle AND no movie is playing (unless manually forced)
-        const isActuallyIdle = isIdle && !isMoviePlaying;
-        const shouldBeActive = isActuallyIdle || manualOverride;
+      const match = stdout.trim().match(/t\s+(\d+)/);
+      if (match) {
+        const idleMs = parseInt(match[1], 10);
+        const isIdle = idleMs >= screensaverState.inactivityTimeout; // 10 minutes
         
-        if (shouldBeActive && !isBrowserRunning) {
-          launchKioskBrowser();
-        } else if (!shouldBeActive && isBrowserRunning) {
-          killKioskBrowser();
-        }
+        // Check if a movie is playing by listing sink-inputs and checking for active sound playback
+        exec('pactl list sink-inputs', (pactlErr, pactlStdout) => {
+          let isMoviePlaying = false;
+          if (!pactlErr && pactlStdout) {
+            // An active audio stream will have 'Corked: no' or 'pulse.corked = "false"'
+            isMoviePlaying = pactlStdout.toLowerCase().includes('corked: no') || pactlStdout.toLowerCase().includes('pulse.corked = "false"');
+          }
 
-        if (screensaverState.screensaverActive !== shouldBeActive) {
-          screensaverState.screensaverActive = shouldBeActive;
-          io.emit('state-sync', screensaverState);
-        }
-      });
-    }
-  });
-}, 2000);
+          // Screensaver activates if system is idle AND no movie is playing (unless manually forced)
+          const isActuallyIdle = isIdle && !isMoviePlaying;
+          const shouldBeActive = isActuallyIdle || manualOverride;
+          
+          if (shouldBeActive && !isBrowserRunning) {
+            launchKioskBrowser();
+          } else if (!shouldBeActive && isBrowserRunning) {
+            killKioskBrowser();
+          }
+
+          if (screensaverState.screensaverActive !== shouldBeActive) {
+            screensaverState.screensaverActive = shouldBeActive;
+            io.emit('state-sync', screensaverState);
+          }
+        });
+      }
+    });
+  }, 2000);
+}
 
 
 let PORT = process.env.PORT || 5000;
@@ -1199,8 +1205,20 @@ server.on('error', (err) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Lumina Core backend running at http://localhost:${PORT}`);
-  console.log(`Mobile Remote accessible at your local network IPs:`);
-  getLocalIpAddresses().forEach(ip => console.log(`  http://${ip}:${PORT}`));
-});
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Lumina Core backend running at http://localhost:${PORT}`);
+    console.log(`Mobile Remote accessible at your local network IPs:`);
+    getLocalIpAddresses().forEach(ip => console.log(`  http://${ip}:${PORT}`));
+  });
+}
+
+// Export internal functions for unit testing in test environments
+module.exports = {
+  tagPhotosWithKeywords,
+  getSmartPhoto,
+  screensaverState,
+  curatedCollections,
+  updateNewsSentiment,
+  updateServerWeather
+};

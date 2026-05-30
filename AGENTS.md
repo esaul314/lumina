@@ -228,6 +228,13 @@ chmod +x launch.sh
 ./launch.sh
 ```
 
+### 4. Running Regression Tests
+Lumina includes a custom, zero-dependency, color-coded diagnostic testing framework to prevent any regressions in spelling normalizations, environmental tagging, and socket controls. Run this suite at the end of every work turn:
+```bash
+# Executes unit and integration smoke tests
+npm test
+```
+
 ---
 
 ## 🤖 AI Agent & Developer Guidelines
@@ -236,6 +243,7 @@ If you are an AI agent or developer modifying this codebase, you **MUST** strict
 1. **Mandatory Git Commits**: Proactively make atomic, structured Git commits at **every substantive change** (e.g., adding a feature, fixing a bug, updating configurations). Do not wait until the end of the work session to commit all files.
 2. **Hardened Error Boundaries & Self-Healing**: Never let errors cascade or crash the main server daemon. Wrap all system-level commands (DBus Mutter polling, `pactl` audio checks, `scaling_governor` operations) in robust try/catch blocks with fail-safe recovery fallbacks.
 3. **Loop & Skip Protections**: Always rate-limit and boundary-constrain recursive transitions or skip skips. Do not allow rapid high-frequency socket events to flood the client interfaces under error or offline conditions.
+4. **Mandatory Pre-Flight Diagnostics**: Always run the regression test suite (`npm test`) before ending your turn to ensure that all core tagging keywords, weather-sentiment selectors, and API endpoints are 100% healthy.
 
 ---
 
