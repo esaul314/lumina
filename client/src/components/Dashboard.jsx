@@ -202,11 +202,12 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   // Receive sync events from socket for toggle widgets
   useEffect(() => {
-    socket.on('state-sync', (syncedState) => {
+    const handleSync = (syncedState) => {
       setIsScreensaverActive(syncedState.screensaverActive);
-    });
+    };
+    socket.on('state-sync', handleSync);
     return () => {
-      socket.off('state-sync');
+      socket.off('state-sync', handleSync);
     };
   }, [socket]);
 
