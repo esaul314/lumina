@@ -13,6 +13,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   const inactivityTimerRef = useRef(null);
   const particleCanvasRef = useRef(null);
   const mountTimeRef = useRef(Date.now());
+  const consecutiveFailuresRef = useRef(0);
   
   // Weather code to text & icon mapper
   const getWeatherInfo = (code) => {
@@ -106,6 +107,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     imgPreloader.src = state.activePhoto.url;
     
     imgPreloader.onload = () => {
+      consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
       setActiveSlides(prev => {
         const newSlide = {
           url: state.activePhoto.url,
@@ -122,9 +124,20 @@ function Dashboard({ state, socket, connectionInfo }) {
     };
 
     imgPreloader.onerror = () => {
-      console.warn('Failed to load wallpaper image, skipping to avoid black screen:', state.activePhoto.url);
-      // Automatically trigger next photo on the sync server
-      socket.emit('next-photo');
+      console.warn('Failed to load wallpaper image:', state.activePhoto.url);
+      
+      const maxFailures = state.photosList ? state.photosList.length : 5;
+      if (consecutiveFailuresRef.current >= maxFailures) {
+        console.error('All photos in current feed failed to load. Network might be down. Stopping infinite skip loop.');
+        return;
+      }
+
+      consecutiveFailuresRef.current += 1;
+      
+      // Delay skip by 1.5 seconds to prevent high-frequency loop / socket flooding
+      setTimeout(() => {
+        socket.emit('next-photo');
+      }, 1500);
     };
   }, [state.activePhoto]);
 
@@ -565,6 +578,46 @@ function Dashboard({ state, socket, connectionInfo }) {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Section 5: Environmental Smart Alignment */}
+            <div className="desktop-settings-section">
+              <span className="desktop-settings-section-title">Atmospheric Alignment</span>
+              <div className="desktop-settings-list">
+                <div
+                  onClick={() => socket.emit('toggle-align-time', !state.alignTimeOfDay)}
+                  className={`desktop-settings-item ${state.alignTimeOfDay ? 'active' : ''}`}
+                >
+                  <span>Align with Time of Day</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.alignTimeOfDay ? 'ON' : 'OFF'}</span>
+                </div>
+
+                {state.alignTimeOfDay && (
+                  <div style={{ padding: '10px 14px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '8px', margin: '4px 0', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.7, marginBottom: '6px' }}>
+                      <span>Night/Evening Photo ratio</span>
+                      <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{state.nightPercentage || 50}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={state.nightPercentage || 50}
+                      onChange={(e) => socket.emit('change-night-percentage', parseInt(e.target.value))}
+                      style={{ width: '100%', accentColor: 'var(--accent-color)', cursor: 'pointer', height: '4px', border: 'none', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}
+                    />
+                  </div>
+                )}
+
+                <div
+                  onClick={() => socket.emit('toggle-align-weather', !state.alignWeather)}
+                  className={`desktop-settings-item ${state.alignWeather ? 'active' : ''}`}
+                >
+                  <span>Align with Weather (Rain)</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.alignWeather ? 'ON' : 'OFF'}</span>
+                </div>
               </div>
             </div>
           </div>

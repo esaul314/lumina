@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Palette, Sliders, Smartphone, Image, RefreshCw, 
   ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,
-  Clock
+  Clock, CloudRain
 } from 'lucide-react';
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {
@@ -142,6 +142,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
               style={{
+                position: 'relative',
                 backgroundImage: state.activePhoto ? `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url(${state.activePhoto.url})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
@@ -150,14 +151,27 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                 textShadow: '0 2px 8px rgba(0,0,0,0.8)'
               }}
             >
-              <div className="swipe-icon" style={{ fontSize: '2.5rem', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))' }}>
+              <div className="swipe-icon" style={{ fontSize: '2.5rem', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))', marginTop: '-12px' }}>
                 {state.activePhoto ? '🖼️' : '✨'}
               </div>
-              <p style={{ textAlign: 'center', padding: '0 20px', lineHeight: 1.4, fontWeight: 500 }}>
+              <p style={{ textAlign: 'center', padding: '0 20px 18px 20px', lineHeight: 1.4, fontWeight: 500, margin: 0 }}>
                 {swipeStatus}
               </p>
               {state.activePhoto && (
-                <span style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '-4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ 
+                  position: 'absolute',
+                  bottom: '12px',
+                  left: '16px',
+                  right: '16px',
+                  fontSize: '0.72rem',
+                  opacity: 0.65,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  textAlign: 'center'
+                }}>
                   TV PREVIEW: {state.activePhoto.title}
                 </span>
               )}
@@ -381,6 +395,68 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     type="checkbox" 
                     checked={state.widgets.animations}
                     onChange={() => handleToggleWidget('animations', state.widgets.animations)}
+                  />
+                  <span className="switch-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="remote-card">
+            <span className="remote-section-title">Environmental Smart Alignment</span>
+            <div className="widget-toggle-list">
+              <div className="widget-toggle-item">
+                <div className="toggle-info">
+                  <Moon size={18} style={{ color: '#818cf8' }} />
+                  <div>
+                    <div className="toggle-label">Align with Time of Day</div>
+                    <div className="toggle-desc">Show dark/night pictures during evening & night</div>
+                  </div>
+                </div>
+                <label className="switch-wrapper">
+                  <input 
+                    type="checkbox" 
+                    checked={state.alignTimeOfDay}
+                    onChange={() => socket.emit('toggle-align-time', !state.alignTimeOfDay)}
+                  />
+                  <span className="switch-slider"></span>
+                </label>
+              </div>
+
+              {state.alignTimeOfDay && (
+                <div style={{ padding: '10px 14px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '12px', marginBottom: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '6px' }}>
+                    <span style={{ opacity: 0.6 }}>Evening/Night Photo Ratio</span>
+                    <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{state.nightPercentage || 50}%</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    step="5"
+                    value={state.nightPercentage || 50} 
+                    onChange={(e) => socket.emit('change-night-percentage', parseInt(e.target.value))}
+                    style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', outline: 'none', accentColor: 'var(--accent-color)', cursor: 'pointer' }}
+                  />
+                  <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '6px', textAlign: 'center' }}>
+                    Determines what % of images served at night will be dark/night-themed
+                  </div>
+                </div>
+              )}
+
+              <div className="widget-toggle-item">
+                <div className="toggle-info">
+                  <CloudRain size={18} style={{ color: '#60a5fa' }} />
+                  <div>
+                    <div className="toggle-label">Align with Weather (Rain)</div>
+                    <div className="toggle-desc">Give heavy preference to rain photos when raining</div>
+                  </div>
+                </div>
+                <label className="switch-wrapper">
+                  <input 
+                    type="checkbox" 
+                    checked={state.alignWeather}
+                    onChange={() => socket.emit('toggle-align-weather', !state.alignWeather)}
                   />
                   <span className="switch-slider"></span>
                 </label>

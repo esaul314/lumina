@@ -38,7 +38,10 @@ let screensaverState = {
   photosList: [],
   inactivityTimeout: 600000, // 10 minutes in milliseconds
   screensaverActive: false,  // True when screensaver mode is active
-  slideshowInterval: 120000  // Default to 2 minutes cycle duration (120,000ms)
+  slideshowInterval: 120000, // Default to 2 minutes cycle duration (120,000ms)
+  alignTimeOfDay: false,     // Align images with time of day (show dark/night photos at night)
+  alignWeather: false,       // Align images with weather (show rain photos when raining)
+  nightPercentage: 50        // Percentage of evening/night photos to show at night (0-100%)
 };
 
 // Curated high-definition stunning wallpapers (Scenic/Cosmic/Art/Liminal)
@@ -129,10 +132,59 @@ if (fs.existsSync(jsonPath)) {
   }
 }
 
+function tagPhotosWithKeywords(photos, defaultIsNight = false) {
+  return photos.map(photo => {
+    const titleLower = (photo.title || '').toLowerCase();
+    
+    // Check night keywords
+    const isNight = defaultIsNight || 
+                    titleLower.includes('night') || 
+                    titleLower.includes('dark') || 
+                    titleLower.includes('twilight') || 
+                    titleLower.includes('midnight') || 
+                    titleLower.includes('stars') || 
+                    titleLower.includes('moon') || 
+                    titleLower.includes('sunset') || 
+                    titleLower.includes('evening') || 
+                    titleLower.includes('3 am') || 
+                    titleLower.includes('eclipse') ||
+                    titleLower.includes('space') ||
+                    titleLower.includes('nebula') ||
+                    titleLower.includes('stardust');
+                    
+    // Check rain keywords
+    const isRain = titleLower.includes('rain') || 
+                   titleLower.includes('rainy') || 
+                   titleLower.includes('wet') || 
+                   titleLower.includes('storm') || 
+                   titleLower.includes('water') ||
+                   titleLower.includes('dewy') ||
+                   titleLower.includes('jungle') ||
+                   titleLower.includes('stream') ||
+                   titleLower.includes('lake') ||
+                   titleLower.includes('drizzle');
+                   
+    return {
+      url: photo.url,
+      title: photo.title,
+      author: photo.author,
+      source: photo.source || 'curated',
+      isNight: photo.isNight !== undefined ? photo.isNight : isNight,
+      isRain: photo.isRain !== undefined ? photo.isRain : isRain
+    };
+  });
+}
+
+// Auto-tag loaded feeds on startup
+for (const key of Object.keys(curatedCollections)) {
+  const isCosmic = key === 'Cosmic Space';
+  curatedCollections[key] = tagPhotosWithKeywords(curatedCollections[key], isCosmic);
+}
+
 screensaverState.photosList = [...curatedCollections['Scenic Nature']];
 screensaverState.activePhoto = curatedCollections['Scenic Nature'][0];
 
-// Search queries mapping for Unsplash keyless napi search
+// Search queries mapping for Unsplash keyless napi search (restored!)
 const searchQueries = {
   'Scenic Nature': 'scenic nature landscape mountains forest',
   'Cosmic Space': 'cosmic space nebula galaxy stars',
@@ -140,9 +192,198 @@ const searchQueries = {
   'Liminal Spaces': 'liminal spaces empty corridor backrooms'
 };
 
-// Background daily updater of high quality photographs
+// Subreddits list for categories (a new robust feed source!)
+const categorySubreddits = {
+  'Scenic Nature': ['EarthPorn', 'LandscapePhotography'],
+  'Cosmic Space': ['spaceporn', 'astrophotography'],
+  'Abstract Art': ['AbstractArt', 'Generative'],
+  'Liminal Spaces': ['LiminalSpace']
+};
+
+async function fetchRedditImages(subreddit, category, count = 25) {
+  try {
+    console.log(`Reddit Crawler: Fetching /r/${subreddit} for category "${category}"...`);
+    const res = await fetch(`https://www.reddit.com/r/${subreddit}/hot.json?limit=${count}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    });
+    
+    if (!res.ok) {
+      console.warn(`Reddit crawler failed for /r/${subreddit} (status ${res.status})`);
+      return [];
+    }
+
+    const data = await res.json();
+    if (!data || !data.data || !data.data.children) {
+      return [];
+    }
+
+    const photos = [];
+    for (const post of data.data.children) {
+      const pData = post.data;
+      if (pData.over_18 || pData.is_self) continue; // Skip NSFW and text posts
+
+      let imageUrl = '';
+      if (pData.url && (pData.url.endsWith('.jpg') || pData.url.endsWith('.jpeg') || pData.url.endsWith('.png'))) {
+        imageUrl = pData.url;
+      } else if (pData.preview && pData.preview.images && pData.preview.images[0]) {
+        imageUrl = pData.preview.images[0].source.url.replace(/&amp;/g, '&');
+      }
+
+      if (!imageUrl) continue;
+
+      const title = pData.title.length > 55 ? pData.title.substring(0, 52) + '...' : pData.title;
+      const author = `u/${pData.author}`;
+      const titleLower = pData.title.toLowerCase();
+
+      // Keyword tagging for weather/time alignment
+      const isNight = titleLower.includes('night') || titleLower.includes('dark') || 
+                      titleLower.includes('milky way') || titleLower.includes('midnight') || 
+                      titleLower.includes('stars') || titleLower.includes('moon') ||
+                      titleLower.includes('sunset') || titleLower.includes('dusk') ||
+                      category === 'Cosmic Space';
+
+      const isRain = titleLower.includes('rain') || titleLower.includes('rainy') || 
+                     titleLower.includes('wet') || titleLower.includes('storm') || 
+                     titleLower.includes('drizzle') || titleLower.includes('shower');
+
+      photos.push({
+        url: imageUrl,
+        title: title,
+        author: author,
+        source: 'reddit',
+        isNight: isNight,
+        isRain: isRain
+      });
+    }
+    
+    console.log(`Reddit Crawler: Successfully retrieved ${photos.length} photos from /r/${subreddit}.`);
+    return photos;
+  } catch (err) {
+    console.error(`Reddit crawler failed for /r/${subreddit}:`, err.message);
+    return [];
+  }
+}
+
+async function fetchPicsumImages(count = 30) {
+  try {
+    console.log(`Picsum Crawler: Fetching ${count} photos...`);
+    const res = await fetch(`https://picsum.photos/v2/list?limit=${count}`);
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const photos = data.map(item => {
+      const baseUrl = item.download_url.split('/id/')[0];
+      const photoId = item.id;
+      const url = `${baseUrl}/id/${photoId}/2560/1440`;
+      
+      return {
+        url: url,
+        title: `Picsum Scenic Frame #${photoId}`,
+        author: item.author,
+        source: 'picsum',
+        isNight: false,
+        isRain: false
+      };
+    });
+
+    console.log(`Picsum Crawler: Loaded ${photos.length} photos.`);
+    return photos;
+  } catch (err) {
+    console.error('Picsum crawler failed:', err.message);
+    return [];
+  }
+}
+
+// Background dynamic server weather cache to drive dynamic wallpaper weighting
+let serverWeatherData = null;
+
+async function updateServerWeather() {
+  try {
+    const loc = await getIpLocation();
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
+    const res = await fetch(weatherUrl);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && !data.error) {
+      serverWeatherData = {
+        location: loc,
+        current: data.current,
+        daily: data.daily
+      };
+      console.log('Server weather cache updated successfully.');
+    }
+  } catch (err) {
+    console.error('Failed to update server weather cache:', err.message);
+  }
+}
+
+// Update weather every 15 minutes
+setInterval(updateServerWeather, 15 * 60 * 1000);
+setTimeout(updateServerWeather, 3000);
+
+// Dynamic atmospheric photo selector engine
+function getSmartPhoto(direction = 'next') {
+  const list = screensaverState.photosList;
+  if (!list || list.length === 0) return null;
+
+  let isRaining = false;
+  let isNight = false;
+
+  if (serverWeatherData && serverWeatherData.current) {
+    const code = serverWeatherData.current.weather_code;
+    isRaining = [51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code) || serverWeatherData.current.precipitation > 0;
+    isNight = serverWeatherData.current.is_day === 0;
+  } else {
+    const hour = new Date().getHours();
+    isNight = hour >= 18 || hour < 6;
+  }
+
+  let candidates = [...list];
+
+  // 1. Weather alignment (heavy preference to rain photos when raining)
+  if (screensaverState.alignWeather && isRaining) {
+    const rainPhotos = list.filter(p => p.isRain);
+    if (rainPhotos.length > 0 && Math.random() < 0.75) {
+      candidates = rainPhotos;
+      console.log(`Smart Photo: Weather alignment active (Raining). Matching photos: ${rainPhotos.length}`);
+    }
+  }
+
+  // 2. Time of day alignment (shows evening/night photos at night based on slider percentage)
+  if (screensaverState.alignTimeOfDay && isNight) {
+    const nightPhotos = candidates.filter(p => p.isNight);
+    const nightThreshold = (screensaverState.nightPercentage || 50) / 100;
+    if (nightPhotos.length > 0 && Math.random() < nightThreshold) {
+      candidates = nightPhotos;
+      console.log(`Smart Photo: Time alignment active (Night, Ratio=${screensaverState.nightPercentage}%). Matching photos: ${nightPhotos.length}`);
+    }
+  }
+
+  if (candidates.length > 0) {
+    if (candidates.length < list.length) {
+      const randIdx = Math.floor(Math.random() * candidates.length);
+      return candidates[randIdx];
+    } else {
+      const currentIndex = list.findIndex(p => p.url === screensaverState.activePhoto.url);
+      const step = direction === 'next' ? 1 : -1;
+      const nextIndex = (currentIndex + step + list.length) % list.length;
+      return list[nextIndex];
+    }
+  }
+
+  const currentIndex = list.findIndex(p => p.url === screensaverState.activePhoto.url);
+  const step = direction === 'next' ? 1 : -1;
+  const nextIndex = (currentIndex + step + list.length) % list.length;
+  return list[nextIndex];
+}
+
+// Background daily updater of high quality multi-source photographs
 async function updateFeedsDaily() {
-  console.log('Checking for daily Unsplash curated feed updates...');
+  console.log('Checking for daily dynamic feed updates...');
   
   let lastUpdated = 0;
   let fileData = {};
@@ -161,85 +402,123 @@ async function updateFeedsDaily() {
     return;
   }
 
-  console.log('Initiating dynamic Unsplash feed updates for all categories...');
+  console.log('Initiating dynamic multi-source feed updates for all categories...');
   let updatedAny = false;
 
-  for (const [category, query] of Object.entries(searchQueries)) {
-    try {
-      console.log(`Fetching new images for category "${category}" using query "${query}"...`);
-      const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=15`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        console.warn(`Unsplash napi returned status ${res.status} for query "${query}"`);
-        continue;
-      }
-      const data = await res.json();
-      if (!data || !data.results || data.results.length === 0) {
-        console.warn(`No results returned for query "${query}"`);
-        continue;
-      }
+  // 1. Crawl Reddit Images
+  for (const [category, subreddits] of Object.entries(categorySubreddits)) {
+    let categoryList = curatedCollections[category] || [];
+    const initialLength = categoryList.length;
+    const existingUrls = new Set(categoryList.map(item => item.url));
 
-      let categoryList = curatedCollections[category] || [];
-      const initialLength = categoryList.length;
-
-      // Extract existing photo IDs to prevent duplicates
-      const existingIds = new Set(categoryList.map(item => {
-        const match = item.url.match(/photo-([a-zA-Z0-9-]+)/);
-        return match ? match[1] : null;
-      }).filter(Boolean));
-
-      for (const item of data.results) {
-        const photoId = item.id;
-        if (existingIds.has(photoId)) {
-          continue; // Skip duplicates
+    for (const sub of subreddits) {
+      const redditPhotos = await fetchRedditImages(sub, category, 25);
+      for (const p of redditPhotos) {
+        if (!existingUrls.has(p.url)) {
+          categoryList.push(p);
+          existingUrls.add(p.url);
         }
-
-        // Skip premium or Unsplash Plus photos to prevent loading errors / black screens
-        if (item.premium || item.plus) {
-          continue;
-        }
-
-        // Skip photos containing negative keywords to prevent description-image mismatches (e.g. portraits, people, pets in scenic/liminal feeds)
-        const negativeKeywords = ['person', 'man', 'woman', 'people', 'face', 'portrait', 'selfie', 'dog', 'cat', 'animal', 'pet', 'food', 'plate', 'kitchen', 'wedding', 'ufo', 'alien', 'text', 'logo', 'signage'];
-        const textToSearch = `${item.description || ''} ${item.alt_description || ''} ${item.slug || ''}`.toLowerCase();
-        const containsNegative = negativeKeywords.some(keyword => textToSearch.includes(keyword));
-        if (containsNegative) {
-          continue;
-        }
-
-        let rawTitle = item.description || item.alt_description || `${category} Ambient Frame`;
-        let cleanedTitle = rawTitle.trim().replace(/-/g, ' ');
-        if (cleanedTitle.length > 55) {
-          cleanedTitle = cleanedTitle.substring(0, 52) + '...';
-        }
-        cleanedTitle = cleanedTitle.charAt(0).toUpperCase() + cleanedTitle.slice(1);
-
-        const newPhoto = {
-          url: `https://images.unsplash.com/photo-${photoId}?q=80&w=2560&auto=format&fit=crop`,
-          title: cleanedTitle,
-          author: item.user.name || item.user.username || 'Unsplash Contributor'
-        };
-
-        categoryList.push(newPhoto);
-        existingIds.add(photoId);
       }
+    }
 
-      // Max number of images per feed should be around 1000
-      if (categoryList.length > 1000) {
-        const originalCuratedCount = Math.min(12, categoryList.length);
-        const originals = categoryList.slice(0, originalCuratedCount);
-        const dynamicAdded = categoryList.slice(originalCuratedCount);
-        const allowedDynamic = 1000 - originalCuratedCount;
-        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
+    curatedCollections[category] = categoryList;
+    if (categoryList.length > initialLength) {
+      console.log(`Reddit: Added ${categoryList.length - initialLength} new photos to "${category}"`);
+      updatedAny = true;
+    }
+  }
 
-      curatedCollections[category] = categoryList;
-      if (categoryList.length > initialLength) {
-        console.log(`Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
-        updatedAny = true;
+  // 2. Crawl Lorem Picsum
+  try {
+    const picsumPhotos = await fetchPicsumImages(20);
+    let scenicList = curatedCollections['Scenic Nature'] || [];
+    const initialScenicLength = scenicList.length;
+    const existingScenicUrls = new Set(scenicList.map(item => item.url));
+
+    for (const p of picsumPhotos) {
+      if (!existingScenicUrls.has(p.url)) {
+        scenicList.push(p);
+        existingScenicUrls.add(p.url);
       }
-    } catch (err) {
-      console.error(`Failed to update feed for category "${category}":`, err.message);
+    }
+    curatedCollections['Scenic Nature'] = scenicList;
+    if (scenicList.length > initialScenicLength) {
+      console.log(`Picsum: Added ${scenicList.length - initialScenicLength} photos to "Scenic Nature"`);
+      updatedAny = true;
+    }
+  } catch (err) {
+    console.error('Picsum daily crawl failed:', err.message);
+  }
+
+  // 3. Crawl Unsplash (using multiple queries to secure Day, Night, and Rain portfolios)
+  for (const [category, baseQuery] of Object.entries(searchQueries)) {
+    let categoryList = curatedCollections[category] || [];
+    const initialLength = categoryList.length;
+    const existingUrls = new Set(categoryList.map(item => item.url));
+
+    const queriesToCrawl = [
+      { q: baseQuery, isNight: category === 'Cosmic Space', isRain: false },
+      { q: `${baseQuery} night dark stars`, isNight: true, isRain: false },
+      { q: `${baseQuery} rain wet stormy`, isNight: false, isRain: true }
+    ];
+
+    for (const qSpec of queriesToCrawl) {
+      try {
+        console.log(`Unsplash Crawler: Fetching category "${category}" query "${qSpec.q}"...`);
+        const url = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(qSpec.q)}&per_page=12`;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+
+        const data = await res.json();
+        if (!data || !data.results) continue;
+
+        for (const item of data.results) {
+          if (item.premium || item.plus) continue;
+
+          const photoId = item.id;
+          const photoUrl = `https://images.unsplash.com/photo-${photoId}?q=80&w=2560&auto=format&fit=crop`;
+
+          if (existingUrls.has(photoUrl)) continue;
+
+          const negativeKeywords = ['person', 'man', 'woman', 'people', 'face', 'portrait', 'selfie', 'dog', 'cat', 'animal', 'pet', 'food', 'plate', 'kitchen', 'wedding', 'ufo', 'alien', 'text', 'logo', 'signage'];
+          const textToSearch = `${item.description || ''} ${item.alt_description || ''} ${item.slug || ''}`.toLowerCase();
+          const containsNegative = negativeKeywords.some(keyword => textToSearch.includes(keyword));
+          if (containsNegative) continue;
+
+          let rawTitle = item.description || item.alt_description || `${category} Ambient Frame`;
+          let cleanedTitle = rawTitle.trim().replace(/-/g, ' ');
+          if (cleanedTitle.length > 55) {
+            cleanedTitle = cleanedTitle.substring(0, 52) + '...';
+          }
+          cleanedTitle = cleanedTitle.charAt(0).toUpperCase() + cleanedTitle.slice(1);
+
+          categoryList.push({
+            url: photoUrl,
+            title: cleanedTitle,
+            author: item.user.name || item.user.username || 'Unsplash Contributor',
+            source: 'unsplash',
+            isNight: qSpec.isNight,
+            isRain: qSpec.isRain
+          });
+          existingUrls.add(photoUrl);
+        }
+      } catch (err) {
+        console.error(`Unsplash crawl failed for query "${qSpec.q}":`, err.message);
+      }
+    }
+
+    if (categoryList.length > 2000) {
+      const originalCuratedCount = Math.min(12, categoryList.length);
+      const originals = categoryList.slice(0, originalCuratedCount);
+      const dynamicAdded = categoryList.slice(originalCuratedCount);
+      const allowedDynamic = 2000 - originalCuratedCount;
+      categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
+    }
+
+    curatedCollections[category] = categoryList;
+    if (categoryList.length > initialLength) {
+      console.log(`Unsplash: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
+      updatedAny = true;
     }
   }
 
@@ -281,6 +560,9 @@ async function getIpLocation() {
 
 // Fetch live weather from free Open-Meteo API
 app.get('/api/weather', async (req, res) => {
+  if (serverWeatherData) {
+    return res.json(serverWeatherData);
+  }
   try {
     const loc = await getIpLocation();
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
@@ -288,11 +570,12 @@ app.get('/api/weather', async (req, res) => {
     const weatherRes = await fetch(weatherUrl);
     const weatherData = await weatherRes.json();
     
-    res.json({
+    serverWeatherData = {
       location: loc,
       current: weatherData.current,
       daily: weatherData.daily
-    });
+    };
+    res.json(serverWeatherData);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch weather data', message: error.message });
   }
@@ -307,8 +590,11 @@ app.get('/api/photos', async (req, res) => {
       screensaverState.currentCategory = category;
       screensaverState.photosList = curatedCollections[category];
       
-      // Immediately pick a random starting photo from the newly selected category
-      if (screensaverState.photosList.length > 0) {
+      // Immediately pick a smart starting photo from the newly selected category
+      const smartPhoto = getSmartPhoto('next');
+      if (smartPhoto) {
+        screensaverState.activePhoto = smartPhoto;
+      } else if (screensaverState.photosList.length > 0) {
         screensaverState.activePhoto = screensaverState.photosList[Math.floor(Math.random() * screensaverState.photosList.length)];
       }
       
@@ -372,11 +658,37 @@ io.on('connection', (socket) => {
       screensaverState.currentCategory = category;
       screensaverState.photosList = curatedCollections[category];
       
-      // Immediately pick a random photo from the newly selected category to display
-      if (screensaverState.photosList.length > 0) {
+      // Immediately pick a smart photo from the newly selected category to display
+      const smartPhoto = getSmartPhoto('next');
+      if (smartPhoto) {
+        screensaverState.activePhoto = smartPhoto;
+      } else if (screensaverState.photosList.length > 0) {
         screensaverState.activePhoto = screensaverState.photosList[Math.floor(Math.random() * screensaverState.photosList.length)];
       }
       
+      io.emit('state-sync', screensaverState);
+    }
+  });
+
+  // Toggle time of day alignment
+  socket.on('toggle-align-time', (enabled) => {
+    screensaverState.alignTimeOfDay = enabled;
+    console.log(`Align Time of Day changed to: ${enabled}`);
+    io.emit('state-sync', screensaverState);
+  });
+
+  // Toggle weather alignment
+  socket.on('toggle-align-weather', (enabled) => {
+    screensaverState.alignWeather = enabled;
+    console.log(`Align Weather changed to: ${enabled}`);
+    io.emit('state-sync', screensaverState);
+  });
+
+  // Change night photo percentage selection
+  socket.on('change-night-percentage', (percentage) => {
+    if (typeof percentage === 'number' && percentage >= 0 && percentage <= 100) {
+      screensaverState.nightPercentage = percentage;
+      console.log(`Night Photo Percentage changed to: ${percentage}%`);
       io.emit('state-sync', screensaverState);
     }
   });
@@ -397,22 +709,18 @@ io.on('connection', (socket) => {
   
   // Trigger Next Photo
   socket.on('next-photo', () => {
-    const list = screensaverState.photosList;
-    if (list && list.length > 0) {
-      const currentIndex = list.findIndex(p => p.url === screensaverState.activePhoto.url);
-      const nextIndex = (currentIndex + 1) % list.length;
-      screensaverState.activePhoto = list[nextIndex];
+    const photo = getSmartPhoto('next');
+    if (photo) {
+      screensaverState.activePhoto = photo;
       io.emit('photo-update', screensaverState.activePhoto);
     }
   });
 
   // Trigger Prev Photo
   socket.on('prev-photo', () => {
-    const list = screensaverState.photosList;
-    if (list && list.length > 0) {
-      const currentIndex = list.findIndex(p => p.url === screensaverState.activePhoto.url);
-      const prevIndex = (currentIndex - 1 + list.length) % list.length;
-      screensaverState.activePhoto = list[prevIndex];
+    const photo = getSmartPhoto('prev');
+    if (photo) {
+      screensaverState.activePhoto = photo;
       io.emit('photo-update', screensaverState.activePhoto);
     }
   });
