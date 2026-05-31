@@ -73,9 +73,9 @@ The server manages a centralized `screensaverState` object, which is broadcasted
 * `slideshowInterval`: Time in milliseconds between photo rotations (default `120000` / 2 minutes).
 
 ### 2. GNOME / Mutter System Screensaver Daemon
-Every 2 seconds, the server runs a DBus polling command:
+Every 2 seconds, the server runs a DBus polling command. To handle different developer names and machine setups, the system **dynamically queries runtime environment properties** (via Node's `os.userInfo()`) to retrieve the correct `uid` (default `1000`) and user `homedir` (default `/home/alex`), instead of using hardcoded paths:
 ```bash
-dbusctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime
+DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" busctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime
 ```
 If the system idle time exceeds `inactivityTimeout`, the screensaver is triggered, **unless** audio is actively playing:
 * **Audio Playback Guard**: The server runs `pactl list sink-inputs`. If an active stream has `corked: no` or `pulse.corked = "false"`, sound is playing (e.g., a movie or music). The screensaver **will not** trigger to avoid interrupting the user's entertainment.
@@ -86,18 +86,21 @@ If the system idle time exceeds `inactivityTimeout`, the screensaver is triggere
     `echo "schedutil" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`
 
 ### 3. Chromium Fullscreen Kiosk Launcher & Custom CLI Optimizations
-When screensaver activation is triggered, the server spawns Chromium in fullscreen kiosk mode pointing to `http://localhost:5000/?mode=tv`. To ensure it never hangs the PC and has a tiny RAM footprint, it uses highly optimized Chromium CLI flags:
+When screensaver activation is triggered, the server spawns Chromium in fullscreen kiosk mode pointing to `http://localhost:5000/?mode=tv`. To ensure it never hangs the PC and has a tiny RAM footprint, it uses highly optimized Chromium CLI flags. It dynamically resolves wayland displays and authorities using the active `uid` and `homedir` to achieve robust startup:
 * `--js-flags="--max-old-space-size=256"`: Strictly limits the V8 JS heap memory footprint to 256MB.
 * `--disable-dev-shm-usage`: Avoids exhausting shared memory partitions.
 * `--disk-cache-size=52428800 --media-cache-size=20971520`: Restricts disk and media cache to tiny allocations.
 * `--disable-gpu-shader-disk-cache`: Eliminates heavy disk write activities.
 * `--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --use-gl=egl`: Offloads all rendering and compositing straight onto the hardware GPU.
-* The launcher runs native Wayland first (`--ozone-platform=wayland --enable-features=UseOzonePlatform`), with fallback methods to X11/Xwayland.
+* The launcher runs native Wayland first using the discovered `uid` (`WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid}`), with a dynamic fallback method searching for Xwayland auth files (`.mutter-Xwaylandauth.*`) or using the user's `.Xauthority` file in their `homedir` for X11 fallback.
 
 ### 4. Multi-Source Daily Crawler & Keyword Auto-Tagging
 * **Wider Selection of Photo Sources**:
-  - Lumina maintains a keyless, multi-source wallpaper aggregator pulling from **Reddit subreddits** (`/r/EarthPorn`, `/r/spaceporn`, `/r/astrophotography`, `/r/AbstractArt`, `/r/Generative`, `/r/LiminalSpace`), **Lorem Picsum** random HD photography, and the **Unsplash search API** (NAPI).
+  - Lumina maintains a keyless, multi-source wallpaper aggregator pulling from **Reddit subreddits** (`/r/EarthPorn`, `/r/spaceporn`, `/r/astrophotography`, `/r/AbstractArt`, `/r/Generative`, `/r/LiminalSpace`), **Lorem Picsum** random HD photography, the **Bing Image of the Day API** (providing high-quality curated daily wallpapers), and the **Unsplash search API** (NAPI).
+  - **AI Creations Feed fallback**: If no paid `USEAPI_TOKEN` is set, the crawler falls back gracefully to a high-quality keyless dual pipeline fetching from **Lexica.art** (with queries like `midjourney landscape surreal dreamscape`) and **Wallhaven.cc** (using custom search query `cyberpunk landscape surreal` filtered for AI-generated landscapes).
   - Feeds are automatically limited to `2000` photos maximum per category and stored in `curated_collections.json` to enable offline resilience.
+* **Robust Unsplash CDN Parsing (Avoiding 404s)**:
+  - To prevent HTTP 404 broken links that occurred under legacy template patterns (e.g. `photo-${photoId}` templates), the Unsplash crawler pulls the direct raw CDN path (`item.urls.raw`) directly from the Unsplash API JSON payload.
 * **Automated Keyword Tagging**:
   - During crawler execution and startup initialization, all images are dynamically scanned for keyword tags to support environmental matching.
   - Keywords are matched to classify photos across five atmospheric states:
@@ -126,6 +129,18 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
   > The server geolocates weather coordinates. To ensure absolute correctness for the user, coordinates are hardcoded to Verdun, Montreal, Canada.
 * `GET /api/photos?category=...`: Returns current photos list for the category, and updates the active photo selection if needed.
 * `GET /api/config`: Exposes local IP addresses and ports to allow QR coupling of mobile screens.
+
+### 6. Safe Read-Merge-Write Persistence & Ratings Engine
+Lumina implements a highly robust database persistence and rating system located under `server/config/collections.js` to manage wallpapers without losing user preferences:
+* **Safe Read-Merge-Write Persistence (`saveCuratedCollections`)**:
+  - To prevent background daily crawls or crawler actions from wiping out existing metadata (like manually selected location settings, auto-location toggles, or keyword settings), the system performs a read-merge-write sequence before persisting to `curated_collections.json`.
+  - It parses the current JSON file, merges the new feeds, search keywords, and location configurations together, and then writes the result atomically back to disk.
+* **Instant Skip & Prune on Banned Photos (Rating 1)**:
+  - If a photo's rating is set to `"1"` (Banned or Broken):
+    - The photo is instantly pruned from `state.photosList` in memory.
+    - If the banned photo is currently active on the TV view (`state.activePhoto`), both the POST handler and the socket ratings handler trigger an **immediate, real-time transition** to the next available smart photo in the feed, pushing a socket `'photo-update'` event to keep the TV screen responsive.
+* **Test-Mode Database Write Protection**:
+  - To prevent unit testing workflows or automated tests from corrupting the production database, all fs writes are guarded by checking `process.env.NODE_ENV !== 'test'`.
 
 ---
 

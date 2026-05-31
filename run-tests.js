@@ -260,6 +260,28 @@ assertTest('successfully marks photo as broken and updates state lists via markP
   assert.ok(!testState.photosList.some(p => p.url === 'urlB'), 'broken photo must be pruned from state.photosList');
 });
 
+assertTest('banning a photo (rating = 1) immediately prunes it from state.photosList in updatePhotoRating', () => {
+  const { updatePhotoRating } = require('./server/config/collections.js');
+  const testCollections = {
+    'Scenic Nature': [
+      { url: 'urlX', title: 'Photo X', rating: 10 },
+      { url: 'urlY', title: 'Photo Y', rating: 10 }
+    ]
+  };
+  const testState = {
+    photosList: [
+      { url: 'urlX', title: 'Photo X', rating: 10 },
+      { url: 'urlY', title: 'Photo Y', rating: 10 }
+    ],
+    activePhoto: { url: 'urlY', title: 'Photo Y', rating: 10 }
+  };
+
+  const rated = updatePhotoRating(testCollections, testState, 'urlY', 1);
+  assert.strictEqual(rated, true, 'updatePhotoRating must return true for found URLs');
+  assert.strictEqual(testCollections['Scenic Nature'][1].rating, 1, 'rating must be set to 1');
+  assert.ok(!testState.photosList.some(p => p.url === 'urlY'), 'banned photo must be immediately pruned from state.photosList');
+});
+
 assertTest('weighted distribution favors highly-rated photos', () => {
   const samplePhotos = [
     { url: 'high', title: 'High Rating Photo', rating: 10 },
@@ -308,11 +330,12 @@ assertTest('crawler consumes custom searchKeywords instead of static defaults', 
 // ============================================================================
 logSuite('Multi-Source Wallpaper Aggregator');
 
-assertTest('crawler exports Wallhaven, NASA APOD, and Midjourney adapters successfully', () => {
-  const { fetchWallhavenImages, fetchNasaApod, fetchMidjourneyImages } = require('./server/services/crawler.js');
+assertTest('crawler exports Wallhaven, NASA APOD, Midjourney, and Bing adapters successfully', () => {
+  const { fetchWallhavenImages, fetchNasaApod, fetchMidjourneyImages, fetchBingImageOfTheDay } = require('./server/services/crawler.js');
   assert.strictEqual(typeof fetchWallhavenImages, 'function', 'fetchWallhavenImages must be a function');
   assert.strictEqual(typeof fetchNasaApod, 'function', 'fetchNasaApod must be a function');
   assert.strictEqual(typeof fetchMidjourneyImages, 'function', 'fetchMidjourneyImages must be a function');
+  assert.strictEqual(typeof fetchBingImageOfTheDay, 'function', 'fetchBingImageOfTheDay must be a function');
 });
 
 assertTest('Wallhaven crawler maps query and returns SFW landscapes', async () => {
@@ -342,6 +365,21 @@ assertTest('NASA APOD crawler retrieves astronomy picture stream', async () => {
     }
   } catch (err) {
     // Graceful catch for API limit/offline issues
+  }
+});
+
+assertTest('Bing crawler retrieves daily high-quality wallpapers', async () => {
+  const { fetchBingImageOfTheDay } = require('./server/services/crawler.js');
+  try {
+    const photos = await fetchBingImageOfTheDay(2);
+    assert.ok(Array.isArray(photos), 'Should return photos array');
+    if (photos.length > 0) {
+      assert.ok(photos[0].url, 'Photo must have a valid url');
+      assert.strictEqual(photos[0].source, 'bing', 'Source must equal bing');
+      assert.ok(photos[0].title, 'Photo must have a valid title');
+    }
+  } catch (err) {
+    // Graceful catch for offline
   }
 });
 

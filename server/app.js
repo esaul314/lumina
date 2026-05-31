@@ -9,7 +9,7 @@ const os = require('os');
 // Modular config and service imports
 const { sendEmailAlert } = require('./services/notifier.js');
 const { screensaverState } = require('./config/state.js');
-const { defaultCuratedCollections } = require('./config/collections.js');
+const { defaultCuratedCollections, saveCuratedCollections } = require('./config/collections.js');
 const {
   setCpuGovernor,
   getGnomeIdleTime,
@@ -67,11 +67,29 @@ if (fs.existsSync(jsonPath)) {
     for (const key of Object.keys(defaultCuratedCollections)) {
       if (!curatedCollections[key] || !Array.isArray(curatedCollections[key]) || curatedCollections[key].length === 0) {
         curatedCollections[key] = [...defaultCuratedCollections[key]];
+      } else {
+        // Self-healing: if ALL photos in a persisted feed are broken/banned,
+        // re-seed the category from defaults so the TV View isn't stuck on a black screen
+        const usablePhotos = curatedCollections[key].filter(p => p.rating !== 1 && !p.isBroken);
+        if (usablePhotos.length === 0) {
+          console.warn(`Self-Healing: All photos in "${key}" are broken or banned. Re-seeding from defaults.`);
+          curatedCollections[key] = [...defaultCuratedCollections[key]];
+        }
       }
     }
 
     if (data.searchKeywords) {
       screensaverState.searchKeywords = data.searchKeywords;
+    }
+
+    // Restore persisted location settings so they survive server restarts
+    if (data.locationSettings) {
+      if (data.locationSettings.autoLocation !== undefined) {
+        screensaverState.autoLocation = data.locationSettings.autoLocation;
+      }
+      if (data.locationSettings.manualLocation) {
+        screensaverState.manualLocation = data.locationSettings.manualLocation;
+      }
     }
     console.log('Successfully loaded persisted curated collections from file!');
   } catch (err) {
@@ -118,6 +136,7 @@ function tagPhotosWithKeywords(photos, defaultIsNight = false) {
     author: photo.author,
     source: photo.source || 'curated',
     rating: photo.rating !== undefined ? photo.rating : 10,
+    isBroken: photo.isBroken || false,
     isNight: photo.isNight !== undefined ? photo.isNight : (defaultIsNight || isNightPhoto(photo)),
     isRain: photo.isRain !== undefined ? photo.isRain : isRainPhoto(photo),
     isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunnyPhoto(photo),
@@ -353,16 +372,7 @@ async function updateFeedsDaily() {
       curatedCollections[key] = updatedCollections[key];
     }
 
-    try {
-      fs.writeFileSync(jsonPath, JSON.stringify({ 
-        lastUpdated: now, 
-        feeds: curatedCollections, 
-        searchKeywords: screensaverState.searchKeywords 
-      }, null, 2), 'utf8');
-      console.log('Successfully saved updated feeds to curated_collections.json');
-    } catch (err) {
-      console.error('Failed to write curated_collections.json:', err.message);
-    }
+    saveCuratedCollections(curatedCollections, screensaverState);
 
     const activeCategory = screensaverState.currentCategory;
     const currentCats = activeCategory ? activeCategory.split(',') : [];
