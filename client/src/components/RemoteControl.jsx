@@ -12,6 +12,14 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [googleClientId, setGoogleClientId] = useState('');
   const [googleClientSecret, setGoogleClientSecret] = useState('');
   const [isSavedEnv, setIsSavedEnv] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+
+  // Bounds check galleryIndex if the photos list changes
+  useEffect(() => {
+    if (state.photosList && galleryIndex >= state.photosList.length) {
+      setGalleryIndex(0);
+    }
+  }, [state.photosList, galleryIndex]);
 
   // Swipe gesture handlers
   const handleTouchStart = (e) => {
@@ -318,6 +326,133 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                 );
               })}
             </div>
+          </div>
+
+          <div className="remote-card">
+            <span className="remote-section-title">Independent Rating Deck</span>
+            {state.photosList && state.photosList.length > 0 ? (
+              (() => {
+                const photo = state.photosList[galleryIndex];
+                if (!photo) return null;
+                const photoRating = photo.rating !== undefined ? photo.rating : 10;
+                
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* Thumbnail Preview */}
+                    <div 
+                      style={{
+                        height: '160px',
+                        borderRadius: '12px',
+                        backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url(${photo.url})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-end',
+                        padding: '12px',
+                        border: '1px solid rgba(255,255,255,0.18)'
+                      }}
+                    >
+                      <span style={{ 
+                        fontSize: '0.9rem', 
+                        fontWeight: 600, 
+                        color: '#fff',
+                        textShadow: '0 2px 4px rgba(0,0,0,0.8)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {photo.title}
+                      </span>
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        opacity: 0.8, 
+                        color: '#fff',
+                        textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                      }}>
+                        by {photo.author}
+                      </span>
+                    </div>
+
+                    {/* Navigation Row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                      <button 
+                        className="remote-btn" 
+                        onClick={() => setGalleryIndex((prev) => (prev - 1 + state.photosList.length) % state.photosList.length)}
+                        style={{ flex: 1, padding: '8px 0', fontSize: '0.85rem' }}
+                      >
+                        <ChevronLeft size={16} /> Previous
+                      </button>
+                      <button 
+                        className="remote-btn" 
+                        onClick={() => socket.emit('set-active-photo', photo)}
+                        style={{ flex: 1.2, padding: '8px 0', fontSize: '0.85rem', borderColor: 'var(--accent-color)', background: 'rgba(255,255,255,0.03)' }}
+                      >
+                        📺 Cast to TV
+                      </button>
+                      <button 
+                        className="remote-btn" 
+                        onClick={() => setGalleryIndex((prev) => (prev + 1) % state.photosList.length)}
+                        style={{ flex: 1, padding: '8px 0', fontSize: '0.85rem' }}
+                      >
+                        Next <ChevronRight size={16} />
+                      </button>
+                    </div>
+
+                    {/* Rating buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600 }}>
+                        <span style={{ opacity: 0.6 }}>Set Weight (Rating)</span>
+                        <span style={{ color: 'var(--accent-color)' }}>
+                          {photoRating === 1 ? '🛑 1 (Banned)' :
+                           photoRating === 10 ? '🌟 10 (Default / Max)' :
+                           `📈 ${photoRating} (Weight: ${photoRating / 10})`}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+                          const isCurrent = photoRating === num;
+                          return (
+                            <button
+                              key={num}
+                              onClick={() => socket.emit('rate-photo', { url: photo.url, rating: num })}
+                              className="remote-btn"
+                              style={{
+                                flex: 1,
+                                height: '28px',
+                                padding: 0,
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.03)',
+                                borderColor: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.08)',
+                                color: isCurrent ? '#fff' : 'rgba(255,255,255,0.7)',
+                                cursor: 'pointer',
+                                boxShadow: isCurrent ? '0 0 8px var(--accent-color)' : 'none'
+                              }}
+                            >
+                              {num}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '0.72rem', opacity: 0.4, textAlign: 'center' }}>
+                      Card {galleryIndex + 1} of {state.photosList.length} in active pool
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div style={{ opacity: 0.5, textAlign: 'center', padding: '20px' }}>
+                No photos in active pool to display.
+              </div>
+            )}
           </div>
 
           <div className="remote-card" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>
