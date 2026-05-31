@@ -28,7 +28,7 @@ const screensaverState = {
     'Liminal Spaces': ['liminal spaces empty corridor backrooms'],
     'AI Creations': ['surreal digital art generative midjourney cyberpunk futuristic']
   },
-  autoLocation: true,
+  autoLocation: false,
   manualLocation: {
     lat: 45.45,
     lon: -73.56,

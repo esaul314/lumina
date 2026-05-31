@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 /**
  * 🖼️ defaultCuratedCollections
  * Static seed database of high-definition wallpapers.
@@ -63,8 +66,50 @@ const defaultCuratedCollections = {
   ]
 };
 
-const fs = require('fs');
-const path = require('path');
+/**
+ * 💾 saveCuratedCollections
+ * Safely saves the collections, search keywords, and location settings to disk,
+ * preserving any other properties in curated_collections.json.
+ */
+function saveCuratedCollections(collections, state) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const rootDir = path.join(__dirname, '..', '..');
+    const jsonPath = path.join(rootDir, 'curated_collections.json');
+    
+    let fileData = {};
+    if (fs.existsSync(jsonPath)) {
+      try {
+        fileData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      } catch (e) {
+        // ignore
+      }
+    }
+    
+    fileData.lastUpdated = Date.now();
+    if (collections) {
+      fileData.feeds = collections;
+    }
+    if (state) {
+      if (state.searchKeywords) {
+        fileData.searchKeywords = state.searchKeywords;
+      }
+      if (state.autoLocation !== undefined) {
+        if (!fileData.locationSettings) fileData.locationSettings = {};
+        fileData.locationSettings.autoLocation = state.autoLocation;
+      }
+      if (state.manualLocation) {
+        if (!fileData.locationSettings) fileData.locationSettings = {};
+        fileData.locationSettings.manualLocation = state.manualLocation;
+      }
+    }
+    
+    fs.writeFileSync(jsonPath, JSON.stringify(fileData, null, 2), 'utf8');
+    console.log('[Collections Config] Safely persisted curated_collections.json to disk.');
+  } catch (err) {
+    console.error('[Collections Config] Failed to write curated_collections.json:', err.message);
+  }
+}
 
 /**
  * 💾 updatePhotoRating
@@ -93,6 +138,9 @@ function updatePhotoRating(collections, state, url, rating) {
         photo.rating = rating;
       }
     }
+    if (rating === 1) {
+      state.photosList = state.photosList.filter(p => p.url !== url);
+    }
   }
 
   // 3. Update in state.activePhoto
@@ -102,17 +150,9 @@ function updatePhotoRating(collections, state, url, rating) {
 
   // 4. Save to curated_collections.json
   if (found) {
-    try {
-      const rootDir = path.join(__dirname, '..', '..');
-      const jsonPath = path.join(rootDir, 'curated_collections.json');
-      fs.writeFileSync(jsonPath, JSON.stringify({ 
-        lastUpdated: Date.now(), 
-        feeds: collections,
-        searchKeywords: state?.searchKeywords
-      }, null, 2), 'utf8');
+    saveCuratedCollections(collections, state);
+    if (process.env.NODE_ENV !== 'test') {
       console.log(`[Collections Config] Saved photo rating ${rating} to curated_collections.json for URL: ${url}`);
-    } catch (writeErr) {
-      console.error('[Collections Config] Failed to write curated_collections.json:', writeErr.message);
     }
   }
 
@@ -160,22 +200,14 @@ function markPhotoBroken(collections, state, url) {
 
   // 4. Save to curated_collections.json
   if (found) {
-    try {
-      const rootDir = path.join(__dirname, '..', '..');
-      const jsonPath = path.join(rootDir, 'curated_collections.json');
-      fs.writeFileSync(jsonPath, JSON.stringify({ 
-        lastUpdated: Date.now(), 
-        feeds: collections,
-        searchKeywords: state?.searchKeywords
-      }, null, 2), 'utf8');
+    saveCuratedCollections(collections, state);
+    if (process.env.NODE_ENV !== 'test') {
       console.log(`[Collections Config] Marked photo as broken (rating=1, isBroken=true) for URL: ${url}`);
-    } catch (writeErr) {
-      console.error('[Collections Config] Failed to write curated_collections.json:', writeErr.message);
     }
   }
 
   return found;
 }
 
-module.exports = { defaultCuratedCollections, updatePhotoRating, markPhotoBroken };
+module.exports = { defaultCuratedCollections, updatePhotoRating, markPhotoBroken, saveCuratedCollections };
 

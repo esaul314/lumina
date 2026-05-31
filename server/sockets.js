@@ -1,6 +1,18 @@
 const { sendEmailAlert } = require('./services/notifier.js');
 const googlePhotos = require('./services/googlePhotos.js');
+const fs = require('fs');
+const path = require('path');
+const { saveCuratedCollections } = require('./config/collections.js');
 
+/**
+ * 💾 persistLocationSettings
+ * Saves autoLocation and manualLocation into curated_collections.json
+ * so they survive server restarts.
+ */
+function persistLocationSettings(state, collections) {
+  saveCuratedCollections(collections, state);
+  console.log('[Config] Persisted location settings to curated_collections.json');
+}
 /**
  * 🛰️ configureSockets
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
@@ -118,6 +130,13 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       const { updatePhotoRating } = require('./config/collections.js');
       const updated = updatePhotoRating(collections, state, url, numericRating);
       if (updated) {
+        if (numericRating === 1 && state.activePhoto && state.activePhoto.url === url) {
+          const nextPhoto = getSmartPhoto('next');
+          if (nextPhoto) {
+            state.activePhoto = nextPhoto;
+            io.emit('photo-update', state.activePhoto);
+          }
+        }
         io.emit('state-sync', state);
       }
     });
@@ -131,21 +150,9 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       // Update in state
       state.searchKeywords[category] = keywords.map(kw => kw.trim());
 
-      // Save to curated_collections.json
-      try {
-        const fs = require('fs');
-        const path = require('path');
-        const rootDir = path.join(__dirname, '..');
-        const jsonPath = path.join(rootDir, 'curated_collections.json');
-        fs.writeFileSync(jsonPath, JSON.stringify({ 
-          lastUpdated: Date.now(), 
-          feeds: collections, 
-          searchKeywords: state.searchKeywords 
-        }, null, 2), 'utf8');
-        console.log(`[Config Socket] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
-      } catch (writeErr) {
-        console.error('[Config Socket] Failed to write curated_collections.json:', writeErr.message);
-      }
+      // Save to curated_collections.json using unified persistence helper
+      saveCuratedCollections(collections, state);
+      console.log(`[Config Socket] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
 
       io.emit('state-sync', state);
     });
@@ -207,6 +214,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('toggle-auto-location', async (autoLocation) => {
       console.log(`[SOCKET EVENT] toggle-auto-location: ${autoLocation}`);
       state.autoLocation = !!autoLocation;
+      persistLocationSettings(state, collections);
       io.emit('state-sync', state);
       if (triggerWeatherUpdate) {
         await triggerWeatherUpdate();
@@ -223,6 +231,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         regionName: String(regionName || 'Quebec').trim(),
         country: String(country || 'Canada').trim()
       };
+      persistLocationSettings(state, collections);
       io.emit('state-sync', state);
       if (triggerWeatherUpdate) {
         await triggerWeatherUpdate();
@@ -253,10 +262,6 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       console.log('[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...');
       try {
         const { crawlAllCollections } = require('./services/crawler.js');
-        const fs = require('fs');
-        const path = require('path');
-        const rootDir = path.join(__dirname, '..');
-        const jsonPath = path.join(rootDir, 'curated_collections.json');
 
         const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.searchKeywords);
         
@@ -265,11 +270,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
             collections[key] = updatedCollections[key];
           }
 
-          fs.writeFileSync(jsonPath, JSON.stringify({ 
-            lastUpdated: Date.now(), 
-            feeds: collections, 
-            searchKeywords: state.searchKeywords 
-          }, null, 2), 'utf8');
+          saveCuratedCollections(collections, state);
           console.log('[SOCKET EVENT] Successfully saved manual crawl results to curated_collections.json');
         }
 

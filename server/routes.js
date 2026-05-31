@@ -146,6 +146,13 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     const updated = updatePhotoRating(collections, state, url, numericRating);
 
     if (updated) {
+      if (numericRating === 1 && state.activePhoto && state.activePhoto.url === url) {
+        const nextPhoto = getSmartPhoto('next');
+        if (nextPhoto) {
+          state.activePhoto = nextPhoto;
+          io.emit('photo-update', state.activePhoto);
+        }
+      }
       io.emit('state-sync', state);
       return res.json({ success: true, url, rating: numericRating });
     } else {
@@ -172,19 +179,10 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     // Update in state
     state.searchKeywords[category] = keywords.map(kw => kw.trim());
 
-    // Save to curated_collections.json
-    try {
-      const rootDir = path.join(__dirname, '..');
-      const jsonPath = path.join(rootDir, 'curated_collections.json');
-      fs.writeFileSync(jsonPath, JSON.stringify({ 
-        lastUpdated: Date.now(), 
-        feeds: collections, 
-        searchKeywords: state.searchKeywords 
-      }, null, 2), 'utf8');
-      console.log(`[Config API] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
-    } catch (writeErr) {
-      console.error('[Config API] Failed to write curated_collections.json:', writeErr.message);
-    }
+    // Save to curated_collections.json using unified persistence helper
+    const { saveCuratedCollections } = require('./config/collections.js');
+    saveCuratedCollections(collections, state);
+    console.log(`[Config API] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
 
     io.emit('state-sync', state);
     return res.json({ success: true, category, keywords: state.searchKeywords[category] });
