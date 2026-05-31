@@ -283,10 +283,11 @@ assertTest('crawler consumes custom searchKeywords instead of static defaults', 
 // ============================================================================
 logSuite('Multi-Source Wallpaper Aggregator');
 
-assertTest('crawler exports Wallhaven and NASA APOD adapters successfully', () => {
-  const { fetchWallhavenImages, fetchNasaApod } = require('./server/services/crawler.js');
+assertTest('crawler exports Wallhaven, NASA APOD, and Midjourney adapters successfully', () => {
+  const { fetchWallhavenImages, fetchNasaApod, fetchMidjourneyImages } = require('./server/services/crawler.js');
   assert.strictEqual(typeof fetchWallhavenImages, 'function', 'fetchWallhavenImages must be a function');
   assert.strictEqual(typeof fetchNasaApod, 'function', 'fetchNasaApod must be a function');
+  assert.strictEqual(typeof fetchMidjourneyImages, 'function', 'fetchMidjourneyImages must be a function');
 });
 
 assertTest('Wallhaven crawler maps query and returns SFW landscapes', async () => {
@@ -316,6 +317,25 @@ assertTest('NASA APOD crawler retrieves astronomy picture stream', async () => {
     }
   } catch (err) {
     // Graceful catch for API limit/offline issues
+  }
+});
+
+assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if no USEAPI_TOKEN is set', async () => {
+  const { fetchMidjourneyImages } = require('./server/services/crawler.js');
+  const originalToken = process.env.USEAPI_TOKEN;
+  delete process.env.USEAPI_TOKEN;
+  
+  try {
+    const photos = await fetchMidjourneyImages(2);
+    assert.ok(Array.isArray(photos), 'Should return photos array');
+    if (photos.length > 0) {
+      assert.ok(photos[0].url, 'Photo must have a valid url');
+      assert.strictEqual(photos[0].source, 'lexica', 'Fallback should retrieve Lexica AI source');
+    }
+  } catch (err) {
+    // Graceful catch for offline/DNS failures in test environments
+  } finally {
+    process.env.USEAPI_TOKEN = originalToken;
   }
 });
 

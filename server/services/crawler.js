@@ -323,9 +323,98 @@ async function fetchNasaApod(count = 10) {
 }
 
 /**
- * 🏔️ crawlAllCollections
+ * 🎨 fetchMidjourneyImages
+ * Fetches Midjourney generative images via UseAPI.net.
+ * Supports token authorization, filters out portraits, extracts prompts, and handles self-healing fallback.
+ */
+async function fetchMidjourneyImages(count = 15) {
+  const token = process.env.USEAPI_TOKEN;
+  
+  if (!token) {
+    console.log('UseAPI.net: No USEAPI_TOKEN configured. Using self-healing fallback collections...');
+    // Fallback: fetch high quality AI Creations from Lexica to populate this feed
+    return await fetchLexicaImages('midjourney cyberpunk dreamscape surreal landscape', count);
+  }
 
- * Modular orchestrator that runs all crawls (Reddit, Picsum, Unsplash, Lexica),
+  try {
+    console.log('UseAPI.net: Fetching Midjourney jobs...');
+    const apiUrl = 'https://api.useapi.net/v2/jobs';
+    const res = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!res.ok) {
+      console.warn(`UseAPI.net: Failed to fetch jobs, status=${res.status}`);
+      return [];
+    }
+
+    const jobs = await res.json();
+    if (!jobs || !Array.isArray(jobs)) {
+      console.warn('UseAPI.net: Expected an array of jobs, got:', jobs);
+      return [];
+    }
+
+    const photos = [];
+    for (const job of jobs) {
+      if (photos.length >= count) break;
+      
+      let imageUrl = job.url;
+      if (!imageUrl && job.attachments && job.attachments[0]) {
+        imageUrl = job.attachments[0].url;
+      }
+      
+      if (!imageUrl) continue;
+
+      let title = job.prompt || job.content || 'AI Creations Frame';
+      title = title.replace(/--ar\s+\d+:\d+/g, '').replace(/--v\s+\d+/g, '').replace(/[\r\n\t]+/g, ' ').trim();
+      if (title.length > 55) {
+        title = title.substring(0, 52) + '...';
+      }
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+
+      let isLandscape = true;
+      let width = job.width;
+      let height = job.height;
+      if (!width && job.attachments && job.attachments[0]) {
+        width = job.attachments[0].width;
+        height = job.attachments[0].height;
+      }
+
+      if (width && height && width < height) {
+        isLandscape = false;
+      }
+
+      if (!isLandscape) continue;
+
+      const author = job.user || job.username || 'Midjourney AI';
+
+      photos.push({
+        url: imageUrl,
+        title: title,
+        author: author,
+        source: 'midjourney_useapi',
+        isNight: title.toLowerCase().includes('night') || title.toLowerCase().includes('dark') || title.toLowerCase().includes('cyberpunk'),
+        isRain: title.toLowerCase().includes('rain') || title.toLowerCase().includes('wet') || title.toLowerCase().includes('storm'),
+        isSunny: !title.toLowerCase().includes('night') && !title.toLowerCase().includes('rain'),
+        isCloudy: true,
+        isSnowy: false
+      });
+    }
+
+    console.log(`UseAPI.net: Successfully loaded ${photos.length} Midjourney photos.`);
+    return photos;
+  } catch (err) {
+    console.error('UseAPI.net: Failed to fetch Midjourney images:', err.message);
+    return [];
+  }
+}
+
+/**
+ * 🏔️ crawlAllCollections
+ * Modular orchestrator that runs all crawls (Reddit, Picsum, Unsplash, Lexica, Midjourney),
  * filters out portraits, filters negative words, tags keywords, and limits to 2000 per category.
  */
 async function crawlAllCollections(currentCollections, searchKeywords = null) {
@@ -525,6 +614,37 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
     console.error('NASA APOD daily crawl failed:', err.message);
   }
 
+  // 3.7. Crawl Midjourney (UseAPI.net)
+  try {
+    let aiList = [...(updatedCollections['AI Creations'] || [])];
+    const initialAiLength = aiList.length;
+    const existingAiUrls = new Set(aiList.map(item => item.url));
+
+    const mjPhotos = await fetchMidjourneyImages(15);
+    for (const p of mjPhotos) {
+      if (!existingAiUrls.has(p.url)) {
+        aiList.push(p);
+        existingAiUrls.add(p.url);
+      }
+    }
+
+    if (aiList.length > 2000) {
+      const originalCuratedCount = Math.min(12, aiList.length);
+      const originals = aiList.slice(0, originalCuratedCount);
+      const dynamicAdded = aiList.slice(originalCuratedCount);
+      const allowedDynamic = 2000 - originalCuratedCount;
+      aiList = originals.concat(dynamicAdded.slice(-allowedDynamic));
+    }
+
+    updatedCollections['AI Creations'] = aiList;
+    if (aiList.length > initialAiLength) {
+      console.log(`Midjourney AI: Added ${aiList.length - initialAiLength} photos to "AI Creations" (Total: ${aiList.length})`);
+      updatedAny = true;
+    }
+  } catch (err) {
+    console.error('Midjourney daily crawl failed:', err.message);
+  }
+
   // 4. Crawl Lexica Art
   try {
     let aiList = [...(updatedCollections['AI Creations'] || [])];
@@ -574,5 +694,6 @@ module.exports = {
   fetchLexicaImages,
   fetchWallhavenImages,
   fetchNasaApod,
+  fetchMidjourneyImages,
   crawlAllCollections
 };
