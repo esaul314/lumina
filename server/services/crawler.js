@@ -216,7 +216,7 @@ async function fetchLexicaImages(query, count = 25) {
  * Modular orchestrator that runs all crawls (Reddit, Picsum, Unsplash, Lexica),
  * filters out portraits, filters negative words, tags keywords, and limits to 2000 per category.
  */
-async function crawlAllCollections(currentCollections) {
+async function crawlAllCollections(currentCollections, searchKeywords = null) {
   console.log('Initiating dynamic multi-source feed updates for all categories...');
   const updatedCollections = { ...currentCollections };
   let updatedAny = false;
@@ -272,10 +272,13 @@ async function crawlAllCollections(currentCollections) {
     const initialLength = categoryList.length;
     const existingUrls = new Set(categoryList.map(item => item.url));
 
+    const customQueries = (searchKeywords && searchKeywords[category]) || [baseQuery];
+    const chosenQuery = customQueries[Math.floor(Math.random() * customQueries.length)];
+
     const queriesToCrawl = [
-      { q: baseQuery, isNight: category === 'Cosmic Space', isRain: false },
-      { q: `${baseQuery} night dark stars`, isNight: true, isRain: false },
-      { q: `${baseQuery} rain wet stormy`, isNight: false, isRain: true }
+      { q: chosenQuery, isNight: category === 'Cosmic Space', isRain: false },
+      { q: `${chosenQuery} night dark stars`, isNight: true, isRain: false },
+      { q: `${chosenQuery} rain wet stormy`, isNight: false, isRain: true }
     ];
 
     for (const qSpec of queriesToCrawl) {

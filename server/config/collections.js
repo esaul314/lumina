@@ -105,7 +105,11 @@ function updatePhotoRating(collections, state, url, rating) {
     try {
       const rootDir = path.join(__dirname, '..', '..');
       const jsonPath = path.join(rootDir, 'curated_collections.json');
-      fs.writeFileSync(jsonPath, JSON.stringify({ lastUpdated: Date.now(), feeds: collections }, null, 2), 'utf8');
+      fs.writeFileSync(jsonPath, JSON.stringify({ 
+        lastUpdated: Date.now(), 
+        feeds: collections,
+        searchKeywords: state?.searchKeywords
+      }, null, 2), 'utf8');
       console.log(`[Collections Config] Saved photo rating ${rating} to curated_collections.json for URL: ${url}`);
     } catch (writeErr) {
       console.error('[Collections Config] Failed to write curated_collections.json:', writeErr.message);

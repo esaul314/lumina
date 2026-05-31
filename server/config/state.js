@@ -21,6 +21,13 @@ const screensaverState = {
   alignTimeOfDay: false,     // evening/night image alignment
   alignWeather: false,       // rainy image alignment
   nightPercentage: 50,
+  searchKeywords: {
+    'Scenic Nature': ['scenic nature landscape mountains forest'],
+    'Cosmic Space': ['cosmic space nebula galaxy stars'],
+    'Abstract Art': ['abstract art painting minimalist geometric'],
+    'Liminal Spaces': ['liminal spaces empty corridor backrooms'],
+    'AI Creations': ['surreal digital art generative midjourney cyberpunk futuristic']
+  },
   newsSentiment: {
     score: 0,
     label: 'Overcast / Calm',
