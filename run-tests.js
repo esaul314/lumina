@@ -15,7 +15,9 @@ const {
   tagPhotosWithKeywords, 
   getSmartPhoto, 
   screensaverState 
-} = require('./server.js');
+} = require('./server/app.js');
+const { analyzeSentiment } = require('./server/services/sentiment.js');
+const { classifyWeatherCode } = require('./server/services/weather.js');
 
 // Formatting constants for clean terminal reports
 const COLORS = {
@@ -138,7 +140,36 @@ assertTest('picks atmospheric photos when weather alignment is enabled', () => {
 });
 
 // ============================================================================
-// 3. INTEGRATION TEST SUITE: Live Endpoint Verification
+// 3. UNIT TEST SUITE: Modular Service Isolated Engines
+// ============================================================================
+logSuite('Modular Service Isolated Engines');
+
+assertTest('correctly calculates news sentiment scores and tags weather alignment', () => {
+  const positiveRss = '<rss><channel><item><title>Peace Agreement Signed after Growth and Win</title></item></channel></rss>';
+  const negativeRss = '<rss><channel><item><title>Crisis and Conflict threat drop of shares</title></item></channel></rss>';
+  
+  const posSentiment = analyzeSentiment(positiveRss);
+  const negSentiment = analyzeSentiment(negativeRss);
+  
+  assert.strictEqual(posSentiment.weatherMatch, 'Sunny', 'Positive headlines must match Sunny weather');
+  assert.ok(posSentiment.score > 0, 'Positive headlines must have score > 0');
+  
+  assert.strictEqual(negSentiment.weatherMatch, 'Rainy', 'Negative headlines must match Rainy weather');
+  assert.ok(negSentiment.score < 0, 'Negative headlines must have score < 0');
+});
+
+assertTest('correctly classifies meteorological WMO weather codes', () => {
+  const sunnyClassification = classifyWeatherCode(0);
+  const rainyClassification = classifyWeatherCode(61);
+  const snowyClassification = classifyWeatherCode(73);
+  
+  assert.strictEqual(sunnyClassification.physicalMatch, 'Sunny', 'WMO code 0 must classify as Sunny');
+  assert.strictEqual(rainyClassification.physicalMatch, 'Rainy', 'WMO code 61 must classify as Rainy');
+  assert.strictEqual(snowyClassification.physicalMatch, 'Snowy', 'WMO code 73 must classify as Snowy');
+});
+
+// ============================================================================
+// 4. INTEGRATION TEST SUITE: Live Endpoint Verification
 // ============================================================================
 logSuite('Live Server Endpoint Smoke Tests');
 
