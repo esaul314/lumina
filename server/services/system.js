@@ -1,4 +1,10 @@
 const { exec } = require('child_process');
+const os = require('os');
+
+// Discover system information dynamically for robust daemon paths
+const userInfo = os.userInfo();
+const uid = userInfo.uid || 1000;
+const homedir = userInfo.homedir || '/home/alex';
 
 /**
  * ⚡ setCpuGovernor
@@ -24,7 +30,7 @@ function setCpuGovernor(profile) {
  */
 function getGnomeIdleTime() {
   return new Promise((resolve, reject) => {
-    const dbusCmd = 'DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus" busctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime';
+    const dbusCmd = `DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" busctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime`;
     exec(dbusCmd, (err, stdout) => {
       if (err) {
         return reject(err);
@@ -65,7 +71,7 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
   const optimizedFlags = '--ozone-platform=wayland --enable-features=UseOzonePlatform --js-flags="--max-old-space-size=256" --disable-dev-shm-usage --disk-cache-size=52428800 --media-cache-size=20971520 --disable-gpu-shader-disk-cache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --kiosk --no-first-run --new-window';
   const x11Flags = '--js-flags="--max-old-space-size=256" --disable-dev-shm-usage --disk-cache-size=52428800 --media-cache-size=20971520 --disable-gpu-shader-disk-cache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --kiosk --no-first-run --new-window';
 
-  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 chromium-browser ${optimizedFlags} http://localhost:${port}/?mode=${mode}`;
+  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${optimizedFlags} http://localhost:${port}/?mode=${mode}`;
   
   const processRef = exec(waylandCmd, (err) => {
     if (err) {
@@ -75,7 +81,7 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
       
       console.warn('Chromium Wayland launch failed, falling back to X11/Xwayland...', err.message);
       
-      const x11Cmd = `XAUTH=$(find /run/user/1000 -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="/home/alex/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/1000 chromium-browser ${x11Flags} http://localhost:${port}/?mode=${mode}`;
+      const x11Cmd = `XAUTH=$(find /run/user/${uid} -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="${homedir}/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${x11Flags} http://localhost:${port}/?mode=${mode}`;
       
       exec(x11Cmd, (x11Err) => {
         if (x11Err) {
@@ -85,7 +91,7 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
           
           console.warn('Chromium X11 launch failed, trying standard chromium (Wayland)...', x11Err.message);
           
-          const waylandFallback = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 chromium ${optimizedFlags} http://localhost:${port}/?mode=${mode}`;
+          const waylandFallback = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${optimizedFlags} http://localhost:${port}/?mode=${mode}`;
           exec(waylandFallback, (wfErr) => {
             if (wfErr) {
               if (wfErr.signal === 'SIGTERM' || wfErr.signal === 'SIGKILL') {

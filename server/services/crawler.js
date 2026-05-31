@@ -323,6 +323,47 @@ async function fetchNasaApod(count = 10) {
 }
 
 /**
+ * 🌅 fetchBingImageOfTheDay
+ * Fetches the daily wallpapers from Bing's HPImageArchive endpoint.
+ */
+async function fetchBingImageOfTheDay(count = 8) {
+  try {
+    console.log(`Bing Crawler: Fetching ${count} daily wallpapers...`);
+    const res = await fetch(`https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=${count}&mkt=en-US`);
+    if (!res.ok) {
+      console.warn(`Bing Crawler: Failed to fetch, status=${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    if (!data || !data.images || !Array.isArray(data.images)) return [];
+
+    const photos = data.images.map(img => {
+      const url = img.url.startsWith('http') ? img.url : `https://www.bing.com${img.url}`;
+      const copyrightMatch = img.copyright ? img.copyright.match(/^(.*?)\s*\(©\s*(.*?)\)$/) : null;
+      const title = img.title || (copyrightMatch ? copyrightMatch[1] : 'Bing Daily Photo');
+      const author = copyrightMatch ? copyrightMatch[2] : (img.copyright || 'Bing Photography');
+
+      return {
+        url: url,
+        title: title.length > 55 ? title.substring(0, 52) + '...' : title,
+        author: author.length > 40 ? author.substring(0, 37) + '...' : author,
+        source: 'bing',
+        isNight: false,
+        isRain: false,
+        isSunny: true,
+        isCloudy: true,
+        isSnowy: false
+      };
+    });
+    console.log(`Bing Crawler: Successfully loaded ${photos.length} Bing daily wallpapers.`);
+    return photos;
+  } catch (err) {
+    console.error('Bing crawler failed:', err.message);
+    return [];
+  }
+}
+
+/**
  * 🎨 fetchMidjourneyImages
  * Fetches Midjourney generative images via UseAPI.net.
  * Supports token authorization, filters out portraits, extracts prompts, and handles self-healing fallback.
@@ -333,7 +374,7 @@ async function fetchMidjourneyImages(count = 15) {
     console.log('UseAPI.net: No USEAPI_TOKEN configured. Using free keyless AI aggregators (Lexica Art + Wallhaven AI)...');
     try {
       const lexicaPromise = fetchLexicaImages('midjourney landscape surreal dreamscape', count);
-      const wallhavenPromise = fetchWallhavenImages('id:111195', 'AI Creations', count);
+      const wallhavenPromise = fetchWallhavenImages('cyberpunk landscape surreal', 'AI Creations', count);
       
       const [lexicaPhotos, wallhavenPhotos] = await Promise.all([lexicaPromise, wallhavenPromise]);
       
@@ -484,6 +525,28 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
     console.error('Picsum daily crawl failed:', err.message);
   }
 
+  // 2.5. Crawl Bing Image of the Day
+  try {
+    const bingPhotos = await fetchBingImageOfTheDay(8);
+    let scenicList = [...(updatedCollections['Scenic Nature'] || [])];
+    const initialScenicLength = scenicList.length;
+    const existingScenicUrls = new Set(scenicList.map(item => item.url));
+
+    for (const p of bingPhotos) {
+      if (!existingScenicUrls.has(p.url)) {
+        scenicList.push(p);
+        existingScenicUrls.add(p.url);
+      }
+    }
+    updatedCollections['Scenic Nature'] = scenicList;
+    if (scenicList.length > initialScenicLength) {
+      console.log(`Bing: Added ${scenicList.length - initialScenicLength} daily wallpapers to "Scenic Nature"`);
+      updatedAny = true;
+    }
+  } catch (err) {
+    console.error('Bing daily crawl failed:', err.message);
+  }
+
   // 3. Crawl Unsplash NAPI
   for (const [category, baseQuery] of Object.entries(searchQueries)) {
     let categoryList = [...(updatedCollections[category] || [])];
@@ -512,8 +575,14 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
         for (const item of data.results) {
           if (item.premium || item.plus) continue;
 
-          const photoId = item.id;
-          const photoUrl = `https://images.unsplash.com/photo-${photoId}?q=80&w=2560&auto=format&fit=crop`;
+          let photoUrl = '';
+          if (item.urls && item.urls.raw) {
+            const baseUrl = item.urls.raw.split('?')[0];
+            photoUrl = `${baseUrl}?q=80&w=2560&auto=format&fit=crop`;
+          } else {
+            const photoId = item.id;
+            photoUrl = `https://images.unsplash.com/photo-${photoId}?q=80&w=2560&auto=format&fit=crop`;
+          }
 
           if (existingUrls.has(photoUrl)) continue;
 
@@ -564,7 +633,7 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
   }
 
   // 3.5. Crawl Wallhaven SFW
-  for (const category of ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces']) {
+  for (const category of ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations']) {
     try {
       let categoryList = [...(updatedCollections[category] || [])];
       const initialLength = categoryList.length;
@@ -672,7 +741,11 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
       'surreal digital art dreamscape',
       'cyberpunk neon city street',
       'futuristic sci-fi landscape spacescape',
-      'abstract generative fractal geometry'
+      'abstract generative fractal geometry',
+      'cyberpunk rain mood megacity',
+      'unreal engine 5 cinematic landscape nature',
+      'midjourney masterpiece cosmic galaxy space',
+      'liminal spaces empty dream retro aesthetic'
     ];
 
     for (const query of lexicaQueries) {
@@ -712,5 +785,6 @@ module.exports = {
   fetchWallhavenImages,
   fetchNasaApod,
   fetchMidjourneyImages,
+  fetchBingImageOfTheDay,
   crawlAllCollections
 };
