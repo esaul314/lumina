@@ -212,7 +212,119 @@ async function fetchLexicaImages(query, count = 25) {
 }
 
 /**
+ * 🪐 fetchWallhavenImages
+ * Queries the public Wallhaven API for high-resolution landscape images.
+ * Uses keyless, SFW-only filters.
+ */
+async function fetchWallhavenImages(query, category, count = 15) {
+  try {
+    console.log(`Wallhaven Crawler: Querying "${query}" for category "${category}"...`);
+    // SFW only (purity=100), landscape ratio (ratios=16x9,16x10)
+    const url = `https://wallhaven.cc/api/v1/search?q=${encodeURIComponent(query)}&purity=100&ratios=16x9,16x10&sorting=relevance`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`Wallhaven Crawler: Failed to query, status=${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    if (!data || !data.data || !Array.isArray(data.data)) return [];
+
+    const photos = [];
+    for (const item of data.data) {
+      if (photos.length >= count) break;
+      if (!item.path) continue;
+
+      const title = `${category} Frame #${item.id || 'Scenic'}`;
+      const author = item.uploader?.username || 'Wallhaven Contributor';
+
+      const queryLower = query.toLowerCase();
+
+      // Simple keywords classification
+      const isNight = queryLower.includes('night') || queryLower.includes('dark') || 
+                      queryLower.includes('stars') || queryLower.includes('space') || 
+                      category === 'Cosmic Space';
+      const isRain = queryLower.includes('rain') || queryLower.includes('wet') || queryLower.includes('storm');
+      const isSunny = queryLower.includes('sun') || queryLower.includes('clear') || queryLower.includes('summer');
+      const isCloudy = queryLower.includes('mist') || queryLower.includes('cloud') || queryLower.includes('fog') || queryLower.includes('moody');
+      const isSnowy = queryLower.includes('snow') || queryLower.includes('winter') || queryLower.includes('frozen');
+
+      photos.push({
+        url: item.path,
+        title: title,
+        author: author,
+        source: 'wallhaven',
+        isNight: isNight,
+        isRain: isRain,
+        isSunny: isSunny,
+        isCloudy: isCloudy,
+        isSnowy: isSnowy
+      });
+    }
+
+    console.log(`Wallhaven Crawler: Successfully loaded ${photos.length} photos.`);
+    return photos;
+  } catch (err) {
+    console.error('Wallhaven crawler failed:', err.message);
+    return [];
+  }
+}
+
+/**
+ * 🛰️ fetchNasaApod
+ * Fetches NASA APOD (Astronomy Picture of the Day) cosmic landscape frames.
+ */
+async function fetchNasaApod(count = 10) {
+  try {
+    console.log(`NASA APOD Crawler: Fetching ${count} cosmic photos...`);
+    const apiKey = process.env.NASA_API_KEY || 'DEMO_KEY';
+    const url = `https://api.nasa.gov/planetary/apod?api_key=${apiKey}&count=${count}`;
+    
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`NASA APOD Crawler: Failed to query, status=${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    if (!data || !Array.isArray(data)) return [];
+
+    const photos = [];
+    for (const item of data) {
+      if (item.media_type !== 'image' || !item.url) continue;
+
+      let title = item.title || 'Cosmic Deep Space Frame';
+      if (title.length > 55) {
+        title = title.substring(0, 52) + '...';
+      }
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+
+      const author = item.copyright ? item.copyright.trim().replace(/[\r\n\t]+/g, ' ') : 'NASA / APOD';
+
+      photos.push({
+        url: item.hdurl || item.url, // Prefer hdurl if present
+        title: title,
+        author: author,
+        source: 'nasa_apod',
+        isNight: true, // APODs are deep space cosmic photos -> always night-aligned!
+        isRain: false,
+        isSunny: false,
+        isCloudy: true, // Cosmic dust nebulas are beautiful clouds of gas!
+        isSnowy: false
+      });
+    }
+
+    console.log(`NASA APOD Crawler: Successfully loaded ${photos.length} APOD cosmic photos.`);
+    return photos;
+  } catch (err) {
+    console.error('NASA APOD crawler failed:', err.message);
+    return [];
+  }
+}
+
+/**
  * 🏔️ crawlAllCollections
+
  * Modular orchestrator that runs all crawls (Reddit, Picsum, Unsplash, Lexica),
  * filters out portraits, filters negative words, tags keywords, and limits to 2000 per category.
  */
@@ -345,6 +457,74 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
     }
   }
 
+  // 3.5. Crawl Wallhaven SFW
+  for (const category of ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces']) {
+    try {
+      let categoryList = [...(updatedCollections[category] || [])];
+      const initialLength = categoryList.length;
+      const existingUrls = new Set(categoryList.map(item => item.url));
+
+      const baseQuery = searchQueries[category] || 'landscape';
+      const customQueries = (searchKeywords && searchKeywords[category]) || [baseQuery];
+      const chosenQuery = customQueries[Math.floor(Math.random() * customQueries.length)];
+
+      const wallhavenPhotos = await fetchWallhavenImages(chosenQuery, category, 10);
+      for (const p of wallhavenPhotos) {
+        if (!existingUrls.has(p.url)) {
+          categoryList.push(p);
+          existingUrls.add(p.url);
+        }
+      }
+
+      if (categoryList.length > 2000) {
+        const originalCuratedCount = Math.min(12, categoryList.length);
+        const originals = categoryList.slice(0, originalCuratedCount);
+        const dynamicAdded = categoryList.slice(originalCuratedCount);
+        const allowedDynamic = 2000 - originalCuratedCount;
+        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
+      }
+
+      updatedCollections[category] = categoryList;
+      if (categoryList.length > initialLength) {
+        console.log(`Wallhaven: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
+        updatedAny = true;
+      }
+    } catch (err) {
+      console.error(`Wallhaven daily crawl failed for category "${category}":`, err.message);
+    }
+  }
+
+  // 3.6. Crawl NASA APOD
+  try {
+    let cosmicList = [...(updatedCollections['Cosmic Space'] || [])];
+    const initialCosmicLength = cosmicList.length;
+    const existingCosmicUrls = new Set(cosmicList.map(item => item.url));
+
+    const apodPhotos = await fetchNasaApod(8);
+    for (const p of apodPhotos) {
+      if (!existingCosmicUrls.has(p.url)) {
+        cosmicList.push(p);
+        existingCosmicUrls.add(p.url);
+      }
+    }
+
+    if (cosmicList.length > 2000) {
+      const originalCuratedCount = Math.min(12, cosmicList.length);
+      const originals = cosmicList.slice(0, originalCuratedCount);
+      const dynamicAdded = cosmicList.slice(originalCuratedCount);
+      const allowedDynamic = 2000 - originalCuratedCount;
+      cosmicList = originals.concat(dynamicAdded.slice(-allowedDynamic));
+    }
+
+    updatedCollections['Cosmic Space'] = cosmicList;
+    if (cosmicList.length > initialCosmicLength) {
+      console.log(`NASA APOD: Added ${cosmicList.length - initialCosmicLength} photos to "Cosmic Space" (Total: ${cosmicList.length})`);
+      updatedAny = true;
+    }
+  } catch (err) {
+    console.error('NASA APOD daily crawl failed:', err.message);
+  }
+
   // 4. Crawl Lexica Art
   try {
     let aiList = [...(updatedCollections['AI Creations'] || [])];
@@ -392,5 +572,7 @@ module.exports = {
   fetchRedditImages,
   fetchPicsumImages,
   fetchLexicaImages,
+  fetchWallhavenImages,
+  fetchNasaApod,
   crawlAllCollections
 };
