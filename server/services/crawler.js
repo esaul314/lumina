@@ -329,11 +329,28 @@ async function fetchNasaApod(count = 10) {
  */
 async function fetchMidjourneyImages(count = 15) {
   const token = process.env.USEAPI_TOKEN;
-  
   if (!token) {
-    console.log('UseAPI.net: No USEAPI_TOKEN configured. Using self-healing fallback collections...');
-    // Fallback: fetch high quality AI Creations from Lexica to populate this feed
-    return await fetchLexicaImages('midjourney cyberpunk dreamscape surreal landscape', count);
+    console.log('UseAPI.net: No USEAPI_TOKEN configured. Using free keyless AI aggregators (Lexica Art + Wallhaven AI)...');
+    try {
+      const lexicaPromise = fetchLexicaImages('midjourney landscape surreal dreamscape', count);
+      const wallhavenPromise = fetchWallhavenImages('id:111195', 'AI Creations', count);
+      
+      const [lexicaPhotos, wallhavenPhotos] = await Promise.all([lexicaPromise, wallhavenPromise]);
+      
+      // Combine them alternately (round-robin style)
+      const combined = [];
+      const maxLen = Math.max(lexicaPhotos.length, wallhavenPhotos.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (lexicaPhotos[i]) combined.push(lexicaPhotos[i]);
+        if (wallhavenPhotos[i]) combined.push(wallhavenPhotos[i]);
+      }
+      
+      console.log(`Free AI Aggregators: Loaded ${combined.length} stunning keyless AI photos successfully.`);
+      return combined;
+    } catch (err) {
+      console.error('Free AI aggregators crawl failed:', err.message);
+      return [];
+    }
   }
 
   try {
