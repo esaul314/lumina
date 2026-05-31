@@ -393,7 +393,8 @@ let isBrowserRunning = false;
 let manualOverride = false;
 let PORT = process.env.PORT || 5000;
 
-function launchKioskBrowser() {
+function launchKioskBrowser(forceManual = false) {
+  if (forceManual) manualOverride = true;
   if (isBrowserRunning) return;
   console.log('Lumina System Idle: Spawning Fullscreen Kiosk Screensaver...');
   isBrowserRunning = true;
@@ -401,17 +402,29 @@ function launchKioskBrowser() {
   setCpuGovernor('performance');
   launchChromiumKiosk(PORT, 'tv', () => {
     isBrowserRunning = false;
+    // If the browser died unexpectedly and manualOverride is still set, clear it
+    // so the idle daemon can take over cleanly
+    if (manualOverride) {
+      manualOverride = false;
+      screensaverState.screensaverActive = false;
+      io.emit('state-sync', screensaverState);
+    }
   });
 }
 
-function killKioskBrowser() {
+function killKioskBrowser(forceManual = false) {
+  if (forceManual) manualOverride = false;
   if (!isBrowserRunning) return;
   console.log('Lumina System Active: Dismissing Kiosk Browser...');
   isBrowserRunning = false;
-  manualOverride = false;
 
   setCpuGovernor('schedutil');
   killChromiumKiosk();
+}
+
+/** setManualOverride — lets socket handlers arm/disarm the manual override flag */
+function setManualOverride(value) {
+  manualOverride = !!value;
 }
 
 function getLocalIpAddresses() {
@@ -434,7 +447,7 @@ const triggerWeatherUpdate = async () => {
 };
 
 require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT);
-require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, getLocalIpAddresses, PORT, triggerWeatherUpdate);
+require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate);
 
 // Mutter DBus Idle polling every 2 seconds
 if (process.env.NODE_ENV !== 'test') {

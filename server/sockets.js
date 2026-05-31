@@ -6,7 +6,7 @@ const googlePhotos = require('./services/googlePhotos.js');
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
  */
-module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, getLocalIpAddresses, PORT, triggerWeatherUpdate) {
+module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate) {
   
   io.on('connection', (socket) => {
     console.log('Device connected to Lumina network:', socket.id);
@@ -180,9 +180,13 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('set-screensaver-active', (active) => {
       if (active) {
         state.screensaverActive = true;
+        // Arm manualOverride BEFORE launching so the idle daemon doesn't
+        // immediately conclude shouldBeActive=false and revert the state.
+        setManualOverride(true);
         launchKioskBrowser();
       } else {
         state.screensaverActive = false;
+        setManualOverride(false);
         killKioskBrowser();
       }
       io.emit('state-sync', state);
