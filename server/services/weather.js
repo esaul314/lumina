@@ -10,13 +10,40 @@
  * to guarantee 100% correct screensaver telemetry.
  */
 async function getIpLocation() {
-  return {
+  const fallbackLocation = {
     lat: 45.45,
     lon: -73.56,
     city: 'Verdun',
     regionName: 'Quebec',
     country: 'Canada'
   };
+
+  try {
+    console.log('IP Geolocation: Querying live IP coordinates...');
+    const res = await fetch('http://ip-api.com/json/');
+    if (!res.ok) {
+      console.warn(`IP Geolocation: Query failed with status ${res.status}. Falling back to default coordinates.`);
+      return fallbackLocation;
+    }
+
+    const data = await res.json();
+    if (data && data.status === 'success' && data.lat !== undefined && data.lon !== undefined) {
+      console.log(`IP Geolocation: Located successfully to ${data.city}, ${data.regionName}, ${data.country}.`);
+      return {
+        lat: data.lat,
+        lon: data.lon,
+        city: data.city || 'Verdun',
+        regionName: data.regionName || 'Quebec',
+        country: data.country || 'Canada'
+      };
+    }
+
+    console.warn('IP Geolocation: API responded with unsuccessful status, falling back.');
+    return fallbackLocation;
+  } catch (err) {
+    console.warn('IP Geolocation: Service failed or request timed out:', err.message);
+    return fallbackLocation;
+  }
 }
 
 /**
