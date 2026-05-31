@@ -77,7 +77,7 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
       
       const x11Cmd = `XAUTH=$(find /run/user/1000 -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="/home/alex/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/1000 chromium-browser ${x11Flags} http://localhost:${port}/?mode=${mode}`;
       
-      const x11ProcessRef = exec(x11Cmd, (x11Err) => {
+      exec(x11Cmd, (x11Err) => {
         if (x11Err) {
           if (x11Err.signal === 'SIGTERM' || x11Err.signal === 'SIGKILL') {
             return; // Expected exit

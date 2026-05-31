@@ -404,10 +404,9 @@ async function runIntegrationTests() {
         assert.strictEqual(invalidKeywordResponse.status, 404, 'Response status must be 404');
       });
     }
-    
   } catch (err) {
-    console.log(`  ${COLORS.yellow}⚠ SKIP:${COLORS.reset} Integration tests skipped (Lumina server is not actively listening on port 5000).`);
-    console.log(`          (Launch the server in the background using ./launch.sh to run integration assertions)`);
+    console.log('  ' + COLORS.yellow + '⚠ SKIP:' + COLORS.reset + ' Integration tests skipped (Lumina server is not actively listening on port 5000).');
+    console.log('          (Launch the server in the background using ./launch.sh to run integration assertions)');
   }
 
   // Test Runner Final Dashboard

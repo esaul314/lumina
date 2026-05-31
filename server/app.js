@@ -218,7 +218,7 @@ function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
  * Dynamic weighted select algorithm mapping physical weather & news sentiment to wallpaper lists,
  * resolved through a Cumulative Distribution Function (CDF) rating-weighted engine.
  */
-function getSmartPhoto(direction = 'next') {
+function getSmartPhoto(_direction = 'next') {
   const list = screensaverState.photosList;
   if (!list || list.length === 0) return null;
 
@@ -332,7 +332,9 @@ async function updateFeedsDaily() {
     try {
       fileData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
       lastUpdated = fileData.lastUpdated || 0;
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Could not parse persisted curated collections for last update check:', e.message);
+    }
   }
 
   const ONE_DAY = 24 * 60 * 60 * 1000;
@@ -478,7 +480,7 @@ function startServer() {
   if (process.env.NODE_ENV !== 'test') {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`Lumina Core backend running at http://localhost:${PORT}`);
-      console.log(`Mobile Remote accessible at your local network IPs:`);
+      console.log('Mobile Remote accessible at your local network IPs:');
       getLocalIpAddresses().forEach(ip => console.log(`  http://${ip}:${PORT}`));
     });
   }
