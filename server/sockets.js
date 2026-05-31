@@ -1,4 +1,5 @@
 const { sendEmailAlert } = require('./services/notifier.js');
+const googlePhotos = require('./services/googlePhotos.js');
 
 /**
  * 🛰️ configureSockets
@@ -185,6 +186,17 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         killKioskBrowser();
       }
       io.emit('state-sync', state);
+    });
+    
+    // Dynamic signed URL refresh for Google Photos casting on demand
+    socket.on('get-active-google-photo', async ({ mediaItemId }) => {
+      try {
+        const freshUrl = await googlePhotos.refreshMediaItemUrl(mediaItemId);
+        socket.emit('active-google-photo-response', { mediaItemId, url: freshUrl });
+      } catch (err) {
+        console.error(`Socket Event: Failed to refresh Google Photo URL for item ${mediaItemId}:`, err.message);
+        socket.emit('active-google-photo-response', { mediaItemId, error: err.message });
+      }
     });
     
     socket.on('disconnect', () => {
