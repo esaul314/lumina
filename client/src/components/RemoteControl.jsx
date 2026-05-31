@@ -15,6 +15,27 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [keywordCategory, setKeywordCategory] = useState('Scenic Nature');
   const [newKeywordInput, setNewKeywordInput] = useState('');
+  const [imageStatus, setImageStatus] = useState('loading'); // loading, loaded, failed
+
+  // Preload and monitor the active gallery photo URL
+  useEffect(() => {
+    if (!state.photosList || state.photosList.length === 0) return;
+    const photo = state.photosList[galleryIndex];
+    if (!photo) return;
+
+    setImageStatus('loading');
+    const img = new Image();
+    img.src = photo.url;
+    
+    img.onload = () => {
+      setImageStatus('loaded');
+    };
+    
+    img.onerror = () => {
+      setImageStatus('failed');
+      console.warn(`[Independent Rating Deck] Failed to load image URL: ${photo.url}`);
+    };
+  }, [galleryIndex, state.photosList]);
 
   // Bounds check galleryIndex if the photos list changes
   useEffect(() => {
@@ -340,42 +361,113 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {/* Thumbnail Preview */}
-                    <div 
-                      style={{
-                        height: '160px',
-                        borderRadius: '12px',
-                        backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url(${photo.url})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        position: 'relative',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'flex-end',
-                        padding: '12px',
-                        border: '1px solid rgba(255,255,255,0.18)'
-                      }}
-                    >
-                      <span style={{ 
-                        fontSize: '0.9rem', 
-                        fontWeight: 600, 
-                        color: '#fff',
-                        textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}>
-                        {photo.title}
-                      </span>
-                      <span style={{ 
-                        fontSize: '0.75rem', 
-                        opacity: 0.8, 
-                        color: '#fff',
-                        textShadow: '0 1px 2px rgba(0,0,0,0.8)'
-                      }}>
-                        by {photo.author}
-                      </span>
-                    </div>
+                    {/* Thumbnail Preview with loading and error boundaries */}
+                    {imageStatus === 'loading' && (
+                      <div 
+                        style={{
+                          height: '160px',
+                          borderRadius: '12px',
+                          background: 'rgba(255,255,255,0.03)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--accent-color)', opacity: 0.8 }} />
+                        <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>Preloading preview...</span>
+                      </div>
+                    )}
+
+                    {imageStatus === 'failed' && (
+                      <div 
+                        style={{
+                          height: '160px',
+                          borderRadius: '12px',
+                          background: 'rgba(239, 68, 68, 0.05)',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '12px',
+                          gap: '6px',
+                          textAlign: 'center'
+                        }}
+                      >
+                        <HelpCircle size={24} style={{ color: '#ef4444' }} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>Preview Unavailable</span>
+                        <span style={{ fontSize: '0.72rem', opacity: 0.6, lineHeight: 1.3 }}>
+                          Source link is broken or restricted. Rate as 1 or use Ban & Next to skip.
+                        </span>
+                        
+                        <div style={{ display: 'flex', gap: '8px', width: '100%', marginTop: '6px', maxWidth: '240px' }}>
+                          <button 
+                            className="remote-btn" 
+                            onClick={() => {
+                              setImageStatus('loading');
+                              const img = new Image();
+                              img.src = photo.url;
+                              img.onload = () => setImageStatus('loaded');
+                              img.onerror = () => setImageStatus('failed');
+                            }}
+                            style={{ flex: 1, padding: '4px 0', fontSize: '0.75rem', background: 'rgba(255,255,255,0.02)' }}
+                          >
+                            Retry
+                          </button>
+                          <button 
+                            className="remote-btn" 
+                            onClick={() => {
+                              socket.emit('rate-photo', { url: photo.url, rating: 1 });
+                              setGalleryIndex((prev) => (prev + 1) % state.photosList.length);
+                            }}
+                            style={{ flex: 1.3, padding: '4px 0', fontSize: '0.75rem', borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239,68,68,0.05)' }}
+                          >
+                            🛑 Ban & Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {imageStatus === 'loaded' && (
+                      <div 
+                        style={{
+                          height: '160px',
+                          borderRadius: '12px',
+                          backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url(${photo.url})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'flex-end',
+                          padding: '12px',
+                          border: '1px solid rgba(255,255,255,0.18)'
+                        }}
+                      >
+                        <span style={{ 
+                          fontSize: '0.9rem', 
+                          fontWeight: 600, 
+                          color: '#fff',
+                          textShadow: '0 2px 4px rgba(0,0,0,0.8)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {photo.title}
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.75rem', 
+                          opacity: 0.8, 
+                          color: '#fff',
+                          textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                        }}>
+                          by {photo.author}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Navigation Row */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
