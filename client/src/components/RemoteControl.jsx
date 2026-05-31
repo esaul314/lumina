@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Palette, Sliders, Smartphone, Image as ImageIcon, RefreshCw, 
   ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,
-  Clock, CloudRain
+  Clock, CloudRain, MapPin
 } from 'lucide-react';
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {
@@ -16,6 +16,23 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [keywordCategory, setKeywordCategory] = useState('Scenic Nature');
   const [newKeywordInput, setNewKeywordInput] = useState('');
   const [imageStatus, setImageStatus] = useState('loading'); // loading, loaded, failed
+
+  const [manualCity, setManualCity] = useState(state.manualLocation?.city || 'Verdun');
+  const [manualRegion, setManualRegion] = useState(state.manualLocation?.regionName || 'Quebec');
+  const [manualCountry, setManualCountry] = useState(state.manualLocation?.country || 'Canada');
+  const [manualLat, setManualLat] = useState(state.manualLocation?.lat || 45.45);
+  const [manualLon, setManualLon] = useState(state.manualLocation?.lon || -73.56);
+
+  // Sync manual location states when state updates from Socket
+  useEffect(() => {
+    if (state.manualLocation) {
+      setManualCity(state.manualLocation.city || '');
+      setManualRegion(state.manualLocation.regionName || '');
+      setManualCountry(state.manualLocation.country || '');
+      setManualLat(state.manualLocation.lat !== undefined ? state.manualLocation.lat : '');
+      setManualLon(state.manualLocation.lon !== undefined ? state.manualLocation.lon : '');
+    }
+  }, [state.manualLocation]);
 
   // Detect returning OAuth success from URL parameters
   useEffect(() => {
@@ -914,6 +931,123 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                         : state.newsSentiment?.weatherMatch || 'Cloudy'}
                     </span>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="remote-card">
+            <span className="remote-section-title">TV Geolocation Settings</span>
+            <div className="widget-toggle-list">
+              <div className="widget-toggle-item">
+                <div className="toggle-info">
+                  <MapPin size={18} style={{ color: '#22d3ee' }} />
+                  <div>
+                    <div className="toggle-label">Auto IP Geolocation</div>
+                    <div className="toggle-desc">Automatically detect location using IP address</div>
+                  </div>
+                </div>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => socket.emit('toggle-auto-location', !state.autoLocation)}
+                >
+                  <span className={`switch-slider ${state.autoLocation ? 'checked' : ''}`}></span>
+                </div>
+              </div>
+
+              {!state.autoLocation && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '12px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-color)', opacity: 0.9 }}>Manual Coordinates Override</span>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>LATITUDE</label>
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="e.g. 45.45" 
+                        value={manualLat}
+                        onChange={(e) => setManualLat(e.target.value)}
+                        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', outline: 'none' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>LONGITUDE</label>
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="e.g. -73.56" 
+                        value={manualLon}
+                        onChange={(e) => setManualLon(e.target.value)}
+                        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', outline: 'none' }} 
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>CITY NAME</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Verdun" 
+                      value={manualCity}
+                      onChange={(e) => setManualCity(e.target.value)}
+                      style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', outline: 'none' }} 
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>PROVINCE / STATE</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Quebec" 
+                        value={manualRegion}
+                        onChange={(e) => setManualRegion(e.target.value)}
+                        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', outline: 'none' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>COUNTRY</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Canada" 
+                        value={manualCountry}
+                        onChange={(e) => setManualCountry(e.target.value)}
+                        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', outline: 'none' }} 
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    type="button" 
+                    className="remote-btn" 
+                    onClick={() => {
+                      const latVal = parseFloat(manualLat);
+                      const lonVal = parseFloat(manualLon);
+                      if (isNaN(latVal) || latVal < -90 || latVal > 90) {
+                        alert('Please enter a valid Latitude between -90 and 90.');
+                        return;
+                      }
+                      if (isNaN(lonVal) || lonVal < -180 || lonVal > 180) {
+                        alert('Please enter a valid Longitude between -180 and 180.');
+                        return;
+                      }
+                      if (!manualCity.trim()) {
+                        alert('Please enter a City name.');
+                        return;
+                      }
+                      socket.emit('update-manual-location', {
+                        lat: latVal,
+                        lon: lonVal,
+                        city: manualCity.trim(),
+                        regionName: manualRegion.trim(),
+                        country: manualCountry.trim()
+                      });
+                    }}
+                    style={{ background: 'var(--accent-color)', borderColor: 'var(--accent-color)', fontWeight: 600, marginTop: '4px' }}
+                  >
+                    Update Coordinates & Refresh Weather
+                  </button>
                 </div>
               )}
             </div>
