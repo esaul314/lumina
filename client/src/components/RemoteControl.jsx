@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Sun, Moon, Palette, Sliders, Smartphone, Image, RefreshCw, 
+  Sun, Moon, Palette, Sliders, Smartphone, Image as ImageIcon, RefreshCw, 
   ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,
   Clock, CloudRain
 } from 'lucide-react';
@@ -160,7 +160,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
             borderColor: activeTab === 'photos' ? 'var(--accent-color)' : 'rgba(255,255,255,0.08)'
           }}
         >
-          <Image size={16} /> Image Feeds
+          <ImageIcon size={16} /> Image Feeds
         </button>
         <button 
           onClick={() => setActiveTab('settings')}
