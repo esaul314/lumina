@@ -225,6 +225,96 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
+    // 🛑 Client reported broken photo marker
+    socket.on('mark-photo-broken', ({ url }) => {
+      if (!url || typeof url !== 'string') return;
+      console.log(`[SOCKET EVENT] mark-photo-broken received for URL: ${url}`);
+      const { markPhotoBroken } = require('./config/collections.js');
+      const updated = markPhotoBroken(collections, state, url);
+      if (updated) {
+        // If the broken photo is currently active, transition to the next smart photo immediately
+        if (state.activePhoto && state.activePhoto.url === url) {
+          const nextPhoto = getSmartPhoto('next');
+          if (nextPhoto) {
+            state.activePhoto = nextPhoto;
+            io.emit('photo-update', state.activePhoto);
+          }
+        }
+        io.emit('state-sync', state);
+      }
+    });
+
+    // 🔄 Force background crawler recrawl immediately
+    socket.on('trigger-recrawl', async () => {
+      console.log('[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...');
+      try {
+        const { crawlAllCollections } = require('./services/crawler.js');
+        const fs = require('fs');
+        const path = require('path');
+        const rootDir = path.join(__dirname, '..');
+        const jsonPath = path.join(rootDir, 'curated_collections.json');
+
+        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.searchKeywords);
+        
+        if (updatedAny) {
+          for (const key of Object.keys(updatedCollections)) {
+            collections[key] = updatedCollections[key];
+          }
+
+          fs.writeFileSync(jsonPath, JSON.stringify({ 
+            lastUpdated: Date.now(), 
+            feeds: collections, 
+            searchKeywords: state.searchKeywords 
+          }, null, 2), 'utf8');
+          console.log('[SOCKET EVENT] Successfully saved manual crawl results to curated_collections.json');
+        }
+
+        const activeCategory = state.currentCategory;
+        const currentCats = activeCategory ? activeCategory.split(',') : [];
+        state.photosList = combineFeedsBalanced(currentCats, collections);
+        
+        io.emit('state-sync', state);
+        socket.emit('recrawl-complete', { success: true, count: state.photosList.length });
+      } catch (err) {
+        console.error('[SOCKET EVENT] Manual recrawl failed:', err.message);
+        socket.emit('recrawl-complete', { success: false, error: err.message });
+      }
+    });
+
+    socket.on('save-useapi-token', ({ token }) => {
+      console.log('[SOCKET EVENT] save-useapi-token received.');
+      const sanitizedToken = String(token || '').trim();
+      process.env.USEAPI_TOKEN = sanitizedToken;
+      state.hasUseApiToken = !!sanitizedToken;
+      io.emit('state-sync', state);
+
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const rootDir = path.join(__dirname, '..');
+        const envPath = path.join(rootDir, '.env');
+
+        let envContent = '';
+        if (fs.existsSync(envPath)) {
+          envContent = fs.readFileSync(envPath, 'utf8');
+        }
+
+        // Replace or append USEAPI_TOKEN
+        if (envContent.includes('USEAPI_TOKEN=')) {
+          envContent = envContent.replace(/USEAPI_TOKEN=.*/g, `USEAPI_TOKEN=${sanitizedToken}`);
+        } else {
+          envContent += `\nUSEAPI_TOKEN=${sanitizedToken}\n`;
+        }
+
+        fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf8');
+        console.log('[SOCKET EVENT] Successfully persisted USEAPI_TOKEN to .env file');
+        socket.emit('useapi-token-saved', { success: true });
+      } catch (err) {
+        console.error('[SOCKET EVENT] Failed to save USEAPI_TOKEN to .env:', err.message);
+        socket.emit('useapi-token-saved', { success: false, error: err.message });
+      }
+    });
+
     socket.on('disconnect', () => {
       console.log('Device disconnected:', socket.id);
     });

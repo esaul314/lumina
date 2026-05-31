@@ -134,6 +134,7 @@ for (const key of Object.keys(curatedCollections)) {
 
 screensaverState.photosList = [...curatedCollections['Scenic Nature']];
 screensaverState.activePhoto = curatedCollections['Scenic Nature'][0];
+screensaverState.hasUseApiToken = !!process.env.USEAPI_TOKEN;
 
 /**
  * 🔄 combineFeedsBalanced
@@ -141,7 +142,7 @@ screensaverState.activePhoto = curatedCollections['Scenic Nature'][0];
  */
 function combineFeedsBalanced(categories, collections) {
   const lists = categories.map(cat => {
-    const list = [...(collections[cat] || [])];
+    const list = [...(collections[cat] || [])].filter(p => p.rating !== 1 && !p.isBroken);
     for (let i = list.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [list[i], list[j]] = [list[j], list[i]];

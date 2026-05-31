@@ -119,5 +119,63 @@ function updatePhotoRating(collections, state, url, rating) {
   return found;
 }
 
-module.exports = { defaultCuratedCollections, updatePhotoRating };
+/**
+ * 🛑 markPhotoBroken
+ * Sets photo rating to 1 and isBroken to true. Persists changes.
+ */
+function markPhotoBroken(collections, state, url) {
+  let found = false;
+
+  // 1. Update in the collections database
+  for (const cat of Object.keys(collections)) {
+    const arr = collections[cat];
+    if (Array.isArray(arr)) {
+      for (const photo of arr) {
+        if (photo.url === url) {
+          photo.rating = 1;
+          photo.isBroken = true;
+          found = true;
+        }
+      }
+    }
+  }
+
+  // 2. Update in state.photosList
+  if (state && Array.isArray(state.photosList)) {
+    for (const photo of state.photosList) {
+      if (photo.url === url) {
+        photo.rating = 1;
+        photo.isBroken = true;
+      }
+    }
+    // Filter out of state.photosList
+    state.photosList = state.photosList.filter(p => p.url !== url);
+  }
+
+  // 3. Update in state.activePhoto
+  if (state && state.activePhoto && state.activePhoto.url === url) {
+    state.activePhoto.rating = 1;
+    state.activePhoto.isBroken = true;
+  }
+
+  // 4. Save to curated_collections.json
+  if (found) {
+    try {
+      const rootDir = path.join(__dirname, '..', '..');
+      const jsonPath = path.join(rootDir, 'curated_collections.json');
+      fs.writeFileSync(jsonPath, JSON.stringify({ 
+        lastUpdated: Date.now(), 
+        feeds: collections,
+        searchKeywords: state?.searchKeywords
+      }, null, 2), 'utf8');
+      console.log(`[Collections Config] Marked photo as broken (rating=1, isBroken=true) for URL: ${url}`);
+    } catch (writeErr) {
+      console.error('[Collections Config] Failed to write curated_collections.json:', writeErr.message);
+    }
+  }
+
+  return found;
+}
+
+module.exports = { defaultCuratedCollections, updatePhotoRating, markPhotoBroken };
 

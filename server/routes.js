@@ -55,7 +55,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       if (cat === 'Google Photos') {
         return googlePhotos.getCachedMediaItems();
       }
-      const list = [...(collectionsObj[cat] || [])];
+      const list = [...(collectionsObj[cat] || [])].filter(p => p.rating !== 1 && !p.isBroken);
       for (let i = list.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [list[i], list[j]] = [list[j], list[i]];
