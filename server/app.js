@@ -24,6 +24,14 @@ const {
 } = require('./services/weather.js');
 const { analyzeSentiment } = require('./services/sentiment.js');
 const { crawlAllCollections } = require('./services/crawler.js');
+const {
+  curry,
+  pipe,
+  prop,
+  map,
+  toLower,
+  includes
+} = require('./utils/fn.js');
 
 // Global Weather Telemetry Cache
 let serverWeatherData = null;
@@ -76,92 +84,37 @@ if (fs.existsSync(jsonPath)) {
   }
 }
 
+const hasWord = includes;
+
+// Curried checker that matches a list of keywords against the lowercase photo title
+const titleHasKeyword = curry((keywords, photo) => {
+  const titleText = pipe(prop('title'), toLower)(photo);
+  return keywords.some(word => hasWord(word, titleText));
+});
+
+// Composable curried checkers partially executed with specific weather lexicon arrays
+const isNightPhoto = titleHasKeyword(['night', 'dark', 'twilight', 'midnight', 'stars', 'moon', 'sunset', 'evening', '3 am', 'eclipse', 'space', 'nebula', 'stardust']);
+const isRainPhoto = titleHasKeyword(['rain', 'rainy', 'wet', 'storm', 'water', 'dewy', 'jungle', 'stream', 'lake', 'puddle', 'drizzle']);
+const isSunnyPhoto = titleHasKeyword(['sun', 'sunny', 'clear', 'bright', 'golden', 'morning', 'summer', 'daylight', 'drenched', 'warm']);
+const isCloudyPhoto = titleHasKeyword(['mist', 'cloud', 'cloudy', 'fog', 'foggy', 'mist-veiled', 'misty', 'hazy', 'overcast', 'moody', 'shadow', 'pale', 'eerie', 'familiar', 'empty', 'silent', 'deserted', 'abandoned', 'quiet']);
+const isSnowyPhoto = titleHasKeyword(['snow', 'snowy', 'winter', 'ice', 'frozen', 'cold', 'alpine']);
+
 /**
  * 🏷️ tagPhotosWithKeywords
- * Standard auto-tagging classifier. Scans picture titles to append atmospheric flags.
+ * Standard auto-tagging classifier composed with our functional checkers.
  */
 function tagPhotosWithKeywords(photos, defaultIsNight = false) {
-  return photos.map(photo => {
-    const titleLower = (photo.title || '').toLowerCase();
-    
-    const isNight = defaultIsNight || 
-                    titleLower.includes('night') || 
-                    titleLower.includes('dark') || 
-                    titleLower.includes('twilight') || 
-                    titleLower.includes('midnight') || 
-                    titleLower.includes('stars') || 
-                    titleLower.includes('moon') || 
-                    titleLower.includes('sunset') || 
-                    titleLower.includes('evening') || 
-                    titleLower.includes('3 am') || 
-                    titleLower.includes('eclipse') ||
-                    titleLower.includes('space') ||
-                    titleLower.includes('nebula') ||
-                    titleLower.includes('stardust');
-                    
-    const isRain = titleLower.includes('rain') || 
-                   titleLower.includes('rainy') || 
-                   titleLower.includes('wet') || 
-                   titleLower.includes('storm') || 
-                   titleLower.includes('water') ||
-                   titleLower.includes('dewy') ||
-                   titleLower.includes('jungle') ||
-                   titleLower.includes('stream') ||
-                   titleLower.includes('lake') ||
-                   titleLower.includes('puddle') ||
-                   titleLower.includes('drizzle');
-
-    const isSunny = titleLower.includes('sun') ||
-                    titleLower.includes('sunny') ||
-                    titleLower.includes('clear') ||
-                    titleLower.includes('bright') ||
-                    titleLower.includes('golden') ||
-                    titleLower.includes('morning') ||
-                    titleLower.includes('summer') ||
-                    titleLower.includes('daylight') ||
-                    titleLower.includes('drenched') ||
-                    titleLower.includes('warm');
-
-    const isCloudy = titleLower.includes('mist') ||
-                     titleLower.includes('cloud') ||
-                     titleLower.includes('cloudy') ||
-                     titleLower.includes('fog') ||
-                     titleLower.includes('foggy') ||
-                     titleLower.includes('mist-veiled') ||
-                     titleLower.includes('misty') ||
-                     titleLower.includes('hazy') ||
-                     titleLower.includes('overcast') ||
-                     titleLower.includes('moody') ||
-                     titleLower.includes('shadow') ||
-                     titleLower.includes('pale') ||
-                     titleLower.includes('eerie') ||
-                     titleLower.includes('familiar') ||
-                     titleLower.includes('empty') ||
-                     titleLower.includes('silent') ||
-                     titleLower.includes('deserted') ||
-                     titleLower.includes('abandoned') ||
-                     titleLower.includes('quiet');
-
-    const isSnowy = titleLower.includes('snow') ||
-                    titleLower.includes('snowy') ||
-                    titleLower.includes('winter') ||
-                    titleLower.includes('ice') ||
-                    titleLower.includes('frozen') ||
-                    titleLower.includes('cold') ||
-                    titleLower.includes('alpine');
-                   
-    return {
-      url: photo.url,
-      title: photo.title,
-      author: photo.author,
-      source: photo.source || 'curated',
-      isNight: photo.isNight !== undefined ? photo.isNight : isNight,
-      isRain: photo.isRain !== undefined ? photo.isRain : isRain,
-      isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunny,
-      isCloudy: photo.isCloudy !== undefined ? photo.isCloudy : isCloudy,
-      isSnowy: photo.isSnowy !== undefined ? photo.isSnowy : isSnowy
-    };
-  });
+  return map(photo => ({
+    url: photo.url,
+    title: photo.title,
+    author: photo.author,
+    source: photo.source || 'curated',
+    isNight: photo.isNight !== undefined ? photo.isNight : (defaultIsNight || isNightPhoto(photo)),
+    isRain: photo.isRain !== undefined ? photo.isRain : isRainPhoto(photo),
+    isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunnyPhoto(photo),
+    isCloudy: photo.isCloudy !== undefined ? photo.isCloudy : isCloudyPhoto(photo),
+    isSnowy: photo.isSnowy !== undefined ? photo.isSnowy : isSnowyPhoto(photo)
+  }), photos);
 }
 
 // Initial auto-tagging setup

@@ -23,16 +23,23 @@ const negativeWords = [
   'accused', 'charge', 'charges', 'investigation', 'probe'
 ];
 
+const { curry, reduce } = require('../utils/fn.js');
+
 /**
  * 🔍 countWordMatches
- * Pure functional helper to count standard word boundary regex occurrences in a string.
+ * Curried match counter that supports partial execution.
  */
-const countWordMatches = (text, wordList) => 
-  wordList.reduce((acc, word) => {
+const countWordMatches = curry((wordList, text) => 
+  reduce((acc, word) => {
     const regex = new RegExp('\\b' + word + '\\b', 'g');
     const matches = text.match(regex);
     return acc + (matches ? matches.length : 0);
-  }, 0);
+  }, 0, wordList)
+);
+
+// Partially execute the counter to create dedicated positive/negative taggers
+const countPositives = countWordMatches(positiveWords);
+const countNegatives = countWordMatches(negativeWords);
 
 /**
  * 📰 getHeadlines
@@ -63,11 +70,11 @@ function analyzeSentiment(rssXmlText) {
     return { score: 0, label: 'Overcast / Calm', weatherMatch: 'Cloudy', headlinesCount: 0 };
   }
 
-  // Pure declarative reduction of sentiment tallies
+  // Pure declarative reduction using partially executed counters
   const { posCount, negCount } = headlines.reduce(
     (acc, headline) => ({
-      posCount: acc.posCount + countWordMatches(headline, positiveWords),
-      negCount: acc.negCount + countWordMatches(headline, negativeWords)
+      posCount: acc.posCount + countPositives(headline),
+      negCount: acc.negCount + countNegatives(headline)
     }), 
     { posCount: 0, negCount: 0 }
   );
