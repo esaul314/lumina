@@ -240,10 +240,12 @@ npm test
 ## 🤖 AI Agent & Developer Guidelines
 
 If you are an AI agent or developer modifying this codebase, you **MUST** strictly adhere to the following operational instructions:
-1. **Mandatory Git Commits**: Proactively make atomic, structured Git commits at **every substantive change** (e.g., adding a feature, fixing a bug, updating configurations). Do not wait until the end of the work session to commit all files.
-2. **Hardened Error Boundaries & Self-Healing**: Never let errors cascade or crash the main server daemon. Wrap all system-level commands (DBus Mutter polling, `pactl` audio checks, `scaling_governor` operations) in robust try/catch blocks with fail-safe recovery fallbacks.
-3. **Loop & Skip Protections**: Always rate-limit and boundary-constrain recursive transitions or skip skips. Do not allow rapid high-frequency socket events to flood the client interfaces under error or offline conditions.
-4. **Mandatory Pre-Flight Diagnostics**: Always run the regression test suite (`npm test`) before ending your turn to ensure that all core tagging keywords, weather-sentiment selectors, and API endpoints are 100% healthy.
+1. **The Scout Rule (Core Directive)**: Proactively leave the codebase better than it was before. For every change, look for at least one piece of code to clean, document, or make more functional/declarative.
+2. **Abide by the Nine Maxims**: Read and strictly follow the [Lumina Coding Conventions & Philosophy](file:///home/alex/work/lumina/CONVENTIONS.md) which institutionalizes our attitudes regarding clean code, functional style, SOLID design, small commits, automated testing, anti-overengineering, and privacy protection.
+3. **Mandatory Git Commits**: Proactively make atomic, structured Git commits at **every substantive change** (e.g., adding a feature, fixing a bug, updating configurations). Do not wait until the end of the work session to commit all files. Keep commits under 4 files and 300 LOC where possible.
+4. **Hardened Error Boundaries & Self-Healing**: Never let errors cascade or crash the main server daemon. Wrap all system-level commands (DBus Mutter polling, `pactl` audio checks, `scaling_governor` operations) in robust try/catch blocks with fail-safe recovery fallbacks.
+5. **Loop & Skip Protections**: Always rate-limit and boundary-constrain recursive transitions or skip skips. Do not allow rapid high-frequency socket events to flood the client interfaces under error or offline conditions.
+6. **Mandatory Pre-Flight Diagnostics**: Always run the regression test suite (`npm test`) before ending your turn to ensure that all core tagging keywords, weather-sentiment selectors, and API endpoints are 100% healthy.
 
 ---
 
