@@ -8,6 +8,8 @@
     "client": "npm run dev --prefix client",
     "dev": "npm run server & npm run client",
     "install-all": "npm install && npm install --prefix client",
+    "lint": "eslint . --ext .js,.jsx --ignore-pattern client/dist --ignore-pattern node_modules",
+    "lint:fix": "eslint . --ext .js,.jsx --fix --ignore-pattern client/dist --ignore-pattern node_modules",
     "test": "node run-tests.js"
   },
   "dependencies": {
@@ -15,5 +17,9 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.37.5"
   }
 }
