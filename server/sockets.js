@@ -121,6 +121,35 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
+    // Update keywords socket event
+    socket.on('update-keywords', ({ category, keywords }) => {
+      if (!category || typeof category !== 'string') return;
+      if (!collections[category]) return;
+      if (!Array.isArray(keywords) || !keywords.every(kw => typeof kw === 'string' && kw.trim().length > 0)) return;
+
+      // Update in state
+      state.searchKeywords[category] = keywords.map(kw => kw.trim());
+
+      // Save to curated_collections.json
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const rootDir = path.join(__dirname, '..');
+        const jsonPath = path.join(rootDir, 'curated_collections.json');
+        fs.writeFileSync(jsonPath, JSON.stringify({ 
+          lastUpdated: Date.now(), 
+          feeds: collections, 
+          searchKeywords: state.searchKeywords 
+        }, null, 2), 'utf8');
+        console.log(`[Config Socket] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
+      } catch (writeErr) {
+        console.error('[Config Socket] Failed to write curated_collections.json:', writeErr.message);
+      }
+
+      io.emit('state-sync', state);
+    });
+
+
     
     // Trigger Next Photo
     socket.on('next-photo', () => {

@@ -69,6 +69,10 @@ if (fs.existsSync(jsonPath)) {
         curatedCollections[key] = [...defaultCuratedCollections[key]];
       }
     }
+
+    if (data.searchKeywords) {
+      screensaverState.searchKeywords = data.searchKeywords;
+    }
     console.log('Successfully loaded persisted curated collections from file!');
   } catch (err) {
     console.error('Failed to parse curated_collections.json, falling back to defaults:', err.message);
@@ -77,7 +81,11 @@ if (fs.existsSync(jsonPath)) {
 } else {
   curatedCollections = defaultCuratedCollections;
   try {
-    fs.writeFileSync(jsonPath, JSON.stringify({ lastUpdated: 0, feeds: curatedCollections }, null, 2), 'utf8');
+    fs.writeFileSync(jsonPath, JSON.stringify({ 
+      lastUpdated: 0, 
+      feeds: curatedCollections, 
+      searchKeywords: screensaverState.searchKeywords 
+    }, null, 2), 'utf8');
     console.log('Created new curated_collections.json file from seed data.');
   } catch (err) {
     console.error('Failed to create curated_collections.json:', err.message);
@@ -335,7 +343,7 @@ async function updateFeedsDaily() {
     return;
   }
 
-  const { updatedCollections, updatedAny } = await crawlAllCollections(curatedCollections);
+  const { updatedCollections, updatedAny } = await crawlAllCollections(curatedCollections, screensaverState.searchKeywords);
   
   if (updatedAny) {
     for (const key of Object.keys(updatedCollections)) {
@@ -343,7 +351,11 @@ async function updateFeedsDaily() {
     }
 
     try {
-      fs.writeFileSync(jsonPath, JSON.stringify({ lastUpdated: now, feeds: curatedCollections }, null, 2), 'utf8');
+      fs.writeFileSync(jsonPath, JSON.stringify({ 
+        lastUpdated: now, 
+        feeds: curatedCollections, 
+        searchKeywords: screensaverState.searchKeywords 
+      }, null, 2), 'utf8');
       console.log('Successfully saved updated feeds to curated_collections.json');
     } catch (err) {
       console.error('Failed to write curated_collections.json:', err.message);

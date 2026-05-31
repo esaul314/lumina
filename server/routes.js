@@ -1,4 +1,6 @@
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
 const { getIpLocation, fetchWeatherForecast } = require('./services/weather.js');
 
 /**
@@ -111,6 +113,43 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     } else {
       return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
     }
+  });
+
+  // POST /api/config/keywords
+  app.post('/api/config/keywords', (req, res) => {
+    const { category, keywords } = req.body;
+
+    if (!category || typeof category !== 'string') {
+      return res.status(400).json({ error: 'Invalid parameter: "category" must be a non-empty string.' });
+    }
+
+    if (!collections[category]) {
+      return res.status(404).json({ error: `Category "${category}" not found in curated collections.` });
+    }
+
+    if (!Array.isArray(keywords) || !keywords.every(kw => typeof kw === 'string' && kw.trim().length > 0)) {
+      return res.status(400).json({ error: 'Invalid parameter: "keywords" must be an array of non-empty strings.' });
+    }
+
+    // Update in state
+    state.searchKeywords[category] = keywords.map(kw => kw.trim());
+
+    // Save to curated_collections.json
+    try {
+      const rootDir = path.join(__dirname, '..');
+      const jsonPath = path.join(rootDir, 'curated_collections.json');
+      fs.writeFileSync(jsonPath, JSON.stringify({ 
+        lastUpdated: Date.now(), 
+        feeds: collections, 
+        searchKeywords: state.searchKeywords 
+      }, null, 2), 'utf8');
+      console.log(`[Config API] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
+    } catch (writeErr) {
+      console.error('[Config API] Failed to write curated_collections.json:', writeErr.message);
+    }
+
+    io.emit('state-sync', state);
+    return res.json({ success: true, category, keywords: state.searchKeywords[category] });
   });
 
   // GET /api/config
