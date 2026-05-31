@@ -63,4 +63,57 @@ const defaultCuratedCollections = {
   ]
 };
 
-module.exports = { defaultCuratedCollections };
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * 💾 updatePhotoRating
+ * Updates the rating of a photograph by its URL across all categories, state lists, and persists to disk.
+ */
+function updatePhotoRating(collections, state, url, rating) {
+  let found = false;
+
+  // 1. Update in the collections database
+  for (const cat of Object.keys(collections)) {
+    const arr = collections[cat];
+    if (Array.isArray(arr)) {
+      for (const photo of arr) {
+        if (photo.url === url) {
+          photo.rating = rating;
+          found = true;
+        }
+      }
+    }
+  }
+
+  // 2. Update in state.photosList
+  if (state && Array.isArray(state.photosList)) {
+    for (const photo of state.photosList) {
+      if (photo.url === url) {
+        photo.rating = rating;
+      }
+    }
+  }
+
+  // 3. Update in state.activePhoto
+  if (state && state.activePhoto && state.activePhoto.url === url) {
+    state.activePhoto.rating = rating;
+  }
+
+  // 4. Save to curated_collections.json
+  if (found) {
+    try {
+      const rootDir = path.join(__dirname, '..', '..');
+      const jsonPath = path.join(rootDir, 'curated_collections.json');
+      fs.writeFileSync(jsonPath, JSON.stringify({ lastUpdated: Date.now(), feeds: collections }, null, 2), 'utf8');
+      console.log(`[Collections Config] Saved photo rating ${rating} to curated_collections.json for URL: ${url}`);
+    } catch (writeErr) {
+      console.error('[Collections Config] Failed to write curated_collections.json:', writeErr.message);
+    }
+  }
+
+  return found;
+}
+
+module.exports = { defaultCuratedCollections, updatePhotoRating };
+

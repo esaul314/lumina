@@ -109,6 +109,7 @@ function tagPhotosWithKeywords(photos, defaultIsNight = false) {
     title: photo.title,
     author: photo.author,
     source: photo.source || 'curated',
+    rating: photo.rating !== undefined ? photo.rating : 10,
     isNight: photo.isNight !== undefined ? photo.isNight : (defaultIsNight || isNightPhoto(photo)),
     isRain: photo.isRain !== undefined ? photo.isRain : isRainPhoto(photo),
     isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunnyPhoto(photo),
@@ -164,8 +165,50 @@ function combineFeedsBalanced(categories, collections) {
 }
 
 /**
+ * 🎯 selectWeightedRandomPhoto
+ * Picks a photo from a list based on ratings. Rating=1 is blocked (Weight=0).
+ * Scales ratings 2-10 linearly (2=0.2, 10=1.0).
+ */
+function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
+  // 1. Filter out banned images (rating = 1)
+  let activePhotos = photos.filter(p => p.rating !== 1);
+  if (activePhotos.length === 0) return null;
+
+  // 2. Avoid consecutive repeat if possible
+  if (activePhotos.length > 1 && currentPhotoUrl) {
+    const withoutCurrent = activePhotos.filter(p => p.url !== currentPhotoUrl);
+    if (withoutCurrent.length > 0) {
+      activePhotos = withoutCurrent;
+    }
+  }
+
+  // 3. Compute cumulative weight map
+  const totalWeight = activePhotos.reduce((sum, photo) => {
+    const r = photo.rating !== undefined ? photo.rating : 10;
+    return sum + (r / 10);
+  }, 0);
+
+  if (totalWeight === 0) return activePhotos[0];
+
+  // 4. Random float select point
+  let randomPoint = Math.random() * totalWeight;
+
+  // 5. Cumulative distribution selector
+  for (const photo of activePhotos) {
+    const r = photo.rating !== undefined ? photo.rating : 10;
+    const w = r / 10;
+    if (randomPoint < w) {
+      return photo;
+    }
+    randomPoint -= w;
+  }
+  return activePhotos[activePhotos.length - 1]; // Fallback
+}
+
+/**
  * 🎯 getSmartPhoto
- * Dynamic weighted select algorithm mapping physical weather & news sentiment to wallpaper lists.
+ * Dynamic weighted select algorithm mapping physical weather & news sentiment to wallpaper lists,
+ * resolved through a Cumulative Distribution Function (CDF) rating-weighted engine.
  */
 function getSmartPhoto(direction = 'next') {
   const list = screensaverState.photosList;
@@ -212,22 +255,9 @@ function getSmartPhoto(direction = 'next') {
     }
   }
 
-  if (candidates.length > 0) {
-    if (candidates.length < list.length) {
-      const randIdx = Math.floor(Math.random() * candidates.length);
-      return candidates[randIdx];
-    } else {
-      const currentIndex = list.findIndex(p => p.url === screensaverState.activePhoto.url);
-      const step = direction === 'next' ? 1 : -1;
-      const nextIndex = (currentIndex + step + list.length) % list.length;
-      return list[nextIndex];
-    }
-  }
-
-  const currentIndex = list.findIndex(p => p.url === screensaverState.activePhoto.url);
-  const step = direction === 'next' ? 1 : -1;
-  const nextIndex = (currentIndex + step + list.length) % list.length;
-  return list[nextIndex];
+  // Delegate selection to the weighted CDF probability engine
+  const currentPhotoUrl = screensaverState.activePhoto?.url;
+  return selectWeightedRandomPhoto(candidates, currentPhotoUrl);
 }
 
 /**
