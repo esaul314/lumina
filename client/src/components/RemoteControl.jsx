@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Palette, Sliders, Smartphone, Image, RefreshCw, 
   ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,

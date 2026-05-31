@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Eye, EyeOff, Settings, X, Check } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check } from 'lucide-react';
 
 function Dashboard({ state, socket, connectionInfo }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
   const [isScreensaverActive, setIsScreensaverActive] = useState(true);
-  const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [activeSlides, setActiveSlides] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -58,7 +57,6 @@ function Dashboard({ state, socket, connectionInfo }) {
     // If active photo is already initialized by server state-sync, skip redundant selection to prevent race conditions
     if (state.activePhoto) return;
 
-    setLoadingPhotos(true);
     try {
       const res = await fetch(`/api/photos?category=${encodeURIComponent(category)}`);
       const photos = await res.json();
@@ -69,8 +67,6 @@ function Dashboard({ state, socket, connectionInfo }) {
       }
     } catch (e) {
       console.error('Failed to fetch photos', e);
-    } finally {
-      setLoadingPhotos(false);
     }
   };
 
