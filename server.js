@@ -7,10 +7,21 @@ const dns = require('dns');
 const os = require('os');
 const { exec } = require('child_process');
 
-
 const { sendEmailAlert } = require('./server/services/notifier.js');
 const { screensaverState } = require('./server/config/state.js');
 const { defaultCuratedCollections } = require('./server/config/collections.js');
+const {
+  setCpuGovernor,
+  getGnomeIdleTime,
+  isAudioPlaying,
+  launchChromiumKiosk,
+  killChromiumKiosk
+} = require('./server/services/system.js');
+const {
+  getIpLocation,
+  classifyWeatherCode,
+  fetchWeatherForecast
+} = require('./server/services/weather.js');
 
 // Global Process Crash Boundaries (Self-Healing Interceptors)
 process.on('uncaughtException', (err) => {
@@ -445,10 +456,7 @@ async function updateNewsSentiment() {
 async function updateServerWeather() {
   try {
     const loc = await getIpLocation();
-    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
-    const res = await fetch(weatherUrl);
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await fetchWeatherForecast(loc.lat, loc.lon);
     if (data && !data.error) {
       serverWeatherData = {
         location: loc,
@@ -456,26 +464,8 @@ async function updateServerWeather() {
         daily: data.daily
       };
       
-      // Classify WMO weather code for dynamic wallpaper mapping
       if (data.current) {
-        const code = data.current.weather_code;
-        let physicalMatch = 'Cloudy';
-        let physicalCond = 'Cloudy';
-
-        if (code === 0) {
-          physicalMatch = 'Sunny';
-          physicalCond = 'Sunny / Clear';
-        } else if ([1, 2, 3, 45, 48].includes(code)) {
-          physicalMatch = 'Cloudy';
-          physicalCond = 'Cloudy / Overcast';
-        } else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) {
-          physicalMatch = 'Rainy';
-          physicalCond = 'Rainy / Stormy';
-        } else if ([71, 73, 75, 77, 85, 86].includes(code)) {
-          physicalMatch = 'Snowy';
-          physicalCond = 'Snowy / Wintry';
-        }
-
+        const { physicalMatch, physicalCond } = classifyWeatherCode(data.current.weather_code);
         screensaverState.physicalWeather = {
           temp: Math.round(data.current.temperature_2m),
           condition: physicalCond,
@@ -831,18 +821,6 @@ if (process.env.NODE_ENV !== 'test') {
   }, 4 * 60 * 60 * 1000);
 }
 
-// Geolocation helper
-async function getIpLocation() {
-  // Hardcoded to Verdun, Montreal, Canada to ensure the weather is always 100% correct for the user's exact location
-  return {
-    lat: 45.45,
-    lon: -73.56,
-    city: 'Verdun',
-    regionName: 'Quebec',
-    country: 'Canada'
-  };
-}
-
 // Fetch live weather from free Open-Meteo API
 app.get('/api/weather', async (req, res) => {
   if (serverWeatherData) {
@@ -850,10 +828,7 @@ app.get('/api/weather', async (req, res) => {
   }
   try {
     const loc = await getIpLocation();
-    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
-    
-    const weatherRes = await fetch(weatherUrl);
-    const weatherData = await weatherRes.json();
+    const weatherData = await fetchWeatherForecast(loc.lat, loc.lon);
     
     serverWeatherData = {
       location: loc,
@@ -1089,133 +1064,53 @@ io.on('connection', (socket) => {
 // --- SYSTEM-WIDE SCREENSAVER DAEMON LOGIC ---
 let isBrowserRunning = false;
 let manualOverride = false;
-let expectingKill = false;
 
 function launchKioskBrowser() {
   if (isBrowserRunning) return;
   console.log('Lumina System Idle: Spawning Fullscreen Kiosk Screensaver...');
   isBrowserRunning = true;
-  expectingKill = false;
 
-  // Toggle CPU governor to high-performance when screensaver is active
-  exec('echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor', (err) => {
-    if (err) console.warn('Could not set CPU governor to performance:', err.message);
-  });
-  
-  // High-performance and memory containment CLI flags to ensure we never hang the system:
-  // --js-flags="--max-old-space-size=256": Limits V8 JS heap memory footprint to 256MB.
-  // --disable-dev-shm-usage: Avoids exhausting shared memory partitions.
-  // --disk-cache-size=52428800 --media-cache-size=20971520: Limits disk/media cache sizes strictly.
-  // --disable-gpu-shader-disk-cache: Prevents heavy disk write activities.
-  // --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --use-gl=egl: Shifts graphics rendering to Haswell GPU.
-  const optimizedFlags = '--ozone-platform=wayland --enable-features=UseOzonePlatform --js-flags="--max-old-space-size=256" --disable-dev-shm-usage --disk-cache-size=52428800 --media-cache-size=20971520 --disable-gpu-shader-disk-cache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --kiosk --no-first-run --new-window';
-  const x11Flags = '--js-flags="--max-old-space-size=256" --disable-dev-shm-usage --disk-cache-size=52428800 --media-cache-size=20971520 --disable-gpu-shader-disk-cache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --kiosk --no-first-run --new-window';
-
-  // Try Native Wayland first (Fedora default)
-  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 chromium-browser ${optimizedFlags} http://localhost:5000/?mode=tv`;
-  
-  exec(waylandCmd, (err, stdout, stderr) => {
-    if (err) {
-      if (expectingKill || err.signal === 'SIGTERM' || err.signal === 'SIGKILL') {
-        isBrowserRunning = false;
-        expectingKill = false;
-        return;
-      }
-      
-      console.warn('Chromium native Wayland launch failed, trying X11/Xwayland...', err.message);
-      
-      // X11 / Xwayland with dynamic Xauthority lookup
-      const x11Cmd = `XAUTH=$(find /run/user/1000 -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="/home/alex/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/1000 chromium-browser ${x11Flags} http://localhost:5000/?mode=tv`;
-      
-      exec(x11Cmd, (x11Err, x11Stdout, x11Stderr) => {
-        if (x11Err) {
-          if (expectingKill || x11Err.signal === 'SIGTERM' || x11Err.signal === 'SIGKILL') {
-            isBrowserRunning = false;
-            expectingKill = false;
-            return;
-          }
-          
-          console.warn('Chromium-browser X11 launch failed, trying standard chromium (Wayland)...', x11Err.message);
-          
-          // Fallback to standard chromium command under Wayland
-          const waylandFallback = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 chromium ${optimizedFlags} http://localhost:5000/?mode=tv`;
-          exec(waylandFallback, (wfErr, wfStdout, wfStderr) => {
-            if (wfErr) {
-              if (expectingKill || wfErr.signal === 'SIGTERM' || wfErr.signal === 'SIGKILL') {
-                isBrowserRunning = false;
-                expectingKill = false;
-                return;
-              }
-              
-              console.error('All Chromium launch attempts failed.');
-              console.error('Last error:', wfErr.message);
-              isBrowserRunning = false;
-            }
-          });
-        }
-      });
-    }
+  setCpuGovernor('performance');
+  launchChromiumKiosk(PORT, 'tv', () => {
+    isBrowserRunning = false;
   });
 }
-
 
 function killKioskBrowser() {
   if (!isBrowserRunning) return;
   console.log('Lumina System Active: Dismissing Kiosk Browser...');
-  expectingKill = true;
   isBrowserRunning = false;
   manualOverride = false;
 
-  // Restore CPU governor to standard energy-saving schedutil
-  exec('echo "schedutil" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor', (err) => {
-    if (err) console.warn('Could not restore CPU governor to schedutil:', err.message);
-  });
-  
-  exec('killall chromium-browser || killall chromium', (err) => {
-    // Process terminated
-  });
+  setCpuGovernor('schedutil');
+  killChromiumKiosk();
 }
 
 if (process.env.NODE_ENV !== 'test') {
   // Mutter DBus Idle polling every 2 seconds
-  setInterval(() => {
-    const dbusCmd = 'DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus" busctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime';
-    exec(dbusCmd, (err, stdout) => {
-      if (err) {
-        // Fallback if not running GNOME core session
-        return;
-      }
+  setInterval(async () => {
+    try {
+      const idleMs = await getGnomeIdleTime();
+      const isIdle = idleMs >= screensaverState.inactivityTimeout;
+      const isMoviePlaying = await isAudioPlaying();
+
+      // Screensaver activates if system is idle AND no movie is playing (unless manually forced)
+      const isActuallyIdle = isIdle && !isMoviePlaying;
+      const shouldBeActive = isActuallyIdle || manualOverride;
       
-      const match = stdout.trim().match(/t\s+(\d+)/);
-      if (match) {
-        const idleMs = parseInt(match[1], 10);
-        const isIdle = idleMs >= screensaverState.inactivityTimeout; // 10 minutes
-        
-        // Check if a movie is playing by listing sink-inputs and checking for active sound playback
-        exec('pactl list sink-inputs', (pactlErr, pactlStdout) => {
-          let isMoviePlaying = false;
-          if (!pactlErr && pactlStdout) {
-            // An active audio stream will have 'Corked: no' or 'pulse.corked = "false"'
-            isMoviePlaying = pactlStdout.toLowerCase().includes('corked: no') || pactlStdout.toLowerCase().includes('pulse.corked = "false"');
-          }
-
-          // Screensaver activates if system is idle AND no movie is playing (unless manually forced)
-          const isActuallyIdle = isIdle && !isMoviePlaying;
-          const shouldBeActive = isActuallyIdle || manualOverride;
-          
-          if (shouldBeActive && !isBrowserRunning) {
-            launchKioskBrowser();
-          } else if (!shouldBeActive && isBrowserRunning) {
-            killKioskBrowser();
-          }
-
-          if (screensaverState.screensaverActive !== shouldBeActive) {
-            screensaverState.screensaverActive = shouldBeActive;
-            io.emit('state-sync', screensaverState);
-          }
-        });
+      if (shouldBeActive && !isBrowserRunning) {
+        launchKioskBrowser();
+      } else if (!shouldBeActive && isBrowserRunning) {
+        killKioskBrowser();
       }
-    });
+
+      if (screensaverState.screensaverActive !== shouldBeActive) {
+        screensaverState.screensaverActive = shouldBeActive;
+        io.emit('state-sync', screensaverState);
+      }
+    } catch (err) {
+      // Fallback if not running GNOME core session or D-Bus is unavailable
+    }
   }, 2000);
 }
 
