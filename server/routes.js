@@ -89,6 +89,30 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     }
   });
 
+  // POST /api/photos/rate
+  app.post('/api/photos/rate', (req, res) => {
+    const { url, rating } = req.body;
+    
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
+    }
+    
+    const numericRating = parseInt(rating, 10);
+    if (isNaN(numericRating) || numericRating < 1 || numericRating > 10) {
+      return res.status(400).json({ error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' });
+    }
+
+    const { updatePhotoRating } = require('./config/collections.js');
+    const updated = updatePhotoRating(collections, state, url, numericRating);
+
+    if (updated) {
+      io.emit('state-sync', state);
+      return res.json({ success: true, url, rating: numericRating });
+    } else {
+      return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
+    }
+  });
+
   // GET /api/config
   app.get('/api/config', (req, res) => {
     res.json({
@@ -98,3 +122,4 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     });
   });
 };
+

@@ -107,6 +107,20 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       state.activePhoto = photo;
       io.emit('photo-update', photo);
     });
+
+    // Rate photo socket event
+    socket.on('rate-photo', ({ url, rating }) => {
+      if (!url || typeof url !== 'string') return;
+      const numericRating = parseInt(rating, 10);
+      if (isNaN(numericRating) || numericRating < 1 || numericRating > 10) return;
+
+      const { updatePhotoRating } = require('./config/collections.js');
+      const updated = updatePhotoRating(collections, state, url, numericRating);
+      if (updated) {
+        io.emit('state-sync', state);
+      }
+    });
+
     
     // Trigger Next Photo
     socket.on('next-photo', () => {
