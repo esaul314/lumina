@@ -7,11 +7,10 @@ Welcome, developer or AI agent! This codebase is governed by a strict set of arc
 ## 🌌 The Scout Rule (Core Directive)
 > **"Always try to leave the codebase better than it was before."**
 
-Every time you modify a file, run a test, or implement a feature, identify at least one small way to leave the surrounding code cleaner, more robust, or better documented. Examples include:
-* Improving comments or adding typings.
-* Eliminating redundant variables or nested conditionals.
-* Standardizing spelling normalizations.
-* Adding a defensive guard to prevent crashes.
+Every time you modify a file, run a test, or implement a feature, identify at least one small way to leave the surrounding code cleaner, more robust, or better documented. In addition:
+* **Immediate Fixes**: If you identify a defect or a design flaw in the course of your work, and the fix is simple and quick, perform the fix immediately.
+* **Tech Debt Logging**: If the fix is complex or requires extensive architectural changes, do not let it pass silently; document it explicitly in the **Tech Debt / Backlog** section in the documentation.
+* **General Cleanup**: Improve comments, add typing guards, eliminate redundant variables, or standardise spelling normalizations wherever possible.
 
 ---
 
