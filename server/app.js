@@ -18,7 +18,7 @@ const {
   killChromiumKiosk
 } = require('./services/system.js');
 const {
-  getIpLocation,
+  resolveActiveLocation,
   classifyWeatherCode,
   fetchWeatherForecast
 } = require('./services/weather.js');
@@ -295,7 +295,7 @@ async function updateNewsSentiment() {
  */
 async function updateServerWeather() {
   try {
-    const loc = await getIpLocation();
+    const loc = await resolveActiveLocation(screensaverState);
     const data = await fetchWeatherForecast(loc.lat, loc.lon);
     if (data && !data.error) {
       serverWeatherData = {
@@ -427,8 +427,13 @@ function getLocalIpAddresses() {
 }
 
 // Wire up modular controllers
+const triggerWeatherUpdate = async () => {
+  serverWeatherData = null; // Clear cache
+  await updateServerWeather();
+};
+
 require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT);
-require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, getLocalIpAddresses, PORT);
+require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, getLocalIpAddresses, PORT, triggerWeatherUpdate);
 
 // Mutter DBus Idle polling every 2 seconds
 if (process.env.NODE_ENV !== 'test') {

@@ -28,6 +28,14 @@ const screensaverState = {
     'Liminal Spaces': ['liminal spaces empty corridor backrooms'],
     'AI Creations': ['surreal digital art generative midjourney cyberpunk futuristic']
   },
+  autoLocation: true,
+  manualLocation: {
+    lat: 45.45,
+    lon: -73.56,
+    city: 'Verdun',
+    regionName: 'Quebec',
+    country: 'Canada'
+  },
   newsSentiment: {
     score: 0,
     label: 'Overcast / Calm',

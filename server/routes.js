@@ -1,7 +1,7 @@
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const { getIpLocation, fetchWeatherForecast } = require('./services/weather.js');
+const { resolveActiveLocation, fetchWeatherForecast } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
 
 /**
@@ -34,7 +34,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       return res.json(cached);
     }
     try {
-      const loc = await getIpLocation();
+      const loc = await resolveActiveLocation(state);
       const weatherData = await fetchWeatherForecast(loc.lat, loc.lon);
       
       const finalData = {

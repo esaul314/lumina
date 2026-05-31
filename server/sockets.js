@@ -6,7 +6,7 @@ const googlePhotos = require('./services/googlePhotos.js');
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
  */
-module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, getLocalIpAddresses, PORT) {
+module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, getLocalIpAddresses, PORT, triggerWeatherUpdate) {
   
   io.on('connection', (socket) => {
     console.log('Device connected to Lumina network:', socket.id);
@@ -199,6 +199,32 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
     
+    // Toggle auto geolocation setting
+    socket.on('toggle-auto-location', async (autoLocation) => {
+      console.log(`[SOCKET EVENT] toggle-auto-location: ${autoLocation}`);
+      state.autoLocation = !!autoLocation;
+      io.emit('state-sync', state);
+      if (triggerWeatherUpdate) {
+        await triggerWeatherUpdate();
+      }
+    });
+
+    // Update manual location overrides
+    socket.on('update-manual-location', async ({ lat, lon, city, regionName, country }) => {
+      console.log(`[SOCKET EVENT] update-manual-location: ${city} (${lat}, ${lon})`);
+      state.manualLocation = {
+        lat: parseFloat(lat) || 45.45,
+        lon: parseFloat(lon) || -73.56,
+        city: String(city || 'Verdun').trim(),
+        regionName: String(regionName || 'Quebec').trim(),
+        country: String(country || 'Canada').trim()
+      };
+      io.emit('state-sync', state);
+      if (triggerWeatherUpdate) {
+        await triggerWeatherUpdate();
+      }
+    });
+
     socket.on('disconnect', () => {
       console.log('Device disconnected:', socket.id);
     });

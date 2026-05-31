@@ -84,8 +84,21 @@ async function fetchWeatherForecast(lat, lon) {
   return res.json();
 }
 
+/**
+ * 📍 resolveActiveLocation
+ * Resolves active location coordinates based on central state settings.
+ */
+async function resolveActiveLocation(state) {
+  if (state && state.autoLocation === false && state.manualLocation) {
+    console.log('IP Geolocation: Using manual coordinates overrides:', state.manualLocation.city);
+    return state.manualLocation;
+  }
+  return await getIpLocation();
+}
+
 module.exports = {
   getIpLocation,
+  resolveActiveLocation,
   classifyWeatherCode,
   fetchWeatherForecast
 };
