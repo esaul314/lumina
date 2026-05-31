@@ -2,6 +2,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { getIpLocation, fetchWeatherForecast } = require('./services/weather.js');
+const googlePhotos = require('./services/googlePhotos.js');
 
 /**
  * 🛠️ getLocalIpAddresses
@@ -48,6 +49,43 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     }
   });
 
+  // Helper to dynamically balance google photos and curated categories round-robin
+  function combineGoogleAndCuratedFeeds(categoriesList, collectionsObj) {
+    const lists = categoriesList.map(cat => {
+      if (cat === 'Google Photos') {
+        return googlePhotos.getCachedMediaItems();
+      }
+      const list = [...(collectionsObj[cat] || [])];
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      return list;
+    }).filter(list => list.length > 0);
+
+    if (lists.length === 0) return [];
+    if (lists.length === 1) return lists[0];
+
+    const combined = [];
+    const maxLen = Math.max(...lists.map(l => l.length));
+    
+    for (let i = 0; i < maxLen; i++) {
+      for (let j = 0; j < lists.length; j++) {
+        const list = lists[j];
+        combined.push(list[i % list.length]);
+      }
+    }
+
+    const finalPhotos = [];
+    for (const photo of combined) {
+      if (finalPhotos.length > 0 && finalPhotos[finalPhotos.length - 1].url === photo.url) {
+        continue;
+      }
+      finalPhotos.push(photo);
+    }
+    return finalPhotos;
+  }
+
   // GET /api/photos
   app.get('/api/photos', async (req, res) => {
     const { category } = req.query;
@@ -65,11 +103,11 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
           return catName;
         });
 
-        const validCategories = selectedCategories.filter(catName => !!collections[catName]);
+        const validCategories = selectedCategories.filter(catName => !!collections[catName] || catName === 'Google Photos');
 
         if (validCategories.length > 0) {
           state.currentCategory = validCategories.join(',');
-          state.photosList = combineFeedsBalanced(validCategories, collections);
+          state.photosList = combineGoogleAndCuratedFeeds(validCategories, collections);
           
           const smartPhoto = getSmartPhoto('next');
           if (smartPhoto) {
@@ -83,7 +121,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       }
       
       const currentCats = state.currentCategory ? state.currentCategory.split(',') : [];
-      const responsePhotos = combineFeedsBalanced(currentCats, collections);
+      const responsePhotos = combineGoogleAndCuratedFeeds(currentCats, collections);
       res.json(responsePhotos.length > 0 ? responsePhotos : (collections['Scenic Nature'] || []));
     } catch (error) {
       console.error('Failed to fetch photos from curated list', error.message);
@@ -150,6 +188,62 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
     io.emit('state-sync', state);
     return res.json({ success: true, category, keywords: state.searchKeywords[category] });
+  });
+
+  // POST /api/auth/google/credentials
+  app.post('/api/auth/google/credentials', (req, res) => {
+    const { clientId, clientSecret } = req.body;
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ error: 'Client ID and Client Secret are required.' });
+    }
+    const success = googlePhotos.saveGoogleCredentials(clientId, clientSecret);
+    return res.json({ success });
+  });
+
+  // GET /api/auth/google/login
+  app.get('/api/auth/google/login', (req, res) => {
+    const localIp = getLocalIpAddresses()[0] || 'localhost';
+    const redirectUri = `http://${localIp}:${PORT}/api/auth/google/callback`;
+    const url = googlePhotos.getGoogleAuthUrl(redirectUri);
+    res.redirect(url);
+  });
+
+  // GET /api/auth/google/callback
+  app.get('/api/auth/google/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) {
+      return res.status(400).send('Authentication code is missing from Google redirect.');
+    }
+    
+    try {
+      const localIp = getLocalIpAddresses()[0] || 'localhost';
+      const redirectUri = `http://${localIp}:${PORT}/api/auth/google/callback`;
+      
+      await googlePhotos.exchangeGoogleCode(code, redirectUri);
+      await googlePhotos.syncGoogleAlbum();
+      
+      // Emit state-sync so clients know Google Photos is active
+      io.emit('state-sync', state);
+      
+      // Redirect back to mobile remote control with success indicator
+      res.redirect(`http://${localIp}:${PORT}/?mode=remote&googleAuth=success`);
+    } catch (err) {
+      console.error('Google Photos Auth Callback error:', err.message);
+      res.status(500).send(`Google Photos Link Failed: ${err.message}`);
+    }
+  });
+
+  // GET /api/auth/google/sandbox-callback
+  app.get('/api/auth/google/sandbox-callback', async (req, res) => {
+    try {
+      await googlePhotos.exchangeGoogleCode('sandbox-code', '');
+      await googlePhotos.syncGoogleAlbum();
+      
+      const localIp = getLocalIpAddresses()[0] || 'localhost';
+      res.redirect(`http://${localIp}:${PORT}/?mode=remote&googleAuth=success`);
+    } catch (err) {
+      res.status(500).send(`Sandbox Google Photos Link Failed: ${err.message}`);
+    }
   });
 
   // GET /api/config
