@@ -17,6 +17,14 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [newKeywordInput, setNewKeywordInput] = useState('');
   const [imageStatus, setImageStatus] = useState('loading'); // loading, loaded, failed
 
+  // Detect returning OAuth success from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('googleAuth') === 'success') {
+      setIsSavedEnv(true);
+    }
+  }, []);
+
   // Preload and monitor the active gallery photo URL
   useEffect(() => {
     if (!state.photosList || state.photosList.length === 0) return;
@@ -117,16 +125,31 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   };
 
   // Save Google Photos setup
-  const saveGoogleCredentials = (e) => {
+  const saveGoogleCredentials = async (e) => {
     e.preventDefault();
     if (googleClientId && googleClientSecret) {
-      // Simulate environment saving for local OAuth flow
-      setIsSavedEnv(true);
-      alert('Google Photos Credentials successfully registered! (In local development server)');
+      try {
+        const res = await fetch('/api/auth/google/credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: googleClientId, clientSecret: googleClientSecret })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setIsSavedEnv(true);
+          // Redirect to OAuth login portal on the server
+          window.location.href = '/api/auth/google/login';
+        } else {
+          alert('Failed to register Google Photos credentials on server.');
+        }
+      } catch (err) {
+        console.error('Failed to post credentials:', err);
+        alert('Network error connecting to Google Auth Endpoint.');
+      }
     }
   };
 
-  const categories = ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations'];
+  const categories = ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations', 'Google Photos'];
   const themes = ['Zen Retreat', 'Cosmic Night', 'Art Museum', 'Cyberpunk Rain'];
 
   return (
@@ -341,6 +364,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                         {cat === 'Abstract Art' && '🎨'}
                         {cat === 'Liminal Spaces' && '🚪'}
                         {cat === 'AI Creations' && '🤖'}
+                        {cat === 'Google Photos' && '📸'}
                       </span>
                       <span style={{ fontWeight: 500 }}>{cat} Feed</span>
                     </div>
