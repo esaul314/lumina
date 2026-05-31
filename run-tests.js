@@ -235,6 +235,31 @@ assertTest('never selects banned photos (rating = 1)', () => {
   }
 });
 
+assertTest('successfully marks photo as broken and updates state lists via markPhotoBroken', () => {
+  const { markPhotoBroken } = require('./server/config/collections.js');
+  const testCollections = {
+    'Scenic Nature': [
+      { url: 'urlA', title: 'Photo A', rating: 10 },
+      { url: 'urlB', title: 'Photo B', rating: 10 }
+    ]
+  };
+  const testState = {
+    photosList: [
+      { url: 'urlA', title: 'Photo A', rating: 10 },
+      { url: 'urlB', title: 'Photo B', rating: 10 }
+    ],
+    activePhoto: { url: 'urlB', title: 'Photo B', rating: 10 }
+  };
+
+  const marked = markPhotoBroken(testCollections, testState, 'urlB');
+  assert.strictEqual(marked, true, 'markPhotoBroken must return true for found URLs');
+  assert.strictEqual(testCollections['Scenic Nature'][1].rating, 1, 'rating must be set to 1');
+  assert.strictEqual(testCollections['Scenic Nature'][1].isBroken, true, 'isBroken must be set to true');
+  assert.strictEqual(testState.activePhoto.rating, 1, 'state.activePhoto rating must be set to 1');
+  assert.strictEqual(testState.activePhoto.isBroken, true, 'state.activePhoto isBroken must be set to true');
+  assert.ok(!testState.photosList.some(p => p.url === 'urlB'), 'broken photo must be pruned from state.photosList');
+});
+
 assertTest('weighted distribution favors highly-rated photos', () => {
   const samplePhotos = [
     { url: 'high', title: 'High Rating Photo', rating: 10 },

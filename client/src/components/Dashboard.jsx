@@ -122,7 +122,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       });
     };
 
-    imgPreloader.onerror = () => {
+     imgPreloader.onerror = () => {
       console.warn('Failed to load wallpaper image:', state.activePhoto.url);
       
       const maxFailures = state.photosList ? state.photosList.length : 5;
@@ -136,6 +136,12 @@ function Dashboard({ state, socket, connectionInfo }) {
           message: 'All wallpapers in this feed failed to load. The display client is likely offline.'
         });
         return;
+      }
+
+      // If consecutive failures are low (< 3), assume this specific link is broken and mark it broken on the server
+      if (consecutiveFailuresRef.current < 3) {
+        console.log('Reporting specific broken link to server:', state.activePhoto.url);
+        socket.emit('mark-photo-broken', { url: state.activePhoto.url });
       }
 
       consecutiveFailuresRef.current += 1;

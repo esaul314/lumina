@@ -23,6 +23,11 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [manualLat, setManualLat] = useState(state.manualLocation?.lat || 45.45);
   const [manualLon, setManualLon] = useState(state.manualLocation?.lon || -73.56);
 
+  const [useapiToken, setUseapiToken] = useState('');
+  const [recrawlStatus, setRecrawlStatus] = useState('idle'); // idle, loading, success, error
+  const [useapiStatus, setUseapiStatus] = useState('idle'); // idle, success, error
+  const [recrawlCount, setRecrawlCount] = useState(0);
+
   // Sync manual location states when state updates from Socket
   useEffect(() => {
     if (state.manualLocation) {
@@ -33,6 +38,39 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
       setManualLon(state.manualLocation.lon !== undefined ? state.manualLocation.lon : '');
     }
   }, [state.manualLocation]);
+
+  // Socket listeners for Admin panel feedback
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRecrawlComplete = (data) => {
+      if (data.success) {
+        setRecrawlStatus('success');
+        setRecrawlCount(data.count);
+      } else {
+        setRecrawlStatus('error');
+      }
+      setTimeout(() => setRecrawlStatus('idle'), 4000);
+    };
+
+    const handleUseApiSaved = (data) => {
+      if (data.success) {
+        setUseapiStatus('success');
+        setUseapiToken('');
+      } else {
+        setUseapiStatus('error');
+      }
+      setTimeout(() => setUseapiStatus('idle'), 4000);
+    };
+
+    socket.on('recrawl-complete', handleRecrawlComplete);
+    socket.on('useapi-token-saved', handleUseApiSaved);
+
+    return () => {
+      socket.off('recrawl-complete', handleRecrawlComplete);
+      socket.off('useapi-token-saved', handleUseApiSaved);
+    };
+  }, [socket]);
 
   // Detect returning OAuth success from URL parameters
   useEffect(() => {
@@ -59,6 +97,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     img.onerror = () => {
       setImageStatus('failed');
       console.warn(`[Independent Rating Deck] Failed to load image URL: ${photo.url}`);
+      // Automatically report broken link to server
+      socket.emit('mark-photo-broken', { url: photo.url });
     };
   }, [galleryIndex, state.photosList]);
 
@@ -1085,6 +1125,94 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
             <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '8px', textAlign: 'center' }}>
               Current: {state.slideshowInterval === 15000 ? '15 seconds (Demo mode)' : `${(state.slideshowInterval || 120000) / 60000} minutes`}
             </p>
+          </div>
+
+          <div className="remote-card">
+            <span className="remote-section-title">Database & Feed Management</span>
+            <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '-8px', lineHeight: 1.3 }}>
+              Manually trigger the background crawler to query all active photography APIs (Reddit, Lexica, Unsplash, Wallhaven, NASA, Midjourney) and load fresh landscape images instantly.
+            </p>
+            {recrawlStatus === 'loading' ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <RefreshCw size={18} className="animate-spin" style={{ color: 'var(--accent-color)' }} />
+                <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>Crawling web feeds & self-healing links...</span>
+              </div>
+            ) : recrawlStatus === 'success' ? (
+              <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid #10b981', padding: '12px', borderRadius: '12px', color: '#10b981', textAlign: 'center', fontSize: '0.85rem', fontWeight: 500 }}>
+                ✓ Feeds Recrawled Successfully! Now showing {recrawlCount} images.
+              </div>
+            ) : recrawlStatus === 'error' ? (
+              <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid #ef4444', padding: '12px', borderRadius: '12px', color: '#ef4444', textAlign: 'center', fontSize: '0.85rem', fontWeight: 500 }}>
+                ✗ Recrawl failed. Check server logs for API boundaries.
+              </div>
+            ) : (
+              <button 
+                onClick={() => {
+                  setRecrawlStatus('loading');
+                  socket.emit('trigger-recrawl');
+                }}
+                className="remote-btn" 
+                style={{ background: 'var(--accent-color)', borderColor: 'var(--accent-color)', fontWeight: 600 }}
+              >
+                <RefreshCw size={16} /> Force Dynamic Feed Recrawl
+              </button>
+            )}
+          </div>
+
+          <div className="remote-card">
+            <span className="remote-section-title">Midjourney Integration</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Connection Status</span>
+              <span style={{ 
+                fontSize: '0.75rem', 
+                fontWeight: 600, 
+                color: state.hasUseApiToken ? '#10b981' : '#eab308', 
+                background: state.hasUseApiToken ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)', 
+                padding: '2px 8px', 
+                borderRadius: '12px',
+                border: state.hasUseApiToken ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(234, 179, 8, 0.2)'
+              }}>
+                {state.hasUseApiToken ? '● Connected (UseAPI)' : '● Lexica Fallback Active'}
+              </span>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '-4px', lineHeight: 1.3 }}>
+              Lumina crawls Midjourney AI landscape creations via UseAPI.net. Enter your UseAPI token below to enable direct casting.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>USEAPI.NET BEARER TOKEN</label>
+                <input 
+                  type="password" 
+                  placeholder={state.hasUseApiToken ? '••••••••••••••••••••' : 'Enter UseAPI.net Token'} 
+                  value={useapiToken}
+                  onChange={(e) => setUseapiToken(e.target.value)}
+                  style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', outline: 'none' }} 
+                />
+              </div>
+              {useapiStatus === 'success' && (
+                <div style={{ color: '#10b981', fontSize: '0.8rem', textAlign: 'center', fontWeight: 500 }}>
+                  ✓ Token saved and loaded successfully!
+                </div>
+              )}
+              {useapiStatus === 'error' && (
+                <div style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 500 }}>
+                  ✗ Failed to save token. Check filesystem permissions.
+                </div>
+              )}
+              <button 
+                onClick={() => {
+                  if (!useapiToken.trim()) {
+                    alert('Please enter a valid token.');
+                    return;
+                  }
+                  socket.emit('save-useapi-token', { token: useapiToken.trim() });
+                }}
+                className="remote-btn" 
+                style={{ background: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)', fontSize: '0.85rem' }}
+              >
+                Update Midjourney Token
+              </button>
+            </div>
           </div>
 
           <div className="remote-card">
