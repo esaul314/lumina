@@ -188,7 +188,49 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
               )}
             </div>
 
-            
+            {state.activePhoto && (
+              <div style={{ marginTop: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
+                  <span style={{ opacity: 0.6 }}>Image Display Weight (Rating)</span>
+                  <span style={{ color: 'var(--accent-color)' }}>
+                    {state.activePhoto.rating === 1 ? '🛑 1 (Banned / Blocked)' :
+                     state.activePhoto.rating === 10 ? '🌟 10 (Default / Max)' :
+                     `📈 ${state.activePhoto.rating} (Weight: ${(state.activePhoto.rating || 10) / 10})`}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+                    const isCurrent = (state.activePhoto.rating || 10) === num;
+                    return (
+                      <button
+                        key={num}
+                        onClick={() => socket.emit('rate-photo', { url: state.activePhoto.url, rating: num })}
+                        className="remote-btn"
+                        style={{
+                          flex: 1,
+                          height: '32px',
+                          padding: 0,
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.03)',
+                          borderColor: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.08)',
+                          color: isCurrent ? '#fff' : 'rgba(255,255,255,0.7)',
+                          cursor: 'pointer',
+                          boxShadow: isCurrent ? '0 0 10px var(--accent-color)' : 'none'
+                        }}
+                      >
+                        {num}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="manual-controls-row">
               <button className="remote-btn" onClick={triggerPrev}>
                 <ChevronLeft size={18} /> Prev

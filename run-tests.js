@@ -68,6 +68,41 @@ async function fetchJson(url) {
   });
 }
 
+async function postJson(url, body) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const postData = JSON.stringify(body);
+    
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port,
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, body: JSON.parse(data) });
+        } catch (e) {
+          resolve({ status: res.statusCode, body: data });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+
 // ============================================================================
 // 1. UNIT TEST SUITE: Atmospheric Keyword Auto-Tagging
 // ============================================================================
@@ -169,7 +204,65 @@ assertTest('correctly classifies meteorological WMO weather codes', () => {
 });
 
 // ============================================================================
-// 4. INTEGRATION TEST SUITE: Live Endpoint Verification
+// 4. UNIT TEST SUITE: Image Rating & Weighted Slideshow Engine
+// ============================================================================
+logSuite('Image Rating & Weighted Slideshow Engine');
+
+assertTest('correctly preserves rating during keyword auto-tagging', () => {
+  const photos = [
+    { title: 'Golden Autumn Forest Stream', author: 'Sebastian Unrau', rating: 8 },
+    { title: 'Emerald Fields under Golden Sunsets', author: 'Kalen Emsley' }
+  ];
+  const tagged = tagPhotosWithKeywords(photos);
+  assert.strictEqual(tagged[0].rating, 8, 'Should preserve rating of 8');
+  assert.strictEqual(tagged[1].rating, 10, 'Should default rating to 10');
+});
+
+assertTest('never selects banned photos (rating = 1)', () => {
+  const samplePhotos = [
+    { url: 'url1', title: 'Great Photo', rating: 10 },
+    { url: 'url2', title: 'Banned Photo', rating: 1 },
+    { url: 'url3', title: 'Okay Photo', rating: 5 }
+  ];
+  screensaverState.photosList = samplePhotos;
+  screensaverState.activePhoto = samplePhotos[0];
+  screensaverState.alignWeather = false;
+  screensaverState.alignTimeOfDay = false;
+
+  for (let i = 0; i < 50; i++) {
+    const nextPhoto = getSmartPhoto('next');
+    assert.notStrictEqual(nextPhoto.url, 'url2', 'Banned photo must never be selected');
+  }
+});
+
+assertTest('weighted distribution favors highly-rated photos', () => {
+  const samplePhotos = [
+    { url: 'high', title: 'High Rating Photo', rating: 10 },
+    { url: 'low', title: 'Low Rating Photo', rating: 2 }
+  ];
+  screensaverState.photosList = samplePhotos;
+  screensaverState.activePhoto = samplePhotos[0];
+  screensaverState.alignWeather = false;
+  screensaverState.alignTimeOfDay = false;
+
+  let highCount = 0;
+  let lowCount = 0;
+  for (let i = 0; i < 1000; i++) {
+    screensaverState.activePhoto = null; // Disable consecutive repeat filtering for pure probability testing
+    const picked = getSmartPhoto('next');
+    if (picked.url === 'high') {
+      highCount++;
+    } else if (picked.url === 'low') {
+      lowCount++;
+    }
+  }
+
+  // Expect highCount > lowCount by a significant margin (mathematically 5:1 ratio)
+  assert.ok(highCount > lowCount * 2, `Expected highly-rated photo to be selected much more than low-rated one. High: ${highCount}, Low: ${lowCount}`);
+});
+
+// ============================================================================
+// 5. INTEGRATION TEST SUITE: Live Endpoint Verification
 // ============================================================================
 logSuite('Live Server Endpoint Smoke Tests');
 
@@ -215,6 +308,24 @@ async function runIntegrationTests() {
       assert.ok(combinedPhotos.length > 0, 'combined list should not be empty');
       assert.ok(combinedPhotos.every(p => p.url), 'every photograph must have a valid url attribute');
     });
+
+    // Test HTTP Rating API
+    const samplePhotoUrl = config.state.photosList[0]?.url;
+    if (samplePhotoUrl) {
+      const rateResponse = await postJson(`${baseUrl}/api/photos/rate`, { url: samplePhotoUrl, rating: 8 });
+      assertTest('POST /api/photos/rate successfully updates and persists a photo rating', () => {
+        assert.strictEqual(rateResponse.status, 200, 'Response status must be 200');
+        assert.strictEqual(rateResponse.body.success, true, 'success attribute must be true');
+        assert.strictEqual(rateResponse.body.rating, 8, 'rating should be 8');
+      });
+
+      // Test bad parameter validation
+      const invalidResponse = await postJson(`${baseUrl}/api/photos/rate`, { url: samplePhotoUrl, rating: 15 });
+      assertTest('POST /api/photos/rate rejects invalid rating values (e.g. rating = 15)', () => {
+        assert.strictEqual(invalidResponse.status, 400, 'Response status must be 400');
+        assert.ok(invalidResponse.body.error, 'Should return error message');
+      });
+    }
     
   } catch (err) {
     console.log(`  ${COLORS.yellow}⚠ SKIP:${COLORS.reset} Integration tests skipped (Lumina server is not actively listening on port 5000).`);
