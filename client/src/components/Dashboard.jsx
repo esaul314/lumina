@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw } from 'lucide-react';
 
 function Dashboard({ state, socket, connectionInfo }) {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -107,6 +107,9 @@ function Dashboard({ state, socket, connectionInfo }) {
       setActiveSlides(prev => {
         const newSlide = {
           url: state.activePhoto.url,
+          title: state.activePhoto.title,
+          author: state.activePhoto.author,
+          category: state.currentCategory,
           key: Date.now() + Math.random().toString(36).substr(2, 9), // Robust unique React key
           active: true
         };
@@ -299,6 +302,29 @@ function Dashboard({ state, socket, connectionInfo }) {
         ))}
       </div>
 
+      {/* Preloading Overlay for seamless startup transition */}
+      {activeSlides.length === 0 && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 2,
+          background: '#06050b',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '20px'
+        }}>
+          <RefreshCw size={40} className="animate-spin" style={{ color: 'var(--accent-color)', opacity: 0.8 }} />
+          <p style={{ fontFamily: 'Outfit', fontWeight: 300, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.05em' }}>
+            Preloading Scenic Canvas...
+          </p>
+        </div>
+      )}
+
       {/* 2. Color-Breathing Backlight Aura */}
       {state.widgets.auraglow && <div className="aura-glow-overlay" />}
 
@@ -444,16 +470,16 @@ function Dashboard({ state, socket, connectionInfo }) {
           </div>
 
           {/* D. Wallpaper Credits widget (Bottom Right) */}
-          {state.activePhoto && (
+          {activeSlides.find(s => s.active) && (
             <div className="glass-widget photo-info-widget">
               <span className="photo-category">
-                {state.currentCategory ? state.currentCategory.split(',').join(' + ') : ''}
+                {activeSlides.find(s => s.active).category ? activeSlides.find(s => s.active).category.split(',').join(' + ') : ''}
               </span>
               <div className="photo-title">
-                {state.activePhoto.title}
+                {activeSlides.find(s => s.active).title}
               </div>
               <div className="photo-author">
-                by {state.activePhoto.author}
+                by {activeSlides.find(s => s.active).author}
               </div>
             </div>
           )}
