@@ -13,6 +13,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [googleClientSecret, setGoogleClientSecret] = useState('');
   const [isSavedEnv, setIsSavedEnv] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [keywordCategory, setKeywordCategory] = useState('Scenic Nature');
+  const [newKeywordInput, setNewKeywordInput] = useState('');
 
   // Bounds check galleryIndex if the photos list changes
   useEffect(() => {
@@ -453,6 +455,128 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                 No photos in active pool to display.
               </div>
             )}
+          </div>
+
+          <div className="remote-card">
+            <span className="remote-section-title">Crawl Query Keyword Manager</span>
+            
+            {/* Category Dropdown Selector */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>
+                SELECT SCENIC POOL
+              </label>
+              <select
+                value={keywordCategory}
+                onChange={(e) => setKeywordCategory(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  outline: 'none'
+                }}
+              >
+                {categories.map(cat => (
+                  <option key={cat} value={cat} style={{ background: '#1c1917', color: '#fff' }}>
+                    {cat} Pool
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* List of pills */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+              {state.searchKeywords && state.searchKeywords[keywordCategory] && state.searchKeywords[keywordCategory].map((kw, kwIdx) => (
+                <div
+                  key={kwIdx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '20px',
+                    fontSize: '0.8rem',
+                    color: 'rgba(255,255,255,0.85)'
+                  }}
+                >
+                  <span>{kw}</span>
+                  <span
+                    onClick={() => {
+                      const currentKws = state.searchKeywords[keywordCategory] || [];
+                      const nextKws = currentKws.filter((_, idx) => idx !== kwIdx);
+                      // Don't let them clear all keywords to keep query failsafe
+                      if (nextKws.length === 0) {
+                        alert('At least one query keyword is required to maintain crawl reliability.');
+                        return;
+                      }
+                      socket.emit('update-keywords', { category: keywordCategory, keywords: nextKws });
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      color: 'rgba(239, 68, 68, 0.8)',
+                      padding: '0 2.5px',
+                      fontSize: '0.9rem',
+                      lineHeight: 1
+                    }}
+                  >
+                    ×
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Inline add form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const text = newKeywordInput.trim();
+                if (!text) return;
+                const currentKws = state.searchKeywords[keywordCategory] || [];
+                if (currentKws.includes(text)) {
+                  alert('This query is already configured.');
+                  return;
+                }
+                const nextKws = [...currentKws, text];
+                socket.emit('update-keywords', { category: keywordCategory, keywords: nextKws });
+                setNewKeywordInput('');
+              }}
+              style={{ display: 'flex', gap: '8px' }}
+            >
+              <input
+                type="text"
+                placeholder="Add custom search tag (e.g. alpine lakes)..."
+                value={newKeywordInput}
+                onChange={(e) => setNewKeywordInput(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                className="remote-btn"
+                style={{
+                  background: 'var(--accent-color)',
+                  borderColor: 'var(--accent-color)',
+                  fontWeight: 600,
+                  padding: '0 16px'
+                }}
+              >
+                Add
+              </button>
+            </form>
           </div>
 
           <div className="remote-card" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>

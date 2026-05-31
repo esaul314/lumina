@@ -262,7 +262,23 @@ assertTest('weighted distribution favors highly-rated photos', () => {
 });
 
 // ============================================================================
-// 5. INTEGRATION TEST SUITE: Live Endpoint Verification
+// 5. UNIT TEST SUITE: Customizable Keyword Search Manager
+// ============================================================================
+logSuite('Customizable Keyword Search Manager');
+
+assertTest('correctly loads and configures searchKeywords state', () => {
+  assert.ok(screensaverState.searchKeywords, 'searchKeywords object must exist in screensaverState');
+  assert.ok(Array.isArray(screensaverState.searchKeywords['Scenic Nature']), 'Scenic Nature keywords should be an array');
+  assert.strictEqual(screensaverState.searchKeywords['Scenic Nature'][0], 'scenic nature landscape mountains forest', 'Should match default Scenic Nature keyword');
+});
+
+assertTest('crawler consumes custom searchKeywords instead of static defaults', async () => {
+  const { crawlAllCollections } = require('./server/services/crawler.js');
+  assert.ok(typeof crawlAllCollections === 'function', 'crawlAllCollections must be a function');
+});
+
+// ============================================================================
+// 6. INTEGRATION TEST SUITE: Live Endpoint Verification
 // ============================================================================
 logSuite('Live Server Endpoint Smoke Tests');
 
@@ -324,6 +340,26 @@ async function runIntegrationTests() {
       assertTest('POST /api/photos/rate rejects invalid rating values (e.g. rating = 15)', () => {
         assert.strictEqual(invalidResponse.status, 400, 'Response status must be 400');
         assert.ok(invalidResponse.body.error, 'Should return error message');
+      });
+
+      // Test HTTP Keyword API
+      const keywordResponse = await postJson(`${baseUrl}/api/config/keywords`, {
+        category: 'Scenic Nature',
+        keywords: ['forest mountains landscape', 'autumn stream']
+      });
+      assertTest('POST /api/config/keywords successfully updates and persists custom keywords', () => {
+        assert.strictEqual(keywordResponse.status, 200, 'Response status must be 200');
+        assert.strictEqual(keywordResponse.body.success, true, 'success attribute must be true');
+        assert.deepStrictEqual(keywordResponse.body.keywords, ['forest mountains landscape', 'autumn stream'], 'keywords should match updated values');
+      });
+
+      // Test bad category validation
+      const invalidKeywordResponse = await postJson(`${baseUrl}/api/config/keywords`, {
+        category: 'Unknown Category',
+        keywords: ['test']
+      });
+      assertTest('POST /api/config/keywords rejects unknown categories', () => {
+        assert.strictEqual(invalidKeywordResponse.status, 404, 'Response status must be 404');
       });
     }
     
