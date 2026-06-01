@@ -102,6 +102,9 @@ function saveCuratedCollections(collections, state) {
         if (!fileData.locationSettings) fileData.locationSettings = {};
         fileData.locationSettings.manualLocation = state.manualLocation;
       }
+      if (state.visionConfig) {
+        fileData.visionConfig = state.visionConfig;
+      }
     }
     
     fs.writeFileSync(jsonPath, JSON.stringify(fileData, null, 2), 'utf8');

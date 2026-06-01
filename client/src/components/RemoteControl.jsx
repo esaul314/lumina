@@ -971,18 +971,155 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                         : state.newsSentiment?.weatherMatch || 'Cloudy'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', paddingTop: '6px' }}>
-                    <span style={{ opacity: 0.6 }}>Allow OpenAI Fallback</span>
-                    <div
-                      className='switch-wrapper'
-                      style={{ transform: 'scale(0.85)', transformOrigin: 'right center' }}
-                      onClick={() => socket.emit('toggle-allow-openai-fallback', !state.allowOpenAiFallback)}
-                    >
-                      <span className={`switch-slider ${state.allowOpenAiFallback ? 'checked' : ''}`}></span>
+                  <div style={{
+                    marginTop: '12px',
+                    borderTop: '1px solid rgba(255,255,255,0.05)',
+                    paddingTop: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-color)', opacity: 0.9 }}>Vision API Settings</span>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>Primary API URL</span>
+                      <input
+                        type="text"
+                        placeholder="http://localhost:8100/v1"
+                        value={state.visionConfig?.apiUrl || ''}
+                        onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, apiUrl: e.target.value })}
+                        style={{
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '6px',
+                          color: '#fff',
+                          padding: '6px 8px',
+                          fontSize: '0.75rem',
+                          outline: 'none'
+                        }}
+                      />
                     </div>
-                  </div>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.35, color: '#f87171', lineHeight: '1.2' }}>
-                    ⚠️ Warning: Enabling OpenAI fallback runs gpt-4o queries if the local Poochy vision model is unavailable. This will consume external tokens.
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+                        <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>Model ID</span>
+                        <input
+                          type="text"
+                          placeholder="qwen-vl"
+                          value={state.visionConfig?.model || ''}
+                          onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, model: e.target.value })}
+                          style={{
+                            background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            padding: '6px 8px',
+                            fontSize: '0.75rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+                        <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>API Key (Optional)</span>
+                        <input
+                          type="password"
+                          placeholder="None"
+                          value={state.visionConfig?.apiKey || ''}
+                          onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, apiKey: e.target.value })}
+                          style={{
+                            background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            padding: '6px 8px',
+                            fontSize: '0.75rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', paddingTop: '6px' }}>
+                      <span style={{ opacity: 0.6 }}>Allow Fallback API</span>
+                      <div
+                        className='switch-wrapper'
+                        style={{ transform: 'scale(0.85)', transformOrigin: 'right center' }}
+                        onClick={() => socket.emit('toggle-allow-openai-fallback', !state.allowOpenAiFallback)}
+                      >
+                        <span className={`switch-slider ${state.allowOpenAiFallback ? 'checked' : ''}`}></span>
+                      </div>
+                    </div>
+
+                    {state.allowOpenAiFallback && (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        background: 'rgba(0,0,0,0.15)',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255,255,255,0.03)',
+                        marginTop: '4px'
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span style={{ fontSize: '0.65rem', opacity: 0.5 }}>Fallback API URL</span>
+                          <input
+                            type="text"
+                            placeholder="https://api.openai.com/v1"
+                            value={state.visionConfig?.fallbackUrl || ''}
+                            onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, fallbackUrl: e.target.value })}
+                            style={{
+                              background: 'rgba(0,0,0,0.3)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: '6px',
+                              color: '#fff',
+                              padding: '4px 6px',
+                              fontSize: '0.7rem',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+                            <span style={{ fontSize: '0.65rem', opacity: 0.5 }}>Fallback Model</span>
+                            <input
+                              type="text"
+                              placeholder="gpt-4o"
+                              value={state.visionConfig?.fallbackModel || ''}
+                              onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, fallbackModel: e.target.value })}
+                              style={{
+                                background: 'rgba(0,0,0,0.3)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '6px',
+                                color: '#fff',
+                                padding: '4px 6px',
+                                fontSize: '0.7rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+                            <span style={{ fontSize: '0.65rem', opacity: 0.5 }}>Fallback Key</span>
+                            <input
+                              type="password"
+                              placeholder="sk-..."
+                              value={state.visionConfig?.fallbackApiKey || ''}
+                              onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, fallbackApiKey: e.target.value })}
+                              style={{
+                                background: 'rgba(0,0,0,0.3)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '6px',
+                                color: '#fff',
+                                padding: '4px 6px',
+                                fontSize: '0.7rem',
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

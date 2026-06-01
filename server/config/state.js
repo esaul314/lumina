@@ -21,6 +21,14 @@ const screensaverState = {
   alignTimeOfDay: false,     // evening/night image alignment
   alignWeather: false,       // rainy image alignment
   allowOpenAiFallback: false, // strict token budget consent gate
+  visionConfig: {
+    apiUrl: '',
+    apiKey: '',
+    model: '',
+    fallbackUrl: '',
+    fallbackApiKey: '',
+    fallbackModel: ''
+  },
   nightPercentage: 50,
   searchKeywords: {
     'Scenic Nature': ['scenic nature landscape mountains forest'],

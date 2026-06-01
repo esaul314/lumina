@@ -105,6 +105,23 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
+    // Update vision configuration settings
+    socket.on('update-vision-config', (config) => {
+      if (config && typeof config === 'object') {
+        state.visionConfig = {
+          apiUrl: String(config.apiUrl || '').trim(),
+          apiKey: String(config.apiKey || '').trim(),
+          model: String(config.model || '').trim(),
+          fallbackUrl: String(config.fallbackUrl || '').trim(),
+          fallbackApiKey: String(config.fallbackApiKey || '').trim(),
+          fallbackModel: String(config.fallbackModel || '').trim()
+        };
+        console.log('[Config Socket] Saved updated Vision API Configuration.');
+        saveCuratedCollections(collections, state);
+        io.emit('state-sync', state);
+      }
+    });
+
     // Change night photo percentage selection
     socket.on('change-night-percentage', (percentage) => {
       if (typeof percentage === 'number' && percentage >= 0 && percentage <= 100) {

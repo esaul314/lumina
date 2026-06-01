@@ -1,7 +1,6 @@
 const fs = require('fs');
 const { screensaverState } = require('../config/state.js');
 const path = require('path');
-const { execSync } = require('child_process');
 
 const rootDir = path.join(__dirname, '..', '..');
 const cachePath = path.join(rootDir, 'analysis_cache.json');
@@ -32,36 +31,6 @@ function saveCache() {
 }
 
 /**
- * 🔑 getOpenAiKey
- * Resolves the OpenAI API Key from local environment,
- * falling back to retrieving the key from Poochy via SSH.
- */
-function getOpenAiKey() {
-  if (process.env.OPENAI_API_KEY) {
-    return process.env.OPENAI_API_KEY;
-  }
-
-  try {
-    console.log('[Vision Service] Querying poochy for OpenAI credentials...');
-    // We run the ssh command under user 'alex' since alex has passwordless SSH access to poochy
-    const output = execSync(
-      'ssh -o StrictHostKeyChecking=accept-new alex@192.168.0.117 "cat /home/alex/work/AI/Luminatus/config/openai.env"',
-      { encoding: 'utf8', timeout: 10000 }
-    );
-
-    const match = output.match(/OPENAI_API_KEY=([^\s]+)/);
-    if (match && match[1]) {
-      console.log('[Vision Service] Successfully retrieved key from poochy.');
-      process.env.OPENAI_API_KEY = match[1].trim();
-      return process.env.OPENAI_API_KEY;
-    }
-  } catch (err) {
-    console.error('[Vision Service] Failed to fetch key from poochy via SSH:', err.message);
-  }
-  return null;
-}
-
-/**
  * 🖼️ fetchImageBase64
  * Downloads a remote image from URL and returns its base64 string.
  */
@@ -81,55 +50,8 @@ async function fetchImageBase64(imageUrl) {
 }
 
 /**
- * 🛰️ resolveVisionModels
- * Fetches available models from Poochy router and resolves local & remote vision model IDs dynamically.
- */
-async function resolveVisionModels() {
-  let localModel = null;
-  let remoteModel = null;
-
-  try {
-    const response = await fetch('http://192.168.0.117:8100/v1/models', { signal: AbortSignal.timeout(5000) });
-    if (response.ok) {
-      const data = await response.json();
-      const models = data.data || [];
-      
-      // 1. Find local vision model (contains 'vl' or 'vision', and either contains 'local' or owned_by 'luminatus')
-      const localMatch = models.find(m => 
-        m.id && 
-        (m.id.toLowerCase().includes('vl') || m.id.toLowerCase().includes('vision')) &&
-        (m.id.toLowerCase().includes('local') || m.owned_by === 'luminatus')
-      );
-      if (localMatch) {
-        localModel = localMatch.id;
-        console.log(`[Vision Service] Dynamically resolved local vision model: "${localModel}"`);
-      }
-
-      // 2. Find remote/OpenAI vision model
-      const remoteMatch = models.find(m => 
-        m.id && 
-        (m.id.toLowerCase().includes('gpt-4o') || m.id.toLowerCase().includes('gpt-4-') || m.id.toLowerCase().includes('gpt-5-')) &&
-        m.owned_by === 'openai'
-      );
-      if (remoteMatch) {
-        remoteModel = remoteMatch.id;
-        console.log(`[Vision Service] Dynamically resolved remote vision model: "${remoteModel}"`);
-      }
-    }
-  } catch (err) {
-    console.warn('[Vision Service] Failed to dynamically query models from Poochy router:', err.message);
-  }
-
-  // Fallbacks if discovery fails
-  return {
-    localModel: localModel || 'qwen3-vl-8b-local',
-    remoteModel: remoteModel || 'gpt-4o'
-  };
-}
-
-/**
  * 👁️ analyzeImageContent
- * Uses local vision model on Poochy via Luminatus, with a fallback to OpenAI.
+ * Uses configured primary vision API, with a fallback to configured secondary API.
  * Returns precise weather/time tags.
  */
 async function analyzeImageContent(imageUrl, title = '') {
@@ -140,6 +62,17 @@ async function analyzeImageContent(imageUrl, title = '') {
     return analysisCache[imageUrl];
   }
 
+  // Retrieve configuration from screensaverState
+  const config = screensaverState.visionConfig || {};
+  const primaryUrl = config.apiUrl ? config.apiUrl.trim() : '';
+  const primaryModel = config.model ? config.model.trim() : '';
+  const primaryKey = config.apiKey ? config.apiKey.trim() : '';
+
+  if (!primaryUrl) {
+    console.warn('[Vision Service] Vision API is not configured. Skipping background content analysis.');
+    return null;
+  }
+
   console.log(`[Vision Service] Analyzing content for: "${title || imageUrl}"...`);
 
   // 2. Fetch image base64
@@ -147,9 +80,6 @@ async function analyzeImageContent(imageUrl, title = '') {
   if (!imgB64) {
     return null;
   }
-
-  // 3. Resolve models dynamically
-  const { localModel, remoteModel } = await resolveVisionModels();
 
   const promptText = 'Analyze this image and determine which weather and time conditions apply. ' +
                      'Return ONLY a valid JSON object with the following boolean keys: "isSunny", "isCloudy", "isRain", "isSnowy", "isNight". ' +
@@ -160,8 +90,37 @@ async function analyzeImageContent(imageUrl, title = '') {
                      '"isNight" is true if it is dark, sunset, starry space, twilight, or night. ' +
                      'Do not include any markdown block formatting, code backticks, or extra text.';
 
+  // Determine active model to use
+  let activeModel = primaryModel;
+  if (!activeModel) {
+    // Attempt dynamic discovery from /models endpoint
+    try {
+      console.log(`[Vision Service] Model ID unspecified. Querying ${primaryUrl}/models for discovery...`);
+      const response = await fetch(`${primaryUrl}/models`, { signal: AbortSignal.timeout(5000) });
+      if (response.ok) {
+        const data = await response.json();
+        const models = data.data || [];
+        // Scan for common vision/VL model strings
+        const match = models.find(m =>
+          m.id &&
+          (m.id.toLowerCase().includes('vl') || m.id.toLowerCase().includes('vision'))
+        );
+        if (match) {
+          activeModel = match.id;
+          console.log(`[Vision Service] Dynamically resolved vision model: "${activeModel}"`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Vision Service] Failed to dynamically query models from primary API:', err.message);
+    }
+  }
+
+  if (!activeModel) {
+    activeModel = 'qwen-vl'; // Generic default fallback if still empty
+  }
+
   const payload = {
-    model: localModel,
+    model: activeModel,
     messages: [
       {
         role: "user",
@@ -183,14 +142,17 @@ async function analyzeImageContent(imageUrl, title = '') {
   let analysisSuccess = false;
   let rawContent = '';
 
-  // --- Step 4. Try local Poochy inference first ---
+  // --- Step 4. Try primary API inference ---
   try {
-    console.log(`[Vision Service] Attempting local inference via Poochy router using model "${localModel}"...`);
-    const response = await fetch('http://192.168.0.117:8100/v1/chat/completions', {
+    const headers = { 'Content-Type': 'application/json' };
+    if (primaryKey) {
+      headers['Authorization'] = `Bearer ${primaryKey}`;
+    }
+
+    console.log(`[Vision Service] Attempting primary inference using model "${activeModel}" at "${primaryUrl}"...`);
+    const response = await fetch(`${primaryUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(45000)
     });
@@ -200,64 +162,66 @@ async function analyzeImageContent(imageUrl, title = '') {
       if (resData.choices && resData.choices[0] && resData.choices[0].message) {
         rawContent = resData.choices[0].message.content.trim();
         analysisSuccess = true;
-        console.log('[Vision Service] Local inference completed successfully.');
+        console.log('[Vision Service] Primary inference completed successfully.');
       }
     } else {
-      console.warn(`[Vision Service] Local Poochy inference failed with status: ${response.status}`);
+      console.warn(`[Vision Service] Primary inference failed with status: ${response.status}`);
     }
   } catch (err) {
-    console.warn('[Vision Service] Local Poochy inference connection error:', err.message);
+    console.warn('[Vision Service] Primary inference connection error:', err.message);
   }
 
-  // --- Step 5. Fallback to hosted OpenAI if local failed ---
+  // --- Step 5. Fallback to secondary/OpenAI if primary failed ---
   if (!analysisSuccess) {
     if (!screensaverState.allowOpenAiFallback) {
-      console.warn('[Vision Service] Local Poochy inference failed/unavailable and OpenAI fallback is disabled. Skipping content analysis fallback to protect token budget.');
+      console.warn('[Vision Service] Primary inference failed and OpenAI fallback is disabled. Skipping content analysis.');
       return null;
     }
-    console.log('[Vision Service] Falling back to hosted OpenAI API...');
-    const apiKey = getOpenAiKey();
-    if (!apiKey) {
-      console.warn('[Vision Service] Missing API key. Skipping content analysis fallback.');
+
+    const fallbackUrl = config.fallbackUrl ? config.fallbackUrl.trim() : 'https://api.openai.com/v1';
+    const fallbackModel = config.fallbackModel ? config.fallbackModel.trim() : 'gpt-4o';
+    const fallbackKey = config.fallbackApiKey ? config.fallbackApiKey.trim() : '';
+
+    if (!fallbackKey && fallbackUrl.includes('openai.com')) {
+      console.warn('[Vision Service] Fallback API key is missing. Skipping content analysis fallback.');
       return null;
     }
 
     try {
-      // Modify payload to use resolved remote model
-      payload.model = remoteModel;
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      payload.model = fallbackModel;
+      const headers = { 'Content-Type': 'application/json' };
+      if (fallbackKey) {
+        headers['Authorization'] = `Bearer ${fallbackKey}`;
+      }
+
+      console.log(`[Vision Service] Attempting fallback inference using model "${fallbackModel}" at "${fallbackUrl}"...`);
+      const response = await fetch(`${fallbackUrl}/chat/completions`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(30000)
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`OpenAI API Error: ${response.status} - ${errText}`);
+        throw new Error(`Fallback API Error: ${response.status} - ${errText}`);
       }
 
       const resData = await response.json();
       rawContent = resData.choices[0].message.content.trim();
       analysisSuccess = true;
-      console.log('[Vision Service] Hosted OpenAI fallback completed successfully.');
+      console.log('[Vision Service] Fallback inference completed successfully.');
     } catch (err) {
-      console.error(`[Vision Service] OpenAI fallback failed for "${title}":`, err.message);
+      console.error(`[Vision Service] Fallback inference failed for "${title}":`, err.message);
       return null;
     }
   }
 
   // --- Step 6. Parse and validate JSON results ---
   try {
-    // Clean potential markdown codeblock formatting if returned
     const cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
     const result = JSON.parse(cleanJson);
 
-    // Validate object keys
     const validatedResult = {
       isSunny: !!result.isSunny,
       isCloudy: !!result.isCloudy,
@@ -269,7 +233,6 @@ async function analyzeImageContent(imageUrl, title = '') {
 
     console.log(`[Vision Service] Analysis success for "${title}":`, validatedResult);
 
-    // Save to cache
     analysisCache[imageUrl] = validatedResult;
     saveCache();
 

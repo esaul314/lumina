@@ -91,6 +91,10 @@ if (fs.existsSync(jsonPath)) {
         screensaverState.manualLocation = data.locationSettings.manualLocation;
       }
     }
+
+    if (data.visionConfig) {
+      screensaverState.visionConfig = data.visionConfig;
+    }
     console.log('Successfully loaded persisted curated collections from file!');
   } catch (err) {
     console.error('Failed to parse curated_collections.json, falling back to defaults:', err.message);
