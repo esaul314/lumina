@@ -23,7 +23,7 @@
 /* --- THEME PRESETS --- */
 
 /* Theme: Zen Retreat (Soothing nature vibes) */
-.theme-zen {
+.theme-zen, .theme-zen-retreat {
   --theme-glow-color1: rgba(46, 117, 89, 0.3);
   --theme-glow-color2: rgba(20, 40, 30, 0.8);
   --accent-color: #10b981;
@@ -32,7 +32,7 @@
 }
 
 /* Theme: Cosmic Night (Deep space celestial glow) */
-.theme-cosmic {
+.theme-cosmic, .theme-cosmic-night {
   --theme-glow-color1: rgba(99, 102, 241, 0.25);
   --theme-glow-color2: rgba(8, 7, 24, 0.95);
   --accent-color: #6366f1;
@@ -41,7 +41,7 @@
 }
 
 /* Theme: Art Museum (Monochrome elegance, fine museum lighting) */
-.theme-museum {
+.theme-museum, .theme-art-museum {
   --theme-glow-color1: rgba(120, 113, 108, 0.25);
   --theme-glow-color2: rgba(24, 24, 27, 0.95);
   --accent-color: #e7e5e4;
@@ -50,7 +50,7 @@
 }
 
 /* Theme: Cyberpunk Rain (Neon accents and glowing rain drops) */
-.theme-cyberpunk {
+.theme-cyberpunk, .theme-cyberpunk-rain {
   --theme-glow-color1: rgba(236, 72, 153, 0.25);
   --theme-glow-color2: rgba(15, 23, 42, 0.95);
   --accent-color: #ec4899;
