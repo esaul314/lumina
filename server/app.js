@@ -340,6 +340,52 @@ async function updateServerWeather() {
   }
 }
 
+const { analyzeImageContent } = require('./services/vision.js');
+
+async function triggerImageAnalysisBackground() {
+  if (process.env.NODE_ENV === 'test') return;
+  console.log('[Vision Service] Starting background content analysis for curated collections...');
+  
+  let totalAnalyzed = 0;
+  
+  // Scrape through all categories
+  for (const key of Object.keys(curatedCollections)) {
+    const photos = curatedCollections[key];
+    if (!Array.isArray(photos)) continue;
+    
+    for (const photo of photos) {
+      if (photo.rating === 1 || photo.isBroken) continue;
+      
+      // Analyze actual image content
+      const analysis = await analyzeImageContent(photo.url, photo.title);
+      if (analysis) {
+        // Update tags in collections database
+        photo.isNight = analysis.isNight;
+        photo.isRain = analysis.isRain;
+        photo.isSunny = analysis.isSunny;
+        photo.isCloudy = analysis.isCloudy;
+        photo.isSnowy = analysis.isSnowy;
+        totalAnalyzed++;
+      }
+    }
+  }
+  
+  if (totalAnalyzed > 0) {
+    console.log(`[Vision Service] Finished background image analysis. Analyzed ${totalAnalyzed} images.`);
+    // Persist to curated_collections.json
+    saveCuratedCollections(curatedCollections, screensaverState);
+    
+    // Recalculate photos list & broadcast state sync so connected TVs get aligned photos immediately!
+    const activeCategory = screensaverState.currentCategory;
+    const currentCats = activeCategory ? activeCategory.split(',') : [];
+    const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
+    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []);
+    io.emit('state-sync', screensaverState);
+  } else {
+    console.log('[Vision Service] All active images are already precisely analyzed.');
+  }
+}
+
 /**
  * 🗓️ updateFeedsDaily
  * Background cron-like daily scraper update check.
@@ -379,6 +425,9 @@ async function updateFeedsDaily() {
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
     screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []);
     io.emit('state-sync', screensaverState);
+    
+    // Trigger vision analysis for any new crawl results
+    triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
   }
 }
 
@@ -392,6 +441,10 @@ if (process.env.NODE_ENV !== 'test') {
   setTimeout(() => {
     updateFeedsDaily().catch(err => console.error('Error in initial feed update:', err));
   }, 5000);
+
+  setTimeout(() => {
+    triggerImageAnalysisBackground().catch(err => console.error('Error in initial background image analysis:', err));
+  }, 10000);
 
   setInterval(() => {
     updateFeedsDaily().catch(err => console.error('Error in scheduled feed update:', err));
@@ -525,5 +578,6 @@ module.exports = {
   screensaverState,
   curatedCollections,
   updateNewsSentiment,
-  updateServerWeather
+  updateServerWeather,
+  triggerImageAnalysisBackground
 };

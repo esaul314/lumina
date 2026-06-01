@@ -280,6 +280,10 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         
         io.emit('state-sync', state);
         socket.emit('recrawl-complete', { success: true, count: state.photosList.length });
+        
+        // Trigger background content-aware vision analysis for any newly crawled photos
+        const { triggerImageAnalysisBackground } = require('./app.js');
+        triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
       } catch (err) {
         console.error('[SOCKET EVENT] Manual recrawl failed:', err.message);
         socket.emit('recrawl-complete', { success: false, error: err.message });
