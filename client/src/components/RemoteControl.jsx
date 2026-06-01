@@ -963,13 +963,26 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                       {state.newsSentiment ? `${state.newsSentiment.label} (${state.newsSentiment.score})` : 'Calculating...'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>
                     <span style={{ opacity: 0.6 }}>Active Wallpaper Mood</span>
                     <span style={{ fontWeight: 600, color: 'var(--accent-color)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       {state.physicalWeather?.weatherMatch === 'Snowy' || state.physicalWeather?.weatherMatch === 'Rainy'
                         ? state.physicalWeather.weatherMatch
                         : state.newsSentiment?.weatherMatch || 'Cloudy'}
                     </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', paddingTop: '6px' }}>
+                    <span style={{ opacity: 0.6 }}>Allow OpenAI Fallback</span>
+                    <div
+                      className='switch-wrapper'
+                      style={{ transform: 'scale(0.85)', transformOrigin: 'right center' }}
+                      onClick={() => socket.emit('toggle-allow-openai-fallback', !state.allowOpenAiFallback)}
+                    >
+                      <span className={`switch-slider ${state.allowOpenAiFallback ? 'checked' : ''}`}></span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.35, color: '#f87171', lineHeight: '1.2' }}>
+                    ⚠️ Warning: Enabling OpenAI fallback runs gpt-4o queries if the local Poochy vision model is unavailable. This will consume external tokens.
                   </div>
                 </div>
               )}

@@ -669,6 +669,24 @@ function Dashboard({ state, socket, connectionInfo }) {
                   <span>Weather & News Alignment</span>
                   <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.alignWeather ? 'ON' : 'OFF'}</span>
                 </div>
+
+                {state.alignWeather && (
+                  <>
+                    <div
+                      onClick={() => socket.emit('toggle-allow-openai-fallback', !state.allowOpenAiFallback)}
+                      className={`desktop-settings-item ${state.allowOpenAiFallback ? 'active' : ''}`}
+                      style={{ marginLeft: '12px', opacity: 0.95, borderLeft: '2px solid rgba(255,255,255,0.1)' }}
+                    >
+                      <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '0.8rem' }}>Allow OpenAI Fallback</span>
+                        <span style={{ fontSize: '0.65rem', opacity: 0.4, color: '#f87171', lineHeight: '1.2', maxWidth: '300px' }}>
+                          ⚠️ Warning: Will query OpenAI API if Poochy vision fails
+                        </span>
+                      </span>
+                      <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.allowOpenAiFallback ? 'ON' : 'OFF'}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

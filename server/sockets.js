@@ -98,6 +98,13 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
+    // Toggle OpenAI fallback consent
+    socket.on('toggle-allow-openai-fallback', (enabled) => {
+      state.allowOpenAiFallback = !!enabled;
+      console.log(`Allow OpenAI Fallback changed to: ${state.allowOpenAiFallback}`);
+      io.emit('state-sync', state);
+    });
+
     // Change night photo percentage selection
     socket.on('change-night-percentage', (percentage) => {
       if (typeof percentage === 'number' && percentage >= 0 && percentage <= 100) {

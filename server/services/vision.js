@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { screensaverState } = require('../config/state.js');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -210,6 +211,10 @@ async function analyzeImageContent(imageUrl, title = '') {
 
   // --- Step 5. Fallback to hosted OpenAI if local failed ---
   if (!analysisSuccess) {
+    if (!screensaverState.allowOpenAiFallback) {
+      console.warn('[Vision Service] Local Poochy inference failed/unavailable and OpenAI fallback is disabled. Skipping content analysis fallback to protect token budget.');
+      return null;
+    }
     console.log('[Vision Service] Falling back to hosted OpenAI API...');
     const apiKey = getOpenAiKey();
     if (!apiKey) {
