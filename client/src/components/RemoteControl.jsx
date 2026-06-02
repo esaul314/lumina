@@ -632,6 +632,9 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
           <div className="remote-card">
             <span className="remote-section-title">Crawl Query Keyword Manager</span>
+            <p style={{ fontSize: '0.72rem', opacity: 0.5, lineHeight: '1.35', marginTop: '6px', marginBottom: '12px' }}>
+              Configure search terms to fetch wallpapers. Each pill acts as a separate **OR** query (the system crawls wallpapers for each one). Inside a single pill, space-separated words (e.g. <code>mountains forest</code>) are matched by search engines using standard **OR / relevance** matching.
+            </p>
             
             {/* Category Dropdown Selector */}
             <div style={{ marginBottom: '12px' }}>
