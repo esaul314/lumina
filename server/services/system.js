@@ -64,6 +64,24 @@ function isAudioPlaying() {
 }
 
 /**
+ * 📺 isSessionInhibited
+ * Queries GNOME Session Manager via DBus to check if idle screensaver is currently inhibited (e.g. by video playback).
+ */
+function isSessionInhibited() {
+  return new Promise((resolve) => {
+    const dbusCmd = `DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" busctl --user call org.gnome.SessionManager /org/gnome/SessionManager org.gnome.SessionManager IsInhibited u 8`;
+    exec(dbusCmd, (err, stdout) => {
+      if (err) {
+        return resolve(false);
+      }
+      // Output is usually: "b true" or "b false"
+      const isInhibited = stdout.toLowerCase().includes('true');
+      resolve(isInhibited);
+    });
+  });
+}
+
+/**
  * 📺 launchChromiumKiosk
  * Spawns Chromium in fullscreen kiosk mode with strict memory and GPU overrides.
  */
@@ -125,6 +143,7 @@ module.exports = {
   setCpuGovernor,
   getGnomeIdleTime,
   isAudioPlaying,
+  isSessionInhibited,
   launchChromiumKiosk,
   killChromiumKiosk
 };

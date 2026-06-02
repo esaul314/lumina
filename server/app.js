@@ -14,6 +14,7 @@ const {
   setCpuGovernor,
   getGnomeIdleTime,
   isAudioPlaying,
+  isSessionInhibited,
   launchChromiumKiosk,
   killChromiumKiosk
 } = require('./services/system.js');
@@ -516,16 +517,27 @@ const triggerWeatherUpdate = async () => {
 require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT);
 require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate);
 
-// Mutter DBus Idle polling every 2 seconds
+// Mutter DBus Idle polling every 2 seconds with audio/inhibition checks and a 6-second debounce buffer
 if (process.env.NODE_ENV !== 'test') {
+  let idleCounter = 0;
   setInterval(async () => {
     try {
       const idleMs = await getGnomeIdleTime();
       const isIdle = idleMs >= screensaverState.inactivityTimeout;
-      const isMoviePlaying = await isAudioPlaying();
+      const isPulseAudioPlaying = await isAudioPlaying();
+      const isGnomeInhibited = await isSessionInhibited();
+      const isMoviePlaying = isPulseAudioPlaying || isGnomeInhibited;
 
       const isActuallyIdle = isIdle && !isMoviePlaying;
-      const shouldBeActive = isActuallyIdle || manualOverride;
+      
+      if (isActuallyIdle) {
+        idleCounter++;
+      } else {
+        idleCounter = 0;
+      }
+
+      // Must be consecutively idle for at least 3 polling cycles (6 seconds) to prevent flickering/brief buffering activation
+      const shouldBeActive = (idleCounter >= 3) || manualOverride;
       
       if (shouldBeActive && !isBrowserRunning) {
         launchKioskBrowser();
