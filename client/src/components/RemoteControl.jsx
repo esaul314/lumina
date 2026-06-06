@@ -755,9 +755,9 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           </div>
 
           <div className="remote-card">
-            <span className="remote-section-title">Crawl Query Keyword Manager</span>
+            <span className="remote-section-title">Scenic Feed Source Manager</span>
             <p style={{ fontSize: '0.72rem', opacity: 0.5, lineHeight: '1.35', marginTop: '6px', marginBottom: '12px' }}>
-              Configure search terms to fetch wallpapers. Each pill acts as a separate **OR** query (the system crawls wallpapers for each one). Inside a single pill, space-separated words (e.g. <code>mountains forest</code>) are matched by search engines using standard **OR / relevance** matching.
+              Configure search keywords, subreddits, or Tumblr blogs for each image source in this scenic pool.
             </p>
             
             {/* Category Dropdown Selector */}
@@ -787,96 +787,170 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
               </select>
             </div>
 
-            {/* List of pills */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
-              {state.searchKeywords && state.searchKeywords[keywordCategory] && state.searchKeywords[keywordCategory].map((kw, kwIdx) => (
-                <div
-                  key={kwIdx}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '20px',
-                    fontSize: '0.8rem',
-                    color: 'rgba(255,255,255,0.85)'
-                  }}
-                >
-                  <span>{kw}</span>
-                  <span
-                    onClick={() => {
-                      const currentKws = state.searchKeywords[keywordCategory] || [];
-                      const nextKws = currentKws.filter((_, idx) => idx !== kwIdx);
-                      // Don't let them clear all keywords to keep query failsafe
-                      if (nextKws.length === 0) {
-                        alert('At least one query keyword is required to maintain crawl reliability.');
-                        return;
-                      }
-                      socket.emit('update-keywords', { category: keywordCategory, keywords: nextKws });
-                    }}
+            {/* List of feed sources */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                { key: 'unsplash', name: 'Unsplash Scenic', param: 'keywords', placeholder: 'Add keyword (e.g. mountains)...' },
+                { key: 'wallhaven', name: 'Wallhaven SFW', param: 'keywords', placeholder: 'Add keyword (e.g. nature)...' },
+                { key: 'metmuseum', name: 'Metropolitan Museum of Art', param: 'keywords', placeholder: 'Add keyword (e.g. oil painting)...' },
+                { key: 'artic', name: 'Art Institute of Chicago', param: 'keywords', placeholder: 'Add keyword (e.g. impressionism)...' },
+                { key: 'reddit', name: 'Reddit Subreddits', param: 'subreddits', placeholder: 'Add subreddit (e.g. EarthPorn)...' },
+                { key: 'tumblr', name: 'Tumblr Public Blogs', param: 'blogs', placeholder: 'Add blog name (e.g. nasaimages)...' },
+                { key: 'nasaApod', name: 'NASA APOD', param: null },
+                { key: 'bing', name: 'Bing Daily Wallpaper', param: null },
+                { key: 'picsum', name: 'Lorem Picsum', param: null },
+                { key: 'midjourney', name: 'Midjourney & Lexica AI', param: null }
+              ].map(src => {
+                const feedConfig = (state.feedConfigs && state.feedConfigs[keywordCategory]) || {};
+                const srcConfig = feedConfig[src.key] || { enabled: false };
+                const isEnabled = srcConfig.enabled;
+                const hasParams = src.param !== null;
+                const paramsList = hasParams ? (srcConfig[src.param] || []) : [];
+
+                return (
+                  <div
+                    key={src.key}
                     style={{
-                      cursor: 'pointer',
-                      fontWeight: 'bold',
-                      color: 'rgba(239, 68, 68, 0.8)',
-                      padding: '0 2.5px',
-                      fontSize: '0.9rem',
-                      lineHeight: 1
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '12px',
+                      padding: '12px',
+                      transition: 'all 0.3s ease'
                     }}
                   >
-                    ×
-                  </span>
-                </div>
-              ))}
-            </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#f5f5f7' }}>
+                        {src.name}
+                      </div>
+                      <button
+                        onClick={() => {
+                          socket.emit('update-feed-config', {
+                            category: keywordCategory,
+                            source: src.key,
+                            config: { enabled: !isEnabled }
+                          });
+                        }}
+                        style={{
+                          background: isEnabled ? 'var(--accent-color)' : 'rgba(255,255,255,0.1)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '16px',
+                          padding: '4px 12px',
+                          fontSize: '0.72rem',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {isEnabled ? 'ENABLED' : 'DISABLED'}
+                      </button>
+                    </div>
 
-            {/* Inline add form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const text = newKeywordInput.trim();
-                if (!text) return;
-                const currentKws = state.searchKeywords[keywordCategory] || [];
-                if (currentKws.includes(text)) {
-                  alert('This query is already configured.');
-                  return;
-                }
-                const nextKws = [...currentKws, text];
-                socket.emit('update-keywords', { category: keywordCategory, keywords: nextKws });
-                setNewKeywordInput('');
-              }}
-              style={{ display: 'flex', gap: '8px' }}
-            >
-              <input
-                type="text"
-                placeholder="Add custom search tag (e.g. alpine lakes)..."
-                value={newKeywordInput}
-                onChange={(e) => setNewKeywordInput(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  background: 'rgba(0,0,0,0.4)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '0.85rem',
-                  outline: 'none'
-                }}
-              />
-              <button
-                type="submit"
-                className="remote-btn"
-                style={{
-                  background: 'var(--accent-color)',
-                  borderColor: 'var(--accent-color)',
-                  fontWeight: 600,
-                  padding: '0 16px'
-                }}
-              >
-                Add
-              </button>
-            </form>
+                    {isEnabled && hasParams && (
+                      <div style={{ marginTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                        {/* Param pills */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                          {paramsList.map((val, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '4px 10px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                borderRadius: '20px',
+                                fontSize: '0.75rem',
+                                color: 'rgba(255,255,255,0.85)'
+                              }}
+                            >
+                              <span>{val}</span>
+                              <span
+                                onClick={() => {
+                                  const nextParams = paramsList.filter((_, pIdx) => pIdx !== idx);
+                                  socket.emit('update-feed-config', {
+                                    category: keywordCategory,
+                                    source: src.key,
+                                    config: { [src.param]: nextParams }
+                                  });
+                                }}
+                                style={{
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold',
+                                  color: 'rgba(239, 68, 68, 0.8)',
+                                  padding: '0 2px',
+                                  fontSize: '0.85rem'
+                                }}
+                              >
+                                ×
+                              </span>
+                            </div>
+                          ))}
+                          {paramsList.length === 0 && (
+                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
+                              No active parameters. Please add one below.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Inline Input to add parameter */}
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const inputVal = e.target.elements[src.key + '_input'].value.trim();
+                            if (!inputVal) return;
+                            if (paramsList.includes(inputVal)) {
+                              alert('This configuration parameter already exists.');
+                              return;
+                            }
+                            const nextParams = [...paramsList, inputVal];
+                            socket.emit('update-feed-config', {
+                              category: keywordCategory,
+                              source: src.key,
+                              config: { [src.param]: nextParams }
+                            });
+                            e.target.reset();
+                          }}
+                          style={{ display: 'flex', gap: '8px' }}
+                        >
+                          <input
+                            type="text"
+                            name={src.key + '_input'}
+                            placeholder={src.placeholder}
+                            style={{
+                              flex: 1,
+                              padding: '6px 10px',
+                              background: 'rgba(0,0,0,0.4)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: '6px',
+                              color: '#fff',
+                              fontSize: '0.8rem',
+                              outline: 'none'
+                            }}
+                          />
+                          <button
+                            type="submit"
+                            style={{
+                              background: 'rgba(255,255,255,0.1)',
+                              color: '#fff',
+                              border: '1px solid rgba(255,255,255,0.15)',
+                              borderRadius: '6px',
+                              fontWeight: 600,
+                              padding: '0 12px',
+                              fontSize: '0.8rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Add
+                          </button>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="remote-card" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>

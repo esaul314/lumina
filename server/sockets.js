@@ -181,6 +181,31 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
+    // Update feed config socket event
+    socket.on('update-feed-config', ({ category, source, config }) => {
+      if (!category || typeof category !== 'string') return;
+      if (!source || typeof source !== 'string') return;
+      if (!config || typeof config !== 'object') return;
+      if (!collections[category]) return;
+
+      if (!state.feedConfigs) {
+        state.feedConfigs = {};
+      }
+      if (!state.feedConfigs[category]) {
+        state.feedConfigs[category] = {};
+      }
+
+      state.feedConfigs[category][source] = {
+        ...state.feedConfigs[category][source],
+        ...config
+      };
+
+      saveCuratedCollections(collections, state);
+      console.log(`[Config Socket] Saved updated feed config for category "${category}" source "${source}":`, state.feedConfigs[category][source]);
+
+      io.emit('state-sync', state);
+    });
+
     // Add custom category / scenic pool
     socket.on('add-category', async ({ category, keyword }) => {
       if (!category || typeof category !== 'string') return;
@@ -206,6 +231,17 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       // 1. Register category keyword in state
       state.searchKeywords[cleanCategory] = [cleanKeyword];
 
+      // Initialize state feedConfigs if not present
+      if (!state.feedConfigs) {
+        state.feedConfigs = {};
+      }
+      state.feedConfigs[cleanCategory] = {
+        unsplash: { enabled: true, keywords: [cleanKeyword] },
+        wallhaven: { enabled: true, keywords: [cleanKeyword] },
+        metmuseum: { enabled: true, keywords: [cleanKeyword] },
+        artic: { enabled: true, keywords: [cleanKeyword] }
+      };
+
       // 2. Initialize the collection list in collections
       collections[cleanCategory] = [];
 
@@ -218,7 +254,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       // 4. Trigger crawlAllCollections to download photos for this category instantly
       try {
         const { crawlAllCollections } = require('./services/crawler.js');
-        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.searchKeywords);
+        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
         if (updatedAny) {
           for (const key of Object.keys(updatedCollections)) {
             collections[key] = updatedCollections[key];
@@ -255,9 +291,12 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
       console.log(`[SOCKET EVENT] delete-category received: "${cleanCategory}"`);
 
-      // 1. Delete the category key from both state.searchKeywords and collections
+      // 1. Delete the category key from state.searchKeywords, state.feedConfigs, and collections
       if (state.searchKeywords) {
         delete state.searchKeywords[cleanCategory];
+      }
+      if (state.feedConfigs) {
+        delete state.feedConfigs[cleanCategory];
       }
       delete collections[cleanCategory];
 
@@ -397,7 +436,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       try {
         const { crawlAllCollections } = require('./services/crawler.js');
 
-        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.searchKeywords);
+        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
         
         if (updatedAny) {
           for (const key of Object.keys(updatedCollections)) {

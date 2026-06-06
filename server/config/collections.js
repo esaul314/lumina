@@ -102,6 +102,9 @@ function saveCuratedCollections(collections, state) {
         if (!fileData.locationSettings) fileData.locationSettings = {};
         fileData.locationSettings.manualLocation = state.manualLocation;
       }
+      if (state.feedConfigs) {
+        fileData.feedConfigs = state.feedConfigs;
+      }
       if (state.visionConfig) {
         fileData.visionConfig = state.visionConfig;
       }

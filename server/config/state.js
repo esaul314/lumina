@@ -1,3 +1,42 @@
+function buildFeedConfigsFromKeywords(keywordsMap) {
+  const configs = {};
+  for (const [category, kws] of Object.entries(keywordsMap)) {
+    const keywords = Array.isArray(kws) ? kws : [kws];
+    configs[category] = {
+      unsplash: { enabled: true, keywords: [...keywords] },
+      wallhaven: { enabled: true, keywords: [...keywords] }
+    };
+    
+    // Add default integrations for built-in categories
+    if (category === 'Scenic Nature') {
+      configs[category].reddit = { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] };
+      configs[category].tumblr = { enabled: true, blogs: ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'] };
+      configs[category].picsum = { enabled: true };
+      configs[category].bing = { enabled: true };
+    } else if (category === 'Cosmic Space') {
+      configs[category].reddit = { enabled: true, subreddits: ['spaceporn', 'Astrophotography'] };
+      configs[category].tumblr = { enabled: true, blogs: ['nasaimages', 'cosmic-space-explorer'] };
+      configs[category].nasaApod = { enabled: true };
+    } else if (category === 'Abstract Art') {
+      configs[category].tumblr = { enabled: true, blogs: ['abstractartgallery', 'generative-art'] };
+    } else if (category === 'Liminal Spaces') {
+      configs[category].tumblr = { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] };
+    } else if (category === 'AI Creations') {
+      configs[category].tumblr = { enabled: true, blogs: ['aiartgenerator', 'midjourneycreations'] };
+      configs[category].midjourney = { enabled: true };
+    }
+  }
+  return configs;
+}
+
+const defaultKeywords = {
+  'Scenic Nature': ['scenic nature landscape mountains forest'],
+  'Cosmic Space': ['cosmic space nebula galaxy stars'],
+  'Abstract Art': ['abstract art painting minimalist geometric'],
+  'Liminal Spaces': ['liminal spaces empty corridor backrooms'],
+  'AI Creations': ['surreal digital art generative midjourney cyberpunk futuristic']
+};
+
 /**
  * 🌌 screensaverState
  * Central reactive configuration state of the Lumina smart display network.
@@ -21,22 +60,9 @@ const screensaverState = {
   alignTimeOfDay: false,     // evening/night image alignment
   alignWeather: false,       // rainy image alignment
   allowOpenAiFallback: false, // strict token budget consent gate
-  visionConfig: {
-    apiUrl: '',
-    apiKey: '',
-    model: '',
-    fallbackUrl: '',
-    fallbackApiKey: '',
-    fallbackModel: ''
-  },
   nightPercentage: 50,
-  searchKeywords: {
-    'Scenic Nature': ['scenic nature landscape mountains forest'],
-    'Cosmic Space': ['cosmic space nebula galaxy stars'],
-    'Abstract Art': ['abstract art painting minimalist geometric'],
-    'Liminal Spaces': ['liminal spaces empty corridor backrooms'],
-    'AI Creations': ['surreal digital art generative midjourney cyberpunk futuristic']
-  },
+  searchKeywords: { ...defaultKeywords },
+  feedConfigs: buildFeedConfigsFromKeywords(defaultKeywords),
   autoLocation: false,
   manualLocation: {
     lat: 45.45,
@@ -58,4 +84,4 @@ const screensaverState = {
   }
 };
 
-module.exports = { screensaverState };
+module.exports = { screensaverState, buildFeedConfigsFromKeywords };

@@ -8,7 +8,7 @@ const os = require('os');
 
 // Modular config and service imports
 const { sendEmailAlert } = require('./services/notifier.js');
-const { screensaverState } = require('./config/state.js');
+const { screensaverState, buildFeedConfigsFromKeywords } = require('./config/state.js');
 const { defaultCuratedCollections, saveCuratedCollections } = require('./config/collections.js');
 const {
   setCpuGovernor,
@@ -81,6 +81,13 @@ if (fs.existsSync(jsonPath)) {
 
     if (data.searchKeywords) {
       screensaverState.searchKeywords = data.searchKeywords;
+    }
+
+    if (data.feedConfigs) {
+      screensaverState.feedConfigs = data.feedConfigs;
+    } else if (screensaverState.searchKeywords) {
+      screensaverState.feedConfigs = buildFeedConfigsFromKeywords(screensaverState.searchKeywords);
+      saveCuratedCollections(curatedCollections, screensaverState);
     }
 
     // Restore persisted location settings so they survive server restarts
@@ -417,7 +424,7 @@ async function updateFeedsDaily() {
     return;
   }
 
-  const { updatedCollections, updatedAny } = await crawlAllCollections(curatedCollections, screensaverState.searchKeywords);
+  const { updatedCollections, updatedAny } = await crawlAllCollections(curatedCollections, screensaverState.feedConfigs, screensaverState.searchKeywords);
   
   if (updatedAny) {
     for (const key of Object.keys(updatedCollections)) {

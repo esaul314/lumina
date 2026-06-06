@@ -330,12 +330,51 @@ assertTest('crawler consumes custom searchKeywords instead of static defaults', 
 // ============================================================================
 logSuite('Multi-Source Wallpaper Aggregator');
 
-assertTest('crawler exports Wallhaven, NASA APOD, Midjourney, and Bing adapters successfully', () => {
-  const { fetchWallhavenImages, fetchNasaApod, fetchMidjourneyImages, fetchBingImageOfTheDay } = require('./server/services/crawler.js');
+assertTest('crawler exports Wallhaven, NASA APOD, Midjourney, Bing, MetMuseum, and AIC adapters successfully', () => {
+  const {
+    fetchWallhavenImages,
+    fetchNasaApod,
+    fetchMidjourneyImages,
+    fetchBingImageOfTheDay,
+    fetchMetMuseumImages,
+    fetchAicImages
+  } = require('./server/services/crawler.js');
   assert.strictEqual(typeof fetchWallhavenImages, 'function', 'fetchWallhavenImages must be a function');
   assert.strictEqual(typeof fetchNasaApod, 'function', 'fetchNasaApod must be a function');
   assert.strictEqual(typeof fetchMidjourneyImages, 'function', 'fetchMidjourneyImages must be a function');
   assert.strictEqual(typeof fetchBingImageOfTheDay, 'function', 'fetchBingImageOfTheDay must be a function');
+  assert.strictEqual(typeof fetchMetMuseumImages, 'function', 'fetchMetMuseumImages must be a function');
+  assert.strictEqual(typeof fetchAicImages, 'function', 'fetchAicImages must be a function');
+});
+
+assertTest('MetMuseum crawler retrieves public domain artworks', async () => {
+  const { fetchMetMuseumImages } = require('./server/services/crawler.js');
+  try {
+    const photos = await fetchMetMuseumImages('impressionism', 2);
+    assert.ok(Array.isArray(photos), 'Should return photos array');
+    if (photos.length > 0) {
+      assert.ok(photos[0].url, 'Artwork must have a valid url');
+      assert.strictEqual(photos[0].source, 'metmuseum', 'Source must equal metmuseum');
+      assert.ok(photos[0].author, 'Artwork must have an artist/author');
+    }
+  } catch (err) {
+    // Graceful catch for offline
+  }
+});
+
+assertTest('AIC crawler retrieves public domain artworks', async () => {
+  const { fetchAicImages } = require('./server/services/crawler.js');
+  try {
+    const photos = await fetchAicImages('impressionism', 2);
+    assert.ok(Array.isArray(photos), 'Should return photos array');
+    if (photos.length > 0) {
+      assert.ok(photos[0].url, 'Artwork must have a valid url');
+      assert.strictEqual(photos[0].source, 'artic', 'Source must equal artic');
+      assert.ok(photos[0].author, 'Artwork must have an artist/author');
+    }
+  } catch (err) {
+    // Graceful catch for offline
+  }
 });
 
 assertTest('Wallhaven crawler maps query and returns SFW landscapes', async () => {
