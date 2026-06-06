@@ -4,3 +4,7 @@ client/dist/
 server.log
 curated_collections.json
 .DS_Store
+.env
+.env.*
+analysis_cache.json
+server/config/.google_credentials.json

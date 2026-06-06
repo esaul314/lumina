@@ -4,7 +4,7 @@ const os = require('os');
 // Discover system information dynamically for robust daemon paths
 const userInfo = os.userInfo();
 const uid = userInfo.uid || 1000;
-const homedir = userInfo.homedir || '/home/alex';
+const homedir = userInfo.homedir || os.homedir();
 
 /**
  * ⚡ setCpuGovernor
