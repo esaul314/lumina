@@ -460,6 +460,80 @@ async function fetchBingImageOfTheDay(count = 8) {
 }
 
 /**
+ * 📸 fetchUnsplashImages
+ * Fetches high-definition wallpapers from Unsplash NAPI.
+ */
+async function fetchUnsplashImages(query, count = 20) {
+  try {
+    const queriesToCrawl = [
+      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=20&xp=feedback-loop:control`,
+      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + ' wallpaper')}&per_page=20&xp=feedback-loop:control`,
+      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + ' 4k')}&per_page=20&xp=feedback-loop:control`
+    ];
+
+    const photos = [];
+    const existingUrls = new Set();
+
+    for (const url of queriesToCrawl) {
+      console.log(`Unsplash Crawler: Fetching "${query}" wallpapers from ${url}...`);
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+
+      if (!res.ok) {
+        console.warn(`Unsplash Crawler: Failed to fetch for query "${query}" (status ${res.status})`);
+        continue;
+      }
+
+      const data = await res.json();
+      const results = data.results || [];
+
+      for (const item of results) {
+        const width = item.width;
+        const height = item.height;
+        const isLandscape = width && height ? width > height : true;
+        if (!isLandscape) continue;
+
+        const photoUrl = item.urls ? (item.urls.raw || item.urls.full || item.urls.regular) : null;
+        if (!photoUrl) continue;
+
+        const finalUrl = photoUrl.includes('?') ? `${photoUrl.split('?')[0]}?q=80&w=2560&auto=format&fit=crop` : photoUrl;
+
+        if (!existingUrls.has(finalUrl)) {
+          const cleanTitle = item.description || item.alt_description || `${query} Scenic Landscape`;
+          let title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+          if (title.length > 55) {
+            title = title.substring(0, 52) + '...';
+          }
+          const author = item.user ? (item.user.name || item.user.username) : 'Unsplash Photographer';
+
+          photos.push({
+            url: finalUrl,
+            title: title,
+            author: author,
+            source: 'unsplash',
+            isNight: false,
+            isRain: false,
+            isSunny: true,
+            isCloudy: false,
+            isSnowy: false
+          });
+          existingUrls.add(finalUrl);
+        }
+      }
+    }
+    
+    console.log(`Unsplash Crawler: Successfully loaded ${photos.length} photos.`);
+    return photos.slice(0, count);
+  } catch (err) {
+    console.error(`Unsplash crawler failed for keyword "${query}":`, err.message);
+    return [];
+  }
+}
+
+/**
  * 🎨 fetchMidjourneyImages
  * Fetches Midjourney generative images via UseAPI.net.
  * Supports token authorization, filters out portraits, extracts prompts, and handles self-healing fallback.
@@ -706,8 +780,22 @@ function buildFeedConfigsFromKeywords(keywordsMap) {
 }
 
 /**
+ * 🔒 capCollectionLimit
+ * Helper function to cap category collections to a maximum size (default 2000),
+ * keeping up to 12 of the original curated items and pruning older dynamic entries.
+ */
+function capCollectionLimit(list, initialLength, limit = 2000) {
+  if (list.length <= limit) return list;
+  const originalCuratedCount = Math.min(12, list.length);
+  const originals = list.slice(0, originalCuratedCount);
+  const dynamicAdded = list.slice(initialLength);
+  const allowedDynamic = limit - originalCuratedCount;
+  return originals.concat(dynamicAdded.slice(-allowedDynamic));
+}
+
+/**
  * 🏔️ crawlAllCollections
- * Modular orchestrator that runs all crawls based on per-source feed configurations.
+ * Declarative orchestrator that runs all crawls based on per-source feed configurations.
  */
 async function crawlAllCollections(currentCollections, feedConfigs = null, searchKeywords = null) {
   console.log('Initiating dynamic multi-source feed updates for all categories...');
@@ -716,410 +804,107 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
 
   const configs = feedConfigs || buildFeedConfigsFromKeywords(searchKeywords || searchQueries);
 
-  // 1. Crawl Reddit Images
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.reddit || !config.reddit.enabled || !config.reddit.subreddits) continue;
-    let categoryList = [...(updatedCollections[category] || [])];
-    const initialLength = categoryList.length;
-    const existingUrls = new Set(categoryList.map(item => item.url));
+  // Declarative scraper definitions
+  const scrapers = [
+    {
+      key: 'reddit',
+      param: 'subreddits',
+      fetcher: async (sub, category) => fetchRedditImages(sub, category, 25)
+    },
+    {
+      key: 'picsum',
+      fetcher: async () => fetchPicsumImages(20)
+    },
+    {
+      key: 'bing',
+      fetcher: async () => fetchBingImageOfTheDay(8)
+    },
+    {
+      key: 'unsplash',
+      param: 'keywords',
+      fetcher: async (kw) => fetchUnsplashImages(kw, 20)
+    },
+    {
+      key: 'wallhaven',
+      param: 'keywords',
+      fetcher: async (kw, category) => fetchWallhavenImages(kw, category, 10)
+    },
+    {
+      key: 'tumblr',
+      param: 'blogs',
+      fetcher: async (blog) => fetchTumblrImages(blog, 10)
+    },
+    {
+      key: 'metmuseum',
+      param: 'keywords',
+      fetcher: async (kw) => fetchMetMuseumImages(kw, 10)
+    },
+    {
+      key: 'artic',
+      param: 'keywords',
+      fetcher: async (kw) => fetchAicImages(kw, 10)
+    },
+    {
+      key: 'nasaApod',
+      fetcher: async () => fetchNasaApod(8)
+    },
+    {
+      key: 'midjourney',
+      fetcher: async () => fetchMidjourneyImages(15)
+    }
+  ];
 
-    for (const sub of config.reddit.subreddits) {
+  // Run all active configured scrapers in a declarative loop
+  for (const scraper of scrapers) {
+    for (const [category, config] of Object.entries(configs)) {
+      const sourceConfig = config[scraper.key];
+      if (!sourceConfig || !sourceConfig.enabled) continue;
+
       try {
-        const redditPhotos = await fetchRedditImages(sub, category, 25);
-        for (const p of redditPhotos) {
-          if (!existingUrls.has(p.url)) {
-            categoryList.push(p);
-            existingUrls.add(p.url);
+        let categoryList = [...(updatedCollections[category] || [])];
+        const initialLength = categoryList.length;
+        const existingUrls = new Set(categoryList.map(item => item.url));
+
+        // Fetch new items
+        let newItems = [];
+        if (scraper.param) {
+          const params = sourceConfig[scraper.param] || [];
+          for (const param of params) {
+            const items = await scraper.fetcher(param, category);
+            newItems = newItems.concat(items);
           }
+        } else {
+          newItems = await scraper.fetcher(category);
+        }
+
+        // Add unique items
+        for (const item of newItems) {
+          if (!existingUrls.has(item.url)) {
+            // Special rules for Tumblr cosmic night alignment
+            if (scraper.key === 'tumblr') {
+              item.isNight = category === 'Cosmic Space';
+              item.isSunny = !item.isNight;
+            }
+            categoryList.push(item);
+            existingUrls.add(item.url);
+          }
+        }
+
+        // Cap limit
+        categoryList = capCollectionLimit(categoryList, initialLength, 2000);
+
+        if (categoryList.length > initialLength) {
+          console.log(`${scraper.key.toUpperCase()}: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
+          updatedCollections[category] = categoryList;
+          updatedAny = true;
         }
       } catch (err) {
-        console.error(`Reddit crawler failed for subreddit "${sub}" in category "${category}":`, err.message);
+        console.error(`${scraper.key.toUpperCase()} daily crawl failed for category "${category}":`, err.message);
       }
-    }
-
-    if (categoryList.length > 2000) {
-      const originalCuratedCount = Math.min(12, categoryList.length);
-      const originals = categoryList.slice(0, originalCuratedCount);
-      const dynamicAdded = categoryList.slice(originalCuratedCount);
-      const allowedDynamic = 2000 - originalCuratedCount;
-      categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-    }
-
-    updatedCollections[category] = categoryList;
-    if (categoryList.length > initialLength) {
-      console.log(`Reddit: Added ${categoryList.length - initialLength} new photos to "${category}"`);
-      updatedAny = true;
     }
   }
 
-  // 2. Crawl Lorem Picsum
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.picsum || !config.picsum.enabled) continue;
-    try {
-      const picsumPhotos = await fetchPicsumImages(20);
-      let categoryList = [...(updatedCollections[category] || [])];
-      const initialLength = categoryList.length;
-      const existingUrls = new Set(categoryList.map(item => item.url));
-
-      for (const p of picsumPhotos) {
-        if (!existingUrls.has(p.url)) {
-          categoryList.push(p);
-          existingUrls.add(p.url);
-        }
-      }
-
-      if (categoryList.length > 2000) {
-        const originalCuratedCount = Math.min(12, categoryList.length);
-        const originals = categoryList.slice(0, originalCuratedCount);
-        const dynamicAdded = categoryList.slice(originalCuratedCount);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = categoryList;
-      if (categoryList.length > initialLength) {
-        console.log(`Picsum: Added ${categoryList.length - initialLength} photos to "${category}"`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`Picsum daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 2.5. Crawl Bing Image of the Day
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.bing || !config.bing.enabled) continue;
-    try {
-      const bingPhotos = await fetchBingImageOfTheDay(8);
-      let categoryList = [...(updatedCollections[category] || [])];
-      const initialLength = categoryList.length;
-      const existingUrls = new Set(categoryList.map(item => item.url));
-
-      for (const p of bingPhotos) {
-        if (!existingUrls.has(p.url)) {
-          categoryList.push(p);
-          existingUrls.add(p.url);
-        }
-      }
-
-      if (categoryList.length > 2000) {
-        const originalCuratedCount = Math.min(12, categoryList.length);
-        const originals = categoryList.slice(0, originalCuratedCount);
-        const dynamicAdded = categoryList.slice(originalCuratedCount);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = categoryList;
-      if (categoryList.length > initialLength) {
-        console.log(`Bing: Added ${categoryList.length - initialLength} daily wallpapers to "${category}"`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`Bing daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 3. Crawl Unsplash NAPI
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.unsplash || !config.unsplash.enabled || !config.unsplash.keywords) continue;
-    let categoryList = [...(updatedCollections[category] || [])];
-    const initialLength = categoryList.length;
-    const existingUrls = new Set(categoryList.map(item => item.url));
-
-    for (const chosenQuery of config.unsplash.keywords) {
-      try {
-        const queriesToCrawl = [
-          `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(chosenQuery)}&per_page=20&xp=feedback-loop:control`,
-          `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(chosenQuery + ' wallpaper')}&per_page=20&xp=feedback-loop:control`,
-          `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(chosenQuery + ' 4k')}&per_page=20&xp=feedback-loop:control`
-        ];
-
-        for (const url of queriesToCrawl) {
-          console.log(`Unsplash Crawler: Fetching "${chosenQuery}" wallpapers from ${url}...`);
-          const res = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-          });
-
-          if (!res.ok) {
-            console.warn(`Unsplash Crawler: Failed to fetch for query "${chosenQuery}" (status ${res.status})`);
-            continue;
-          }
-
-          const data = await res.json();
-          const results = data.results || [];
-
-          for (const item of results) {
-            const width = item.width;
-            const height = item.height;
-            const isLandscape = width && height ? width > height : true;
-            if (!isLandscape) continue;
-
-            const photoUrl = item.urls ? (item.urls.raw || item.urls.full || item.urls.regular) : null;
-            if (!photoUrl) continue;
-
-            const finalUrl = photoUrl.includes('?') ? `${photoUrl.split('?')[0]}?q=80&w=2560&auto=format&fit=crop` : photoUrl;
-
-            if (!existingUrls.has(finalUrl)) {
-              const cleanTitle = item.description || item.alt_description || `${chosenQuery} Scenic Landscape`;
-              let title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
-              if (title.length > 55) {
-                title = title.substring(0, 52) + '...';
-              }
-              const author = item.user ? (item.user.name || item.user.username) : 'Unsplash Photographer';
-
-              categoryList.push({
-                url: finalUrl,
-                title: title,
-                author: author,
-                source: 'unsplash',
-                isNight: false,
-                isRain: false,
-                isSunny: true,
-                isCloudy: false,
-                isSnowy: false
-              });
-              existingUrls.add(finalUrl);
-            }
-          }
-        }
-      } catch (err) {
-        console.error(`Unsplash crawler failed for keyword "${chosenQuery}" in category "${category}":`, err.message);
-      }
-    }
-
-    if (categoryList.length > 2000) {
-      const originalCuratedCount = Math.min(12, categoryList.length);
-      const originals = categoryList.slice(0, originalCuratedCount);
-      const dynamicAdded = categoryList.slice(originalCuratedCount);
-      const allowedDynamic = 2000 - originalCuratedCount;
-      categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-    }
-
-    updatedCollections[category] = categoryList;
-    if (categoryList.length > initialLength) {
-      console.log(`Unsplash: Added ${categoryList.length - initialLength} new photos to "${category}"`);
-      updatedAny = true;
-    }
-  }
-
-  // 3.5. Crawl Wallhaven SFW
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.wallhaven || !config.wallhaven.enabled || !config.wallhaven.keywords) continue;
-    try {
-      let categoryList = [...(updatedCollections[category] || [])];
-      const initialLength = categoryList.length;
-      const existingUrls = new Set(categoryList.map(item => item.url));
-
-      for (const chosenQuery of config.wallhaven.keywords) {
-        const wallhavenPhotos = await fetchWallhavenImages(chosenQuery, category, 10);
-        for (const p of wallhavenPhotos) {
-          if (!existingUrls.has(p.url)) {
-            categoryList.push(p);
-            existingUrls.add(p.url);
-          }
-        }
-      }
-
-      if (categoryList.length > 2000) {
-        const originalCuratedCount = Math.min(12, categoryList.length);
-        const originals = categoryList.slice(0, originalCuratedCount);
-        const dynamicAdded = categoryList.slice(originalCuratedCount);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = categoryList;
-      if (categoryList.length > initialLength) {
-        console.log(`Wallhaven: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`Wallhaven daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 3.55. Crawl Tumblr Images for category blogs
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.tumblr || !config.tumblr.enabled || !config.tumblr.blogs) continue;
-    try {
-      let categoryList = [...(updatedCollections[category] || [])];
-      const initialLength = categoryList.length;
-      const existingUrls = new Set(categoryList.map(item => item.url));
-
-      for (const blog of config.tumblr.blogs) {
-        const tumblrPhotos = await fetchTumblrImages(blog, 10);
-        for (const p of tumblrPhotos) {
-          if (!existingUrls.has(p.url)) {
-            p.isNight = category === 'Cosmic Space';
-            p.isSunny = !p.isNight;
-            categoryList.push(p);
-            existingUrls.add(p.url);
-          }
-        }
-      }
-
-      if (categoryList.length > 2000) {
-        const originalCuratedCount = Math.min(12, categoryList.length);
-        const originals = categoryList.slice(0, originalCuratedCount);
-        const dynamicAdded = categoryList.slice(originalCuratedCount);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = categoryList;
-      if (categoryList.length > initialLength) {
-        console.log(`Tumblr: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`Tumblr daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 3.56. Crawl Metropolitan Museum of Art (MetMuseum)
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.metmuseum || !config.metmuseum.enabled || !config.metmuseum.keywords) continue;
-    try {
-      let categoryList = [...(updatedCollections[category] || [])];
-      const initialLength = categoryList.length;
-      const existingUrls = new Set(categoryList.map(item => item.url));
-
-      for (const keyword of config.metmuseum.keywords) {
-        const metPhotos = await fetchMetMuseumImages(keyword, 10);
-        for (const p of metPhotos) {
-          if (!existingUrls.has(p.url)) {
-            categoryList.push(p);
-            existingUrls.add(p.url);
-          }
-        }
-      }
-
-      if (categoryList.length > 2000) {
-        const originalCuratedCount = Math.min(12, categoryList.length);
-        const originals = categoryList.slice(0, originalCuratedCount);
-        const dynamicAdded = categoryList.slice(originalCuratedCount);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = categoryList;
-      if (categoryList.length > initialLength) {
-        console.log(`MetMuseum: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`MetMuseum daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 3.57. Crawl Art Institute of Chicago (AIC)
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.artic || !config.artic.enabled || !config.artic.keywords) continue;
-    try {
-      let categoryList = [...(updatedCollections[category] || [])];
-      const initialLength = categoryList.length;
-      const existingUrls = new Set(categoryList.map(item => item.url));
-
-      for (const keyword of config.artic.keywords) {
-        const aicPhotos = await fetchAicImages(keyword, 10);
-        for (const p of aicPhotos) {
-          if (!existingUrls.has(p.url)) {
-            categoryList.push(p);
-            existingUrls.add(p.url);
-          }
-        }
-      }
-
-      if (categoryList.length > 2000) {
-        const originalCuratedCount = Math.min(12, categoryList.length);
-        const originals = categoryList.slice(0, originalCuratedCount);
-        const dynamicAdded = categoryList.slice(originalCuratedCount);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = categoryList;
-      if (categoryList.length > initialLength) {
-        console.log(`Art Institute of Chicago: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`AIC daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 3.6. Crawl NASA APOD
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.nasaApod || !config.nasaApod.enabled) continue;
-    try {
-      let cosmicList = [...(updatedCollections[category] || [])];
-      const initialCosmicLength = cosmicList.length;
-      const existingCosmicUrls = new Set(cosmicList.map(item => item.url));
-
-      const apodPhotos = await fetchNasaApod(8);
-      for (const p of apodPhotos) {
-        if (!existingCosmicUrls.has(p.url)) {
-          cosmicList.push(p);
-          existingCosmicUrls.add(p.url);
-        }
-      }
-
-      if (cosmicList.length > 2000) {
-        const originalCuratedCount = Math.min(12, cosmicList.length);
-        const originals = cosmicList.slice(0, originalCuratedCount);
-        const dynamicAdded = cosmicList.slice(initialCosmicLength);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        cosmicList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = cosmicList;
-      if (cosmicList.length > initialCosmicLength) {
-        console.log(`NASA APOD: Added ${cosmicList.length - initialCosmicLength} photos to "${category}" (Total: ${cosmicList.length})`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`NASA APOD daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 3.7. Crawl Midjourney (UseAPI.net)
-  for (const [category, config] of Object.entries(configs)) {
-    if (!config.midjourney || !config.midjourney.enabled) continue;
-    try {
-      let aiList = [...(updatedCollections[category] || [])];
-      const initialAiLength = aiList.length;
-      const existingAiUrls = new Set(aiList.map(item => item.url));
-
-      const mjPhotos = await fetchMidjourneyImages(15);
-      for (const p of mjPhotos) {
-        if (!existingAiUrls.has(p.url)) {
-          aiList.push(p);
-          existingAiUrls.add(p.url);
-        }
-      }
-
-      if (aiList.length > 2000) {
-        const originalCuratedCount = Math.min(12, aiList.length);
-        const originals = aiList.slice(0, originalCuratedCount);
-        const dynamicAdded = aiList.slice(initialAiLength);
-        const allowedDynamic = 2000 - originalCuratedCount;
-        aiList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-      }
-
-      updatedCollections[category] = aiList;
-      if (aiList.length > initialAiLength) {
-        console.log(`Midjourney AI: Added ${aiList.length - initialAiLength} photos to "${category}" (Total: ${aiList.length})`);
-        updatedAny = true;
-      }
-    } catch (err) {
-      console.error(`Midjourney daily crawl failed for category "${category}":`, err.message);
-    }
-  }
-
-  // 4. Crawl Lexica Art
+  // 4. Crawl Lexica Art (Fallback if Midjourney is disabled for AI Creations category)
   for (const [category, config] of Object.entries(configs)) {
     if (category === 'AI Creations' && (!config.midjourney || !config.midjourney.enabled)) {
       try {
@@ -1144,13 +929,7 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
           }
         }
 
-        if (aiList.length > 2000) {
-          const originalCuratedCount = Math.min(12, aiList.length);
-          const originals = aiList.slice(0, originalCuratedCount);
-          const dynamicAdded = aiList.slice(initialAiLength);
-          const allowedDynamic = 2000 - originalCuratedCount;
-          aiList = originals.concat(dynamicAdded.slice(-allowedDynamic));
-        }
+        aiList = capCollectionLimit(aiList, initialAiLength, 2000);
 
         updatedCollections[category] = aiList;
         if (aiList.length > initialAiLength) {
@@ -1176,5 +955,6 @@ module.exports = {
   fetchBingImageOfTheDay,
   fetchMetMuseumImages,
   fetchAicImages,
+  fetchUnsplashImages,
   crawlAllCollections
 };
