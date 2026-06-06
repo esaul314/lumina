@@ -69,14 +69,36 @@ if (fs.existsSync(jsonPath)) {
       if (!curatedCollections[key] || !Array.isArray(curatedCollections[key]) || curatedCollections[key].length === 0) {
         curatedCollections[key] = [...defaultCuratedCollections[key]];
       } else {
-        // Self-healing: if ALL photos in a persisted feed are broken/banned,
-        // re-seed the category from defaults so the TV View isn't stuck on a black screen
         const usablePhotos = curatedCollections[key].filter(p => p.rating !== 1 && !p.isBroken);
         if (usablePhotos.length === 0) {
           console.warn(`Self-Healing: All photos in "${key}" are broken or banned. Re-seeding from defaults.`);
           curatedCollections[key] = [...defaultCuratedCollections[key]];
         }
       }
+    }
+
+    // Global Deduplication: Ensure each image URL is unique across all categories
+    const seenUrls = new Set();
+    let duplicatesRemoved = false;
+    for (const key of Object.keys(curatedCollections)) {
+      if (Array.isArray(curatedCollections[key])) {
+        const originalCount = curatedCollections[key].length;
+        curatedCollections[key] = curatedCollections[key].filter(photo => {
+          if (!photo || !photo.url) return false;
+          if (seenUrls.has(photo.url)) {
+            duplicatesRemoved = true;
+            return false;
+          }
+          seenUrls.add(photo.url);
+          return true;
+        });
+        if (curatedCollections[key].length < originalCount) {
+          console.log(`Global Deduplication: Cleaned ${originalCount - curatedCollections[key].length} duplicate photos from category "${key}".`);
+        }
+      }
+    }
+    if (duplicatesRemoved) {
+      saveCuratedCollections(curatedCollections, screensaverState);
     }
 
     if (data.searchKeywords) {

@@ -804,6 +804,18 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
 
   const configs = feedConfigs || buildFeedConfigsFromKeywords(searchKeywords || searchQueries);
 
+  // Initialize global Set of all existing image URLs across all categories for global deduplication
+  const globalExistingUrls = new Set();
+  for (const catList of Object.values(currentCollections)) {
+    if (Array.isArray(catList)) {
+      for (const item of catList) {
+        if (item && item.url) {
+          globalExistingUrls.add(item.url);
+        }
+      }
+    }
+  }
+
   // Declarative scraper definitions
   const scrapers = [
     {
@@ -863,7 +875,6 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
       try {
         let categoryList = [...(updatedCollections[category] || [])];
         const initialLength = categoryList.length;
-        const existingUrls = new Set(categoryList.map(item => item.url));
 
         // Fetch new items
         let newItems = [];
@@ -879,14 +890,14 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
 
         // Add unique items
         for (const item of newItems) {
-          if (!existingUrls.has(item.url)) {
+          if (!globalExistingUrls.has(item.url)) {
             // Special rules for Tumblr cosmic night alignment
             if (scraper.key === 'tumblr') {
               item.isNight = category === 'Cosmic Space';
               item.isSunny = !item.isNight;
             }
             categoryList.push(item);
-            existingUrls.add(item.url);
+            globalExistingUrls.add(item.url);
           }
         }
 
@@ -910,7 +921,6 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
       try {
         let aiList = [...(updatedCollections[category] || [])];
         const initialAiLength = aiList.length;
-        const existingAiUrls = new Set(aiList.map(item => item.url));
 
         const lexicaQueries = [
           'surreal digital art dreamscape',
@@ -922,9 +932,9 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
         for (const query of lexicaQueries) {
           const lexicaPhotos = await fetchLexicaImages(query, 15);
           for (const p of lexicaPhotos) {
-            if (!existingAiUrls.has(p.url)) {
+            if (!globalExistingUrls.has(p.url)) {
               aiList.push(p);
-              existingAiUrls.add(p.url);
+              globalExistingUrls.add(p.url);
             }
           }
         }
