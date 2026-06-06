@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Palette, Sliders, Smartphone, Image as ImageIcon, RefreshCw, 
   ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,
-  Clock, CloudRain, MapPin
+  Clock, CloudRain, MapPin, Trash2
 } from 'lucide-react';
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {
@@ -15,6 +15,15 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [keywordCategory, setKeywordCategory] = useState('Scenic Nature');
   const [newKeywordInput, setNewKeywordInput] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryKeyword, setNewCategoryKeyword] = useState('');
+
+  useEffect(() => {
+    const validKeys = Object.keys(state.searchKeywords || {});
+    if (validKeys.length > 0 && !validKeys.includes(keywordCategory)) {
+      setKeywordCategory(validKeys[0]);
+    }
+  }, [state.searchKeywords, keywordCategory]);
   const [imageStatus, setImageStatus] = useState('loading'); // loading, loaded, failed
 
   const [manualCity, setManualCity] = useState(state.manualLocation?.city || 'Verdun');
@@ -206,7 +215,34 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     }
   };
 
-  const categories = ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations', 'Google Photos'];
+  const categories = [
+    ...Object.keys(state.searchKeywords || {}),
+    'Google Photos'
+  ];
+
+  const handleCreateCategory = () => {
+    const name = newCategoryName.trim();
+    const kw = newCategoryKeyword.trim();
+    if (!name || !kw) {
+      alert('Please fill out both pool name and initial keyword(s).');
+      return;
+    }
+    const cleanName = name.replace(/,/g, ' ');
+    if (cleanName.toLowerCase() === 'google photos') {
+      alert('Reserved name. Please choose a different name.');
+      return;
+    }
+    socket.emit('add-category', { category: cleanName, keyword: kw });
+    setNewCategoryName('');
+    setNewCategoryKeyword('');
+  };
+
+  const handleDeleteCategory = (catToDelete) => {
+    if (window.confirm(`Are you sure you want to delete the scenic pool "${catToDelete}"? This cannot be undone.`)) {
+      socket.emit('delete-category', { category: catToDelete });
+    }
+  };
+
   const themes = ['Zen Retreat', 'Cosmic Night', 'Art Museum', 'Cyberpunk Rain'];
 
   return (
@@ -416,19 +452,107 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <span style={{ fontSize: '1.2rem' }}>
-                        {cat === 'Scenic Nature' && '⛰️'}
-                        {cat === 'Cosmic Space' && '✨'}
-                        {cat === 'Abstract Art' && '🎨'}
-                        {cat === 'Liminal Spaces' && '🚪'}
-                        {cat === 'AI Creations' && '🤖'}
-                        {cat === 'Google Photos' && '📸'}
+                        {cat === 'Scenic Nature' ? '⛰️' :
+                         cat === 'Cosmic Space' ? '✨' :
+                         cat === 'Abstract Art' ? '🎨' :
+                         cat === 'Liminal Spaces' ? '🚪' :
+                         cat === 'AI Creations' ? '🤖' :
+                         cat === 'Google Photos' ? '📸' : '🖼️'}
                       </span>
                       <span style={{ fontWeight: 500 }}>{cat} Feed</span>
                     </div>
-                    {isActive && <Check size={18} style={{ color: 'var(--accent-color)' }} />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {isActive && <Check size={18} style={{ color: 'var(--accent-color)' }} />}
+                      {cat !== 'Google Photos' && !['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations'].includes(cat) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCategory(cat);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'rgba(255,255,255,0.4)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '4px',
+                            borderRadius: '4px',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+                          title={`Delete ${cat} Pool`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
+            </div>
+
+            {/* Create New Scenic Pool Form */}
+            <div style={{
+              marginTop: '16px',
+              paddingTop: '16px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Create New Scenic Pool</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Pool Name (e.g. Classic Art)"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '0.85rem',
+                    outline: 'none'
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Keywords (e.g. oil renaissance)"
+                  value={newCategoryKeyword}
+                  onChange={(e) => setNewCategoryKeyword(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '0.85rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleCreateCategory}
+                style={{
+                  background: 'var(--accent-color)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  width: 'fit-content'
+                }}
+              >
+                Create Pool
+              </button>
             </div>
           </div>
 
@@ -655,7 +779,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   outline: 'none'
                 }}
               >
-                {categories.map(cat => (
+                {categories.filter(cat => cat !== 'Google Photos').map(cat => (
                   <option key={cat} value={cat} style={{ background: '#1c1917', color: '#fff' }}>
                     {cat} Pool
                   </option>

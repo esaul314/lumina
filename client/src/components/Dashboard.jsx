@@ -539,7 +539,7 @@ function Dashboard({ state, socket, connectionInfo }) {
             <div className="desktop-settings-section">
               <span className="desktop-settings-section-title">Visual Feed</span>
               <div className="desktop-settings-list">
-                {['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations', 'Google Photos'].map((cat) => {
+                {([...Object.keys(state.searchKeywords || {}), 'Google Photos']).map((cat) => {
                   const isActive = state.currentCategory ? state.currentCategory.split(',').includes(cat) : false;
                   return (
                     <div
@@ -562,12 +562,12 @@ function Dashboard({ state, socket, connectionInfo }) {
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>
-                          {cat === 'Scenic Nature' && '⛰️'}
-                          {cat === 'Cosmic Space' && '✨'}
-                          {cat === 'Abstract Art' && '🎨'}
-                          {cat === 'Liminal Spaces' && '🚪'}
-                          {cat === 'AI Creations' && '🤖'}
-                          {cat === 'Google Photos' && '📸'}
+                          {cat === 'Scenic Nature' ? '⛰️' :
+                           cat === 'Cosmic Space' ? '✨' :
+                           cat === 'Abstract Art' ? '🎨' :
+                           cat === 'Liminal Spaces' ? '🚪' :
+                           cat === 'AI Creations' ? '🤖' :
+                           cat === 'Google Photos' ? '📸' : '🖼️'}
                         </span>
                         <span>{cat} Feed</span>
                       </span>

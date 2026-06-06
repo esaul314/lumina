@@ -181,8 +181,118 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
+    // Add custom category / scenic pool
+    socket.on('add-category', async ({ category, keyword }) => {
+      if (!category || typeof category !== 'string') return;
+      const cleanCategory = category.trim();
+      if (!cleanCategory) return;
+      
+      const cleanKeyword = (keyword || '').trim();
+      if (!cleanKeyword) return;
 
-    
+      console.log(`[SOCKET EVENT] add-category received: "${cleanCategory}" with keyword "${cleanKeyword}"`);
+
+      // Initialize state searchKeywords if not present
+      if (!state.searchKeywords) {
+        state.searchKeywords = {};
+      }
+
+      // Check if it already exists to prevent duplicate creation
+      if (collections[cleanCategory] || state.searchKeywords[cleanCategory]) {
+        console.warn(`Category "${cleanCategory}" already exists.`);
+        return;
+      }
+
+      // 1. Register category keyword in state
+      state.searchKeywords[cleanCategory] = [cleanKeyword];
+
+      // 2. Initialize the collection list in collections
+      collections[cleanCategory] = [];
+
+      // 3. Save to curated_collections.json
+      saveCuratedCollections(collections, state);
+
+      // Sync state to all clients so remote control UI knows about the category right away
+      io.emit('state-sync', state);
+
+      // 4. Trigger crawlAllCollections to download photos for this category instantly
+      try {
+        const { crawlAllCollections } = require('./services/crawler.js');
+        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.searchKeywords);
+        if (updatedAny) {
+          for (const key of Object.keys(updatedCollections)) {
+            collections[key] = updatedCollections[key];
+          }
+          saveCuratedCollections(collections, state);
+        }
+
+        // If the added category is the current/active category, update photosList
+        const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+        if (currentCats.includes(cleanCategory)) {
+          state.photosList = combineFeedsBalanced(currentCats, collections);
+          if (state.photosList.length > 0) {
+            state.activePhoto = getSmartPhoto('next') || state.photosList[0];
+            io.emit('photo-update', state.activePhoto);
+          }
+        }
+        
+        // Broadcast fully loaded updated state
+        io.emit('state-sync', state);
+        
+        // Run background image analysis on the new photos
+        const { triggerImageAnalysisBackground } = require('./app.js');
+        triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
+      } catch (err) {
+        console.error(`Error crawling new category "${cleanCategory}":`, err.message);
+      }
+    });
+
+    // Delete custom category / scenic pool
+    socket.on('delete-category', ({ category }) => {
+      if (!category || typeof category !== 'string') return;
+      const cleanCategory = category.trim();
+      if (!cleanCategory) return;
+
+      console.log(`[SOCKET EVENT] delete-category received: "${cleanCategory}"`);
+
+      // 1. Delete the category key from both state.searchKeywords and collections
+      if (state.searchKeywords) {
+        delete state.searchKeywords[cleanCategory];
+      }
+      delete collections[cleanCategory];
+
+      // 2. Save collections
+      saveCuratedCollections(collections, state);
+
+      // 3. Re-adjust screensaver selected active list if the deleted category was currently displayed
+      const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+      if (currentCats.includes(cleanCategory)) {
+        const remainingCats = currentCats.filter(c => c !== cleanCategory);
+        if (remainingCats.length > 0) {
+          state.currentCategory = remainingCats.join(',');
+        } else {
+          // If no categories are left, fallback to first available category key, or default 'Scenic Nature'
+          const remainingKeys = Object.keys(state.searchKeywords || {});
+          state.currentCategory = remainingKeys[0] || 'Scenic Nature';
+        }
+        
+        // Re-combine remaining categories
+        const updatedCats = state.currentCategory.split(',').map(c => c.trim());
+        state.photosList = combineFeedsBalanced(updatedCats, collections);
+        const smartPhoto = getSmartPhoto('next');
+        if (smartPhoto) {
+          state.activePhoto = smartPhoto;
+        } else if (state.photosList.length > 0) {
+          state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
+        } else {
+          state.activePhoto = null;
+        }
+      }
+
+      // 4. Sync state
+      io.emit('state-sync', state);
+    });
+
     // Trigger Next Photo
     socket.on('next-photo', () => {
       const photo = getSmartPhoto('next');

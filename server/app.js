@@ -156,8 +156,9 @@ for (const key of Object.keys(curatedCollections)) {
   curatedCollections[key] = tagPhotosWithKeywords(curatedCollections[key], isCosmic);
 }
 
-screensaverState.photosList = [...curatedCollections['Scenic Nature']];
-screensaverState.activePhoto = curatedCollections['Scenic Nature'][0];
+const initialCategory = Object.keys(curatedCollections)[0] || 'Scenic Nature';
+screensaverState.photosList = curatedCollections[initialCategory] ? [...curatedCollections[initialCategory]] : [];
+screensaverState.activePhoto = screensaverState.photosList[0] || null;
 screensaverState.hasUseApiToken = !!process.env.USEAPI_TOKEN;
 
 /**

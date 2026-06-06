@@ -22,6 +22,102 @@ const categorySubreddits = {
   'AI Creations': ['aiArt', 'Midjourney', 'StableDiffusion']
 };
 
+// Tumblr blogs mapping for categories (keyless JSON read API)
+const categoryTumblrBlogs = {
+  'Scenic Nature': ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'],
+  'Cosmic Space': ['nasaimages', 'cosmic-space-explorer'],
+  'Abstract Art': ['abstractartgallery', 'generative-art'],
+  'Liminal Spaces': ['liminal-spaces', 'emptycorridors'],
+  'AI Creations': ['aiartgenerator', 'midjourneycreations']
+};
+
+/**
+ * 🎨 fetchTumblrImages
+ * Fetches photo posts from a public Tumblr blog keylessly.
+ */
+async function fetchTumblrImages(blogName, count = 20) {
+  try {
+    console.log(`Tumblr Crawler: Fetching posts for blog "${blogName}"...`);
+    const res = await fetch(`https://${blogName}.tumblr.com/api/read/json?type=photo&num=${count}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!res.ok) {
+      console.warn(`Tumblr Crawler: Failed for blog "${blogName}" (status ${res.status})`);
+      return [];
+    }
+
+    const text = await res.text();
+    const startIdx = text.indexOf('{');
+    const endIdx = text.lastIndexOf('}');
+    if (startIdx === -1 || endIdx === -1) {
+      console.warn(`Tumblr Crawler: Invalid JSONP wrapper returned for blog "${blogName}"`);
+      return [];
+    }
+
+    const data = JSON.parse(text.substring(startIdx, endIdx + 1));
+    const posts = data.posts || [];
+    const photos = [];
+
+    for (const post of posts) {
+      if (post.type !== 'photo') continue;
+
+      const postPhotos = post.photos || [];
+      const caption = post['photo-caption'] || post.slug || 'Tumblr Scenic Photo';
+      // Clean HTML tags from caption
+      let title = caption.replace(/<[^>]*>/g, '').trim().replace(/[\r\n\t]+/g, ' ');
+      if (title.length > 55) {
+        title = title.substring(0, 52) + '...';
+      }
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+
+      const author = data.tumblelog ? data.tumblelog.title : 'Tumblr Contributor';
+
+      if (postPhotos.length > 0) {
+        for (const p of postPhotos) {
+          const url = p['photo-url-1280'] || p['photo-url-500'] || p['photo-url-250'];
+          if (url) {
+            photos.push({
+              url,
+              title: title || 'Tumblr Scenic Photo',
+              author: author,
+              source: 'tumblr',
+              isNight: false,
+              isRain: false,
+              isSunny: true,
+              isCloudy: false,
+              isSnowy: false
+            });
+          }
+        }
+      } else {
+        const url = post['photo-url-1280'] || post['photo-url-500'] || post['photo-url-250'];
+        if (url) {
+          photos.push({
+            url,
+            title: title || 'Tumblr Scenic Photo',
+            author: author,
+            source: 'tumblr',
+            isNight: false,
+            isRain: false,
+            isSunny: true,
+            isCloudy: false,
+            isSnowy: false
+          });
+        }
+      }
+    }
+
+    console.log(`Tumblr Crawler: Successfully loaded ${photos.length} photos from "${blogName}".`);
+    return photos;
+  } catch (err) {
+    console.error(`Tumblr crawler failed for blog "${blogName}":`, err.message);
+    return [];
+  }
+}
+
 /**
  * 🤖 fetchRedditImages
  * Scrapes /r/ subreddits for hot landscape photographs.
@@ -548,12 +644,14 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
   }
 
   // 3. Crawl Unsplash NAPI
-  for (const [category, baseQuery] of Object.entries(searchQueries)) {
+  const activeQueries = searchKeywords || searchQueries;
+  for (const [category, baseQuery] of Object.entries(activeQueries)) {
     let categoryList = [...(updatedCollections[category] || [])];
     const initialLength = categoryList.length;
     const existingUrls = new Set(categoryList.map(item => item.url));
 
-    const customQueries = (searchKeywords && searchKeywords[category]) || [baseQuery];
+    const customQueries = Array.isArray(baseQuery) ? baseQuery : [baseQuery];
+    if (customQueries.length === 0) continue;
     const chosenQuery = customQueries[Math.floor(Math.random() * customQueries.length)];
 
     const queriesToCrawl = [
@@ -633,14 +731,14 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
   }
 
   // 3.5. Crawl Wallhaven SFW
-  for (const category of ['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations']) {
+  for (const [category, baseQuery] of Object.entries(activeQueries)) {
     try {
       let categoryList = [...(updatedCollections[category] || [])];
       const initialLength = categoryList.length;
       const existingUrls = new Set(categoryList.map(item => item.url));
 
-      const baseQuery = searchQueries[category] || 'landscape';
-      const customQueries = (searchKeywords && searchKeywords[category]) || [baseQuery];
+      const customQueries = Array.isArray(baseQuery) ? baseQuery : [baseQuery];
+      if (customQueries.length === 0) continue;
       const chosenQuery = customQueries[Math.floor(Math.random() * customQueries.length)];
 
       const wallhavenPhotos = await fetchWallhavenImages(chosenQuery, category, 10);
@@ -666,6 +764,45 @@ async function crawlAllCollections(currentCollections, searchKeywords = null) {
       }
     } catch (err) {
       console.error(`Wallhaven daily crawl failed for category "${category}":`, err.message);
+    }
+  }
+
+  // 3.55. Crawl Tumblr Images for category blogs
+  for (const [category, blogs] of Object.entries(categoryTumblrBlogs)) {
+    if (!activeQueries[category]) continue;
+
+    try {
+      let categoryList = [...(updatedCollections[category] || [])];
+      const initialLength = categoryList.length;
+      const existingUrls = new Set(categoryList.map(item => item.url));
+
+      for (const blog of blogs) {
+        const tumblrPhotos = await fetchTumblrImages(blog, 10);
+        for (const p of tumblrPhotos) {
+          if (!existingUrls.has(p.url)) {
+            p.isNight = category === 'Cosmic Space';
+            p.isSunny = !p.isNight;
+            categoryList.push(p);
+            existingUrls.add(p.url);
+          }
+        }
+      }
+
+      if (categoryList.length > 2000) {
+        const originalCuratedCount = Math.min(12, categoryList.length);
+        const originals = categoryList.slice(0, originalCuratedCount);
+        const dynamicAdded = categoryList.slice(originalCuratedCount);
+        const allowedDynamic = 2000 - originalCuratedCount;
+        categoryList = originals.concat(dynamicAdded.slice(-allowedDynamic));
+      }
+
+      updatedCollections[category] = categoryList;
+      if (categoryList.length > initialLength) {
+        console.log(`Tumblr: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
+        updatedAny = true;
+      }
+    } catch (err) {
+      console.error(`Tumblr daily crawl failed for category "${category}":`, err.message);
     }
   }
 
