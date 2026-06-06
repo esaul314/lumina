@@ -3,6 +3,25 @@ const fs = require('fs');
 const path = require('path');
 const { resolveActiveLocation, fetchWeatherForecast } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
+const {
+  map,
+  filter,
+  reduce,
+  prop,
+  uniqBy
+} = require('./utils/fn.js');
+
+const uniqByUrl = uniqBy(prop('url'));
+
+// Pure/functional shuffle helper
+const shuffle = (list) => {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
 
 /**
  * 🛠️ getLocalIpAddresses
@@ -51,39 +70,23 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
   // Helper to dynamically balance google photos and curated categories round-robin
   function combineGoogleAndCuratedFeeds(categoriesList, collectionsObj) {
-    const lists = categoriesList.map(cat => {
+    const lists = filter(list => list.length > 0, map(cat => {
       if (cat === 'Google Photos') {
         return googlePhotos.getCachedMediaItems();
       }
-      const list = [...(collectionsObj[cat] || [])].filter(p => p.rating !== 1 && !p.isBroken);
-      for (let i = list.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [list[i], list[j]] = [list[j], list[i]];
-      }
-      return list;
-    }).filter(list => list.length > 0);
+      return shuffle(filter(p => p.rating !== 1 && !p.isBroken, collectionsObj[cat] || []));
+    }, categoriesList));
 
     if (lists.length === 0) return [];
-    if (lists.length === 1) return lists[0];
+    if (lists.length === 1) return uniqByUrl(lists[0]);
 
-    const combined = [];
-    const maxLen = Math.max(...lists.map(l => l.length));
-    
-    for (let i = 0; i < maxLen; i++) {
-      for (let j = 0; j < lists.length; j++) {
-        const list = lists[j];
-        combined.push(list[i % list.length]);
-      }
-    }
+    const maxLen = Math.max(...map(l => l.length, lists));
 
-    const finalPhotos = [];
-    for (const photo of combined) {
-      if (finalPhotos.length > 0 && finalPhotos[finalPhotos.length - 1].url === photo.url) {
-        continue;
-      }
-      finalPhotos.push(photo);
-    }
-    return finalPhotos;
+    const combined = reduce((acc, i) => {
+      return acc.concat(map(list => list[i % list.length], lists));
+    }, [], Array.from({ length: maxLen }, (_, i) => i));
+
+    return uniqByUrl(combined);
   }
 
   // GET /api/photos

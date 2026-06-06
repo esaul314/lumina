@@ -30,8 +30,11 @@ const {
   pipe,
   prop,
   map,
+  filter,
+  reduce,
   toLower,
-  includes
+  includes,
+  uniqBy
 } = require('./utils/fn.js');
 
 // Global Weather Telemetry Cache
@@ -77,26 +80,34 @@ if (fs.existsSync(jsonPath)) {
       }
     }
 
-    // Global Deduplication: Ensure each image URL is unique across all categories
+    // Global Deduplication: Ensure each image URL is unique across all categories using functional reduce
     const seenUrls = new Set();
     let duplicatesRemoved = false;
-    for (const key of Object.keys(curatedCollections)) {
-      if (Array.isArray(curatedCollections[key])) {
-        const originalCount = curatedCollections[key].length;
-        curatedCollections[key] = curatedCollections[key].filter(photo => {
-          if (!photo || !photo.url) return false;
-          if (seenUrls.has(photo.url)) {
-            duplicatesRemoved = true;
-            return false;
-          }
-          seenUrls.add(photo.url);
-          return true;
-        });
-        if (curatedCollections[key].length < originalCount) {
-          console.log(`Global Deduplication: Cleaned ${originalCount - curatedCollections[key].length} duplicate photos from category "${key}".`);
-        }
+
+    curatedCollections = reduce((acc, key) => {
+      const list = curatedCollections[key];
+      if (!Array.isArray(list)) {
+        acc[key] = list;
+        return acc;
       }
-    }
+      const originalCount = list.length;
+      const uniqueList = filter(photo => {
+        if (!photo || !photo.url) return false;
+        if (seenUrls.has(photo.url)) {
+          duplicatesRemoved = true;
+          return false;
+        }
+        seenUrls.add(photo.url);
+        return true;
+      }, list);
+
+      if (uniqueList.length < originalCount) {
+        console.log(`Global Deduplication: Cleaned ${originalCount - uniqueList.length} duplicate photos from category "${key}".`);
+      }
+      acc[key] = uniqueList;
+      return acc;
+    }, {}, Object.keys(curatedCollections));
+
     if (duplicatesRemoved) {
       saveCuratedCollections(curatedCollections, screensaverState);
     }
@@ -189,6 +200,7 @@ const initialCategory = Object.keys(curatedCollections)[0] || 'Scenic Nature';
 screensaverState.photosList = curatedCollections[initialCategory] ? [...curatedCollections[initialCategory]] : [];
 screensaverState.activePhoto = screensaverState.photosList[0] || null;
 screensaverState.hasUseApiToken = !!process.env.USEAPI_TOKEN;
+const uniqByUrl = uniqBy(prop('url'));
 
 /**
  * 🔄 combineFeedsBalanced
@@ -205,7 +217,7 @@ function combineFeedsBalanced(categories, collections) {
   }).filter(list => list.length > 0);
 
   if (lists.length === 0) return [];
-  if (lists.length === 1) return lists[0];
+  if (lists.length === 1) return uniqByUrl(lists[0]);
 
   const combined = [];
   const maxLen = Math.max(...lists.map(l => l.length));
@@ -217,14 +229,7 @@ function combineFeedsBalanced(categories, collections) {
     }
   }
 
-  const finalPhotos = [];
-  for (const photo of combined) {
-    if (finalPhotos.length > 0 && finalPhotos[finalPhotos.length - 1].url === photo.url) {
-      continue;
-    }
-    finalPhotos.push(photo);
-  }
-  return finalPhotos;
+  return uniqByUrl(combined);
 }
 
 /**

@@ -61,6 +61,20 @@ const toLower = (str) => (str || '').toLowerCase();
  */
 const includes = curry((substring, str) => (str || '').includes(substring));
 
+/**
+ * 🔍 uniqBy
+ * Curried utility that filters a list to keep only unique elements determined by keyFn.
+ */
+const uniqBy = curry((keyFn, arr) => {
+  const seen = new Set();
+  return filter(item => {
+    const val = keyFn(item);
+    if (seen.has(val)) return false;
+    seen.add(val);
+    return true;
+  }, arr);
+});
+
 module.exports = {
   curry,
   pipe,
@@ -69,5 +83,6 @@ module.exports = {
   filter,
   reduce,
   toLower,
-  includes
+  includes,
+  uniqBy
 };
