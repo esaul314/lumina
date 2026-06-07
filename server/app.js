@@ -136,6 +136,11 @@ if (fs.existsSync(jsonPath)) {
     if (data.visionConfig) {
       screensaverState.visionConfig = data.visionConfig;
     }
+    if (data.excludedKeywords) {
+      screensaverState.excludedKeywords = data.excludedKeywords;
+    } else {
+      screensaverState.excludedKeywords = [];
+    }
     console.log('Successfully loaded persisted curated collections from file!');
   } catch (err) {
     console.error('Failed to parse curated_collections.json, falling back to defaults:', err.message);
@@ -169,6 +174,13 @@ const isRainPhoto = titleHasKeyword(['rain', 'rainy', 'wet', 'storm', 'water', '
 const isSunnyPhoto = titleHasKeyword(['sun', 'sunny', 'clear', 'bright', 'golden', 'morning', 'summer', 'daylight', 'drenched', 'warm']);
 const isCloudyPhoto = titleHasKeyword(['mist', 'cloud', 'cloudy', 'fog', 'foggy', 'mist-veiled', 'misty', 'hazy', 'overcast', 'moody', 'shadow', 'pale', 'eerie', 'familiar', 'empty', 'silent', 'deserted', 'abandoned', 'quiet']);
 const isSnowyPhoto = titleHasKeyword(['snow', 'snowy', 'winter', 'ice', 'frozen', 'cold', 'alpine']);
+
+// Functional, curried helper that checks if a photo matches any excluded keyword
+const matchesExclusion = curry((excludedList, photo) => {
+  if (!excludedList || excludedList.length === 0) return false;
+  const titleText = pipe(prop('title'), toLower)(photo);
+  return excludedList.some(kw => includes(toLower(kw), titleText));
+});
 
 /**
  * 🏷️ tagPhotosWithKeywords
@@ -208,7 +220,7 @@ const uniqByUrl = uniqBy(prop('url'));
  */
 function combineFeedsBalanced(categories, collections) {
   const lists = categories.map(cat => {
-    const list = [...(collections[cat] || [])].filter(p => p.rating !== 1 && !p.isBroken);
+    const list = [...(collections[cat] || [])].filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(screensaverState.excludedKeywords, p));
     for (let i = list.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [list[i], list[j]] = [list[j], list[i]];
@@ -238,8 +250,8 @@ function combineFeedsBalanced(categories, collections) {
  * Scales ratings 2-10 linearly (2=0.2, 10=1.0).
  */
 function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
-  // 1. Filter out banned images (rating = 1)
-  let activePhotos = photos.filter(p => p.rating !== 1);
+  // 1. Filter out banned images (rating = 1) and excluded images
+  let activePhotos = photos.filter(p => p.rating !== 1 && !matchesExclusion(screensaverState.excludedKeywords, p));
   if (activePhotos.length === 0) return null;
 
   // 2. Avoid consecutive repeat if possible
@@ -451,7 +463,12 @@ async function updateFeedsDaily() {
     return;
   }
 
-  const { updatedCollections, updatedAny } = await crawlAllCollections(curatedCollections, screensaverState.feedConfigs, screensaverState.searchKeywords);
+  const { updatedCollections, updatedAny } = await crawlAllCollections(
+    curatedCollections,
+    screensaverState.feedConfigs,
+    screensaverState.searchKeywords,
+    screensaverState.excludedKeywords
+  );
   
   if (updatedAny) {
     for (const key of Object.keys(updatedCollections)) {
@@ -630,5 +647,7 @@ module.exports = {
   curatedCollections,
   updateNewsSentiment,
   updateServerWeather,
-  triggerImageAnalysisBackground
+  triggerImageAnalysisBackground,
+  combineFeedsBalanced,
+  selectWeightedRandomPhoto
 };

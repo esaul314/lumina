@@ -206,6 +206,33 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
+    // Save and sync excluded keywords
+    socket.on('update-excluded-keywords', (keywords) => {
+      if (Array.isArray(keywords)) {
+        state.excludedKeywords = keywords.map(kw => String(kw).trim()).filter(Boolean);
+        saveCuratedCollections(collections, state);
+
+        // Instantly refresh photos list in state to apply new exclusions
+        const activeCategory = state.currentCategory;
+        const currentCats = activeCategory ? activeCategory.split(',') : [];
+        state.photosList = combineFeedsBalanced(currentCats, collections);
+        
+        if (state.photosList.length > 0) {
+          const matchesExclusionLocally = (photo) => {
+            if (!photo || !photo.title) return false;
+            const titleText = photo.title.toLowerCase();
+            return state.excludedKeywords.some(kw => titleText.includes(kw.toLowerCase()));
+          };
+          if (matchesExclusionLocally(state.activePhoto)) {
+            state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
+          }
+        }
+
+        io.emit('state-sync', state);
+        console.log('[SOCKET EVENT] update-excluded-keywords saved and broadcasted:', state.excludedKeywords);
+      }
+    });
+
     // Add custom category / scenic pool
     socket.on('add-category', async ({ category, keyword }) => {
       if (!category || typeof category !== 'string') return;

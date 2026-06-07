@@ -8,7 +8,11 @@ const {
   filter,
   reduce,
   prop,
-  uniqBy
+  uniqBy,
+  toLower,
+  includes,
+  curry,
+  pipe
 } = require('./utils/fn.js');
 
 const uniqByUrl = uniqBy(prop('url'));
@@ -22,6 +26,13 @@ const shuffle = (list) => {
   }
   return arr;
 };
+
+// Functional, curried helper that checks if a photo matches any excluded keyword
+const matchesExclusion = curry((excludedList, photo) => {
+  if (!excludedList || excludedList.length === 0) return false;
+  const titleText = pipe(prop('title'), toLower)(photo);
+  return excludedList.some(kw => includes(toLower(kw), titleText));
+});
 
 /**
  * 🛠️ getLocalIpAddresses
@@ -74,7 +85,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       if (cat === 'Google Photos') {
         return googlePhotos.getCachedMediaItems();
       }
-      return shuffle(filter(p => p.rating !== 1 && !p.isBroken, collectionsObj[cat] || []));
+      return shuffle(filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(state.excludedKeywords, p), collectionsObj[cat] || []));
     }, categoriesList));
 
     if (lists.length === 0) return [];

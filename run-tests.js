@@ -14,7 +14,9 @@ const http = require('http');
 const { 
   tagPhotosWithKeywords, 
   getSmartPhoto, 
-  screensaverState 
+  screensaverState,
+  combineFeedsBalanced,
+  selectWeightedRandomPhoto
 } = require('./server/app.js');
 const { analyzeSentiment } = require('./server/services/sentiment.js');
 const { classifyWeatherCode } = require('./server/services/weather.js');
@@ -306,6 +308,46 @@ assertTest('weighted distribution favors highly-rated photos', () => {
 
   // Expect highCount > lowCount by a significant margin (mathematically 5:1 ratio)
   assert.ok(highCount > lowCount * 2, `Expected highly-rated photo to be selected much more than low-rated one. High: ${highCount}, Low: ${lowCount}`);
+});
+
+// ============================================================================
+// 4b. UNIT TEST SUITE: Keyword Exclusion Filters
+// ============================================================================
+logSuite('Keyword Exclusion Filters');
+
+assertTest('correctly filters photos containing excluded keywords in combineFeedsBalanced', () => {
+  const collections = {
+    'Scenic Nature': [
+      { url: 'url1', title: 'Beautiful Forest Mountains', rating: 10 },
+      { url: 'url2', title: 'Stupid Anime Character Artwork', rating: 10 },
+      { url: 'url3', title: 'Lovely Stream in the Woods', rating: 10 }
+    ]
+  };
+  
+  const originalExclusions = screensaverState.excludedKeywords;
+  screensaverState.excludedKeywords = ['anime'];
+  
+  const combined = combineFeedsBalanced(['Scenic Nature'], collections);
+  
+  assert.strictEqual(combined.length, 2, 'Should return exactly 2 photos');
+  assert.ok(combined.every(p => !p.title.toLowerCase().includes('anime')), 'No photo should contain the excluded keyword');
+  
+  screensaverState.excludedKeywords = originalExclusions;
+});
+
+assertTest('correctly filters photos containing excluded keywords in selectWeightedRandomPhoto', () => {
+  const photos = [
+    { url: 'url1', title: 'Cyberpunk anime wallpaper', rating: 10 },
+    { url: 'url2', title: 'Futuristic neon city street', rating: 10 }
+  ];
+  
+  const originalExclusions = screensaverState.excludedKeywords;
+  screensaverState.excludedKeywords = ['anime'];
+  
+  const picked = selectWeightedRandomPhoto(photos);
+  assert.strictEqual(picked.url, 'url2', 'Should pick the non-excluded photo');
+  
+  screensaverState.excludedKeywords = originalExclusions;
 });
 
 // ============================================================================

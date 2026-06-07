@@ -108,6 +108,9 @@ function saveCuratedCollections(collections, state) {
       if (state.visionConfig) {
         fileData.visionConfig = state.visionConfig;
       }
+      if (state.excludedKeywords) {
+        fileData.excludedKeywords = state.excludedKeywords;
+      }
     }
     
     fs.writeFileSync(jsonPath, JSON.stringify(fileData, null, 2), 'utf8');

@@ -1479,6 +1479,101 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           </div>
 
           <div className="remote-card">
+            <span className="remote-section-title">Exclusion Keywords</span>
+            <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '-8px', lineHeight: 1.3 }}>
+              Exclude matching wallpapers globally from slideshow feeds (e.g. "anime", "hentai", "car").
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '12px 0' }}>
+              {(state.excludedKeywords || []).length === 0 ? (
+                <span style={{ fontSize: '0.75rem', opacity: 0.4, fontStyle: 'italic' }}>No active exclusion filters.</span>
+              ) : (
+                state.excludedKeywords.map((kw, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      color: '#f87171',
+                      padding: '4px 10px',
+                      borderRadius: '16px',
+                      fontSize: '0.75rem',
+                      fontWeight: 500
+                    }}
+                  >
+                    {kw}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = state.excludedKeywords.filter(k => k !== kw);
+                        socket.emit('update-excluded-keywords', updated);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target;
+                const kw = form.elements.exKey.value.trim();
+                if (kw) {
+                  const current = state.excludedKeywords || [];
+                  if (!current.includes(kw)) {
+                    socket.emit('update-excluded-keywords', [...current, kw]);
+                  }
+                  form.reset();
+                }
+              }}
+              style={{ display: 'flex', gap: '8px' }}
+            >
+              <input
+                type="text"
+                name="exKey"
+                placeholder="Add exclusion keyword..."
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  outline: 'none'
+                }}
+              />
+              <button
+                type="submit"
+                className="remote-btn"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  borderColor: 'rgba(239, 68, 68, 0.2)',
+                  color: '#ef4444',
+                  fontWeight: 600,
+                  width: 'auto',
+                  padding: '0 16px'
+                }}
+              >
+                Add
+              </button>
+            </form>
+          </div>
+
+          <div className="remote-card">
             <span className="remote-section-title">Database & Feed Management</span>
             <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '-8px', lineHeight: 1.3 }}>
               Manually trigger the background crawler to query all active photography APIs (Reddit, Lexica, Unsplash, Wallhaven, NASA, Midjourney) and load fresh landscape images instantly.

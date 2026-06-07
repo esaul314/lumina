@@ -797,10 +797,17 @@ function capCollectionLimit(list, initialLength, limit = 2000) {
  * 🏔️ crawlAllCollections
  * Declarative orchestrator that runs all crawls based on per-source feed configurations.
  */
-async function crawlAllCollections(currentCollections, feedConfigs = null, searchKeywords = null) {
+async function crawlAllCollections(currentCollections, feedConfigs = null, searchKeywords = null, excludedKeywords = null) {
   console.log('Initiating dynamic multi-source feed updates for all categories...');
   const updatedCollections = { ...currentCollections };
   let updatedAny = false;
+
+  const matchesExclusion = (excludedList, item) => {
+    if (!item || !item.title) return false;
+    if (!Array.isArray(excludedList) || excludedList.length === 0) return false;
+    const titleText = item.title.toLowerCase();
+    return excludedList.some(kw => titleText.includes(kw.toLowerCase()));
+  };
 
   const configs = feedConfigs || buildFeedConfigsFromKeywords(searchKeywords || searchQueries);
 
@@ -890,7 +897,7 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
 
         // Add unique items
         for (const item of newItems) {
-          if (!globalExistingUrls.has(item.url)) {
+          if (!globalExistingUrls.has(item.url) && !matchesExclusion(excludedKeywords, item)) {
             // Special rules for Tumblr cosmic night alignment
             if (scraper.key === 'tumblr') {
               item.isNight = category === 'Cosmic Space';
@@ -932,7 +939,7 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
         for (const query of lexicaQueries) {
           const lexicaPhotos = await fetchLexicaImages(query, 15);
           for (const p of lexicaPhotos) {
-            if (!globalExistingUrls.has(p.url)) {
+            if (!globalExistingUrls.has(p.url) && !matchesExclusion(excludedKeywords, p)) {
               aiList.push(p);
               globalExistingUrls.add(p.url);
             }

@@ -63,6 +63,7 @@ const screensaverState = {
   nightPercentage: 50,
   searchKeywords: { ...defaultKeywords },
   feedConfigs: buildFeedConfigsFromKeywords(defaultKeywords),
+  excludedKeywords: [],
   autoLocation: false,
   manualLocation: {
     lat: 45.45,
