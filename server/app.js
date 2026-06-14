@@ -210,7 +210,7 @@ for (const key of Object.keys(curatedCollections)) {
 }
 
 const initialCategory = Object.keys(curatedCollections)[0] || 'Scenic Nature';
-screensaverState.photosList = curatedCollections[initialCategory] ? [...curatedCollections[initialCategory]] : [];
+screensaverState.photosList = curatedCollections[initialCategory] ? curatedCollections[initialCategory].filter(p => p.rating !== 1 && !p.isBroken) : [];
 screensaverState.activePhoto = screensaverState.photosList[0] || null;
 screensaverState.hasUseApiToken = !!config.useapiToken;
 const uniqByUrl = uniqBy(prop('url'));
@@ -432,7 +432,7 @@ async function triggerImageAnalysisBackground() {
     const activeCategory = screensaverState.currentCategory;
     const currentCats = activeCategory ? activeCategory.split(',') : [];
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []);
+    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken);
     io.emit('state-sync', screensaverState);
   } else {
     console.log('[Vision Service] All active images are already precisely analyzed.');
@@ -481,7 +481,7 @@ async function updateFeedsDaily() {
     const activeCategory = screensaverState.currentCategory;
     const currentCats = activeCategory ? activeCategory.split(',') : [];
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []);
+    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken);
     io.emit('state-sync', screensaverState);
     
     // Trigger vision analysis for any new crawl results

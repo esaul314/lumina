@@ -136,10 +136,10 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       
       const currentCats = state.currentCategory ? state.currentCategory.split(',') : [];
       const responsePhotos = combineGoogleAndCuratedFeeds(currentCats, collections);
-      res.json(responsePhotos.length > 0 ? responsePhotos : (collections['Scenic Nature'] || []));
+      res.json(responsePhotos.length > 0 ? responsePhotos : (collections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(state.excludedKeywords, p)));
     } catch (error) {
       console.error('Failed to fetch photos from curated list', error.message);
-      res.json(collections['Scenic Nature']);
+      res.json((collections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken));
     }
   });
 
