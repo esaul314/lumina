@@ -1,4 +1,5 @@
 const { exec } = require('child_process');
+const config = require('../config/configLoader.js');
 
 /**
  * 📧 sendEmailAlert
@@ -6,7 +7,7 @@ const { exec } = require('child_process');
  * Alerts user of smart display failures or self-healing events.
  */
 function sendEmailAlert(subject, body) {
-  const alertEmail = process.env.ALERT_EMAIL || 'alex@localhost';
+  const alertEmail = config.alertEmail;
   if (!alertEmail) return;
 
   console.log(`Self-Healing: Attempting to send email alert to ${alertEmail}...`);

@@ -8,3 +8,4 @@ curated_collections.json
 .env.*
 analysis_cache.json
 server/config/.google_credentials.json
+config.json

@@ -1,3 +1,5 @@
+const config = require('./configLoader.js');
+
 function buildFeedConfigsFromKeywords(keywordsMap) {
   const configs = {};
   for (const [category, kws] of Object.entries(keywordsMap)) {
@@ -66,11 +68,7 @@ const screensaverState = {
   excludedKeywords: [],
   autoLocation: false,
   manualLocation: {
-    lat: 45.45,
-    lon: -73.56,
-    city: 'Verdun',
-    regionName: 'Quebec',
-    country: 'Canada'
+    ...config.location
   },
   newsSentiment: {
     score: 0,

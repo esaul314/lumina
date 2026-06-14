@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const config = require('./config/configLoader.js');
 
 // Modular config and service imports
 const { sendEmailAlert } = require('./services/notifier.js');
@@ -211,7 +212,7 @@ for (const key of Object.keys(curatedCollections)) {
 const initialCategory = Object.keys(curatedCollections)[0] || 'Scenic Nature';
 screensaverState.photosList = curatedCollections[initialCategory] ? [...curatedCollections[initialCategory]] : [];
 screensaverState.activePhoto = screensaverState.photosList[0] || null;
-screensaverState.hasUseApiToken = !!process.env.USEAPI_TOKEN;
+screensaverState.hasUseApiToken = !!config.useapiToken;
 const uniqByUrl = uniqBy(prop('url'));
 
 /**
@@ -511,7 +512,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Subprocess State Management helpers for Sockets
 let isBrowserRunning = false;
 let manualOverride = false;
-let PORT = process.env.PORT || 5000;
+let PORT = config.port || 5000;
 
 function launchKioskBrowser(forceManual = false) {
   if (forceManual) manualOverride = true;

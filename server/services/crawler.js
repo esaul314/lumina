@@ -1,3 +1,5 @@
+const config = require('../config/configLoader.js');
+
 /**
  * 🖼️ Dynamic Image Crawler Service
  * Extracts HD wallpapers from Reddit subreddits, Lorem Picsum, Lexica, and Unsplash.
@@ -373,7 +375,7 @@ async function fetchWallhavenImages(query, category, count = 15) {
 async function fetchNasaApod(count = 10) {
   try {
     console.log(`NASA APOD Crawler: Fetching ${count} cosmic photos...`);
-    const apiKey = process.env.NASA_API_KEY || 'DEMO_KEY';
+    const apiKey = config.nasaApiKey || 'DEMO_KEY';
     const url = `https://api.nasa.gov/planetary/apod?api_key=${apiKey}&count=${count}`;
     
     const res = await fetch(url);
@@ -539,7 +541,7 @@ async function fetchUnsplashImages(query, count = 20) {
  * Supports token authorization, filters out portraits, extracts prompts, and handles self-healing fallback.
  */
 async function fetchMidjourneyImages(count = 15) {
-  const token = process.env.USEAPI_TOKEN;
+  const token = config.useapiToken;
   if (!token) {
     console.log('UseAPI.net: No USEAPI_TOKEN configured. Using free keyless AI aggregators (Lexica Art + Wallhaven AI)...');
     try {

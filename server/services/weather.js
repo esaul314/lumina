@@ -1,3 +1,5 @@
+const config = require('../config/configLoader.js');
+
 /**
  * 🌦️ Weather & Geolocation Service
  * Fuses IP-based coordinates with real-time Open-Meteo meteorological metrics.
@@ -6,17 +8,10 @@
 
 /**
  * 📍 getIpLocation
- * Resolves local IP coordinates. Hardcoded to Verdun, Montreal, Canada 
- * to guarantee 100% correct screensaver telemetry.
+ * Resolves local IP coordinates. Falls back to configured location to guarantee correct screensaver telemetry.
  */
 async function getIpLocation() {
-  const fallbackLocation = {
-    lat: 45.45,
-    lon: -73.56,
-    city: 'Verdun',
-    regionName: 'Quebec',
-    country: 'Canada'
-  };
+  const fallbackLocation = config.location;
 
   try {
     console.log('IP Geolocation: Querying live IP coordinates...');

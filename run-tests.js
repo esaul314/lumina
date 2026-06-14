@@ -11,6 +11,7 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const http = require('http');
+const config = require('./server/config/configLoader.js');
 const { 
   tagPhotosWithKeywords, 
   getSmartPhoto, 
@@ -489,23 +490,23 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 logSuite('Live Server Endpoint Smoke Tests');
 
 async function runIntegrationTests() {
-  const port = process.env.PORT || 5000;
+  const port = config.port || 5000;
   const baseUrl = `http://localhost:${port}`;
   
   // Confirm that the server is alive on port 5000
   try {
-    const config = await fetchJson(`${baseUrl}/api/config`);
+    const serverConfig = await fetchJson(`${baseUrl}/api/config`);
     
     assertTest('GET /api/config successfully retrieves configuration and network data', () => {
-      assert.ok(Array.isArray(config.localIps), 'localIps should be an array');
-      assert.strictEqual(config.port, 5000, 'port should equal 5000');
-      assert.ok(config.state, 'state object must be present');
+      assert.ok(Array.isArray(serverConfig.localIps), 'localIps should be an array');
+      assert.strictEqual(serverConfig.port, 5000, 'port should equal 5000');
+      assert.ok(serverConfig.state, 'state object must be present');
     });
 
     const weather = await fetchJson(`${baseUrl}/api/weather`);
     assertTest('GET /api/weather serves live Open-Meteo telemetry geolocated to Montreal', () => {
       assert.ok(weather.location, 'location data should be populated');
-      assert.strictEqual(weather.location.city, 'Verdun', 'City should be geolocated to Verdun');
+      assert.strictEqual(weather.location.city, config.location.city, `City should be geolocated to ${config.location.city}`);
       assert.ok(weather.current, 'current weather telemetry must be present');
       assert.ok(weather.daily, 'daily forecast arrays must be present');
     });
@@ -532,7 +533,7 @@ async function runIntegrationTests() {
     });
 
     // Test HTTP Rating API
-    const samplePhotoUrl = config.state.photosList[0]?.url;
+    const samplePhotoUrl = serverConfig.state.photosList[0]?.url;
     if (samplePhotoUrl) {
       const rateResponse = await postJson(`${baseUrl}/api/photos/rate`, { url: samplePhotoUrl, rating: 8 });
       assertTest('POST /api/photos/rate successfully updates and persists a photo rating', () => {
