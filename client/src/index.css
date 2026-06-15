@@ -1080,4 +1080,43 @@ body.mode-remote {
   text-overflow: ellipsis;
 }
 
+/* --- SPLIT CROP RANGE SLIDER --- */
+.split-crop-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+}
 
+.split-crop-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--accent-color);
+  transition: transform 0.1s ease;
+}
+
+.split-crop-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.split-crop-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--accent-color);
+  transition: transform 0.1s ease;
+  border: none;
+}
+
+.split-crop-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}

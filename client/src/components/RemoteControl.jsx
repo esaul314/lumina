@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Sun, Moon, Palette, Sliders, Smartphone, Image as ImageIcon, RefreshCw, 
   ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,
@@ -13,6 +13,157 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [googleClientSecret, setGoogleClientSecret] = useState('');
   const [isSavedEnv, setIsSavedEnv] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const remoteOrientationCache = useRef({});
+  const remoteDimensionsCache = useRef({});
+  const [activePhotoOrientation, setActivePhotoOrientation] = useState('landscape');
+  const [secondPhoto, setSecondPhoto] = useState(null);
+
+  const [activePhotoCrop, setActivePhotoCrop] = useState(50);
+  const cropTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (state.activePhoto) {
+      setActivePhotoCrop(
+        state.activePhoto.cropPercent !== undefined 
+          ? state.activePhoto.cropPercent 
+          : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)
+      );
+    }
+  }, [state.activePhoto?.url, state.activePhoto?.cropPercent, state.splitCropPercent]);
+
+  useEffect(() => {
+    return () => {
+      if (cropTimeoutRef.current) {
+        clearTimeout(cropTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handlePhotoCropChange = (val) => {
+    const numericVal = parseInt(val, 10);
+    setActivePhotoCrop(numericVal);
+
+    if (cropTimeoutRef.current) {
+      clearTimeout(cropTimeoutRef.current);
+    }
+
+    cropTimeoutRef.current = setTimeout(() => {
+      if (state.activePhoto) {
+        socket.emit('set-photo-crop', {
+          url: state.activePhoto.url,
+          cropPercent: numericVal
+        });
+      }
+    }, 200); // 200ms debounce
+  };
+
+  const previewContainerRef = useRef(null);
+  const [previewDimensions, setPreviewDimensions] = useState({ width: 350, height: 180 });
+
+  useEffect(() => {
+    if (!previewContainerRef.current) return;
+    const updateDims = () => {
+      const rect = previewContainerRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setPreviewDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+    updateDims();
+    window.addEventListener('resize', updateDims);
+    return () => window.removeEventListener('resize', updateDims);
+  }, [activeTab, state.activePhoto?.url]);
+
+  // Sync orientation cache and active photo preview layout
+  useEffect(() => {
+    if (!state.activePhoto) {
+      setActivePhotoOrientation('landscape');
+      setSecondPhoto(null);
+      return;
+    }
+
+    const checkActivePhoto = () => {
+      const activeUrl = state.activePhoto.url;
+      const cached = remoteOrientationCache.current[activeUrl];
+      
+      const processActiveOrientation = (isPortrait) => {
+        setActivePhotoOrientation(isPortrait ? 'portrait' : 'landscape');
+        
+        if (isPortrait && state.splitPortrait && state.photosList && state.photosList.length > 1) {
+          // Look for another photo that is cached as portrait and has dimensions cached and belongs to the same category
+          const cachedPortraits = state.photosList.filter(p => 
+            p.url !== activeUrl && 
+            remoteOrientationCache.current[p.url] === 'portrait' &&
+            remoteDimensionsCache.current[p.url] &&
+            (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
+          );
+          
+          if (cachedPortraits.length > 0) {
+            setSecondPhoto(cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)]);
+          } else {
+            // Find candidates in the same category
+            const candidates = state.photosList.filter(p => 
+              p.url !== activeUrl && 
+              remoteOrientationCache.current[p.url] !== 'landscape' &&
+              (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
+            ).slice(0, 8);
+            
+            const findSecondSequentially = (index) => {
+              if (index >= candidates.length) {
+                setSecondPhoto(null);
+                return;
+              }
+              const cand = candidates[index];
+              const cImg = new window.Image();
+              cImg.src = cand.url;
+              cImg.onload = () => {
+                const isCandPortrait = cImg.naturalHeight > cImg.naturalWidth;
+                remoteOrientationCache.current[cand.url] = isCandPortrait ? 'portrait' : 'landscape';
+                remoteDimensionsCache.current[cand.url] = {
+                  w: cImg.naturalWidth,
+                  h: cImg.naturalHeight
+                };
+                if (isCandPortrait) {
+                  setSecondPhoto(cand);
+                } else {
+                  findSecondSequentially(index + 1);
+                }
+              };
+              cImg.onerror = () => {
+                remoteOrientationCache.current[cand.url] = 'landscape';
+                findSecondSequentially(index + 1);
+              };
+            };
+            findSecondSequentially(0);
+          }
+        } else {
+          setSecondPhoto(null);
+        }
+      };
+
+      const cachedDims = remoteDimensionsCache.current[activeUrl];
+      if (cached && cachedDims) {
+        processActiveOrientation(cached === 'portrait');
+      } else {
+        const img = new window.Image();
+        img.src = activeUrl;
+        img.onload = () => {
+          const isPortrait = img.naturalHeight > img.naturalWidth;
+          remoteOrientationCache.current[activeUrl] = isPortrait ? 'portrait' : 'landscape';
+          remoteDimensionsCache.current[activeUrl] = {
+            w: img.naturalWidth,
+            h: img.naturalHeight
+          };
+          processActiveOrientation(isPortrait);
+        };
+        img.onerror = () => {
+          remoteOrientationCache.current[activeUrl] = 'landscape';
+          processActiveOrientation(false);
+        };
+      }
+    };
+
+    checkActivePhoto();
+  }, [state.activePhoto?.url, state.splitPortrait, state.photosList]);
   const [keywordCategory, setKeywordCategory] = useState('Scenic Nature');
   const [newKeywordInput, setNewKeywordInput] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -243,6 +394,53 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     }
   };
 
+  const getSplitPreviewStyle = (url, isSecond) => {
+    const photoObj = isSecond ? secondPhoto : state.activePhoto;
+    const cachedDims = photoObj ? remoteDimensionsCache.current[photoObj.url] : null;
+
+    let R_i = 0.667;
+    if (cachedDims && cachedDims.w && cachedDims.h) {
+      R_i = cachedDims.w / cachedDims.h;
+    } else {
+      const isPortrait = isSecond ? true : (activePhotoOrientation === 'portrait');
+      R_i = isPortrait ? 0.667 : 1.5;
+    }
+    const padWidth = previewDimensions.width;
+    const padHeight = previewDimensions.height;
+
+    const halfWidth = (padWidth - 18) / 2;
+    const halfHeight = padHeight - 12;
+    const R_c = halfWidth / halfHeight;
+
+    const P = !isSecond
+      ? activePhotoCrop
+      : (photoObj && photoObj.cropPercent !== undefined 
+         ? photoObj.cropPercent 
+         : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50));
+
+    let wDisp, hDisp;
+    if (R_i < R_c) {
+      const hContain = halfHeight;
+      const hCover = halfWidth / R_i;
+      hDisp = hContain + (hCover - hContain) * (P / 100);
+      wDisp = hDisp * R_i;
+    } else {
+      const wContain = halfWidth;
+      const wCover = halfHeight * R_i;
+      wDisp = wContain + (wCover - wContain) * (P / 100);
+      hDisp = wDisp / R_i;
+    }
+
+    return {
+      backgroundImage: `url(${url})`,
+      backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      borderRadius: '8px',
+      backgroundColor: '#0c0a0f'
+    };
+  };
+
   const themes = ['Zen Retreat', 'Cosmic Night', 'Art Museum', 'Cyberpunk Rain'];
 
   return (
@@ -296,28 +494,76 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           <div className="remote-card">
             <span className="remote-section-title">TV Gesture Controller</span>
             <div 
+              ref={previewContainerRef}
               className="swipe-pad"
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
               style={{
                 position: 'relative',
-                backgroundImage: state.activePhoto ? `linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url(${state.activePhoto.url})` : 'none',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
+                backgroundColor: '#06050b',
                 border: state.activePhoto ? '1px solid rgba(255,255,255,0.18)' : '2px dashed rgba(255,255,255,0.1)',
                 color: '#fff',
-                textShadow: '0 2px 8px rgba(0,0,0,0.8)'
+                textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                overflow: 'hidden'
               }}
             >
-              <div className="swipe-icon" style={{ fontSize: '2.5rem', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))', marginTop: '-12px' }}>
+              {state.activePhoto && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  zIndex: 0,
+                  display: 'flex',
+                  backgroundColor: '#000'
+                }}>
+                  {state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto ? (
+                    <div style={{ display: 'flex', width: '100%', height: '100%', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
+                      <div style={{
+                        flex: 1,
+                        height: '100%',
+                        ...getSplitPreviewStyle(state.activePhoto.url, false)
+                      }} />
+                      <div style={{
+                        flex: 1,
+                        height: '100%',
+                        ...getSplitPreviewStyle(secondPhoto.url, true)
+                      }} />
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: '100%',
+                      height: '100%',
+                      backgroundImage: `url(${state.activePhoto.url})`,
+                      backgroundSize: state.scaleMode || 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat'
+                    }} />
+                  )}
+                  {/* Subtle dark overlay for readability of gesture instructions */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.7))',
+                    zIndex: 1
+                  }} />
+                </div>
+              )}
+
+              <div className="swipe-icon" style={{ position: 'relative', zIndex: 2, fontSize: '2.5rem', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))', marginTop: '-12px' }}>
                 {state.activePhoto ? '🖼️' : '✨'}
               </div>
-              <p style={{ textAlign: 'center', padding: '0 20px 18px 20px', lineHeight: 1.4, fontWeight: 500, margin: 0 }}>
+              <p style={{ position: 'relative', zIndex: 2, textAlign: 'center', padding: '0 20px 18px 20px', lineHeight: 1.4, fontWeight: 500, margin: 0 }}>
                 {swipeStatus}
               </p>
               {state.activePhoto && (
                 <span style={{ 
                   position: 'absolute',
+                  zIndex: 2,
                   bottom: '12px',
                   left: '16px',
                   right: '16px',
@@ -334,6 +580,28 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                 </span>
               )}
             </div>
+
+            {state.activePhoto && state.splitPortrait && activePhotoOrientation === 'portrait' && (
+              <div style={{ marginTop: '16px', padding: '0 4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>
+                  <span style={{ opacity: 0.6 }}>Portrait Split Crop/Zoom</span>
+                  <span style={{ color: 'var(--accent-color)' }}>{activePhotoCrop}%</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>Contain</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={activePhotoCrop}
+                    onChange={(e) => handlePhotoCropChange(e.target.value)}
+                    className="split-crop-slider"
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>Cover</span>
+                </div>
+              </div>
+            )}
 
             {state.activePhoto && (
               <div style={{ marginTop: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1118,6 +1386,39 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   <span className={`switch-slider ${state.splitPortrait ? 'checked' : ''}`}></span>
                 </div>
               </div>
+
+              {state.splitPortrait && (
+                <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px' }}>
+                    <span style={{ opacity: 0.7 }}>Split Crop/Zoom Balance</span>
+                    <span style={{ color: 'var(--accent-color)', fontWeight: 600 }}>{state.splitCropPercent !== undefined ? state.splitCropPercent : 50}%</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>Fit (0%)</span>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      value={state.splitCropPercent !== undefined ? state.splitCropPercent : 50}
+                      onChange={(e) => socket.emit('change-split-crop', parseInt(e.target.value))}
+                      style={{
+                        flex: 1,
+                        height: '6px',
+                        borderRadius: '3px',
+                        background: 'rgba(255,255,255,0.1)',
+                        outline: 'none',
+                        WebkitAppearance: 'none',
+                        cursor: 'pointer'
+                      }}
+                      className="split-crop-slider"
+                    />
+                    <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>Fill (100%)</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '4px', textAlign: 'center' }}>
+                    Blends side pillarboxing and top/bottom cropping dynamically.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

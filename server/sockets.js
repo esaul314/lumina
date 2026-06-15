@@ -123,6 +123,17 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
+    // Update split portrait crop percentage
+    socket.on('change-split-crop', (percent) => {
+      const val = parseInt(percent, 10);
+      if (!isNaN(val) && val >= 0 && val <= 100) {
+        state.splitCropPercent = val;
+        console.log(`Split Crop Percent changed to: ${val}%`);
+        saveCuratedCollections(collections, state);
+        io.emit('state-sync', state);
+      }
+    });
+
     // Update vision configuration settings
     socket.on('update-vision-config', (config) => {
       if (config && typeof config === 'object') {
@@ -179,6 +190,19 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
             io.emit('photo-update', state.activePhoto);
           }
         }
+        io.emit('state-sync', state);
+      }
+    });
+
+    // Set individual photo crop ratio
+    socket.on('set-photo-crop', ({ url, cropPercent }) => {
+      if (!url || typeof url !== 'string') return;
+      const numericCrop = parseInt(cropPercent, 10);
+      if (isNaN(numericCrop) || numericCrop < 0 || numericCrop > 100) return;
+
+      const { updatePhotoCrop } = require('./config/collections.js');
+      const updated = updatePhotoCrop(collections, state, url, numericCrop);
+      if (updated) {
         io.emit('state-sync', state);
       }
     });
@@ -485,7 +509,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         
         if (updatedAny) {
           for (const key of Object.keys(updatedCollections)) {
-            collections[key] = updatedCollections[key];
+            collections[key] = updatedCollections[key].map(p => ({ ...p, category: key }));
           }
 
           saveCuratedCollections(collections, state);

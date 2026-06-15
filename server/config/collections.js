@@ -114,6 +114,9 @@ function saveCuratedCollections(collections, state) {
       if (state.splitPortrait !== undefined) {
         fileData.splitPortrait = state.splitPortrait;
       }
+      if (state.splitCropPercent !== undefined) {
+        fileData.splitCropPercent = state.splitCropPercent;
+      }
       if (state.excludedKeywords) {
         fileData.excludedKeywords = state.excludedKeywords;
       }
@@ -224,5 +227,50 @@ function markPhotoBroken(collections, state, url) {
   return found;
 }
 
-module.exports = { defaultCuratedCollections, updatePhotoRating, markPhotoBroken, saveCuratedCollections };
+/**
+ * 💾 updatePhotoCrop
+ * Updates the crop percentage of a photograph by its URL and persists to disk.
+ */
+function updatePhotoCrop(collections, state, url, cropPercent) {
+  let found = false;
+
+  // 1. Update in the collections database
+  for (const cat of Object.keys(collections)) {
+    const arr = collections[cat];
+    if (Array.isArray(arr)) {
+      for (const photo of arr) {
+        if (photo.url === url) {
+          photo.cropPercent = cropPercent;
+          found = true;
+        }
+      }
+    }
+  }
+
+  // 2. Update in state.photosList
+  if (state && Array.isArray(state.photosList)) {
+    for (const photo of state.photosList) {
+      if (photo.url === url) {
+        photo.cropPercent = cropPercent;
+      }
+    }
+  }
+
+  // 3. Update in state.activePhoto
+  if (state && state.activePhoto && state.activePhoto.url === url) {
+    state.activePhoto.cropPercent = cropPercent;
+  }
+
+  // 4. Save to curated_collections.json
+  if (found) {
+    saveCuratedCollections(collections, state);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[Collections Config] Saved photo cropPercent ${cropPercent}% for URL: ${url}`);
+    }
+  }
+
+  return found;
+}
+
+module.exports = { defaultCuratedCollections, updatePhotoRating, markPhotoBroken, saveCuratedCollections, updatePhotoCrop };
 

@@ -50,6 +50,7 @@ const screensaverState = {
   theme: 'Zen Retreat', // Zen Retreat, Cosmic Night, Art Museum, Cyberpunk Rain
   scaleMode: 'cover',
   splitPortrait: false,
+  splitCropPercent: 50,
   widgets: {
     clock: true,
     weather: true,

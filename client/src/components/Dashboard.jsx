@@ -14,7 +14,17 @@ function Dashboard({ state, socket, connectionInfo }) {
   const mountTimeRef = useRef(Date.now());
   const consecutiveFailuresRef = useRef(0);
   const imageOrientationCache = useRef({}); // { [url]: 'portrait' | 'landscape' }
-  
+  const imageDimensionsCache = useRef({}); // { [url]: { w, h } }
+  const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setDimensions({ width: window.innerWidth, height: window.innerHeight });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Weather code to text & icon mapper
   const getWeatherInfo = (code) => {
     if (code === 0) return { text: 'Clear Sky', icon: <Sun className="weather-icon-sun" style={{ color: '#fbbf24' }} /> };
@@ -105,12 +115,16 @@ function Dashboard({ state, socket, connectionInfo }) {
     }
 
     const addSingleSlide = (photo) => {
+      const dims = imageDimensionsCache.current[photo.url] || {};
       setActiveSlides(prev => {
         const newSlide = {
           url: photo.url,
           title: photo.title,
           author: photo.author,
           category: state.currentCategory,
+          cropPercent: photo.cropPercent,
+          w: dims.w,
+          h: dims.h,
           key: Date.now() + Math.random().toString(36).substr(2, 9),
           active: true,
           isSplit: false
@@ -121,14 +135,22 @@ function Dashboard({ state, socket, connectionInfo }) {
     };
 
     const addSplitSlide = (photo1, photo2) => {
+      const dims1 = imageDimensionsCache.current[photo1.url] || {};
+      const dims2 = imageDimensionsCache.current[photo2.url] || {};
       setActiveSlides(prev => {
         const newSlide = {
           url: photo1.url,
           title: photo1.title,
           author: photo1.author,
+          w: dims1.w,
+          h: dims1.h,
+          cropPercent: photo1.cropPercent,
           url2: photo2.url,
           title2: photo2.title,
           author2: photo2.author,
+          w2: dims2.w,
+          h2: dims2.h,
+          cropPercent2: photo2.cropPercent,
           category: state.currentCategory,
           key: Date.now() + Math.random().toString(36).substr(2, 9),
           active: true,
@@ -152,6 +174,10 @@ function Dashboard({ state, socket, connectionInfo }) {
       testImg.onload = () => {
         const isCandPortrait = testImg.naturalHeight > testImg.naturalWidth;
         imageOrientationCache.current[candidate.url] = isCandPortrait ? 'portrait' : 'landscape';
+        imageDimensionsCache.current[candidate.url] = {
+          w: testImg.naturalWidth,
+          h: testImg.naturalHeight
+        };
         
         if (isCandPortrait) {
           addSplitSlide(activePhoto, candidate);
@@ -174,22 +200,28 @@ function Dashboard({ state, socket, connectionInfo }) {
       consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
       const isPortrait = imgPreloader.naturalHeight > imgPreloader.naturalWidth;
       imageOrientationCache.current[state.activePhoto.url] = isPortrait ? 'portrait' : 'landscape';
+      imageDimensionsCache.current[state.activePhoto.url] = {
+        w: imgPreloader.naturalWidth,
+        h: imgPreloader.naturalHeight
+      };
 
       if (isPortrait && state.splitPortrait) {
-        // Find if we have another cached portrait image in photosList
+        // Find if we have another cached portrait image in photosList from the same category
         const cachedPortraits = (state.photosList || []).filter(p => 
           p.url !== state.activePhoto.url && 
-          imageOrientationCache.current[p.url] === 'portrait'
+          imageOrientationCache.current[p.url] === 'portrait' &&
+          (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
         );
         
         if (cachedPortraits.length > 0) {
           const secondPhoto = cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)];
           addSplitSlide(state.activePhoto, secondPhoto);
         } else {
-          // Find candidates that are not landscape
+          // Find candidates that are not landscape and are from the same category
           const candidates = (state.photosList || []).filter(p => 
             p.url !== state.activePhoto.url && 
-            imageOrientationCache.current[p.url] !== 'landscape'
+            imageOrientationCache.current[p.url] !== 'landscape' &&
+            (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
           );
           
           if (candidates.length > 0) {
@@ -373,6 +405,54 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   const currentThemeClass = `theme-${state.theme.toLowerCase().replace(' ', '-')}`;
 
+  const getSplitImageStyle = (url, w, h, slideCropPercent) => {
+    let R_i = 0.667;
+    if (w && h) {
+      R_i = w / h;
+    }
+    const halfWidth = (dimensions.width - 48) / 2;
+    const halfHeight = dimensions.height - 32;
+    const R_c = halfWidth / halfHeight;
+
+    // Resolve live cropPercent from state.activePhoto or state.photosList for reactivity, falling back to slide's captured cropPercent
+    let customCrop = undefined;
+    if (state.activePhoto && state.activePhoto.url === url) {
+      customCrop = state.activePhoto.cropPercent;
+    } else if (state.photosList) {
+      const match = state.photosList.find(p => p.url === url);
+      if (match) {
+        customCrop = match.cropPercent;
+      }
+    }
+    if (customCrop === undefined) {
+      customCrop = slideCropPercent;
+    }
+
+    const P = customCrop !== undefined ? customCrop : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50);
+
+    let wDisp, hDisp;
+    if (R_i < R_c) {
+      // Image is taller/narrower than the container
+      const hContain = halfHeight;
+      const hCover = halfWidth / R_i;
+      hDisp = hContain + (hCover - hContain) * (P / 100);
+      wDisp = hDisp * R_i;
+    } else {
+      // Image is wider/shorter than the container
+      const wContain = halfWidth;
+      const wCover = halfHeight * R_i;
+      wDisp = wContain + (wCover - wContain) * (P / 100);
+      hDisp = wDisp / R_i;
+    }
+
+    return {
+      backgroundImage: `url(${url})`,
+      backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    };
+  };
+
   return (
     <div className={`lumina-tv-container ${currentThemeClass}`}>
       {/* 1. Ambient Wallpaper Slideshow */}
@@ -392,10 +472,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                   <div className="slide-half">
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
-                      style={{ 
-                        backgroundImage: `url(${slide.url})`,
-                        backgroundSize: currentScaleMode
-                      }}
+                      style={getSplitImageStyle(slide.url, slide.w, slide.h, slide.cropPercent)}
                     />
                     <div className="slide-half-credit">
                       <div className="title">{slide.title}</div>
@@ -405,10 +482,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                   <div className="slide-half">
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
-                      style={{ 
-                        backgroundImage: `url(${slide.url2})`,
-                        backgroundSize: currentScaleMode
-                      }}
+                      style={getSplitImageStyle(slide.url2, slide.w2, slide.h2, slide.cropPercent2)}
                     />
                     <div className="slide-half-credit">
                       <div className="title">{slide.title2}</div>
@@ -535,9 +609,6 @@ function Dashboard({ state, socket, connectionInfo }) {
             <div className="glass-widget clock-widget">
               <div className="clock-time">
                 {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).split(' ')[0]}
-                <span className="clock-seconds">
-                  {currentTime.toLocaleTimeString([], { second: '2-digit' })}
-                </span>
                 <span style={{ fontSize: '1.4rem', fontWeight: 300, opacity: 0.7, marginLeft: '8px' }}>
                   {currentTime.toLocaleTimeString([], { hour12: true }).split(' ')[1]}
                 </span>
@@ -774,6 +845,27 @@ function Dashboard({ state, socket, connectionInfo }) {
                   <span>Split Portrait Display</span>
                   <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.splitPortrait ? 'ON' : 'OFF'}</span>
                 </div>
+                {state.splitPortrait && (
+                  <div style={{ padding: '10px 14px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '8px', margin: '4px 0', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.7, marginBottom: '6px' }}>
+                      <span>Split Crop/Zoom Balance</span>
+                      <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{state.splitCropPercent !== undefined ? state.splitCropPercent : 50}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={state.splitCropPercent !== undefined ? state.splitCropPercent : 50}
+                      onChange={(e) => socket.emit('change-split-crop', parseInt(e.target.value))}
+                      style={{ width: '100%' }}
+                      className="split-crop-slider"
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', opacity: 0.4, marginTop: '4px' }}>
+                      <span>Fit (0%)</span>
+                      <span>Fill (100%)</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

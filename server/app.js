@@ -113,6 +113,13 @@ if (fs.existsSync(jsonPath)) {
       saveCuratedCollections(curatedCollections, screensaverState);
     }
 
+    // Make sure every photo in curatedCollections has its category attached
+    for (const key of Object.keys(curatedCollections)) {
+      if (Array.isArray(curatedCollections[key])) {
+        curatedCollections[key] = curatedCollections[key].map(p => ({ ...p, category: key }));
+      }
+    }
+
     if (data.searchKeywords) {
       screensaverState.searchKeywords = data.searchKeywords;
     }
@@ -143,6 +150,9 @@ if (fs.existsSync(jsonPath)) {
     if (data.splitPortrait !== undefined) {
       screensaverState.splitPortrait = data.splitPortrait;
     }
+    if (data.splitCropPercent !== undefined) {
+      screensaverState.splitCropPercent = data.splitCropPercent;
+    }
     if (data.excludedKeywords) {
       screensaverState.excludedKeywords = data.excludedKeywords;
     } else {
@@ -152,9 +162,19 @@ if (fs.existsSync(jsonPath)) {
   } catch (err) {
     console.error('Failed to parse curated_collections.json, falling back to defaults:', err.message);
     curatedCollections = defaultCuratedCollections;
+    for (const key of Object.keys(curatedCollections)) {
+      if (Array.isArray(curatedCollections[key])) {
+        curatedCollections[key] = curatedCollections[key].map(p => ({ ...p, category: key }));
+      }
+    }
   }
 } else {
   curatedCollections = defaultCuratedCollections;
+  for (const key of Object.keys(curatedCollections)) {
+    if (Array.isArray(curatedCollections[key])) {
+      curatedCollections[key] = curatedCollections[key].map(p => ({ ...p, category: key }));
+    }
+  }
   try {
     fs.writeFileSync(jsonPath, JSON.stringify({ 
       lastUpdated: 0, 
@@ -216,7 +236,7 @@ for (const key of Object.keys(curatedCollections)) {
 }
 
 const initialCategory = Object.keys(curatedCollections)[0] || 'Scenic Nature';
-screensaverState.photosList = curatedCollections[initialCategory] ? curatedCollections[initialCategory].filter(p => p.rating !== 1 && !p.isBroken) : [];
+screensaverState.photosList = curatedCollections[initialCategory] ? curatedCollections[initialCategory].filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: initialCategory })) : [];
 screensaverState.activePhoto = screensaverState.photosList[0] || null;
 screensaverState.hasUseApiToken = !!config.useapiToken;
 const uniqByUrl = uniqBy(prop('url'));
@@ -227,7 +247,9 @@ const uniqByUrl = uniqBy(prop('url'));
  */
 function combineFeedsBalanced(categories, collections) {
   const lists = categories.map(cat => {
-    const list = [...(collections[cat] || [])].filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(screensaverState.excludedKeywords, p));
+    const list = [...(collections[cat] || [])]
+      .filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(screensaverState.excludedKeywords, p))
+      .map(p => ({ ...p, category: cat }));
     for (let i = list.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [list[i], list[j]] = [list[j], list[i]];
@@ -479,7 +501,7 @@ async function updateFeedsDaily() {
   
   if (updatedAny) {
     for (const key of Object.keys(updatedCollections)) {
-      curatedCollections[key] = updatedCollections[key];
+      curatedCollections[key] = updatedCollections[key].map(p => ({ ...p, category: key }));
     }
 
     saveCuratedCollections(curatedCollections, screensaverState);
@@ -487,7 +509,7 @@ async function updateFeedsDaily() {
     const activeCategory = screensaverState.currentCategory;
     const currentCats = activeCategory ? activeCategory.split(',') : [];
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken);
+    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: 'Scenic Nature' }));
     io.emit('state-sync', screensaverState);
     
     // Trigger vision analysis for any new crawl results

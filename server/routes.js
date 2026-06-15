@@ -83,9 +83,9 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
   function combineGoogleAndCuratedFeeds(categoriesList, collectionsObj) {
     const lists = filter(list => list.length > 0, map(cat => {
       if (cat === 'Google Photos') {
-        return googlePhotos.getCachedMediaItems();
+        return googlePhotos.getCachedMediaItems().map(p => ({ ...p, category: 'Google Photos' }));
       }
-      return shuffle(filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(state.excludedKeywords, p), collectionsObj[cat] || []));
+      return shuffle(filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(state.excludedKeywords, p), collectionsObj[cat] || [])).map(p => ({ ...p, category: cat }));
     }, categoriesList));
 
     if (lists.length === 0) return [];
