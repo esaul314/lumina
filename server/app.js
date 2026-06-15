@@ -137,6 +137,12 @@ if (fs.existsSync(jsonPath)) {
     if (data.visionConfig) {
       screensaverState.visionConfig = data.visionConfig;
     }
+    if (data.scaleMode) {
+      screensaverState.scaleMode = data.scaleMode;
+    }
+    if (data.splitPortrait !== undefined) {
+      screensaverState.splitPortrait = data.splitPortrait;
+    }
     if (data.excludedKeywords) {
       screensaverState.excludedKeywords = data.excludedKeywords;
     } else {

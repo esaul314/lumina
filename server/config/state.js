@@ -48,6 +48,8 @@ const screensaverState = {
   activePhoto: null,
   currentCategory: 'Scenic Nature',
   theme: 'Zen Retreat', // Zen Retreat, Cosmic Night, Art Museum, Cyberpunk Rain
+  scaleMode: 'cover',
+  splitPortrait: false,
   widgets: {
     clock: true,
     weather: true,

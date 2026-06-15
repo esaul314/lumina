@@ -105,6 +105,24 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
+    // Change scale mode
+    socket.on('change-scale-mode', (mode) => {
+      if (mode === 'cover' || mode === 'contain') {
+        state.scaleMode = mode;
+        console.log(`Scale Mode changed to: ${mode}`);
+        saveCuratedCollections(collections, state);
+        io.emit('state-sync', state);
+      }
+    });
+
+    // Toggle split portrait display
+    socket.on('toggle-split-portrait', (enabled) => {
+      state.splitPortrait = !!enabled;
+      console.log(`Split Portrait changed to: ${state.splitPortrait}`);
+      saveCuratedCollections(collections, state);
+      io.emit('state-sync', state);
+    });
+
     // Update vision configuration settings
     socket.on('update-vision-config', (config) => {
       if (config && typeof config === 'object') {

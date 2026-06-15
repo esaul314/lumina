@@ -13,6 +13,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   const particleCanvasRef = useRef(null);
   const mountTimeRef = useRef(Date.now());
   const consecutiveFailuresRef = useRef(0);
+  const imageOrientationCache = useRef({}); // { [url]: 'portrait' | 'landscape' }
   
   // Weather code to text & icon mapper
   const getWeatherInfo = (code) => {
@@ -92,11 +93,78 @@ function Dashboard({ state, socket, connectionInfo }) {
   useEffect(() => {
     if (!state.activePhoto) return;
 
-    // Check if this photo is already our current active slide
+    // Check if this photo is already our current active slide with the same split layout setting
     const currentActiveSlide = activeSlides.find(s => s.active);
-    if (currentActiveSlide && currentActiveSlide.url === state.activePhoto.url) {
+    const expectedSplit = !!(state.splitPortrait && imageOrientationCache.current[state.activePhoto.url] === 'portrait');
+    if (
+      currentActiveSlide && 
+      currentActiveSlide.url === state.activePhoto.url && 
+      !!currentActiveSlide.isSplit === expectedSplit
+    ) {
       return;
     }
+
+    const addSingleSlide = (photo) => {
+      setActiveSlides(prev => {
+        const newSlide = {
+          url: photo.url,
+          title: photo.title,
+          author: photo.author,
+          category: state.currentCategory,
+          key: Date.now() + Math.random().toString(36).substr(2, 9),
+          active: true,
+          isSplit: false
+        };
+        const inactiveSlides = prev.map(s => ({ ...s, active: false }));
+        return [...inactiveSlides.slice(-1), newSlide];
+      });
+    };
+
+    const addSplitSlide = (photo1, photo2) => {
+      setActiveSlides(prev => {
+        const newSlide = {
+          url: photo1.url,
+          title: photo1.title,
+          author: photo1.author,
+          url2: photo2.url,
+          title2: photo2.title,
+          author2: photo2.author,
+          category: state.currentCategory,
+          key: Date.now() + Math.random().toString(36).substr(2, 9),
+          active: true,
+          isSplit: true
+        };
+        const inactiveSlides = prev.map(s => ({ ...s, active: false }));
+        return [...inactiveSlides.slice(-1), newSlide];
+      });
+    };
+
+    const findSecondPortraitSequentially = (activePhoto, candidates, index) => {
+      if (index >= candidates.length || index >= 8) {
+        addSingleSlide(activePhoto);
+        return;
+      }
+      
+      const candidate = candidates[index];
+      const testImg = new window.Image();
+      testImg.src = candidate.url;
+      
+      testImg.onload = () => {
+        const isCandPortrait = testImg.naturalHeight > testImg.naturalWidth;
+        imageOrientationCache.current[candidate.url] = isCandPortrait ? 'portrait' : 'landscape';
+        
+        if (isCandPortrait) {
+          addSplitSlide(activePhoto, candidate);
+        } else {
+          findSecondPortraitSequentially(activePhoto, candidates, index + 1);
+        }
+      };
+      
+      testImg.onerror = () => {
+        imageOrientationCache.current[candidate.url] = 'landscape';
+        findSecondPortraitSequentially(activePhoto, candidates, index + 1);
+      };
+    };
 
     // Preload image in the background using native Image element to prevent blank screens
     const imgPreloader = new window.Image();
@@ -104,32 +172,44 @@ function Dashboard({ state, socket, connectionInfo }) {
     
     imgPreloader.onload = () => {
       consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
-      setActiveSlides(prev => {
-        const newSlide = {
-          url: state.activePhoto.url,
-          title: state.activePhoto.title,
-          author: state.activePhoto.author,
-          category: state.currentCategory,
-          key: Date.now() + Math.random().toString(36).substr(2, 9), // Robust unique React key
-          active: true
-        };
+      const isPortrait = imgPreloader.naturalHeight > imgPreloader.naturalWidth;
+      imageOrientationCache.current[state.activePhoto.url] = isPortrait ? 'portrait' : 'landscape';
 
-        // Set any previously active slides to inactive
-        const inactiveSlides = prev.map(s => ({ ...s, active: false }));
+      if (isPortrait && state.splitPortrait) {
+        // Find if we have another cached portrait image in photosList
+        const cachedPortraits = (state.photosList || []).filter(p => 
+          p.url !== state.activePhoto.url && 
+          imageOrientationCache.current[p.url] === 'portrait'
+        );
         
-        // Slice to keep at most 1 previous slide + the new active slide (max 2 slides in DOM!)
-        return [...inactiveSlides.slice(-1), newSlide];
-      });
+        if (cachedPortraits.length > 0) {
+          const secondPhoto = cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)];
+          addSplitSlide(state.activePhoto, secondPhoto);
+        } else {
+          // Find candidates that are not landscape
+          const candidates = (state.photosList || []).filter(p => 
+            p.url !== state.activePhoto.url && 
+            imageOrientationCache.current[p.url] !== 'landscape'
+          );
+          
+          if (candidates.length > 0) {
+            findSecondPortraitSequentially(state.activePhoto, candidates, 0);
+          } else {
+            addSingleSlide(state.activePhoto);
+          }
+        }
+      } else {
+        addSingleSlide(state.activePhoto);
+      }
     };
 
-     imgPreloader.onerror = () => {
+    imgPreloader.onerror = () => {
       console.warn('Failed to load wallpaper image:', state.activePhoto.url);
       
       const maxFailures = state.photosList ? state.photosList.length : 5;
       if (consecutiveFailuresRef.current >= maxFailures) {
         console.error('All photos in current feed failed to load. Network might be down. Stopping infinite skip loop.');
         
-        // Report critical alert back to the server to trigger an email alert!
         socket.emit('report-media-failure', {
           category: state.currentCategory,
           failedUrls: state.photosList ? state.photosList.map(p => p.url) : [state.activePhoto.url],
@@ -138,7 +218,6 @@ function Dashboard({ state, socket, connectionInfo }) {
         return;
       }
 
-      // If consecutive failures are low (< 3), assume this specific link is broken and mark it broken on the server
       if (consecutiveFailuresRef.current < 3) {
         console.log('Reporting specific broken link to server:', state.activePhoto.url);
         socket.emit('mark-photo-broken', { url: state.activePhoto.url });
@@ -146,12 +225,11 @@ function Dashboard({ state, socket, connectionInfo }) {
 
       consecutiveFailuresRef.current += 1;
       
-      // Delay skip by 1.5 seconds to prevent high-frequency loop / socket flooding
       setTimeout(() => {
         socket.emit('next-photo');
       }, 1500);
     };
-  }, [state.activePhoto]);
+  }, [state.activePhoto, state.splitPortrait, state.photosList]);
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic
   const resetInactivityTimer = () => {
@@ -299,13 +377,59 @@ function Dashboard({ state, socket, connectionInfo }) {
     <div className={`lumina-tv-container ${currentThemeClass}`}>
       {/* 1. Ambient Wallpaper Slideshow */}
       <div className="slideshow-container">
-        {activeSlides.map((slide) => (
-          <div
-            key={slide.key}
-            className={`slide ${slide.active ? 'active' : ''} ${state.widgets.animations ? 'animated' : ''}`}
-            style={{ backgroundImage: `url(${slide.url})` }}
-          />
-        ))}
+        {activeSlides.map((slide) => {
+          const isSplit = slide.isSplit && state.splitPortrait;
+          const currentScaleMode = state.scaleMode || 'cover';
+          const shouldAnimate = state.widgets.animations && (isSplit || currentScaleMode === 'cover');
+
+          return (
+            <div
+              key={slide.key}
+              className={`slide ${slide.active ? 'active' : ''}`}
+            >
+              {isSplit ? (
+                <div className="split-slide-container">
+                  <div className="slide-half">
+                    <div 
+                      className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
+                      style={{ 
+                        backgroundImage: `url(${slide.url})`,
+                        backgroundSize: currentScaleMode
+                      }}
+                    />
+                    <div className="slide-half-credit">
+                      <div className="title">{slide.title}</div>
+                      <div className="author">by {slide.author}</div>
+                    </div>
+                  </div>
+                  <div className="slide-half">
+                    <div 
+                      className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
+                      style={{ 
+                        backgroundImage: `url(${slide.url2})`,
+                        backgroundSize: currentScaleMode
+                      }}
+                    />
+                    <div className="slide-half-credit">
+                      <div className="title">{slide.title2}</div>
+                      <div className="author">by {slide.author2}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="single-slide-container">
+                  <div 
+                    className={`single-slide-image ${shouldAnimate ? 'animated' : ''}`}
+                    style={{ 
+                      backgroundImage: `url(${slide.url})`,
+                      backgroundSize: currentScaleMode
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Preloading Overlay for seamless startup transition */}
@@ -476,7 +600,7 @@ function Dashboard({ state, socket, connectionInfo }) {
           </div>
 
           {/* D. Wallpaper Credits widget (Bottom Right) */}
-          {activeSlides.find(s => s.active) && (
+          {activeSlides.find(s => s.active) && !activeSlides.find(s => s.active).isSplit && (
             <div className="glass-widget photo-info-widget">
               <span className="photo-category">
                 {activeSlides.find(s => s.active).category ? activeSlides.find(s => s.active).category.split(',').join(' + ') : ''}
@@ -629,6 +753,27 @@ function Dashboard({ state, socket, connectionInfo }) {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Section 4.5: Display & Layout */}
+            <div className="desktop-settings-section">
+              <span className="desktop-settings-section-title">Display & Layout</span>
+              <div className="desktop-settings-list">
+                <div
+                  onClick={() => socket.emit('change-scale-mode', state.scaleMode === 'contain' ? 'cover' : 'contain')}
+                  className={`desktop-settings-item ${state.scaleMode === 'contain' ? 'active' : ''}`}
+                >
+                  <span>Fit to Screen (Contain)</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.scaleMode === 'contain' ? 'ON' : 'OFF'}</span>
+                </div>
+                <div
+                  onClick={() => socket.emit('toggle-split-portrait', !state.splitPortrait)}
+                  className={`desktop-settings-item ${state.splitPortrait ? 'active' : ''}`}
+                >
+                  <span>Split Portrait Display</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{state.splitPortrait ? 'ON' : 'OFF'}</span>
+                </div>
               </div>
             </div>
 

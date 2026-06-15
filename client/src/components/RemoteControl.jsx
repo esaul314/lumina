@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Palette, Sliders, Smartphone, Image as ImageIcon, RefreshCw, 
   ChevronLeft, ChevronRight, Check, Eye, EyeOff, HelpCircle, Sparkles,
-  Clock, CloudRain, MapPin, Trash2
+  Clock, CloudRain, MapPin, Trash2, Maximize, Layout
 } from 'lucide-react';
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {
@@ -1079,6 +1079,43 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   onClick={() => handleToggleWidget('animations', state.widgets.animations)}
                 >
                   <span className={`switch-slider ${state.widgets.animations ? 'checked' : ''}`}></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="remote-card">
+            <span className="remote-section-title">Display Layout & Scaling</span>
+            <div className="widget-toggle-list">
+              <div className="widget-toggle-item">
+                <div className="toggle-info">
+                  <Maximize size={18} style={{ color: '#3b82f6' }} />
+                  <div>
+                    <div className="toggle-label">Fit to Screen</div>
+                    <div className="toggle-desc">Fit full image without cropping (Contain)</div>
+                  </div>
+                </div>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => socket.emit('change-scale-mode', state.scaleMode === 'contain' ? 'cover' : 'contain')}
+                >
+                  <span className={`switch-slider ${state.scaleMode === 'contain' ? 'checked' : ''}`}></span>
+                </div>
+              </div>
+
+              <div className="widget-toggle-item">
+                <div className="toggle-info">
+                  <Layout size={18} style={{ color: '#10b981' }} />
+                  <div>
+                    <div className="toggle-label">Split Portrait Display</div>
+                    <div className="toggle-desc">Display two portrait images side-by-side</div>
+                  </div>
+                </div>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => socket.emit('toggle-split-portrait', !state.splitPortrait)}
+                >
+                  <span className={`switch-slider ${state.splitPortrait ? 'checked' : ''}`}></span>
                 </div>
               </div>
             </div>

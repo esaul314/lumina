@@ -108,6 +108,12 @@ function saveCuratedCollections(collections, state) {
       if (state.visionConfig) {
         fileData.visionConfig = state.visionConfig;
       }
+      if (state.scaleMode) {
+        fileData.scaleMode = state.scaleMode;
+      }
+      if (state.splitPortrait !== undefined) {
+        fileData.splitPortrait = state.splitPortrait;
+      }
       if (state.excludedKeywords) {
         fileData.excludedKeywords = state.excludedKeywords;
       }
