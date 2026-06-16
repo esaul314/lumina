@@ -549,15 +549,17 @@ function launchKioskBrowser(forceManual = false) {
   isBrowserRunning = true;
 
   setCpuGovernor('performance');
-  launchChromiumKiosk(PORT, 'tv', () => {
-    isBrowserRunning = false;
-    // If the browser died unexpectedly and manualOverride is still set, clear it
-    // so the idle daemon can take over cleanly
-    if (manualOverride) {
-      manualOverride = false;
-      screensaverState.screensaverActive = false;
-      io.emit('state-sync', screensaverState);
-    }
+  killChromiumKiosk().then(() => {
+    launchChromiumKiosk(PORT, 'tv', () => {
+      isBrowserRunning = false;
+      // If the browser died unexpectedly and manualOverride is still set, clear it
+      // so the idle daemon can take over cleanly
+      if (manualOverride) {
+        manualOverride = false;
+        screensaverState.screensaverActive = false;
+        io.emit('state-sync', screensaverState);
+      }
+    });
   });
 }
 

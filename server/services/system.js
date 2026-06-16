@@ -55,9 +55,24 @@ function isAudioPlaying() {
       if (pactlErr || !pactlStdout) {
         return resolve(false);
       }
-      // An active audio stream will have 'corked: no' or 'pulse.corked = "false"'
-      const isPlaying = pactlStdout.toLowerCase().includes('corked: no') || 
-                        pactlStdout.toLowerCase().includes('pulse.corked = "false"');
+      
+      const inputs = pactlStdout.split(/Sink Input #/i);
+      let isPlaying = false;
+      
+      for (let i = 1; i < inputs.length; i++) {
+        const input = inputs[i];
+        const isUncorked = input.toLowerCase().includes('corked: no') || 
+                           input.toLowerCase().includes('pulse.corked = "false"');
+        if (isUncorked) {
+          const isSystemSpeech = input.toLowerCase().includes('speech-dispatcher') || 
+                                 input.toLowerCase().includes('sd_dummy');
+          if (!isSystemSpeech) {
+            isPlaying = true;
+            break;
+          }
+        }
+      }
+      
       resolve(isPlaying);
     });
   });
