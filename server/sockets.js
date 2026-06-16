@@ -181,17 +181,15 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       if (isNaN(numericRating) || numericRating < 1 || numericRating > 10) return;
 
       const { updatePhotoRating } = require('./config/collections.js');
-      const updated = updatePhotoRating(collections, state, url, numericRating);
-      if (updated) {
-        if (numericRating === 1 && state.activePhoto && state.activePhoto.url === url) {
-          const nextPhoto = getSmartPhoto('next');
-          if (nextPhoto) {
-            state.activePhoto = nextPhoto;
-            io.emit('photo-update', state.activePhoto);
-          }
+      updatePhotoRating(collections, state, url, numericRating);
+      if (numericRating === 1 && state.activePhoto && state.activePhoto.url === url) {
+        const nextPhoto = getSmartPhoto('next');
+        if (nextPhoto) {
+          state.activePhoto = nextPhoto;
+          io.emit('photo-update', state.activePhoto);
         }
-        io.emit('state-sync', state);
       }
+      io.emit('state-sync', state);
     });
 
     // Set individual photo crop ratio
@@ -201,10 +199,8 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       if (isNaN(numericCrop) || numericCrop < 0 || numericCrop > 100) return;
 
       const { updatePhotoCrop } = require('./config/collections.js');
-      const updated = updatePhotoCrop(collections, state, url, numericCrop);
-      if (updated) {
-        io.emit('state-sync', state);
-      }
+      updatePhotoCrop(collections, state, url, numericCrop);
+      io.emit('state-sync', state);
     });
 
     // Set individual photo pairing prevention
@@ -212,10 +208,8 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       if (!url || typeof url !== 'string') return;
 
       const { updatePhotoPreventPairing } = require('./config/collections.js');
-      const updated = updatePhotoPreventPairing(collections, state, url, preventPairing);
-      if (updated) {
-        io.emit('state-sync', state);
-      }
+      updatePhotoPreventPairing(collections, state, url, preventPairing);
+      io.emit('state-sync', state);
     });
 
     // Update keywords socket event
