@@ -23,13 +23,16 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
   useEffect(() => {
     if (state.activePhoto) {
-      setActivePhotoCrop(
-        state.activePhoto.cropPercent !== undefined 
-          ? state.activePhoto.cropPercent 
-          : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)
-      );
+      const isSplitLayoutActive = state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto;
+      if (state.activePhoto.cropPercent !== undefined) {
+        setActivePhotoCrop(state.activePhoto.cropPercent);
+      } else if (isSplitLayoutActive) {
+        setActivePhotoCrop(state.splitCropPercent !== undefined ? state.splitCropPercent : 50);
+      } else {
+        setActivePhotoCrop(state.scaleMode === 'contain' ? 0 : 100);
+      }
     }
-  }, [state.activePhoto?.url, state.activePhoto?.cropPercent, state.splitCropPercent]);
+  }, [state.activePhoto?.url, state.activePhoto?.cropPercent, state.splitCropPercent, state.scaleMode, state.splitPortrait, activePhotoOrientation, secondPhoto]);
 
   useEffect(() => {
     return () => {
@@ -441,6 +444,46 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     };
   };
 
+  const getSinglePreviewStyle = (url) => {
+    const photoObj = state.activePhoto;
+    if (!photoObj) return {};
+    const cachedDims = remoteDimensionsCache.current[photoObj.url];
+
+    let R_i = 1.5;
+    if (cachedDims && cachedDims.w && cachedDims.h) {
+      R_i = cachedDims.w / cachedDims.h;
+    } else {
+      R_i = activePhotoOrientation === 'portrait' ? 0.667 : 1.5;
+    }
+    const padWidth = previewDimensions.width;
+    const padHeight = previewDimensions.height;
+
+    const R_c = padWidth / padHeight;
+
+    const P = activePhotoCrop;
+
+    let wDisp, hDisp;
+    if (R_i < R_c) {
+      const hContain = padHeight;
+      const hCover = padWidth / R_i;
+      hDisp = hContain + (hCover - hContain) * (P / 100);
+      wDisp = hDisp * R_i;
+    } else {
+      const wContain = padWidth;
+      const wCover = padHeight * R_i;
+      wDisp = wContain + (wCover - wContain) * (P / 100);
+      hDisp = wDisp / R_i;
+    }
+
+    return {
+      backgroundImage: `url(${url})`,
+      backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundColor: '#0c0a0f'
+    };
+  };
+
   const themes = ['Zen Retreat', 'Cosmic Night', 'Art Museum', 'Cyberpunk Rain'];
 
   return (
@@ -535,10 +578,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     <div style={{
                       width: '100%',
                       height: '100%',
-                      backgroundImage: `url(${state.activePhoto.url})`,
-                      backgroundSize: state.scaleMode || 'cover',
-                      backgroundPosition: 'center',
-                      backgroundRepeat: 'no-repeat'
+                      ...getSinglePreviewStyle(state.activePhoto.url)
                     }} />
                   )}
                   {/* Subtle dark overlay for readability of gesture instructions */}
@@ -581,10 +621,14 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
               )}
             </div>
 
-            {state.activePhoto && state.splitPortrait && activePhotoOrientation === 'portrait' && (
+            {state.activePhoto && (
               <div style={{ marginTop: '16px', padding: '0 4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>
-                  <span style={{ opacity: 0.6 }}>Portrait Split Crop/Zoom</span>
+                  <span style={{ opacity: 0.6 }}>
+                    {state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto 
+                      ? 'Portrait Split Crop/Zoom' 
+                      : 'Photo Crop/Zoom'}
+                  </span>
                   <span style={{ color: 'var(--accent-color)' }}>{activePhotoCrop}%</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

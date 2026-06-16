@@ -405,6 +405,55 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   const currentThemeClass = `theme-${state.theme.toLowerCase().replace(' ', '-')}`;
 
+  const getSingleImageStyle = (url, w, h, slideCropPercent) => {
+    let R_i = 1.5;
+    if (w && h) {
+      R_i = w / h;
+    }
+    const containerWidth = dimensions.width;
+    const containerHeight = dimensions.height;
+    const R_c = containerWidth / containerHeight;
+
+    // Resolve live cropPercent from state.activePhoto or state.photosList for reactivity, falling back to slide's captured cropPercent
+    let customCrop = undefined;
+    if (state.activePhoto && state.activePhoto.url === url) {
+      customCrop = state.activePhoto.cropPercent;
+    } else if (state.photosList) {
+      const match = state.photosList.find(p => p.url === url);
+      if (match) {
+        customCrop = match.cropPercent;
+      }
+    }
+    if (customCrop === undefined) {
+      customCrop = slideCropPercent;
+    }
+
+    const defaultP = state.scaleMode === 'contain' ? 0 : 100;
+    const P = customCrop !== undefined ? customCrop : defaultP;
+
+    let wDisp, hDisp;
+    if (R_i < R_c) {
+      // Image is taller/narrower than the container
+      const hContain = containerHeight;
+      const hCover = containerWidth / R_i;
+      hDisp = hContain + (hCover - hContain) * (P / 100);
+      wDisp = hDisp * R_i;
+    } else {
+      // Image is wider/shorter than the container
+      const wContain = containerWidth;
+      const wCover = containerHeight * R_i;
+      wDisp = wContain + (wCover - wContain) * (P / 100);
+      hDisp = wDisp / R_i;
+    }
+
+    return {
+      backgroundImage: `url(${url})`,
+      backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    };
+  };
+
   const getSplitImageStyle = (url, w, h, slideCropPercent) => {
     let R_i = 0.667;
     if (w && h) {
@@ -494,10 +543,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                 <div className="single-slide-container">
                   <div 
                     className={`single-slide-image ${shouldAnimate ? 'animated' : ''}`}
-                    style={{ 
-                      backgroundImage: `url(${slide.url})`,
-                      backgroundSize: currentScaleMode
-                    }}
+                    style={getSingleImageStyle(slide.url, slide.w, slide.h, slide.cropPercent)}
                   />
                 </div>
               )}
