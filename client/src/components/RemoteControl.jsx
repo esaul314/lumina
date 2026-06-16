@@ -91,11 +91,13 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
       const processActiveOrientation = (isPortrait) => {
         setActivePhotoOrientation(isPortrait ? 'portrait' : 'landscape');
         
-        if (isPortrait && state.splitPortrait && state.photosList && state.photosList.length > 1) {
+        const activePreventPairing = state.activePhoto.preventPairing === true;
+        if (isPortrait && state.splitPortrait && !activePreventPairing && state.photosList && state.photosList.length > 1) {
           // Look for another photo that is cached as portrait and has dimensions cached and belongs to the same category
           const cachedPortraits = state.photosList.filter(p => 
             p.url !== activeUrl && 
             remoteOrientationCache.current[p.url] === 'portrait' &&
+            p.preventPairing !== true &&
             remoteDimensionsCache.current[p.url] &&
             (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
           );
@@ -107,6 +109,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
             const candidates = state.photosList.filter(p => 
               p.url !== activeUrl && 
               remoteOrientationCache.current[p.url] !== 'landscape' &&
+              p.preventPairing !== true &&
               (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
             ).slice(0, 8);
             
@@ -166,7 +169,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     };
 
     checkActivePhoto();
-  }, [state.activePhoto?.url, state.splitPortrait, state.photosList]);
+  }, [state.activePhoto?.url, state.activePhoto?.preventPairing, state.splitPortrait, state.photosList]);
   const [keywordCategory, setKeywordCategory] = useState('Scenic Nature');
   const [newKeywordInput, setNewKeywordInput] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -561,7 +564,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   display: 'flex',
                   backgroundColor: '#000'
                 }}>
-                  {state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto ? (
+                  {state.splitPortrait && activePhotoOrientation === 'portrait' && !state.activePhoto.preventPairing && secondPhoto ? (
                     <div style={{ display: 'flex', width: '100%', height: '100%', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
                       <div style={{
                         flex: 1,
@@ -643,6 +646,25 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     style={{ flex: 1 }}
                   />
                   <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>Cover</span>
+                </div>
+              </div>
+            )}
+
+            {state.activePhoto && activePhotoOrientation === 'portrait' && (
+              <div style={{ marginTop: '16px', padding: '0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>Allow Side-by-Side Pairing</div>
+                  <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>Pair this portrait with another side-by-side</div>
+                </div>
+                <div 
+                  className="switch-wrapper"
+                  onClick={() => socket.emit('set-photo-prevent-pairing', {
+                    url: state.activePhoto.url,
+                    preventPairing: !state.activePhoto.preventPairing
+                  })}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className={`switch-slider ${!state.activePhoto.preventPairing ? 'checked' : ''}`}></span>
                 </div>
               </div>
             )}

@@ -105,7 +105,8 @@ function Dashboard({ state, socket, connectionInfo }) {
 
     // Check if this photo is already our current active slide with the same split layout setting
     const currentActiveSlide = activeSlides.find(s => s.active);
-    const expectedSplit = !!(state.splitPortrait && imageOrientationCache.current[state.activePhoto.url] === 'portrait');
+    const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
+    const expectedSplit = !!(state.splitPortrait && imageOrientationCache.current[state.activePhoto.url] === 'portrait' && !isPhotoPreventPairing);
     if (
       currentActiveSlide && 
       currentActiveSlide.url === state.activePhoto.url && 
@@ -205,11 +206,13 @@ function Dashboard({ state, socket, connectionInfo }) {
         h: imgPreloader.naturalHeight
       };
 
-      if (isPortrait && state.splitPortrait) {
+      const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
+      if (isPortrait && state.splitPortrait && !isPhotoPreventPairing) {
         // Find if we have another cached portrait image in photosList from the same category
         const cachedPortraits = (state.photosList || []).filter(p => 
           p.url !== state.activePhoto.url && 
           imageOrientationCache.current[p.url] === 'portrait' &&
+          p.preventPairing !== true &&
           (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
         );
         
@@ -221,6 +224,7 @@ function Dashboard({ state, socket, connectionInfo }) {
           const candidates = (state.photosList || []).filter(p => 
             p.url !== state.activePhoto.url && 
             imageOrientationCache.current[p.url] !== 'landscape' &&
+            p.preventPairing !== true &&
             (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
           );
           

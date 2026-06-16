@@ -207,6 +207,17 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
+    // Set individual photo pairing prevention
+    socket.on('set-photo-prevent-pairing', ({ url, preventPairing }) => {
+      if (!url || typeof url !== 'string') return;
+
+      const { updatePhotoPreventPairing } = require('./config/collections.js');
+      const updated = updatePhotoPreventPairing(collections, state, url, preventPairing);
+      if (updated) {
+        io.emit('state-sync', state);
+      }
+    });
+
     // Update keywords socket event
     socket.on('update-keywords', ({ category, keywords }) => {
       if (!category || typeof category !== 'string') return;

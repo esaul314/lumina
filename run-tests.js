@@ -285,6 +285,27 @@ assertTest('banning a photo (rating = 1) immediately prunes it from state.photos
   assert.ok(!testState.photosList.some(p => p.url === 'urlY'), 'banned photo must be immediately pruned from state.photosList');
 });
 
+assertTest('successfully sets preventPairing flag and updates state via updatePhotoPreventPairing', () => {
+  const { updatePhotoPreventPairing } = require('./server/config/collections.js');
+  const testCollections = {
+    'Scenic Nature': [
+      { url: 'urlA', title: 'Photo A' }
+    ]
+  };
+  const testState = {
+    photosList: [
+      { url: 'urlA', title: 'Photo A' }
+    ],
+    activePhoto: { url: 'urlA', title: 'Photo A' }
+  };
+
+  const updated = updatePhotoPreventPairing(testCollections, testState, 'urlA', true);
+  assert.strictEqual(updated, true, 'updatePhotoPreventPairing must return true for found URLs');
+  assert.strictEqual(testCollections['Scenic Nature'][0].preventPairing, true, 'preventPairing must be set to true in collections');
+  assert.strictEqual(testState.photosList[0].preventPairing, true, 'preventPairing must be set to true in state.photosList');
+  assert.strictEqual(testState.activePhoto.preventPairing, true, 'preventPairing must be set to true in state.activePhoto');
+});
+
 assertTest('weighted distribution favors highly-rated photos', () => {
   const samplePhotos = [
     { url: 'high', title: 'High Rating Photo', rating: 10 },
