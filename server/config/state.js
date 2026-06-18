@@ -39,13 +39,22 @@ const defaultKeywords = {
   'AI Creations': ['surreal digital art generative midjourney cyberpunk futuristic']
 };
 
+let _activePhoto = null;
+
 /**
  * 🌌 screensaverState
  * Central reactive configuration state of the Lumina smart display network.
  * Synchronized in real-time with both screensaver client and remote control view.
  */
 const screensaverState = {
-  activePhoto: null,
+  get activePhoto() {
+    return _activePhoto;
+  },
+  set activePhoto(val) {
+    _activePhoto = val;
+    this.activeSecondPhoto = null;
+  },
+  activeSecondPhoto: null,
   currentCategory: 'Scenic Nature',
   theme: 'Zen Retreat', // Zen Retreat, Cosmic Night, Art Museum, Cyberpunk Rain
   scaleMode: 'cover',

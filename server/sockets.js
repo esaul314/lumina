@@ -174,6 +174,12 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('photo-update', photo);
     });
 
+    // Set individual active second photo (sent by TV client to synchronize display control preview)
+    socket.on('set-active-second-photo', (photo) => {
+      state.activeSecondPhoto = photo;
+      io.emit('second-photo-update', photo);
+    });
+
     // Rate photo socket event
     socket.on('rate-photo', ({ url, rating }) => {
       if (!url || typeof url !== 'string') return;

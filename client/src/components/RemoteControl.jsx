@@ -16,7 +16,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const remoteOrientationCache = useRef({});
   const remoteDimensionsCache = useRef({});
   const [activePhotoOrientation, setActivePhotoOrientation] = useState('landscape');
-  const [secondPhoto, setSecondPhoto] = useState(null);
+  const [localSecondPhoto, setLocalSecondPhoto] = useState(null);
+  const secondPhoto = state.activeSecondPhoto || localSecondPhoto;
 
   const [activePhotoCrop, setActivePhotoCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
@@ -80,7 +81,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   useEffect(() => {
     if (!state.activePhoto) {
       setActivePhotoOrientation('landscape');
-      setSecondPhoto(null);
+      setLocalSecondPhoto(null);
       return;
     }
 
@@ -103,7 +104,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           );
           
           if (cachedPortraits.length > 0) {
-            setSecondPhoto(cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)]);
+            setLocalSecondPhoto(cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)]);
           } else {
             // Find candidates in the same category
             const candidates = state.photosList.filter(p => 
@@ -115,7 +116,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
             
             const findSecondSequentially = (index) => {
               if (index >= candidates.length) {
-                setSecondPhoto(null);
+                setLocalSecondPhoto(null);
                 return;
               }
               const cand = candidates[index];
@@ -129,7 +130,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   h: cImg.naturalHeight
                 };
                 if (isCandPortrait) {
-                  setSecondPhoto(cand);
+                  setLocalSecondPhoto(cand);
                 } else {
                   findSecondSequentially(index + 1);
                 }
@@ -142,7 +143,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
             findSecondSequentially(0);
           }
         } else {
-          setSecondPhoto(null);
+          setLocalSecondPhoto(null);
         }
       };
 

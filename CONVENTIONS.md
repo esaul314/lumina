@@ -73,3 +73,8 @@ As an AI agent, you must execute the following procedures without exception:
 2. **Hardened Error Boundaries**: Wrap OS integrations, system-level execution calls (DBus, pactl, CPU governor commands), and file reads/writes in robust `try/catch` handlers with fail-safes.
 3. **No Infinite Loops**: Never allow skips, state transitions, or socket synchronizations to trigger recursively without rate limits or counter bounds.
 4. **Pre-flight Check**: Run `npm test` before declaring success, ensuring all assertions pass.
+5. **No Local Chromium Installations**: Under no circumstances should you attempt to install Chromium, Playwright browser binaries, or system browser dependencies on the local gateway host `filament`. Lumina runs on the dedicated Fedora host named `playwright` (IP `192.168.0.178`), which already has system Chromium installed and configured.
+6. **Stop and Ask If Lost**: If you suspect you are lost, encounter an environmental mismatch, or feel any ambiguity about your execution location, you **must stop immediately and ask Alex for clarification**. Do not proceed with high-risk assumptions.
+7. **Do Not Run Local Deployment / Backup Scripts (Active SSHFS Mount)**: The workspace `/home/fila/.openclaw/workspace/lumina` is already mounted via SSHFS directly to the remote `/home/alex/work/lumina` on `playwright`. Therefore, code edits reflect remotely instantly. Under no circumstances should you run `fila-lumina-deploy-v1`, its backups (`.bak`), or any deployment scripts that attempt to copy or sync local code files. Doing so can corrupt files, disrupt the mount, or overwrite live configuration details.
+
+

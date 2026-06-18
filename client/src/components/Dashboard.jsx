@@ -165,6 +165,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     const findSecondPortraitSequentially = (activePhoto, candidates, index) => {
       if (index >= candidates.length || index >= 8) {
         addSingleSlide(activePhoto);
+        socket.emit('set-active-second-photo', null);
         return;
       }
       
@@ -182,6 +183,7 @@ function Dashboard({ state, socket, connectionInfo }) {
         
         if (isCandPortrait) {
           addSplitSlide(activePhoto, candidate);
+          socket.emit('set-active-second-photo', candidate);
         } else {
           findSecondPortraitSequentially(activePhoto, candidates, index + 1);
         }
@@ -219,6 +221,7 @@ function Dashboard({ state, socket, connectionInfo }) {
         if (cachedPortraits.length > 0) {
           const secondPhoto = cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)];
           addSplitSlide(state.activePhoto, secondPhoto);
+          socket.emit('set-active-second-photo', secondPhoto);
         } else {
           // Find candidates that are not landscape and are from the same category
           const candidates = (state.photosList || []).filter(p => 
@@ -232,10 +235,12 @@ function Dashboard({ state, socket, connectionInfo }) {
             findSecondPortraitSequentially(state.activePhoto, candidates, 0);
           } else {
             addSingleSlide(state.activePhoto);
+            socket.emit('set-active-second-photo', null);
           }
         }
       } else {
         addSingleSlide(state.activePhoto);
+        socket.emit('set-active-second-photo', null);
       }
     };
 

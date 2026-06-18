@@ -9,6 +9,7 @@ const socketUrl = window.location.hostname === 'localhost'
   : `http://${window.location.hostname}:5000`;
 
 const socket = io(socketUrl, { autoConnect: false });
+window.__socket = socket;
 
 function App() {
   const [deviceMode, setDeviceMode] = useState(null); // 'tv' or 'remote'
@@ -54,6 +55,10 @@ function App() {
       setState(prev => prev ? { ...prev, activePhoto: photo } : prev);
     });
 
+    socket.on('second-photo-update', (photo) => {
+      setState(prev => prev ? { ...prev, activeSecondPhoto: photo } : prev);
+    });
+
     socket.on('ip-info', (info) => {
       setConnectionInfo(info);
     });
@@ -68,9 +73,15 @@ function App() {
       socket.off('disconnect');
       socket.off('state-sync');
       socket.off('photo-update');
+      socket.off('second-photo-update');
       socket.off('ip-info');
     };
   }, []);
+
+  // Expose state for testing
+  useEffect(() => {
+    window.__state = state;
+  }, [state]);
 
   // Sync body class dynamically for CSS scroll rules
   useEffect(() => {

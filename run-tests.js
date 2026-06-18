@@ -332,6 +332,12 @@ assertTest('weighted distribution favors highly-rated photos', () => {
   assert.ok(highCount > lowCount * 2, `Expected highly-rated photo to be selected much more than low-rated one. High: ${highCount}, Low: ${lowCount}`);
 });
 
+assertTest('resets activeSecondPhoto to null when activePhoto is changed', () => {
+  screensaverState.activeSecondPhoto = { url: 'url2' };
+  screensaverState.activePhoto = { url: 'url1' };
+  assert.strictEqual(screensaverState.activeSecondPhoto, null, 'activeSecondPhoto must be reset to null when activePhoto changes');
+});
+
 // ============================================================================
 // 4b. UNIT TEST SUITE: Keyword Exclusion Filters
 // ============================================================================
