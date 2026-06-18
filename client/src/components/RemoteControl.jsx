@@ -19,6 +19,9 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [localSecondPhoto, setLocalSecondPhoto] = useState(null);
   const secondPhoto = state.activeSecondPhoto || localSecondPhoto;
 
+  const previewContainerRef = useRef(null);
+  const [previewDimensions, setPreviewDimensions] = useState({ width: 350, height: 180 });
+
   const [activePhotoCrop, setActivePhotoCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
 
@@ -134,8 +137,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     }, 200); // 200ms debounce
   };
 
-  const previewContainerRef = useRef(null);
-  const [previewDimensions, setPreviewDimensions] = useState({ width: 350, height: 180 });
+
 
   useEffect(() => {
     if (!previewContainerRef.current) return;
