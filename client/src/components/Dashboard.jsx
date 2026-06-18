@@ -124,6 +124,7 @@ function Dashboard({ state, socket, connectionInfo }) {
           author: photo.author,
           category: state.currentCategory,
           cropPercent: photo.cropPercent,
+          cropPositionY: photo.cropPositionY,
           w: dims.w,
           h: dims.h,
           key: Date.now() + Math.random().toString(36).substr(2, 9),
@@ -146,12 +147,14 @@ function Dashboard({ state, socket, connectionInfo }) {
           w: dims1.w,
           h: dims1.h,
           cropPercent: photo1.cropPercent,
+          cropPositionY: photo1.cropPositionY,
           url2: photo2.url,
           title2: photo2.title,
           author2: photo2.author,
           w2: dims2.w,
           h2: dims2.h,
           cropPercent2: photo2.cropPercent,
+          cropPositionY2: photo2.cropPositionY,
           category: state.currentCategory,
           key: Date.now() + Math.random().toString(36).substr(2, 9),
           active: true,
@@ -414,7 +417,7 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   const currentThemeClass = `theme-${state.theme.toLowerCase().replace(' ', '-')}`;
 
-  const getSingleImageStyle = (url, w, h, slideCropPercent) => {
+  const getSingleImageStyle = (url, w, h, slideCropPercent, slideCropPositionY) => {
     let R_i = 1.5;
     if (w && h) {
       R_i = w / h;
@@ -425,17 +428,21 @@ function Dashboard({ state, socket, connectionInfo }) {
 
     // Resolve live cropPercent from state.activePhoto or state.photosList for reactivity, falling back to slide's captured cropPercent
     let customCrop = undefined;
+    let customCropY = undefined;
     if (state.activePhoto && state.activePhoto.url === url) {
       customCrop = state.activePhoto.cropPercent;
+      customCropY = state.activePhoto.cropPositionY;
     } else if (state.photosList) {
       const match = state.photosList.find(p => p.url === url);
       if (match) {
         customCrop = match.cropPercent;
+        customCropY = match.cropPositionY;
       }
     }
     if (customCrop === undefined) {
       customCrop = slideCropPercent;
     }
+    const P_y = customCropY !== undefined ? customCropY : (slideCropPositionY !== undefined ? slideCropPositionY : 50);
 
     const defaultP = state.scaleMode === 'contain' ? 0 : 100;
     const P = customCrop !== undefined ? customCrop : defaultP;
@@ -458,12 +465,12 @@ function Dashboard({ state, socket, connectionInfo }) {
     return {
       backgroundImage: `url(${url})`,
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
-      backgroundPosition: 'center',
+      backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat'
     };
   };
 
-  const getSplitImageStyle = (url, w, h, slideCropPercent) => {
+  const getSplitImageStyle = (url, w, h, slideCropPercent, slideCropPositionY) => {
     let R_i = 0.667;
     if (w && h) {
       R_i = w / h;
@@ -474,17 +481,21 @@ function Dashboard({ state, socket, connectionInfo }) {
 
     // Resolve live cropPercent from state.activePhoto or state.photosList for reactivity, falling back to slide's captured cropPercent
     let customCrop = undefined;
+    let customCropY = undefined;
     if (state.activePhoto && state.activePhoto.url === url) {
       customCrop = state.activePhoto.cropPercent;
+      customCropY = state.activePhoto.cropPositionY;
     } else if (state.photosList) {
       const match = state.photosList.find(p => p.url === url);
       if (match) {
         customCrop = match.cropPercent;
+        customCropY = match.cropPositionY;
       }
     }
     if (customCrop === undefined) {
       customCrop = slideCropPercent;
     }
+    const P_y = customCropY !== undefined ? customCropY : (slideCropPositionY !== undefined ? slideCropPositionY : 50);
 
     const P = customCrop !== undefined ? customCrop : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50);
 
@@ -506,7 +517,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     return {
       backgroundImage: `url(${url})`,
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
-      backgroundPosition: 'center',
+      backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat'
     };
   };
@@ -530,7 +541,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                   <div className="slide-half">
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
-                      style={getSplitImageStyle(slide.url, slide.w, slide.h, slide.cropPercent)}
+                      style={getSplitImageStyle(slide.url, slide.w, slide.h, slide.cropPercent, slide.cropPositionY)}
                     />
                     <div className="slide-half-credit">
                       <div className="title">{slide.title}</div>
@@ -540,7 +551,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                   <div className="slide-half">
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
-                      style={getSplitImageStyle(slide.url2, slide.w2, slide.h2, slide.cropPercent2)}
+                      style={getSplitImageStyle(slide.url2, slide.w2, slide.h2, slide.cropPercent2, slide.cropPositionY2)}
                     />
                     <div className="slide-half-credit">
                       <div className="title">{slide.title2}</div>
@@ -552,7 +563,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                 <div className="single-slide-container">
                   <div 
                     className={`single-slide-image ${shouldAnimate ? 'animated' : ''}`}
-                    style={getSingleImageStyle(slide.url, slide.w, slide.h, slide.cropPercent)}
+                    style={getSingleImageStyle(slide.url, slide.w, slide.h, slide.cropPercent, slide.cropPositionY)}
                   />
                 </div>
               )}

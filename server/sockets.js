@@ -198,16 +198,21 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('state-sync', state);
     });
 
-    // Set individual photo crop ratio
-    socket.on('set-photo-crop', ({ url, cropPercent }) => {
+    // Set individual photo crop ratio and vertical position
+    socket.on('set-photo-crop', ({ url, cropPercent, cropPositionY }) => {
       if (!url || typeof url !== 'string') return;
-      const numericCrop = parseInt(cropPercent, 10);
-      if (isNaN(numericCrop) || numericCrop < 0 || numericCrop > 100) return;
+      
+      const numericCrop = cropPercent !== undefined ? parseInt(cropPercent, 10) : undefined;
+      const numericCropY = cropPositionY !== undefined ? parseInt(cropPositionY, 10) : undefined;
+      
+      if (numericCrop !== undefined && (isNaN(numericCrop) || numericCrop < 0 || numericCrop > 100)) return;
+      if (numericCropY !== undefined && (isNaN(numericCropY) || numericCropY < 0 || numericCropY > 100)) return;
 
       const { updatePhotoCrop } = require('./config/collections.js');
-      updatePhotoCrop(collections, state, url, numericCrop);
+      updatePhotoCrop(collections, state, url, numericCrop, numericCropY);
       io.emit('state-sync', state);
     });
+
 
     // Set individual photo pairing prevention
     socket.on('set-photo-prevent-pairing', ({ url, preventPairing }) => {

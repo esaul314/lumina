@@ -231,7 +231,7 @@ function markPhotoBroken(collections, state, url) {
  * 💾 updatePhotoCrop
  * Updates the crop percentage of a photograph by its URL and persists to disk.
  */
-function updatePhotoCrop(collections, state, url, cropPercent) {
+function updatePhotoCrop(collections, state, url, cropPercent, cropPositionY) {
   let found = false;
 
   // 1. Update in the collections database
@@ -240,7 +240,8 @@ function updatePhotoCrop(collections, state, url, cropPercent) {
     if (Array.isArray(arr)) {
       for (const photo of arr) {
         if (photo.url === url) {
-          photo.cropPercent = cropPercent;
+          if (cropPercent !== undefined) photo.cropPercent = cropPercent;
+          if (cropPositionY !== undefined) photo.cropPositionY = cropPositionY;
           found = true;
         }
       }
@@ -251,26 +252,29 @@ function updatePhotoCrop(collections, state, url, cropPercent) {
   if (state && Array.isArray(state.photosList)) {
     for (const photo of state.photosList) {
       if (photo.url === url) {
-        photo.cropPercent = cropPercent;
+        if (cropPercent !== undefined) photo.cropPercent = cropPercent;
+        if (cropPositionY !== undefined) photo.cropPositionY = cropPositionY;
       }
     }
   }
 
   // 3. Update in state.activePhoto
   if (state && state.activePhoto && state.activePhoto.url === url) {
-    state.activePhoto.cropPercent = cropPercent;
+    if (cropPercent !== undefined) state.activePhoto.cropPercent = cropPercent;
+    if (cropPositionY !== undefined) state.activePhoto.cropPositionY = cropPositionY;
   }
 
   // 4. Save to curated_collections.json
   if (found) {
     saveCuratedCollections(collections, state);
     if (process.env.NODE_ENV !== 'test') {
-      console.log(`[Collections Config] Saved photo cropPercent ${cropPercent}% for URL: ${url}`);
+      console.log(`[Collections Config] Saved photo crop details for URL: ${url} - cropPercent: ${cropPercent}%, cropPositionY: ${cropPositionY}%`);
     }
   }
 
   return found;
 }
+
 
 /**
  * 💾 updatePhotoPreventPairing

@@ -22,6 +22,15 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [activePhotoCrop, setActivePhotoCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
 
+  const [dragState, setDragState] = useState({
+    isDragging: false,
+    startY: 0,
+    startCropY: 50,
+    photoUrl: null,
+    isSecond: false
+  });
+  const [currentDragY, setCurrentDragY] = useState(null);
+
   useEffect(() => {
     if (state.activePhoto) {
       const isSplitLayoutActive = state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto;
@@ -42,6 +51,70 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
       }
     };
   }, []);
+
+  const handleDragStart = (e, photoUrl, isSecond) => {
+    if (!photoUrl) return;
+    e.preventDefault();
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const photoObj = isSecond ? secondPhoto : state.activePhoto;
+    const currentCropY = photoObj && photoObj.cropPositionY !== undefined ? photoObj.cropPositionY : 50;
+
+    setDragState({
+      isDragging: true,
+      startY: clientY,
+      startCropY: currentCropY,
+      photoUrl: photoUrl,
+      isSecond: isSecond
+    });
+    setCurrentDragY(currentCropY);
+  };
+
+  useEffect(() => {
+    if (!dragState.isDragging) return;
+
+    const handleDragMove = (e) => {
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const deltaY = clientY - dragState.startY;
+
+      const containerHeight = previewDimensions.height;
+      const sensitivity = 0.8;
+      const deltaPercent = (deltaY / containerHeight) * 100 * sensitivity;
+
+      let newCropY = Math.round(dragState.startCropY - deltaPercent);
+      newCropY = Math.max(0, Math.min(100, newCropY));
+
+      setCurrentDragY(newCropY);
+
+      if (cropTimeoutRef.current) {
+        clearTimeout(cropTimeoutRef.current);
+      }
+
+      cropTimeoutRef.current = setTimeout(() => {
+        socket.emit('set-photo-crop', {
+          url: dragState.photoUrl,
+          cropPositionY: newCropY
+        });
+      }, 30);
+    };
+
+    const handleDragEnd = () => {
+      setDragState(prev => ({ ...prev, isDragging: false }));
+      setCurrentDragY(null);
+    };
+
+    window.addEventListener('mousemove', handleDragMove);
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchmove', handleDragMove, { passive: false });
+    window.addEventListener('touchend', handleDragEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleDragMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchmove', handleDragMove);
+      window.removeEventListener('touchend', handleDragEnd);
+    };
+  }, [dragState, previewDimensions.height, socket]);
+
 
   const handlePhotoCropChange = (val) => {
     const numericVal = parseInt(val, 10);
@@ -425,6 +498,10 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
          ? photoObj.cropPercent 
          : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50));
 
+    const P_y = (dragState.isDragging && dragState.photoUrl === url && currentDragY !== null)
+      ? currentDragY
+      : (photoObj && photoObj.cropPositionY !== undefined ? photoObj.cropPositionY : 50);
+
     let wDisp, hDisp;
     if (R_i < R_c) {
       const hContain = halfHeight;
@@ -441,7 +518,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     return {
       backgroundImage: `url(${url})`,
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
-      backgroundPosition: 'center',
+      backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat',
       borderRadius: '8px',
       backgroundColor: '#0c0a0f'
@@ -466,6 +543,10 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
     const P = activePhotoCrop;
 
+    const P_y = (dragState.isDragging && dragState.photoUrl === url && currentDragY !== null)
+      ? currentDragY
+      : (photoObj && photoObj.cropPositionY !== undefined ? photoObj.cropPositionY : 50);
+
     let wDisp, hDisp;
     if (R_i < R_c) {
       const hContain = padHeight;
@@ -482,11 +563,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     return {
       backgroundImage: `url(${url})`,
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
-      backgroundPosition: 'center',
+      backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat',
       backgroundColor: '#0c0a0f'
     };
   };
+
 
   const themes = ['Zen Retreat', 'Cosmic Night', 'Art Museum', 'Cyberpunk Rain'];
 
@@ -567,23 +649,38 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                 }}>
                   {state.splitPortrait && activePhotoOrientation === 'portrait' && !state.activePhoto.preventPairing && secondPhoto ? (
                     <div style={{ display: 'flex', width: '100%', height: '100%', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
-                      <div style={{
-                        flex: 1,
-                        height: '100%',
-                        ...getSplitPreviewStyle(state.activePhoto.url, false)
-                      }} />
-                      <div style={{
-                        flex: 1,
-                        height: '100%',
-                        ...getSplitPreviewStyle(secondPhoto.url, true)
-                      }} />
+                      <div 
+                        onMouseDown={(e) => handleDragStart(e, state.activePhoto.url, false)}
+                        onTouchStart={(e) => handleDragStart(e, state.activePhoto.url, false)}
+                        style={{
+                          flex: 1,
+                          height: '100%',
+                          cursor: dragState.isDragging && !dragState.isSecond ? 'grabbing' : 'ns-resize',
+                          ...getSplitPreviewStyle(state.activePhoto.url, false)
+                        }} 
+                      />
+                      <div 
+                        onMouseDown={(e) => handleDragStart(e, secondPhoto.url, true)}
+                        onTouchStart={(e) => handleDragStart(e, secondPhoto.url, true)}
+                        style={{
+                          flex: 1,
+                          height: '100%',
+                          cursor: dragState.isDragging && dragState.isSecond ? 'grabbing' : 'ns-resize',
+                          ...getSplitPreviewStyle(secondPhoto.url, true)
+                        }} 
+                      />
                     </div>
                   ) : (
-                    <div style={{
-                      width: '100%',
-                      height: '100%',
-                      ...getSinglePreviewStyle(state.activePhoto.url)
-                    }} />
+                    <div 
+                      onMouseDown={(e) => handleDragStart(e, state.activePhoto.url, false)}
+                      onTouchStart={(e) => handleDragStart(e, state.activePhoto.url, false)}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        cursor: dragState.isDragging ? 'grabbing' : 'ns-resize',
+                        ...getSinglePreviewStyle(state.activePhoto.url)
+                      }} 
+                    />
                   )}
                   {/* Subtle dark overlay for readability of gesture instructions */}
                   <div style={{
@@ -593,15 +690,16 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                     width: '100%',
                     height: '100%',
                     background: 'linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.7))',
-                    zIndex: 1
+                    zIndex: 1,
+                    pointerEvents: 'none'
                   }} />
                 </div>
               )}
 
-              <div className="swipe-icon" style={{ position: 'relative', zIndex: 2, fontSize: '2.5rem', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))', marginTop: '-12px' }}>
+              <div className="swipe-icon" style={{ position: 'relative', zIndex: 2, fontSize: '2.5rem', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))', marginTop: '-12px', pointerEvents: 'none' }}>
                 {state.activePhoto ? '🖼️' : '✨'}
               </div>
-              <p style={{ position: 'relative', zIndex: 2, textAlign: 'center', padding: '0 20px 18px 20px', lineHeight: 1.4, fontWeight: 500, margin: 0 }}>
+              <p style={{ position: 'relative', zIndex: 2, textAlign: 'center', padding: '0 20px 18px 20px', lineHeight: 1.4, fontWeight: 500, margin: 0, pointerEvents: 'none' }}>
                 {swipeStatus}
               </p>
               {state.activePhoto && (
@@ -618,7 +716,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  textAlign: 'center'
+                  textAlign: 'center',
+                  pointerEvents: 'none'
                 }}>
                   TV PREVIEW: {state.activePhoto.title}
                 </span>

@@ -338,6 +338,28 @@ assertTest('resets activeSecondPhoto to null when activePhoto is changed', () =>
   assert.strictEqual(screensaverState.activeSecondPhoto, null, 'activeSecondPhoto must be reset to null when activePhoto changes');
 });
 
+assertTest('updatePhotoCrop correctly sets and persists cropPercent and cropPositionY', () => {
+  const { updatePhotoCrop } = require('./server/config/collections.js');
+  const tempCollections = {
+    'Scenic Nature': [
+      { url: 'test-url-crop', title: 'Test Photo', rating: 5 }
+    ]
+  };
+  const tempState = {
+    activePhoto: { url: 'test-url-crop', rating: 5 },
+    photosList: [
+      { url: 'test-url-crop', rating: 5 }
+    ]
+  };
+  updatePhotoCrop(tempCollections, tempState, 'test-url-crop', 40, 70);
+  
+  assert.strictEqual(tempState.activePhoto.cropPercent, 40, 'cropPercent must be updated');
+  assert.strictEqual(tempState.activePhoto.cropPositionY, 70, 'cropPositionY must be updated');
+  assert.strictEqual(tempCollections['Scenic Nature'][0].cropPercent, 40, 'collection entry cropPercent must be updated');
+  assert.strictEqual(tempCollections['Scenic Nature'][0].cropPositionY, 70, 'collection entry cropPositionY must be updated');
+});
+
+
 // ============================================================================
 // 4b. UNIT TEST SUITE: Keyword Exclusion Filters
 // ============================================================================
