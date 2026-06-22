@@ -1301,7 +1301,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                                 color: 'rgba(255,255,255,0.85)'
                               }}
                             >
-                              <span>{val}</span>
+                              <span>
+                                {typeof val === 'string'
+                                  ? val
+                                  : `[${val.timeStart}-${val.timeEnd}] ${(Array.isArray(val.keywords) ? val.keywords : [val.keywords]).join(', ')}`
+                                }
+                              </span>
                               <span
                                 onClick={() => {
                                   const nextParams = paramsList.filter((_, pIdx) => pIdx !== idx);
@@ -1336,11 +1341,36 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                             e.preventDefault();
                             const inputVal = e.target.elements[src.key + '_input'].value.trim();
                             if (!inputVal) return;
-                            if (paramsList.includes(inputVal)) {
+
+                            let parsedVal = inputVal;
+                            const timeRangeRegex = /^\[([0-1]?[0-9]|2[0-3]):[0-5][0-9]-([0-1]?[0-9]|2[0-3]):[0-5][0-9]\]\s+(.+)$/;
+                            const match = inputVal.match(timeRangeRegex);
+                            if (match) {
+                              const [_, start, end, kwsStr] = match;
+                              parsedVal = {
+                                timeStart: start,
+                                timeEnd: end,
+                                keywords: kwsStr.split(',').map(kw => kw.trim()).filter(Boolean)
+                              };
+                            }
+
+                            const isDuplicate = paramsList.some(item => {
+                              if (typeof item === 'string' && typeof parsedVal === 'string') {
+                                  return item.toLowerCase() === parsedVal.toLowerCase();
+                              }
+                              if (item && typeof item === 'object' && parsedVal && typeof parsedVal === 'object') {
+                                  return item.timeStart === parsedVal.timeStart &&
+                                         item.timeEnd === parsedVal.timeEnd &&
+                                         JSON.stringify(item.keywords) === JSON.stringify(parsedVal.keywords);
+                              }
+                              return false;
+                            });
+                            if (isDuplicate) {
                               alert('This configuration parameter already exists.');
                               return;
                             }
-                            const nextParams = [...paramsList, inputVal];
+
+                            const nextParams = [...paramsList, parsedVal];
                             socket.emit('update-feed-config', {
                               category: keywordCategory,
                               source: src.key,
@@ -1348,7 +1378,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                             });
                             e.target.reset();
                           }}
-                          style={{ display: 'flex', gap: '8px' }}
+                          style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}
                         >
                           <input
                             type="text"
@@ -1362,7 +1392,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                               borderRadius: '6px',
                               color: '#fff',
                               fontSize: '0.8rem',
-                              outline: 'none'
+                              outline: 'none',
+                              minWidth: '150px'
                             }}
                           />
                           <button
@@ -1375,11 +1406,17 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
                               fontWeight: 600,
                               padding: '0 12px',
                               fontSize: '0.8rem',
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              height: '31px'
                             }}
                           >
                             Add
                           </button>
+                          {src.param === 'keywords' && (
+                            <div style={{ width: '100%', fontSize: '0.65rem', opacity: 0.4, marginTop: '4px', lineHeight: '1.2' }}>
+                              Hint: Add time-based keywords as <code>[06:00-12:00] morning, sunrise</code>
+                            </div>
+                          )}
                         </form>
                       </div>
                     )}
