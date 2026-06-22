@@ -186,12 +186,39 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       return res.status(404).json({ error: `Category "${category}" not found in curated collections.` });
     }
 
-    if (!Array.isArray(keywords) || !keywords.every(kw => typeof kw === 'string' && kw.trim().length > 0)) {
-      return res.status(400).json({ error: 'Invalid parameter: "keywords" must be an array of non-empty strings.' });
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    const isValid = Array.isArray(keywords) && keywords.every(item => {
+      if (typeof item === 'string') {
+        return item.trim().length > 0;
+      }
+      if (item && typeof item === 'object') {
+        const { timeStart, timeEnd, keywords: itemKws } = item;
+        if (typeof timeStart !== 'string' || !timeRegex.test(timeStart)) return false;
+        if (typeof timeEnd !== 'string' || !timeRegex.test(timeEnd)) return false;
+        if (Array.isArray(itemKws)) {
+          return itemKws.every(kw => typeof kw === 'string' && kw.trim().length > 0);
+        }
+        return typeof itemKws === 'string' && itemKws.trim().length > 0;
+      }
+      return false;
+    });
+
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.' });
     }
 
     // Update in state
-    state.searchKeywords[category] = keywords.map(kw => kw.trim());
+    state.searchKeywords[category] = keywords.map(item => {
+      if (typeof item === 'string') {
+        return item.trim();
+      }
+      const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
+      return {
+        timeStart: item.timeStart.trim(),
+        timeEnd: item.timeEnd.trim(),
+        keywords: itemKws.map(kw => kw.trim())
+      };
+    });
 
     // Save to curated_collections.json using unified persistence helper
     const { saveCuratedCollections } = require('./config/collections.js');

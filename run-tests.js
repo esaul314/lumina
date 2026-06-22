@@ -17,7 +17,8 @@ const {
   getSmartPhoto, 
   screensaverState,
   combineFeedsBalanced,
-  selectWeightedRandomPhoto
+  selectWeightedRandomPhoto,
+  isTimeInSchedule
 } = require('./server/app.js');
 const { analyzeSentiment } = require('./server/services/sentiment.js');
 const { classifyWeatherCode } = require('./server/services/weather.js');
@@ -175,6 +176,50 @@ assertTest('picks atmospheric photos when weather alignment is enabled', () => {
 
   // The selector engine has an 80% preference rate for weather match
   assert.ok(pickedRainy > 10, `Expected rainy photo to be picked most of the time (Picked count: ${pickedRainy}/20)`);
+});
+
+// ============================================================================
+// 2b. UNIT TEST SUITE: Scenic Pool Time-Based Keywords
+// ============================================================================
+logSuite('Scenic Pool Time-Based Keywords');
+
+assertTest('isTimeInSchedule correctly matches standard ranges', () => {
+  assert.strictEqual(isTimeInSchedule('10:30', '08:00', '12:00'), true, '10:30 is between 08:00 and 12:00');
+  assert.strictEqual(isTimeInSchedule('07:59', '08:00', '12:00'), false, '07:59 is not between 08:00 and 12:00');
+  assert.strictEqual(isTimeInSchedule('12:00', '08:00', '12:00'), false, '12:00 is end boundary (exclusive)');
+});
+
+assertTest('isTimeInSchedule correctly matches ranges crossing midnight', () => {
+  assert.strictEqual(isTimeInSchedule('23:30', '22:00', '06:00'), true, '23:30 is between 22:00 and 06:00 (before midnight)');
+  assert.strictEqual(isTimeInSchedule('02:15', '22:00', '06:00'), true, '02:15 is between 22:00 and 06:00 (after midnight)');
+  assert.strictEqual(isTimeInSchedule('12:00', '22:00', '06:00'), false, '12:00 is not in overnight range');
+});
+
+assertTest('getSmartPhoto filters candidates by timeRanges constraint', () => {
+  const originalList = screensaverState.photosList;
+  const originalActive = screensaverState.activePhoto;
+  
+  const now = new Date();
+  const allowedStart = String(now.getHours()).padStart(2, '0') + ':00';
+  const allowedEnd = String((now.getHours() + 1) % 24).padStart(2, '0') + ':00';
+  
+  const blockedStart = String((now.getHours() + 2) % 24).padStart(2, '0') + ':00';
+  const blockedEnd = String((now.getHours() + 3) % 24).padStart(2, '0') + ':00';
+
+  screensaverState.photosList = [
+    { url: 'http://example.com/allowed.jpg', rating: 10, timeRanges: [{ start: allowedStart, end: allowedEnd }] },
+    { url: 'http://example.com/blocked.jpg', rating: 10, timeRanges: [{ start: blockedStart, end: blockedEnd }] }
+  ];
+  screensaverState.activePhoto = null;
+
+  try {
+    const selected = getSmartPhoto();
+    assert.ok(selected, 'Should select a photo');
+    assert.strictEqual(selected.url, 'http://example.com/allowed.jpg', 'Should select the allowed photo matching current time range');
+  } finally {
+    screensaverState.photosList = originalList;
+    screensaverState.activePhoto = originalActive;
+  }
 });
 
 // ============================================================================

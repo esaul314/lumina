@@ -754,7 +754,23 @@ async function fetchAicImages(query, count = 10) {
 function buildFeedConfigsFromKeywords(keywordsMap) {
   const configs = {};
   for (const [category, kws] of Object.entries(keywordsMap)) {
-    const keywords = Array.isArray(kws) ? kws : [kws];
+    let keywords = [];
+    if (Array.isArray(kws)) {
+      for (const item of kws) {
+        if (typeof item === 'string') {
+          keywords.push(item);
+        } else if (item && typeof item === 'object') {
+          const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
+          for (const kw of itemKws) {
+            if (typeof kw === 'string') {
+              keywords.push(kw);
+            }
+          }
+        }
+      }
+    } else if (typeof kws === 'string') {
+      keywords.push(kws);
+    }
     configs[category] = {
       unsplash: { enabled: true, keywords: [...keywords] },
       wallhaven: { enabled: true, keywords: [...keywords] }
@@ -890,8 +906,24 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
         if (scraper.param) {
           const params = sourceConfig[scraper.param] || [];
           for (const param of params) {
-            const items = await scraper.fetcher(param, category);
-            newItems = newItems.concat(items);
+            if (typeof param === 'string') {
+              const items = await scraper.fetcher(param, category);
+              const itemsWithMeta = items.map(item => ({ ...item, queryKeyword: param }));
+              newItems = newItems.concat(itemsWithMeta);
+            } else if (param && typeof param === 'object') {
+              const kws = Array.isArray(param.keywords) ? param.keywords : [param.keywords];
+              for (const kw of kws) {
+                if (typeof kw === 'string') {
+                  const items = await scraper.fetcher(kw, category);
+                  const itemsWithMeta = items.map(item => ({
+                    ...item,
+                    queryKeyword: kw,
+                    timeRanges: [{ start: param.timeStart, end: param.timeEnd }]
+                  }));
+                  newItems = newItems.concat(itemsWithMeta);
+                }
+              }
+            }
           }
         } else {
           newItems = await scraper.fetcher(category);

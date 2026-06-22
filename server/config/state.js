@@ -3,7 +3,23 @@ const config = require('./configLoader.js');
 function buildFeedConfigsFromKeywords(keywordsMap) {
   const configs = {};
   for (const [category, kws] of Object.entries(keywordsMap)) {
-    const keywords = Array.isArray(kws) ? kws : [kws];
+    let keywords = [];
+    if (Array.isArray(kws)) {
+      for (const item of kws) {
+        if (typeof item === 'string') {
+          keywords.push(item);
+        } else if (item && typeof item === 'object') {
+          const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
+          for (const kw of itemKws) {
+            if (typeof kw === 'string') {
+              keywords.push(kw);
+            }
+          }
+        }
+      }
+    } else if (typeof kws === 'string') {
+      keywords.push(kws);
+    }
     configs[category] = {
       unsplash: { enabled: true, keywords: [...keywords] },
       wallhaven: { enabled: true, keywords: [...keywords] }

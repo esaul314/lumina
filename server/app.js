@@ -314,6 +314,23 @@ function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
   return activePhotos[activePhotos.length - 1]; // Fallback
 }
 
+function isTimeInSchedule(currentTimeStr, startStr, endStr) {
+  const [curH, curM] = currentTimeStr.split(':').map(Number);
+  const [startH, startM] = startStr.split(':').map(Number);
+  const [endH, endM] = endStr.split(':').map(Number);
+  
+  const curMinutes = curH * 60 + curM;
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+  
+  if (startMinutes <= endMinutes) {
+    return curMinutes >= startMinutes && curMinutes < endMinutes;
+  } else {
+    // Crosses midnight (e.g. 22:00 to 06:00)
+    return curMinutes >= startMinutes || curMinutes < endMinutes;
+  }
+}
+
 /**
  * 🎯 getSmartPhoto
  * Dynamic weighted select algorithm mapping physical weather & news sentiment to wallpaper lists,
@@ -335,6 +352,19 @@ function getSmartPhoto(_direction = 'next') {
   const newsMatch = screensaverState.newsSentiment?.weatherMatch || 'Cloudy';
 
   let candidates = [...list];
+
+  // Filter candidates by time ranges if they have timeRanges constraint
+  const now = new Date();
+  const hourStr = String(now.getHours()).padStart(2, '0');
+  const minStr = String(now.getMinutes()).padStart(2, '0');
+  const currentTimeStr = `${hourStr}:${minStr}`;
+
+  candidates = candidates.filter(p => {
+    if (p.timeRanges && p.timeRanges.length > 0) {
+      return p.timeRanges.some(tr => isTimeInSchedule(currentTimeStr, tr.start, tr.end));
+    }
+    return true;
+  });
 
   if (screensaverState.alignWeather) {
     let weatherCandidates = [];
@@ -680,5 +710,6 @@ module.exports = {
   updateServerWeather,
   triggerImageAnalysisBackground,
   combineFeedsBalanced,
-  selectWeightedRandomPhoto
+  selectWeightedRandomPhoto,
+  isTimeInSchedule
 };
