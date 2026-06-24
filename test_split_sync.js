@@ -32,10 +32,10 @@ const { chromium } = require('@playwright/test');
     await remotePage.evaluate(() => {
       window.__socket.emit('toggle-split-portrait', true);
       window.__socket.emit('set-active-photo', {
-        url: "https://picsum.photos/id/1025/1200/1800",
-        title: "Portrait Dog",
-        author: "Picsum",
-        source: "picsum",
+        url: 'https://picsum.photos/id/1025/1200/1800',
+        title: 'Portrait Dog',
+        author: 'Picsum',
+        source: 'picsum',
         rating: 8,
         isBroken: false,
         isNight: false,
@@ -43,7 +43,7 @@ const { chromium } = require('@playwright/test');
         isSunny: false,
         isCloudy: false,
         isSnowy: false,
-        category: "Scenic Nature"
+        category: 'Scenic Nature'
       });
     });
 
@@ -61,8 +61,8 @@ const { chromium } = require('@playwright/test');
 
     // Verify in DOM as well
     const tvDomImages = await tvPage.evaluate(() => {
-      const el1 = document.querySelector('.split-slide-container div:nth-child(1) .slide-half-image');
-      const el2 = document.querySelector('.split-slide-container div:nth-child(2) .slide-half-image');
+      const el1 = document.querySelector('.slide.active .split-slide-container div:nth-child(1) .slide-half-image');
+      const el2 = document.querySelector('.slide.active .split-slide-container div:nth-child(2) .slide-half-image');
       return {
         img1: el1 ? window.getComputedStyle(el1).backgroundImage : null,
         img2: el2 ? window.getComputedStyle(el2).backgroundImage : null
@@ -82,7 +82,7 @@ const { chromium } = require('@playwright/test');
     console.log('--- Testing Zoom/Crop Synchronization ---');
     // Get initial background size of active photo on TV
     const initialSize = await tvPage.evaluate(() => {
-      const el = document.querySelector('.split-slide-container div:nth-child(1) .slide-half-image');
+      const el = document.querySelector('.slide.active .split-slide-container div:nth-child(1) .slide-half-image');
       return el ? window.getComputedStyle(el).backgroundSize : null;
     });
     console.log('Initial TV backgroundSize:', initialSize);
@@ -91,7 +91,7 @@ const { chromium } = require('@playwright/test');
     console.log('Emitting set-photo-crop with cropPercent = 80 from remote...');
     await remotePage.evaluate(() => {
       window.__socket.emit('set-photo-crop', {
-        url: "https://picsum.photos/id/1025/1200/1800",
+        url: 'https://picsum.photos/id/1025/1200/1800',
         cropPercent: 80
       });
     });
@@ -101,7 +101,7 @@ const { chromium } = require('@playwright/test');
 
     // Get new background size
     const newSize = await tvPage.evaluate(() => {
-      const el = document.querySelector('.split-slide-container div:nth-child(1) .slide-half-image');
+      const el = document.querySelector('.slide.active .split-slide-container div:nth-child(1) .slide-half-image');
       return el ? window.getComputedStyle(el).backgroundSize : null;
     });
     console.log('New TV backgroundSize after zoom:', newSize);

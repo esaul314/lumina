@@ -112,6 +112,35 @@ function Dashboard({ state, socket, connectionInfo }) {
       currentActiveSlide.url === state.activePhoto.url && 
       !!currentActiveSlide.isSplit === expectedSplit
     ) {
+      // Check if crop/zoom settings have changed and update the active slide in place
+      const isSplitCropChanged = expectedSplit && (
+        currentActiveSlide.cropPercent !== state.activePhoto.cropPercent ||
+        currentActiveSlide.cropPositionY !== state.activePhoto.cropPositionY ||
+        currentActiveSlide.cropPercent2 !== (state.activeSecondPhoto?.cropPercent !== undefined ? state.activeSecondPhoto.cropPercent : state.splitCropPercent) ||
+        currentActiveSlide.cropPositionY2 !== state.activeSecondPhoto?.cropPositionY
+      );
+
+      const isSingleCropChanged = !expectedSplit && (
+        currentActiveSlide.cropPercent !== state.activePhoto.cropPercent ||
+        currentActiveSlide.cropPositionY !== state.activePhoto.cropPositionY
+      );
+
+      if (isSplitCropChanged || isSingleCropChanged) {
+        setActiveSlides(prev => prev.map(s => {
+          if (s.active && s.url === state.activePhoto.url) {
+            return {
+              ...s,
+              cropPercent: state.activePhoto.cropPercent,
+              cropPositionY: state.activePhoto.cropPositionY,
+              cropPercent2: state.activeSecondPhoto?.cropPercent !== undefined 
+                ? state.activeSecondPhoto.cropPercent 
+                : state.splitCropPercent,
+              cropPositionY2: state.activeSecondPhoto?.cropPositionY
+            };
+          }
+          return s;
+        }));
+      }
       return;
     }
 
@@ -174,8 +203,6 @@ function Dashboard({ state, socket, connectionInfo }) {
       
       const candidate = candidates[index];
       const testImg = new window.Image();
-      testImg.src = candidate.url;
-      
       testImg.onload = () => {
         const isCandPortrait = testImg.naturalHeight > testImg.naturalWidth;
         imageOrientationCache.current[candidate.url] = isCandPortrait ? 'portrait' : 'landscape';
@@ -191,17 +218,15 @@ function Dashboard({ state, socket, connectionInfo }) {
           findSecondPortraitSequentially(activePhoto, candidates, index + 1);
         }
       };
-      
       testImg.onerror = () => {
         imageOrientationCache.current[candidate.url] = 'landscape';
         findSecondPortraitSequentially(activePhoto, candidates, index + 1);
       };
+      testImg.src = candidate.url;
     };
 
     // Preload image in the background using native Image element to prevent blank screens
     const imgPreloader = new window.Image();
-    imgPreloader.src = state.activePhoto.url;
-    
     imgPreloader.onload = () => {
       consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
       const isPortrait = imgPreloader.naturalHeight > imgPreloader.naturalWidth;
@@ -246,7 +271,6 @@ function Dashboard({ state, socket, connectionInfo }) {
         socket.emit('set-active-second-photo', null);
       }
     };
-
     imgPreloader.onerror = () => {
       console.warn('Failed to load wallpaper image:', state.activePhoto.url);
       
@@ -273,6 +297,7 @@ function Dashboard({ state, socket, connectionInfo }) {
         socket.emit('next-photo');
       }, 1500);
     };
+    imgPreloader.src = state.activePhoto.url;
   }, [state.activePhoto, state.splitPortrait, state.photosList]);
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic

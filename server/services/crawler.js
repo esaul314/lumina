@@ -15,24 +15,6 @@ const searchQueries = {
   'AI Creations': 'surreal digital art generative midjourney cyberpunk futuristic'
 };
 
-// Subreddits list for categories
-const categorySubreddits = {
-  'Scenic Nature': ['EarthPorn', 'LandscapePhotography'],
-  'Cosmic Space': ['spaceporn', 'astrophotography'],
-  'Abstract Art': ['AbstractArt', 'Generative'],
-  'Liminal Spaces': ['LiminalSpace'],
-  'AI Creations': ['aiArt', 'Midjourney', 'StableDiffusion']
-};
-
-// Tumblr blogs mapping for categories (keyless JSON read API)
-const categoryTumblrBlogs = {
-  'Scenic Nature': ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'],
-  'Cosmic Space': ['nasaimages', 'cosmic-space-explorer'],
-  'Abstract Art': ['abstractartgallery', 'generative-art'],
-  'Liminal Spaces': ['liminal-spaces', 'emptycorridors'],
-  'AI Creations': ['aiartgenerator', 'midjourneycreations']
-};
-
 /**
  * 🎨 fetchTumblrImages
  * Fetches photo posts from a public Tumblr blog keylessly.

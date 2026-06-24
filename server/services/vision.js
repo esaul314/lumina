@@ -123,14 +123,14 @@ async function analyzeImageContent(imageUrl, title = '') {
     model: activeModel,
     messages: [
       {
-        role: "user",
+        role: 'user',
         content: [
           {
-            type: "text",
+            type: 'text',
             text: promptText
           },
           {
-            type: "image_url",
+            type: 'image_url',
             image_url: { url: `data:image/jpeg;base64,${imgB64}` }
           }
         ]

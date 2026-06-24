@@ -10,7 +10,8 @@
     "install-all": "npm install && npm install --prefix client",
     "lint": "eslint . --ext .js,.jsx --ignore-pattern client/dist --ignore-pattern node_modules",
     "lint:fix": "eslint . --ext .js,.jsx --fix --ignore-pattern client/dist --ignore-pattern node_modules",
-    "test": "node run-tests.js"
+    "test": "node run-tests.js",
+    "test:integration": "node test_split_sync.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

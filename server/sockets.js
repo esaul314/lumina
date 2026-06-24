@@ -1,7 +1,5 @@
 const { sendEmailAlert } = require('./services/notifier.js');
 const googlePhotos = require('./services/googlePhotos.js');
-const fs = require('fs');
-const path = require('path');
 const { saveCuratedCollections } = require('./config/collections.js');
 
 /**
@@ -300,7 +298,15 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       const cleanKeyword = (keyword || '').trim();
       if (!cleanKeyword) return;
 
-      console.log(`[SOCKET EVENT] add-category received: "${cleanCategory}" with keyword "${cleanKeyword}"`);
+      // Split keywords by comma or semicolon, trim whitespace, filter out empty strings
+      const parsedKeywords = cleanKeyword
+        .split(/[;,]/)
+        .map(kw => kw.trim())
+        .filter(kw => kw.length > 0);
+
+      if (parsedKeywords.length === 0) return;
+
+      console.log(`[SOCKET EVENT] add-category received: "${cleanCategory}" with keywords:`, parsedKeywords);
 
       // Initialize state searchKeywords if not present
       if (!state.searchKeywords) {
@@ -313,18 +319,18 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         return;
       }
 
-      // 1. Register category keyword in state
-      state.searchKeywords[cleanCategory] = [cleanKeyword];
+      // 1. Register category keywords in state
+      state.searchKeywords[cleanCategory] = parsedKeywords;
 
       // Initialize state feedConfigs if not present
       if (!state.feedConfigs) {
         state.feedConfigs = {};
       }
       state.feedConfigs[cleanCategory] = {
-        unsplash: { enabled: true, keywords: [cleanKeyword] },
-        wallhaven: { enabled: true, keywords: [cleanKeyword] },
-        metmuseum: { enabled: true, keywords: [cleanKeyword] },
-        artic: { enabled: true, keywords: [cleanKeyword] }
+        unsplash: { enabled: true, keywords: [...parsedKeywords] },
+        wallhaven: { enabled: true, keywords: [...parsedKeywords] },
+        metmuseum: { enabled: true, keywords: [...parsedKeywords] },
+        artic: { enabled: true, keywords: [...parsedKeywords] }
       };
 
       // 2. Initialize the collection list in collections
