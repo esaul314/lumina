@@ -18,7 +18,8 @@ const {
   screensaverState,
   combineFeedsBalanced,
   selectWeightedRandomPhoto,
-  isTimeInSchedule
+  isTimeInSchedule,
+  server
 } = require('./server/app.js');
 const { analyzeSentiment } = require('./server/services/sentiment.js');
 const { classifyWeatherCode } = require('./server/services/weather.js');
@@ -102,6 +103,44 @@ async function postJson(url, body) {
 
     req.on('error', reject);
     req.write(postData);
+    req.end();
+  });
+}
+
+async function requestJson(url, method = 'GET', body = null) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const postData = body ? JSON.stringify(body) : '';
+    
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port,
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: method,
+      headers: {}
+    };
+
+    if (body) {
+      options.headers['Content-Type'] = 'application/json';
+      options.headers['Content-Length'] = Buffer.byteLength(postData);
+    }
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, body: JSON.parse(data) });
+        } catch (e) {
+          resolve({ status: res.statusCode, body: data });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    if (body) {
+      req.write(postData);
+    }
     req.end();
   });
 }
@@ -584,16 +623,23 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 logSuite('Live Server Endpoint Smoke Tests');
 
 async function runIntegrationTests() {
-  const port = config.port || 5000;
+  const port = 5001;
   const baseUrl = `http://localhost:${port}`;
   
-  // Confirm that the server is alive on port 5000
+  console.log(`Starting temporary test server on ${baseUrl}...`);
+  const testServer = await new Promise((resolve, reject) => {
+    server.listen(port, '127.0.0.1', (err) => {
+      if (err) return reject(err);
+      resolve(server);
+    });
+  });
+
   try {
     const serverConfig = await fetchJson(`${baseUrl}/api/config`);
     
     assertTest('GET /api/config successfully retrieves configuration and network data', () => {
       assert.ok(Array.isArray(serverConfig.localIps), 'localIps should be an array');
-      assert.strictEqual(serverConfig.port, 5000, 'port should equal 5000');
+      assert.ok(serverConfig.port, 'port should be defined');
       assert.ok(serverConfig.state, 'state object must be present');
     });
 
@@ -627,7 +673,12 @@ async function runIntegrationTests() {
     });
 
     // Test HTTP Rating API
-    const samplePhotoUrl = serverConfig.state.photosList[0]?.url;
+    let samplePhotoUrl = '';
+    const poolPhotos = await fetchJson(`${baseUrl}/api/pools/Scenic%20Nature/photos`);
+    if (Array.isArray(poolPhotos) && poolPhotos.length > 0) {
+      samplePhotoUrl = poolPhotos[0].url;
+    }
+
     if (samplePhotoUrl) {
       const rateResponse = await postJson(`${baseUrl}/api/photos/rate`, { url: samplePhotoUrl, rating: 8 });
       assertTest('POST /api/photos/rate successfully updates and persists a photo rating', () => {
@@ -663,9 +714,150 @@ async function runIntegrationTests() {
         assert.strictEqual(invalidKeywordResponse.status, 404, 'Response status must be 404');
       });
     }
+
+    // ==========================================================================
+    // NEW REST API INTEGRATION TESTS
+    // ==========================================================================
+
+    // 1. GET /api/state
+    const stateGet = await requestJson(`${baseUrl}/api/state`, 'GET');
+    assertTest('GET /api/state retrieves the current unified state', () => {
+      assert.strictEqual(stateGet.status, 200);
+      assert.ok(stateGet.body.widgets, 'State must contain widgets object');
+      assert.ok(stateGet.body.theme, 'State must contain theme');
+    });
+
+    // 2. PATCH /api/state
+    const statePatch = await requestJson(`${baseUrl}/api/state`, 'PATCH', {
+      theme: 'Cosmic Night',
+      widgets: { clock: false }
+    });
+    assertTest('PATCH /api/state successfully updates widgets and configurations', () => {
+      assert.strictEqual(statePatch.status, 200);
+      assert.strictEqual(statePatch.body.theme, 'Cosmic Night');
+      assert.strictEqual(statePatch.body.widgets.clock, false);
+    });
+
+    // 3. POST /api/state/screensaver
+    const screensaverActiveRes = await requestJson(`${baseUrl}/api/state/screensaver`, 'POST', { active: true });
+    assertTest('POST /api/state/screensaver toggles the screensaver status to active', () => {
+      assert.strictEqual(screensaverActiveRes.status, 200);
+      assert.strictEqual(screensaverActiveRes.body.success, true);
+      assert.strictEqual(screensaverActiveRes.body.screensaverActive, true);
+    });
+
+    const screensaverInactiveRes = await requestJson(`${baseUrl}/api/state/screensaver`, 'POST', { active: false });
+    assertTest('POST /api/state/screensaver toggles the screensaver status to inactive', () => {
+      assert.strictEqual(screensaverInactiveRes.status, 200);
+      assert.strictEqual(screensaverInactiveRes.body.success, true);
+      assert.strictEqual(screensaverInactiveRes.body.screensaverActive, false);
+    });
+
+    // 4. GET /api/pools
+    const poolsGet = await requestJson(`${baseUrl}/api/pools`, 'GET');
+    assertTest('GET /api/pools lists all scenic pools with stats', () => {
+      assert.strictEqual(poolsGet.status, 200);
+      assert.ok(Array.isArray(poolsGet.body));
+      const scenicNaturePool = poolsGet.body.find(p => p.name === 'Scenic Nature');
+      assert.ok(scenicNaturePool);
+      assert.ok(Array.isArray(scenicNaturePool.keywords));
+      assert.strictEqual(typeof scenicNaturePool.photosCount, 'number');
+    });
+
+    // 5. POST /api/pools (create)
+    const newPoolRes = await requestJson(`${baseUrl}/api/pools`, 'POST', {
+      name: 'REST Pool Test',
+      keywords: ['test-rest-keyword-1', 'test-rest-keyword-2']
+    });
+    assertTest('POST /api/pools creates a new pool with custom keywords', () => {
+      assert.strictEqual(newPoolRes.status, 201);
+      assert.strictEqual(newPoolRes.body.success, true);
+      assert.strictEqual(newPoolRes.body.pool.name, 'REST Pool Test');
+      assert.deepStrictEqual(newPoolRes.body.pool.keywords, ['test-rest-keyword-1', 'test-rest-keyword-2']);
+    });
+
+    // 6. GET /api/pools/:name/photos
+    const poolPhotosGet = await requestJson(`${baseUrl}/api/pools/REST Pool Test/photos`, 'GET');
+    assertTest('GET /api/pools/:name/photos retrieves photo metadata for a pool', () => {
+      assert.strictEqual(poolPhotosGet.status, 200);
+      assert.ok(Array.isArray(poolPhotosGet.body));
+    });
+
+    // 7. PATCH /api/pools/:name (update keywords)
+    const patchPoolRes = await requestJson(`${baseUrl}/api/pools/REST Pool Test`, 'PATCH', {
+      keywords: ['modified-keyword-1']
+    });
+    assertTest('PATCH /api/pools/:name updates pool settings/keywords', () => {
+      assert.strictEqual(patchPoolRes.status, 200);
+      assert.strictEqual(patchPoolRes.body.success, true);
+      assert.deepStrictEqual(patchPoolRes.body.pool.keywords, ['modified-keyword-1']);
+    });
+
+    // 8. DELETE /api/pools/:name
+    const deletePoolRes = await requestJson(`${baseUrl}/api/pools/REST Pool Test`, 'DELETE');
+    assertTest('DELETE /api/pools/:name removes the pool completely', () => {
+      assert.strictEqual(deletePoolRes.status, 200);
+      assert.strictEqual(deletePoolRes.body.success, true);
+    });
+
+    // 9. PATCH /api/photos (composability testing: rating, crop, pairing)
+    if (samplePhotoUrl) {
+      const patchRateRes = await requestJson(`${baseUrl}/api/photos`, 'PATCH', {
+        url: samplePhotoUrl,
+        rating: 9
+      });
+      assertTest('PATCH /api/photos updates photo rating', () => {
+        assert.strictEqual(patchRateRes.status, 200);
+        assert.strictEqual(patchRateRes.body.success, true);
+        assert.strictEqual(patchRateRes.body.photo.rating, 9);
+      });
+
+      const patchCropRes = await requestJson(`${baseUrl}/api/photos`, 'PATCH', {
+        url: samplePhotoUrl,
+        cropPercent: 75,
+        cropPositionY: 30
+      });
+      assertTest('PATCH /api/photos updates photo zoom/crop percentages', () => {
+        assert.strictEqual(patchCropRes.status, 200);
+        assert.strictEqual(patchCropRes.body.success, true);
+        assert.strictEqual(patchCropRes.body.photo.cropPercent, 75);
+        assert.strictEqual(patchCropRes.body.photo.cropPositionY, 30);
+      });
+
+      const patchPairingRes = await requestJson(`${baseUrl}/api/photos`, 'PATCH', {
+        url: samplePhotoUrl,
+        preventPairing: true
+      });
+      assertTest('PATCH /api/photos updates photo preventPairing flag', () => {
+        assert.strictEqual(patchPairingRes.status, 200);
+        assert.strictEqual(patchPairingRes.body.success, true);
+        assert.strictEqual(patchPairingRes.body.photo.preventPairing, true);
+      });
+
+      const previewPhotoRes = await requestJson(`${baseUrl}/api/photos/preview`, 'POST', {
+        url: samplePhotoUrl
+      });
+      assertTest('POST /api/photos/preview forces displays to preview a photo', () => {
+        assert.strictEqual(previewPhotoRes.status, 200);
+        assert.strictEqual(previewPhotoRes.body.success, true);
+        assert.strictEqual(previewPhotoRes.body.activePhoto.url, samplePhotoUrl);
+      });
+    }
+
+    // 10. POST /api/photos/next
+    const nextPhotoRes = await requestJson(`${baseUrl}/api/photos/next`, 'POST');
+    assertTest('POST /api/photos/next transitions active display to the next photo', () => {
+      assert.strictEqual(nextPhotoRes.status, 200);
+      assert.strictEqual(nextPhotoRes.body.success, true);
+      assert.ok(nextPhotoRes.body.activePhoto);
+    });
+
   } catch (err) {
-    console.log('  ' + COLORS.yellow + '⚠ SKIP:' + COLORS.reset + ' Integration tests skipped (Lumina server is not actively listening on port 5000).');
-    console.log('          (Launch the server in the background using ./launch.sh to run integration assertions)');
+    console.error('Integration tests failed with error:', err);
+    STATS.failed++;
+  } finally {
+    console.log('Shutting down temporary test server...');
+    await new Promise((resolve) => testServer.close(resolve));
   }
 
   // Test Runner Final Dashboard

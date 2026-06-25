@@ -627,7 +627,7 @@ const triggerWeatherUpdate = async () => {
   await updateServerWeather();
 };
 
-require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT);
+require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride);
 require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate);
 
 // Mutter DBus Idle polling every 2 seconds with audio/inhibition checks and a 6-second debounce buffer

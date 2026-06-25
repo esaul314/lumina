@@ -53,7 +53,7 @@ function getLocalIpAddresses() {
  * 🧭 configureRoutes
  * Sets up Express HTTP routes for the Lumina API.
  */
-module.exports = function(app, state, collections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT) {
+module.exports = function(app, state, collections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride) {
   
   // GET /api/weather
   app.get('/api/weather', async (req, res) => {
@@ -290,6 +290,482 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       port: PORT,
       state
     });
+  });
+
+  // GET /api/state
+  app.get('/api/state', (req, res) => {
+    res.json(state);
+  });
+
+  // PATCH /api/state
+  app.patch('/api/state', (req, res) => {
+    const { saveCuratedCollections } = require('./config/collections.js');
+    const writableFields = [
+      'theme', 'inactivityTimeout', 'slideshowInterval', 'scaleMode',
+      'splitPortrait', 'splitCropPercent', 'alignTimeOfDay', 'alignWeather',
+      'nightPercentage', 'allowOpenAiFallback', 'excludedKeywords', 'visionConfig'
+    ];
+    let updated = false;
+
+    // Handle top-level writable fields
+    for (const key of writableFields) {
+      if (req.body[key] !== undefined) {
+        if (key === 'excludedKeywords') {
+          if (Array.isArray(req.body.excludedKeywords)) {
+            state.excludedKeywords = req.body.excludedKeywords.map(kw => String(kw).trim()).filter(Boolean);
+            // Refresh photos list to apply new exclusions
+            state.photosList = combineFeedsBalanced(state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [], collections);
+            // If active photo matches exclusions, transition it
+            const matchesExclusionLocally = (photo) => {
+              if (!photo || !photo.title) return false;
+              const titleText = photo.title.toLowerCase();
+              return state.excludedKeywords.some(kw => titleText.includes(kw.toLowerCase()));
+            };
+            if (matchesExclusionLocally(state.activePhoto) && state.photosList.length > 0) {
+              state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
+            }
+            updated = true;
+          }
+        } else if (key === 'visionConfig') {
+          if (req.body.visionConfig && typeof req.body.visionConfig === 'object') {
+            state.visionConfig = {
+              apiUrl: String(req.body.visionConfig.apiUrl || '').trim(),
+              apiKey: String(req.body.visionConfig.apiKey || '').trim(),
+              model: String(req.body.visionConfig.model || '').trim(),
+              fallbackUrl: String(req.body.visionConfig.fallbackUrl || '').trim(),
+              fallbackApiKey: String(req.body.visionConfig.fallbackApiKey || '').trim(),
+              fallbackModel: String(req.body.visionConfig.fallbackModel || '').trim()
+            };
+            updated = true;
+          }
+        } else {
+          state[key] = req.body[key];
+          updated = true;
+        }
+      }
+    }
+
+    // Handle nested widgets updates
+    if (req.body.widgets && typeof req.body.widgets === 'object') {
+      for (const widgetName of Object.keys(req.body.widgets)) {
+        if (state.widgets[widgetName] !== undefined) {
+          state.widgets[widgetName] = !!req.body.widgets[widgetName];
+          updated = true;
+        }
+      }
+    }
+
+    if (updated) {
+      saveCuratedCollections(collections, state);
+      io.emit('state-sync', state);
+    }
+
+    res.json(state);
+  });
+
+  // POST /api/state/screensaver
+  app.post('/api/state/screensaver', (req, res) => {
+    const { active } = req.body;
+    if (active === undefined || typeof active !== 'boolean') {
+      return res.status(400).json({ error: 'Invalid parameter: "active" must be a boolean.' });
+    }
+
+    if (active) {
+      state.screensaverActive = true;
+      if (typeof setManualOverride === 'function') setManualOverride(true);
+      if (typeof launchKioskBrowser === 'function') launchKioskBrowser();
+    } else {
+      state.screensaverActive = false;
+      if (typeof setManualOverride === 'function') setManualOverride(false);
+      if (typeof killKioskBrowser === 'function') killKioskBrowser();
+    }
+
+    io.emit('state-sync', state);
+    res.json({ success: true, screensaverActive: state.screensaverActive });
+  });
+
+  // GET /api/pools
+  app.get('/api/pools', (req, res) => {
+    const pools = Object.keys(collections).map(name => {
+      const keywords = (state.searchKeywords && state.searchKeywords[name]) || [];
+      const feedConfigs = (state.feedConfigs && state.feedConfigs[name]) || {};
+      const photosCount = Array.isArray(collections[name]) ? collections[name].length : 0;
+      return {
+        name,
+        keywords,
+        feedConfigs,
+        photosCount
+      };
+    });
+    res.json(pools);
+  });
+
+  // POST /api/pools
+  app.post('/api/pools', async (req, res) => {
+    const { name, keywords } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Invalid parameter: "name" must be a non-empty string.' });
+    }
+
+    const cleanCategory = name.trim();
+    if (collections[cleanCategory] || (state.searchKeywords && state.searchKeywords[cleanCategory])) {
+      return res.status(409).json({ error: `Pool "${cleanCategory}" already exists.` });
+    }
+
+    let parsedKeywords = [];
+    if (Array.isArray(keywords)) {
+      parsedKeywords = keywords.map(kw => String(kw).trim()).filter(Boolean);
+    } else if (typeof keywords === 'string') {
+      parsedKeywords = keywords.split(/[;,]/).map(kw => kw.trim()).filter(Boolean);
+    }
+
+    if (parsedKeywords.length === 0) {
+      return res.status(400).json({ error: 'Invalid parameter: "keywords" must contain at least one non-empty string.' });
+    }
+
+    if (!state.searchKeywords) state.searchKeywords = {};
+    state.searchKeywords[cleanCategory] = parsedKeywords;
+
+    if (!state.feedConfigs) state.feedConfigs = {};
+    state.feedConfigs[cleanCategory] = {
+      unsplash: { enabled: true, keywords: [...parsedKeywords] },
+      wallhaven: { enabled: true, keywords: [...parsedKeywords] },
+      metmuseum: { enabled: true, keywords: [...parsedKeywords] },
+      artic: { enabled: true, keywords: [...parsedKeywords] }
+    };
+
+    collections[cleanCategory] = [];
+
+    const { saveCuratedCollections } = require('./config/collections.js');
+    saveCuratedCollections(collections, state);
+
+    io.emit('state-sync', state);
+
+    // Trigger crawl asynchronously in the background so the HTTP request returns quickly
+    // ponytail: run crawler asynchronously for fast response
+    (async () => {
+      try {
+        const { crawlAllCollections } = require('./services/crawler.js');
+        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
+        if (updatedAny) {
+          for (const key of Object.keys(updatedCollections)) {
+            collections[key] = updatedCollections[key];
+          }
+          saveCuratedCollections(collections, state);
+        }
+
+        const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+        if (currentCats.includes(cleanCategory)) {
+          state.photosList = combineFeedsBalanced(currentCats, collections);
+          if (state.photosList.length > 0) {
+            state.activePhoto = getSmartPhoto('next') || state.photosList[0];
+            io.emit('photo-update', state.activePhoto);
+          }
+        }
+        io.emit('state-sync', state);
+
+        const { triggerImageAnalysisBackground } = require('./app.js');
+        triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
+      } catch (err) {
+        console.error(`Error crawling new pool "${cleanCategory}":`, err.message);
+      }
+    })();
+
+    res.status(201).json({
+      success: true,
+      pool: {
+        name: cleanCategory,
+        keywords: parsedKeywords,
+        feedConfigs: state.feedConfigs[cleanCategory],
+        photosCount: 0
+      }
+    });
+  });
+
+  // DELETE /api/pools/:name
+  app.delete('/api/pools/:name', (req, res) => {
+    const { name } = req.params;
+    const cleanCategory = name.trim();
+
+    if (!collections[cleanCategory] && (!state.searchKeywords || !state.searchKeywords[cleanCategory])) {
+      return res.status(404).json({ error: `Pool "${cleanCategory}" not found.` });
+    }
+
+    if (state.searchKeywords) {
+      delete state.searchKeywords[cleanCategory];
+    }
+    if (state.feedConfigs) {
+      delete state.feedConfigs[cleanCategory];
+    }
+    delete collections[cleanCategory];
+
+    const { saveCuratedCollections } = require('./config/collections.js');
+    saveCuratedCollections(collections, state);
+
+    const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+    if (currentCats.includes(cleanCategory)) {
+      const remainingCats = currentCats.filter(c => c !== cleanCategory);
+      if (remainingCats.length > 0) {
+        state.currentCategory = remainingCats.join(',');
+      } else {
+        const remainingKeys = Object.keys(state.searchKeywords || {});
+        state.currentCategory = remainingKeys[0] || 'Scenic Nature';
+      }
+      
+      const updatedCats = state.currentCategory.split(',').map(c => c.trim());
+      state.photosList = combineFeedsBalanced(updatedCats, collections);
+      const smartPhoto = getSmartPhoto('next');
+      if (smartPhoto) {
+        state.activePhoto = smartPhoto;
+      } else if (state.photosList.length > 0) {
+        state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
+      } else {
+        state.activePhoto = null;
+      }
+    }
+
+    io.emit('state-sync', state);
+    res.json({ success: true, message: `Pool "${cleanCategory}" deleted successfully.` });
+  });
+
+  // PATCH /api/pools/:name
+  app.patch('/api/pools/:name', (req, res) => {
+    const { name } = req.params;
+    const cleanCategory = name.trim();
+
+    if (!collections[cleanCategory]) {
+      return res.status(404).json({ error: `Pool "${cleanCategory}" not found.` });
+    }
+
+    const { keywords, feedConfigs } = req.body;
+    let updated = false;
+
+    if (keywords !== undefined) {
+      if (!Array.isArray(keywords) || !keywords.every(kw => typeof kw === 'string' && kw.trim().length > 0)) {
+        return res.status(400).json({ error: 'Invalid parameter: "keywords" must be an array of non-empty strings.' });
+      }
+      if (!state.searchKeywords) state.searchKeywords = {};
+      state.searchKeywords[cleanCategory] = keywords.map(kw => kw.trim());
+      updated = true;
+    }
+
+    if (feedConfigs !== undefined) {
+      if (typeof feedConfigs !== 'object' || feedConfigs === null) {
+        return res.status(400).json({ error: 'Invalid parameter: "feedConfigs" must be an object.' });
+      }
+      if (!state.feedConfigs) state.feedConfigs = {};
+      state.feedConfigs[cleanCategory] = {
+        ...state.feedConfigs[cleanCategory],
+        ...feedConfigs
+      };
+      updated = true;
+    }
+
+    if (updated) {
+      const { saveCuratedCollections } = require('./config/collections.js');
+      saveCuratedCollections(collections, state);
+      io.emit('state-sync', state);
+    }
+
+    res.json({
+      success: true,
+      pool: {
+        name: cleanCategory,
+        keywords: (state.searchKeywords && state.searchKeywords[cleanCategory]) || [],
+        feedConfigs: (state.feedConfigs && state.feedConfigs[cleanCategory]) || {},
+        photosCount: Array.isArray(collections[cleanCategory]) ? collections[cleanCategory].length : 0
+      }
+    });
+  });
+
+  // POST /api/pools/:name/crawl
+  app.post('/api/pools/:name/crawl', async (req, res) => {
+    const { name } = req.params;
+    const cleanCategory = name.trim();
+
+    if (!collections[cleanCategory]) {
+      return res.status(404).json({ error: `Pool "${cleanCategory}" not found.` });
+    }
+
+    try {
+      const { crawlAllCollections } = require('./services/crawler.js');
+      const { saveCuratedCollections } = require('./config/collections.js');
+
+      const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
+      
+      if (updatedAny) {
+        for (const key of Object.keys(updatedCollections)) {
+          collections[key] = updatedCollections[key].map(p => ({ ...p, category: key }));
+        }
+        saveCuratedCollections(collections, state);
+      }
+
+      const activeCategory = state.currentCategory;
+      const currentCats = activeCategory ? activeCategory.split(',') : [];
+      state.photosList = combineFeedsBalanced(currentCats, collections);
+      
+      io.emit('state-sync', state);
+
+      const { triggerImageAnalysisBackground } = require('./app.js');
+      triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
+
+      res.json({ success: true, count: collections[cleanCategory].length });
+    } catch (err) {
+      console.error(`Manual REST recrawl failed for pool "${cleanCategory}":`, err.message);
+      res.status(500).json({ error: 'Recrawl failed', message: err.message });
+    }
+  });
+
+  // GET /api/pools/:name/photos
+  app.get('/api/pools/:name/photos', (req, res) => {
+    const { name } = req.params;
+    const cleanCategory = name.trim();
+
+    if (!collections[cleanCategory]) {
+      return res.status(404).json({ error: `Pool "${cleanCategory}" not found.` });
+    }
+
+    res.json(collections[cleanCategory]);
+  });
+
+  // PATCH /api/photos
+  app.patch('/api/photos', (req, res) => {
+    const { url, rating, cropPercent, cropPositionY, preventPairing, isBroken } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
+    }
+
+    let updated = false;
+    const responsePayload = { url };
+
+    // 1. Rating update
+    if (rating !== undefined) {
+      const numericRating = parseInt(rating, 10);
+      if (isNaN(numericRating) || numericRating < 1 || numericRating > 10) {
+        return res.status(400).json({ error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' });
+      }
+      const { updatePhotoRating } = require('./config/collections.js');
+      const ratingUpdated = updatePhotoRating(collections, state, url, numericRating);
+      if (ratingUpdated) {
+        updated = true;
+        responsePayload.rating = numericRating;
+        if (numericRating === 1 && state.activePhoto && state.activePhoto.url === url) {
+          const nextPhoto = getSmartPhoto('next');
+          if (nextPhoto) {
+            state.activePhoto = nextPhoto;
+            io.emit('photo-update', state.activePhoto);
+          }
+        }
+      }
+    }
+
+    // 2. Broken marker update
+    if (isBroken === true) {
+      const { markPhotoBroken } = require('./config/collections.js');
+      const brokenUpdated = markPhotoBroken(collections, state, url);
+      if (brokenUpdated) {
+        updated = true;
+        responsePayload.isBroken = true;
+        responsePayload.rating = 1;
+        if (state.activePhoto && state.activePhoto.url === url) {
+          const nextPhoto = getSmartPhoto('next');
+          if (nextPhoto) {
+            state.activePhoto = nextPhoto;
+            io.emit('photo-update', state.activePhoto);
+          }
+        }
+      }
+    }
+
+    // 3. Crop update
+    if (cropPercent !== undefined || cropPositionY !== undefined) {
+      const numericCrop = cropPercent !== undefined ? parseInt(cropPercent, 10) : undefined;
+      const numericCropY = cropPositionY !== undefined ? parseInt(cropPositionY, 10) : undefined;
+      if (numericCrop !== undefined && (isNaN(numericCrop) || numericCrop < 0 || numericCrop > 100)) {
+        return res.status(400).json({ error: 'Invalid parameter: "cropPercent" must be between 0 and 100.' });
+      }
+      if (numericCropY !== undefined && (isNaN(numericCropY) || numericCropY < 0 || numericCropY > 100)) {
+        return res.status(400).json({ error: 'Invalid parameter: "cropPositionY" must be between 0 and 100.' });
+      }
+      const { updatePhotoCrop } = require('./config/collections.js');
+      const cropUpdated = updatePhotoCrop(collections, state, url, numericCrop, numericCropY);
+      if (cropUpdated) {
+        updated = true;
+        if (numericCrop !== undefined) responsePayload.cropPercent = numericCrop;
+        if (numericCropY !== undefined) responsePayload.cropPositionY = numericCropY;
+      }
+    }
+
+    // 4. Prevent pairing update
+    if (preventPairing !== undefined) {
+      const { updatePhotoPreventPairing } = require('./config/collections.js');
+      const pairingUpdated = updatePhotoPreventPairing(collections, state, url, preventPairing);
+      if (pairingUpdated) {
+        updated = true;
+        responsePayload.preventPairing = !!preventPairing;
+      }
+    }
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
+    }
+
+    io.emit('state-sync', state);
+    res.json({ success: true, photo: responsePayload });
+  });
+
+  // POST /api/photos/preview
+  app.post('/api/photos/preview', (req, res) => {
+    const { url } = req.body;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
+    }
+
+    let foundPhoto = null;
+    for (const cat of Object.keys(collections)) {
+      const arr = collections[cat];
+      if (Array.isArray(arr)) {
+        const match = arr.find(p => p.url === url);
+        if (match) {
+          foundPhoto = match;
+          break;
+        }
+      }
+    }
+
+    if (!foundPhoto) {
+      return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
+    }
+
+    state.activePhoto = foundPhoto;
+    io.emit('photo-update', foundPhoto);
+    io.emit('state-sync', state);
+
+    res.json({ success: true, activePhoto: foundPhoto });
+  });
+
+  // POST /api/photos/next
+  app.post('/api/photos/next', (req, res) => {
+    const photo = getSmartPhoto('next');
+    if (photo) {
+      state.activePhoto = photo;
+      io.emit('photo-update', state.activePhoto);
+      io.emit('state-sync', state);
+      return res.json({ success: true, activePhoto: state.activePhoto });
+    }
+    res.status(500).json({ error: 'Could not transition to next photo.' });
+  });
+
+  // POST /api/photos/prev
+  app.post('/api/photos/prev', (req, res) => {
+    const photo = getSmartPhoto('prev');
+    if (photo) {
+      state.activePhoto = photo;
+      io.emit('photo-update', state.activePhoto);
+      io.emit('state-sync', state);
+      return res.json({ success: true, activePhoto: state.activePhoto });
+    }
+    res.status(500).json({ error: 'Could not transition to previous photo.' });
   });
 };
 
