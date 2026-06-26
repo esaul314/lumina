@@ -1130,3 +1130,9 @@ body.mode-remote {
 .split-crop-slider::-moz-range-thumb:hover {
   transform: scale(1.2);
 }
+
+/* --- CURSOR DISPLAY UTILITY --- */
+.hide-cursor,
+.hide-cursor * {
+  cursor: none !important;
+}

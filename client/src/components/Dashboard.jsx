@@ -7,6 +7,8 @@ function Dashboard({ state, socket, connectionInfo }) {
   const [isScreensaverActive, setIsScreensaverActive] = useState(true);
   const [activeSlides, setActiveSlides] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showCursor, setShowCursor] = useState(true);
+  const cursorTimeoutRef = useRef(null);
 
 
   const inactivityTimerRef = useRef(null);
@@ -352,6 +354,32 @@ function Dashboard({ state, socket, connectionInfo }) {
     };
   }, [isScreensaverActive, state.inactivityTimeout]);
 
+  // Hook to hide the cursor after a few seconds of mouse inactivity (except when settings are open)
+  useEffect(() => {
+    const handleMouseMove = () => {
+      setShowCursor(true);
+      if (cursorTimeoutRef.current) {
+        clearTimeout(cursorTimeoutRef.current);
+      }
+      if (isSettingsOpen) {
+        return;
+      }
+      cursorTimeoutRef.current = setTimeout(() => {
+        setShowCursor(false);
+      }, 3000);
+    };
+
+    handleMouseMove();
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (cursorTimeoutRef.current) {
+        clearTimeout(cursorTimeoutRef.current);
+      }
+    };
+  }, [isSettingsOpen]);
+
   // Receive sync events from socket for toggle widgets
   useEffect(() => {
     const handleSync = (syncedState) => {
@@ -548,7 +576,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   };
 
   return (
-    <div className={`lumina-tv-container ${currentThemeClass}`}>
+    <div className={`lumina-tv-container ${currentThemeClass} ${showCursor ? '' : 'hide-cursor'}`}>
       {/* 1. Ambient Wallpaper Slideshow */}
       <div className="slideshow-container">
         {activeSlides.map((slide) => {
