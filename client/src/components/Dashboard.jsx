@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
 
 function Dashboard({ state, socket, connectionInfo }) {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -724,6 +724,10 @@ function Dashboard({ state, socket, connectionInfo }) {
                 </div>
                 <div className="weather-condition">
                   {getWeatherInfo(weather.current.weather_code).text}
+                </div>
+                <div className="weather-humidity">
+                  <Droplets size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle', opacity: 0.8 }} />
+                  {weather.current.relative_humidity_2m}% Humidity
                 </div>
                 <div className="weather-city">
                   <MapPin size={10} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
