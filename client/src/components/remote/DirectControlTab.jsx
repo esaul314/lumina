@@ -178,8 +178,8 @@ function DirectControlTab({
               <span style={{ opacity: 0.6 }}>Image Display Weight (Rating)</span>
               <span style={{ color: 'var(--accent-color)' }}>
                 {state.activePhoto.rating === 1 ? '🛑 1 (Banned / Blocked)' :
-                 state.activePhoto.rating === 10 ? '🌟 10 (Default / Max)' :
-                 `📈 ${state.activePhoto.rating} (Weight: ${(state.activePhoto.rating || 10) / 10})`}
+                 (state.activePhoto.rating === 10 || state.activePhoto.rating === undefined) ? '🌟 10 (Default / Max)' :
+                 `📈 ${state.activePhoto.rating} (Weight: ${state.activePhoto.rating / 10})`}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
