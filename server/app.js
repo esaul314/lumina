@@ -210,23 +210,35 @@ const matchesExclusion = curry((excludedList, photo) => {
 });
 
 /**
- * 🏷️ tagPhotosWithKeywords
- * Standard auto-tagging classifier composed with our functional checkers.
+ * 🏷&zwj; classifyAtmosphere
+ * Curried classifier mapping title keywords to environmental attributes.
+ */
+const classifyAtmosphere = curry((defaultIsNight, photo) => ({
+  isNight: photo.isNight !== undefined ? photo.isNight : (defaultIsNight || isNightPhoto(photo)),
+  isRain: photo.isRain !== undefined ? photo.isRain : isRainPhoto(photo),
+  isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunnyPhoto(photo),
+  isCloudy: photo.isCloudy !== undefined ? photo.isCloudy : isCloudyPhoto(photo),
+  isSnowy: photo.isSnowy !== undefined ? photo.isSnowy : isSnowyPhoto(photo)
+}));
+
+/**
+ * 🏷&zwj; tagSinglePhoto
+ * Curried decorator that applies rating, isBroken, and classification to a photo.
+ */
+const tagSinglePhoto = curry((defaultIsNight, photo) => ({
+  ...photo,
+  source: photo.source || 'curated',
+  rating: photo.rating !== undefined ? photo.rating : 10,
+  isBroken: photo.isBroken || false,
+  ...classifyAtmosphere(defaultIsNight, photo)
+}));
+
+/**
+ * 🏷&zwj; tagPhotosWithKeywords
+ * Declarative mapper that applies tagSinglePhoto to a photo list.
  */
 function tagPhotosWithKeywords(photos, defaultIsNight = false) {
-  return map(photo => ({
-    url: photo.url,
-    title: photo.title,
-    author: photo.author,
-    source: photo.source || 'curated',
-    rating: photo.rating !== undefined ? photo.rating : 10,
-    isBroken: photo.isBroken || false,
-    isNight: photo.isNight !== undefined ? photo.isNight : (defaultIsNight || isNightPhoto(photo)),
-    isRain: photo.isRain !== undefined ? photo.isRain : isRainPhoto(photo),
-    isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunnyPhoto(photo),
-    isCloudy: photo.isCloudy !== undefined ? photo.isCloudy : isCloudyPhoto(photo),
-    isSnowy: photo.isSnowy !== undefined ? photo.isSnowy : isSnowyPhoto(photo)
-  }), photos);
+  return map(tagSinglePhoto(defaultIsNight), photos);
 }
 
 // Initial auto-tagging setup
@@ -242,35 +254,53 @@ screensaverState.hasUseApiToken = !!config.useapiToken;
 const uniqByUrl = uniqBy(prop('url'));
 
 /**
+ * 🔀 shuffle
+ * Pure functional wrapper for list shuffling using an immutable copy.
+ */
+const shuffle = (arr) => {
+  const newArr = [...arr];
+  for (let i = newArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+  }
+  return newArr;
+};
+
+/**
+ * 🔀 interleave
+ * Declarative interleaving of multiple lists (round-robin interleave layout).
+ */
+const interleave = (lists) => {
+  if (lists.length === 0) return [];
+  const maxLen = Math.max(...lists.map(l => l.length));
+  return Array.from({ length: maxLen }).reduce((acc, _, i) => {
+    lists.forEach(list => {
+      acc.push(list[i % list.length]);
+    });
+    return acc;
+  }, []);
+};
+
+/**
  * 🔄 combineFeedsBalanced
  * Combines active image feeds using a balanced round-robin interleave layout.
  */
 function combineFeedsBalanced(categories, collections) {
-  const lists = categories.map(cat => {
-    const list = [...(collections[cat] || [])]
+  const lists = categories
+    .map(cat => (collections[cat] || [])
       .filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(screensaverState.excludedKeywords, p))
-      .map(p => ({ ...p, category: cat }));
-    for (let i = list.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [list[i], list[j]] = [list[j], list[i]];
-    }
-    return list;
-  }).filter(list => list.length > 0);
+      .map(p => ({ ...p, category: cat }))
+    )
+    .filter(list => list.length > 0)
+    .map(shuffle);
 
   if (lists.length === 0) return [];
   if (lists.length === 1) return uniqByUrl(lists[0]);
 
-  const combined = [];
-  const maxLen = Math.max(...lists.map(l => l.length));
-  
-  for (let i = 0; i < maxLen; i++) {
-    for (let j = 0; j < lists.length; j++) {
-      const list = lists[j];
-      combined.push(list[i % list.length]);
-    }
-  }
-
-  return uniqByUrl(combined);
+  return pipe(
+    interleave,
+    uniqByUrl
+  )(lists);
 }
 
 /**
@@ -280,38 +310,36 @@ function combineFeedsBalanced(categories, collections) {
  */
 function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
   // 1. Filter out banned images (rating = 1) and excluded images
-  let activePhotos = photos.filter(p => p.rating !== 1 && !matchesExclusion(screensaverState.excludedKeywords, p));
+  const activePhotos = photos.filter(p => p.rating !== 1 && !matchesExclusion(screensaverState.excludedKeywords, p));
   if (activePhotos.length === 0) return null;
 
   // 2. Avoid consecutive repeat if possible
-  if (activePhotos.length > 1 && currentPhotoUrl) {
-    const withoutCurrent = activePhotos.filter(p => p.url !== currentPhotoUrl);
-    if (withoutCurrent.length > 0) {
-      activePhotos = withoutCurrent;
-    }
-  }
+  const candidatePhotos = (activePhotos.length > 1 && currentPhotoUrl)
+    ? (() => {
+        const withoutCurrent = activePhotos.filter(p => p.url !== currentPhotoUrl);
+        return withoutCurrent.length > 0 ? withoutCurrent : activePhotos;
+      })()
+    : activePhotos;
 
   // 3. Compute cumulative weight map
-  const totalWeight = activePhotos.reduce((sum, photo) => {
-    const r = photo.rating !== undefined ? photo.rating : 10;
-    return sum + (r / 10);
-  }, 0);
-
-  if (totalWeight === 0) return activePhotos[0];
-
-  // 4. Random float select point
-  let randomPoint = Math.random() * totalWeight;
-
-  // 5. Cumulative distribution selector
-  for (const photo of activePhotos) {
+  const { items: weightedItems, cumulative: totalWeight } = candidatePhotos.reduce((acc, photo) => {
     const r = photo.rating !== undefined ? photo.rating : 10;
     const w = r / 10;
-    if (randomPoint < w) {
-      return photo;
-    }
-    randomPoint -= w;
-  }
-  return activePhotos[activePhotos.length - 1]; // Fallback
+    const nextCumulative = acc.cumulative + w;
+    return {
+      cumulative: nextCumulative,
+      items: [...acc.items, { photo, threshold: nextCumulative }]
+    };
+  }, { cumulative: 0, items: [] });
+
+  if (totalWeight === 0) return candidatePhotos[0];
+
+  // 4. Random float select point
+  const randomPoint = Math.random() * totalWeight;
+
+  // 5. Cumulative distribution selector (using declarative find)
+  const selected = weightedItems.find(item => item.threshold >= randomPoint);
+  return selected ? selected.photo : candidatePhotos[candidatePhotos.length - 1];
 }
 
 function isTimeInSchedule(currentTimeStr, startStr, endStr) {
@@ -332,6 +360,49 @@ function isTimeInSchedule(currentTimeStr, startStr, endStr) {
 }
 
 /**
+ * 🕰️ filterByTime
+ * Curried filter that restricts candidates based on time range schedules.
+ */
+const filterByTime = curry((timeStr, list) =>
+  list.filter(p => !p.timeRanges || p.timeRanges.length === 0 ||
+    p.timeRanges.some(tr => isTimeInSchedule(timeStr, tr.start, tr.end)))
+);
+
+/**
+ * 🌦️ filterByWeather
+ * Curried filter that restricts candidates to map physical weather or news sentiment.
+ */
+const filterByWeather = curry((alignWeather, physicalMatch, newsMatch, list) => {
+  if (!alignWeather) return list;
+  let weatherCandidates = [];
+  if (physicalMatch === 'Snowy') {
+    weatherCandidates = list.filter(p => p.isSnowy);
+  } else if (physicalMatch === 'Rainy') {
+    weatherCandidates = list.filter(p => p.isRain);
+  } else {
+    if (newsMatch === 'Rainy') {
+      weatherCandidates = list.filter(p => p.isRain || p.isCloudy);
+    } else if (newsMatch === 'Sunny') {
+      weatherCandidates = list.filter(p => p.isSunny);
+    } else {
+      weatherCandidates = list.filter(p => p.isCloudy);
+    }
+  }
+  return weatherCandidates.length > 0 && Math.random() < 0.8 ? weatherCandidates : list;
+});
+
+/**
+ * 🌌 filterByNight
+ * Curried filter that restricts candidates based on evening/night photo ratio sliders.
+ */
+const filterByNight = curry((alignTimeOfDay, isNight, nightPercentage, list) => {
+  if (!alignTimeOfDay || !isNight) return list;
+  const nightPhotos = list.filter(p => p.isNight);
+  const nightThreshold = (nightPercentage || 50) / 100;
+  return nightPhotos.length > 0 && Math.random() < nightThreshold ? nightPhotos : list;
+});
+
+/**
  * 🎯 getSmartPhoto
  * Dynamic weighted select algorithm mapping physical weather & news sentiment to wallpaper lists,
  * resolved through a Cumulative Distribution Function (CDF) rating-weighted engine.
@@ -340,59 +411,27 @@ function getSmartPhoto(_direction = 'next') {
   const list = screensaverState.photosList;
   if (!list || list.length === 0) return null;
 
-  let isNight = false;
-  if (serverWeatherData && serverWeatherData.current) {
-    isNight = serverWeatherData.current.is_day === 0;
-  } else {
-    const hour = new Date().getHours();
-    isNight = hour >= 18 || hour < 6;
-  }
+  const isNight = serverWeatherData?.current
+    ? serverWeatherData.current.is_day === 0
+    : (() => {
+        const hour = new Date().getHours();
+        return hour >= 18 || hour < 6;
+      })();
 
   const physicalMatch = screensaverState.physicalWeather?.weatherMatch || 'Cloudy';
   const newsMatch = screensaverState.newsSentiment?.weatherMatch || 'Cloudy';
 
-  let candidates = [...list];
-
-  // Filter candidates by time ranges if they have timeRanges constraint
   const now = new Date();
   const hourStr = String(now.getHours()).padStart(2, '0');
   const minStr = String(now.getMinutes()).padStart(2, '0');
   const currentTimeStr = `${hourStr}:${minStr}`;
 
-  candidates = candidates.filter(p => {
-    if (p.timeRanges && p.timeRanges.length > 0) {
-      return p.timeRanges.some(tr => isTimeInSchedule(currentTimeStr, tr.start, tr.end));
-    }
-    return true;
-  });
-
-  if (screensaverState.alignWeather) {
-    let weatherCandidates = [];
-    if (physicalMatch === 'Snowy') {
-      weatherCandidates = list.filter(p => p.isSnowy);
-    } else if (physicalMatch === 'Rainy') {
-      weatherCandidates = list.filter(p => p.isRain);
-    } else {
-      if (newsMatch === 'Rainy') {
-        weatherCandidates = list.filter(p => p.isRain || p.isCloudy);
-      } else if (newsMatch === 'Sunny') {
-        weatherCandidates = list.filter(p => p.isSunny);
-      } else {
-        weatherCandidates = list.filter(p => p.isCloudy);
-      }
-    }
-    if (weatherCandidates.length > 0 && Math.random() < 0.8) {
-      candidates = weatherCandidates;
-    }
-  }
-
-  if (screensaverState.alignTimeOfDay && isNight) {
-    const nightPhotos = candidates.filter(p => p.isNight);
-    const nightThreshold = (screensaverState.nightPercentage || 50) / 100;
-    if (nightPhotos.length > 0 && Math.random() < nightThreshold) {
-      candidates = nightPhotos;
-    }
-  }
+  // Composed pipeline of pure functional filters
+  const candidates = pipe(
+    filterByTime(currentTimeStr),
+    filterByWeather(screensaverState.alignWeather, physicalMatch, newsMatch),
+    filterByNight(screensaverState.alignTimeOfDay, isNight, screensaverState.nightPercentage)
+  )(list);
 
   // Delegate selection to the weighted CDF probability engine
   const currentPhotoUrl = screensaverState.activePhoto?.url;

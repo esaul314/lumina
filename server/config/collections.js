@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { curry, reduce } = require('../utils/fn.js');
 
 /**
  * 🖼️ defaultCuratedCollections
@@ -130,51 +131,97 @@ function saveCuratedCollections(collections, state) {
 }
 
 /**
- * 💾 updatePhotoRating
- * Updates the rating of a photograph by its URL across all categories, state lists, and persists to disk.
+ * 🔍 updatePhotoByUrl
+ * Curried projection helper that applies an updater to a photo if the URL matches.
  */
-function updatePhotoRating(collections, state, url, rating) {
-  let found = false;
+const updatePhotoByUrl = curry((url, updater, photo) =>
+  photo && photo.url === url ? updater(photo) : photo
+);
 
-  // 1. Update in the collections database
+/**
+ * 🗺️ updatePhotosList
+ * Curried helper to map over a list of photos and apply an updater to the matching one.
+ */
+const updatePhotosList = curry((url, updater, list) =>
+  list ? list.map(updatePhotoByUrl(url, updater)) : []
+);
+
+/**
+ * 📂 updateCollections
+ * Curried helper that maps over a collections dictionary, updating category lists.
+ */
+const updateCollections = curry((url, updater, collections) =>
+  reduce((acc, cat) => {
+    acc[cat] = updatePhotosList(url, updater, collections[cat]);
+    return acc;
+  }, {}, Object.keys(collections))
+);
+
+/**
+ * 🔍 hasPhotoUrl
+ * Pure declarative checker to see if a photo URL exists in collections.
+ */
+const hasPhotoUrl = (collections, url) =>
+  Object.values(collections).some(arr => Array.isArray(arr) && arr.some(p => p.url === url));
+
+/**
+ * 🔄 updatePhotoField
+ * Unified orchestrator that safely projects changes across collections database,
+ * photosList, activePhoto, and activeSecondPhoto.
+ */
+function updatePhotoField(collections, state, url, updater, optionalRating) {
+  const found = hasPhotoUrl(collections, url);
+  if (!found) return false;
+
+  // 1. Update collections database in place
   for (const cat of Object.keys(collections)) {
     const arr = collections[cat];
     if (Array.isArray(arr)) {
-      for (const photo of arr) {
-        if (photo.url === url) {
-          photo.rating = rating;
-          found = true;
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i].url === url) {
+          arr[i] = updater(arr[i]);
         }
       }
     }
   }
 
-  // 2. Update in state.photosList
+  // 2. Update state photosList
   if (state && Array.isArray(state.photosList)) {
-    for (const photo of state.photosList) {
-      if (photo.url === url) {
-        photo.rating = rating;
-      }
-    }
-    if (rating === 1) {
+    state.photosList = updatePhotosList(url, updater, state.photosList);
+    if (optionalRating === 1) {
       state.photosList = state.photosList.filter(p => p.url !== url);
     }
   }
 
-  // 3. Update in state.activePhoto
+  // 3. Update activePhoto in state
   if (state && state.activePhoto && state.activePhoto.url === url) {
-    state.activePhoto.rating = rating;
+    state.activePhoto = updater(state.activePhoto);
   }
 
-  // 4. Save to curated_collections.json
-  if (found) {
-    saveCuratedCollections(collections, state);
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`[Collections Config] Saved photo rating ${rating} to curated_collections.json for URL: ${url}`);
-    }
+  // 4. Update activeSecondPhoto in state (fixes split pairing out-of-sync design bug)
+  if (state && state.activeSecondPhoto && state.activeSecondPhoto.url === url) {
+    state.activeSecondPhoto = updater(state.activeSecondPhoto);
   }
 
-  return found;
+  // 5. Save to disk
+  saveCuratedCollections(collections, state);
+
+  return true;
+}
+
+/**
+ * 💾 updatePhotoRating
+ * Updates the rating of a photograph by its URL across all categories, state lists, and persists to disk.
+ */
+function updatePhotoRating(collections, state, url, rating) {
+  const numericRating = parseInt(rating, 10);
+  const updater = (photo) => ({ ...photo, rating: numericRating });
+  const updated = updatePhotoField(collections, state, url, updater, numericRating);
+  
+  if (updated && process.env.NODE_ENV !== 'test') {
+    console.log(`[Collections Config] Saved photo rating ${numericRating} to curated_collections.json for URL: ${url}`);
+  }
+  return updated;
 }
 
 /**
@@ -182,49 +229,13 @@ function updatePhotoRating(collections, state, url, rating) {
  * Sets photo rating to 1 and isBroken to true. Persists changes.
  */
 function markPhotoBroken(collections, state, url) {
-  let found = false;
-
-  // 1. Update in the collections database
-  for (const cat of Object.keys(collections)) {
-    const arr = collections[cat];
-    if (Array.isArray(arr)) {
-      for (const photo of arr) {
-        if (photo.url === url) {
-          photo.rating = 1;
-          photo.isBroken = true;
-          found = true;
-        }
-      }
-    }
+  const updater = (photo) => ({ ...photo, rating: 1, isBroken: true });
+  const updated = updatePhotoField(collections, state, url, updater, 1);
+  
+  if (updated && process.env.NODE_ENV !== 'test') {
+    console.log(`[Collections Config] Marked photo as broken (rating=1, isBroken=true) for URL: ${url}`);
   }
-
-  // 2. Update in state.photosList
-  if (state && Array.isArray(state.photosList)) {
-    for (const photo of state.photosList) {
-      if (photo.url === url) {
-        photo.rating = 1;
-        photo.isBroken = true;
-      }
-    }
-    // Filter out of state.photosList
-    state.photosList = state.photosList.filter(p => p.url !== url);
-  }
-
-  // 3. Update in state.activePhoto
-  if (state && state.activePhoto && state.activePhoto.url === url) {
-    state.activePhoto.rating = 1;
-    state.activePhoto.isBroken = true;
-  }
-
-  // 4. Save to curated_collections.json
-  if (found) {
-    saveCuratedCollections(collections, state);
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`[Collections Config] Marked photo as broken (rating=1, isBroken=true) for URL: ${url}`);
-    }
-  }
-
-  return found;
+  return updated;
 }
 
 /**
@@ -232,93 +243,31 @@ function markPhotoBroken(collections, state, url) {
  * Updates the crop percentage of a photograph by its URL and persists to disk.
  */
 function updatePhotoCrop(collections, state, url, cropPercent, cropPositionY) {
-  let found = false;
-
-  // 1. Update in the collections database
-  for (const cat of Object.keys(collections)) {
-    const arr = collections[cat];
-    if (Array.isArray(arr)) {
-      for (const photo of arr) {
-        if (photo.url === url) {
-          if (cropPercent !== undefined) photo.cropPercent = cropPercent;
-          if (cropPositionY !== undefined) photo.cropPositionY = cropPositionY;
-          found = true;
-        }
-      }
-    }
+  const updater = (photo) => ({
+    ...photo,
+    ...(cropPercent !== undefined && { cropPercent }),
+    ...(cropPositionY !== undefined && { cropPositionY })
+  });
+  const updated = updatePhotoField(collections, state, url, updater);
+  
+  if (updated && process.env.NODE_ENV !== 'test') {
+    console.log(`[Collections Config] Saved photo crop details for URL: ${url} - cropPercent: ${cropPercent}%, cropPositionY: ${cropPositionY}%`);
   }
-
-  // 2. Update in state.photosList
-  if (state && Array.isArray(state.photosList)) {
-    for (const photo of state.photosList) {
-      if (photo.url === url) {
-        if (cropPercent !== undefined) photo.cropPercent = cropPercent;
-        if (cropPositionY !== undefined) photo.cropPositionY = cropPositionY;
-      }
-    }
-  }
-
-  // 3. Update in state.activePhoto
-  if (state && state.activePhoto && state.activePhoto.url === url) {
-    if (cropPercent !== undefined) state.activePhoto.cropPercent = cropPercent;
-    if (cropPositionY !== undefined) state.activePhoto.cropPositionY = cropPositionY;
-  }
-
-  // 4. Save to curated_collections.json
-  if (found) {
-    saveCuratedCollections(collections, state);
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`[Collections Config] Saved photo crop details for URL: ${url} - cropPercent: ${cropPercent}%, cropPositionY: ${cropPositionY}%`);
-    }
-  }
-
-  return found;
+  return updated;
 }
-
 
 /**
  * 💾 updatePhotoPreventPairing
  * Updates the preventPairing flag of a photograph by its URL and persists to disk.
  */
 function updatePhotoPreventPairing(collections, state, url, preventPairing) {
-  let found = false;
-
-  // 1. Update in the collections database
-  for (const cat of Object.keys(collections)) {
-    const arr = collections[cat];
-    if (Array.isArray(arr)) {
-      for (const photo of arr) {
-        if (photo.url === url) {
-          photo.preventPairing = !!preventPairing;
-          found = true;
-        }
-      }
-    }
+  const updater = (photo) => ({ ...photo, preventPairing: !!preventPairing });
+  const updated = updatePhotoField(collections, state, url, updater);
+  
+  if (updated && process.env.NODE_ENV !== 'test') {
+    console.log(`[Collections Config] Saved photo preventPairing ${preventPairing} for URL: ${url}`);
   }
-
-  // 2. Update in state.photosList
-  if (state && Array.isArray(state.photosList)) {
-    for (const photo of state.photosList) {
-      if (photo.url === url) {
-        photo.preventPairing = !!preventPairing;
-      }
-    }
-  }
-
-  // 3. Update in state.activePhoto
-  if (state && state.activePhoto && state.activePhoto.url === url) {
-    state.activePhoto.preventPairing = !!preventPairing;
-  }
-
-  // 4. Save to curated_collections.json
-  if (found) {
-    saveCuratedCollections(collections, state);
-    if (process.env.NODE_ENV !== 'test') {
-      console.log(`[Collections Config] Saved photo preventPairing ${preventPairing} for URL: ${url}`);
-    }
-  }
-
-  return found;
+  return updated;
 }
 
 module.exports = { defaultCuratedCollections, updatePhotoRating, markPhotoBroken, saveCuratedCollections, updatePhotoCrop, updatePhotoPreventPairing };
