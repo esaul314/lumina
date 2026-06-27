@@ -15,74 +15,20 @@ export function useActivePhotoSync(state, remoteDimensionsCache, remoteOrientati
     const checkActivePhoto = () => {
       const activeUrl = state.activePhoto.url;
       const cached = remoteOrientationCache.current[activeUrl];
-      
-      const processActiveOrientation = (isPortrait) => {
+
+      const processActiveOrientation = (isPortrait, dimensions = remoteDimensionsCache.current[activeUrl]) => {
         if (!active) return;
         setActivePhotoOrientation(isPortrait ? 'portrait' : 'landscape');
-        
-        const activePreventPairing = state.activePhoto.preventPairing === true;
-        if (isPortrait && state.splitPortrait && !activePreventPairing && state.photosList && state.photosList.length > 1) {
-          // Look for another photo that is cached as portrait and has dimensions cached and belongs to the same category
-          const cachedPortraits = state.photosList.filter(p => 
-            p.url !== activeUrl && 
-            remoteOrientationCache.current[p.url] === 'portrait' &&
-            p.preventPairing !== true &&
-            remoteDimensionsCache.current[p.url] &&
-            (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
-          );
-          
-          if (cachedPortraits.length > 0) {
-            if (active) {
-              setLocalSecondPhoto(cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)]);
-            }
-          } else {
-            // Find candidates in the same category
-            const candidates = state.photosList.filter(p => 
-              p.url !== activeUrl && 
-              remoteOrientationCache.current[p.url] !== 'landscape' &&
-              p.preventPairing !== true &&
-              (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
-            ).slice(0, 8);
-            
-            const findSecondSequentially = (index) => {
-              if (!active) return;
-              if (index >= candidates.length) {
-                setLocalSecondPhoto(null);
-                return;
-              }
-              const cand = candidates[index];
-              const cImg = new window.Image();
-              cImg.onload = () => {
-                if (!active) return;
-                const isCandPortrait = cImg.naturalHeight > cImg.naturalWidth;
-                remoteOrientationCache.current[cand.url] = isCandPortrait ? 'portrait' : 'landscape';
-                remoteDimensionsCache.current[cand.url] = {
-                  w: cImg.naturalWidth,
-                  h: cImg.naturalHeight
-                };
-                if (isCandPortrait) {
-                  setLocalSecondPhoto(cand);
-                } else {
-                  findSecondSequentially(index + 1);
-                }
-              };
-              cImg.onerror = () => {
-                if (!active) return;
-                remoteOrientationCache.current[cand.url] = 'landscape';
-                findSecondSequentially(index + 1);
-              };
-              cImg.src = cand.url;
-            };
-            findSecondSequentially(0);
-          }
-        } else {
-          setLocalSecondPhoto(null);
+        setLocalSecondPhoto(state.currentFrame?.secondary || state.activeSecondPhoto || null);
+
+        if (dimensions) {
+          remoteDimensionsCache.current[activeUrl] = dimensions;
         }
       };
 
       const cachedDims = remoteDimensionsCache.current[activeUrl];
       if (cached && cachedDims) {
-        processActiveOrientation(cached === 'portrait');
+        processActiveOrientation(cached === 'portrait', cachedDims);
       } else {
         const img = new window.Image();
         img.onload = () => {
@@ -93,7 +39,7 @@ export function useActivePhotoSync(state, remoteDimensionsCache, remoteOrientati
             w: img.naturalWidth,
             h: img.naturalHeight
           };
-          processActiveOrientation(isPortrait);
+          processActiveOrientation(isPortrait, remoteDimensionsCache.current[activeUrl]);
         };
         img.onerror = () => {
           if (!active) return;
@@ -108,7 +54,7 @@ export function useActivePhotoSync(state, remoteDimensionsCache, remoteOrientati
     return () => {
       active = false;
     };
-  }, [state.activePhoto?.url, state.activePhoto?.preventPairing, state.splitPortrait, state.photosList, remoteDimensionsCache, remoteOrientationCache]);
+  }, [state.activePhoto?.url, state.currentFrame?.secondary?.url, state.activeSecondPhoto?.url, remoteDimensionsCache, remoteOrientationCache]);
 
   return {
     activePhotoOrientation,

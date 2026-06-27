@@ -1,7 +1,21 @@
+process.env.NODE_ENV = 'test';
+const { server } = require('./server/app.js');
 const { chromium } = require('@playwright/test');
 
 (async () => {
   console.log('Starting Playwright split-portrait sync test on playwright host...');
+  
+  console.log('Starting temporary test server on an ephemeral localhost port...');
+  const testServer = await new Promise((resolve, reject) => {
+    server.listen(0, '127.0.0.1', (err) => {
+      if (err) return reject(err);
+      resolve(server);
+    });
+  });
+  const actualPort = testServer.address().port;
+  const baseUrl = `http://localhost:${actualPort}`;
+  console.log(`Temporary test server bound to ${baseUrl}`);
+
   let browser;
   try {
     browser = await chromium.launch({
@@ -20,10 +34,10 @@ const { chromium } = require('@playwright/test');
     remotePage.on('pageerror', err => console.error(`[REMOTE ERROR] ${err.message}`));
 
     console.log('Navigating TV view...');
-    await tvPage.goto('http://localhost:5000/?mode=tv', { waitUntil: 'networkidle' });
+    await tvPage.goto(`${baseUrl}/?mode=tv`, { waitUntil: 'networkidle' });
 
     console.log('Navigating Remote view...');
-    await remotePage.goto('http://localhost:5000/?mode=remote', { waitUntil: 'networkidle' });
+    await remotePage.goto(`${baseUrl}/?mode=remote`, { waitUntil: 'networkidle' });
 
     console.log('Pages loaded. Waiting 2 seconds for connection...');
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -114,11 +128,17 @@ const { chromium } = require('@playwright/test');
     console.log('✅ TEST PASSED: Second photo and zoom successfully synchronized between TV and Remote!');
 
     await browser.close();
+    await new Promise(resolve => testServer.close(resolve));
+    console.log('Test server closed.');
     process.exit(0);
   } catch (err) {
     console.error('❌ TEST FAILED:', err.message);
     if (browser) {
       await browser.close();
+    }
+    if (typeof testServer !== 'undefined' && testServer.close) {
+      await new Promise(resolve => testServer.close(resolve));
+      console.log('Test server closed on error.');
     }
     process.exit(1);
   }

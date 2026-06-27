@@ -1,6 +1,6 @@
-const fs = require('fs');
 const path = require('path');
 const { curry, reduce } = require('../utils/fn.js');
+const { saveCollectionsSnapshot } = require('./collectionsCodec.js');
 
 /**
  * 🖼️ defaultCuratedCollections
@@ -77,53 +77,7 @@ function saveCuratedCollections(collections, state) {
   try {
     const rootDir = path.join(__dirname, '..', '..');
     const jsonPath = path.join(rootDir, 'curated_collections.json');
-    
-    let fileData = {};
-    if (fs.existsSync(jsonPath)) {
-      try {
-        fileData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-      } catch (e) {
-        // ignore
-      }
-    }
-    
-    fileData.lastUpdated = Date.now();
-    if (collections) {
-      fileData.feeds = collections;
-    }
-    if (state) {
-      if (state.searchKeywords) {
-        fileData.searchKeywords = state.searchKeywords;
-      }
-      if (state.autoLocation !== undefined) {
-        if (!fileData.locationSettings) fileData.locationSettings = {};
-        fileData.locationSettings.autoLocation = state.autoLocation;
-      }
-      if (state.manualLocation) {
-        if (!fileData.locationSettings) fileData.locationSettings = {};
-        fileData.locationSettings.manualLocation = state.manualLocation;
-      }
-      if (state.feedConfigs) {
-        fileData.feedConfigs = state.feedConfigs;
-      }
-      if (state.visionConfig) {
-        fileData.visionConfig = state.visionConfig;
-      }
-      if (state.scaleMode) {
-        fileData.scaleMode = state.scaleMode;
-      }
-      if (state.splitPortrait !== undefined) {
-        fileData.splitPortrait = state.splitPortrait;
-      }
-      if (state.splitCropPercent !== undefined) {
-        fileData.splitCropPercent = state.splitCropPercent;
-      }
-      if (state.excludedKeywords) {
-        fileData.excludedKeywords = state.excludedKeywords;
-      }
-    }
-    
-    fs.writeFileSync(jsonPath, JSON.stringify(fileData, null, 2), 'utf8');
+    saveCollectionsSnapshot({ jsonPath, collections, state });
     console.log('[Collections Config] Safely persisted curated_collections.json to disk.');
   } catch (err) {
     console.error('[Collections Config] Failed to write curated_collections.json:', err.message);
@@ -271,4 +225,3 @@ function updatePhotoPreventPairing(collections, state, url, preventPairing) {
 }
 
 module.exports = { defaultCuratedCollections, updatePhotoRating, markPhotoBroken, saveCuratedCollections, updatePhotoCrop, updatePhotoPreventPairing };
-

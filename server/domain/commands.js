@@ -101,7 +101,10 @@ function decodeActivePhotoCommand(payload) {
 
   return {
     type: 'set-active-photo',
-    payload: { url }
+    payload: {
+      url,
+      ...(payload && typeof payload === 'object' ? { photo: payload } : {})
+    }
   };
 }
 

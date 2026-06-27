@@ -4,12 +4,24 @@ import Dashboard from './components/Dashboard';
 import RemoteControl from './components/RemoteControl';
 
 // Create a single socket connection to the server
-const socketUrl = window.location.hostname === 'localhost' 
-  ? 'http://localhost:5000' 
-  : `http://${window.location.hostname}:5000`;
+const socketUrl = window.location.port === '5173'
+  ? `${window.location.protocol}//${window.location.hostname}:5000`
+  : window.location.origin;
 
 const socket = io(socketUrl, { autoConnect: false });
 window.__socket = socket;
+
+function normalizeSnapshot(snapshot) {
+  if (!snapshot || !snapshot.currentFrame) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    activePhoto: snapshot.currentFrame.primary || snapshot.activePhoto || null,
+    activeSecondPhoto: snapshot.currentFrame.secondary || snapshot.activeSecondPhoto || null
+  };
+}
 
 function App() {
   const [deviceMode, setDeviceMode] = useState(null); // 'tv' or 'remote'
@@ -48,15 +60,23 @@ function App() {
     });
 
     socket.on('state-sync', (syncedState) => {
-      setState(syncedState);
+      setState(normalizeSnapshot(syncedState));
     });
 
     socket.on('photo-update', (photo) => {
-      setState(prev => prev ? { ...prev, activePhoto: photo } : prev);
+      setState(prev => prev ? normalizeSnapshot({
+        ...prev,
+        activePhoto: photo,
+        currentFrame: prev.currentFrame ? { ...prev.currentFrame, primary: photo } : prev.currentFrame
+      }) : prev);
     });
 
     socket.on('second-photo-update', (photo) => {
-      setState(prev => prev ? { ...prev, activeSecondPhoto: photo } : prev);
+      setState(prev => prev ? normalizeSnapshot({
+        ...prev,
+        activeSecondPhoto: photo,
+        currentFrame: prev.currentFrame ? { ...prev.currentFrame, secondary: photo } : prev.currentFrame
+      }) : prev);
     });
 
     socket.on('ip-info', (info) => {

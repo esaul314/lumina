@@ -11,6 +11,9 @@ const config = require('./config/configLoader.js');
 const { sendEmailAlert } = require('./services/notifier.js');
 const { screensaverState, buildFeedConfigsFromKeywords } = require('./config/state.js');
 const { defaultCuratedCollections, saveCuratedCollections } = require('./config/collections.js');
+const { loadCollectionsSnapshot } = require('./config/collectionsCodec.js');
+const { createDomainDispatcher } = require('./domain/dispatch.js');
+const { syncLegacySnapshot } = require('./domain/snapshot.js');
 const {
   setCpuGovernor,
   getGnomeIdleTime,
@@ -61,131 +64,37 @@ app.use(express.static(path.join(rootDir, 'client/dist')));
 
 // Curated collections persistence loader
 const jsonPath = path.join(rootDir, 'curated_collections.json');
-let curatedCollections;
+const loadedCollectionsSnapshot = loadCollectionsSnapshot({
+  jsonPath,
+  defaultCollections: defaultCuratedCollections,
+  defaultState: screensaverState,
+  buildFeedConfigsFromKeywords
+});
+let curatedCollections = loadedCollectionsSnapshot.collections;
 
-if (fs.existsSync(jsonPath)) {
-  try {
-    const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-    curatedCollections = data.feeds || defaultCuratedCollections;
-    
-    // Safety check: ensure every standard category is populated
-    for (const key of Object.keys(defaultCuratedCollections)) {
-      if (!curatedCollections[key] || !Array.isArray(curatedCollections[key]) || curatedCollections[key].length === 0) {
-        curatedCollections[key] = [...defaultCuratedCollections[key]];
-      } else {
-        const usablePhotos = curatedCollections[key].filter(p => p.rating !== 1 && !p.isBroken);
-        if (usablePhotos.length === 0) {
-          console.warn(`Self-Healing: All photos in "${key}" are broken or banned. Re-seeding from defaults.`);
-          curatedCollections[key] = [...defaultCuratedCollections[key]];
-        }
-      }
-    }
-
-    // Global Deduplication: Ensure each image URL is unique across all categories using functional reduce
-    const seenUrls = new Set();
-    let duplicatesRemoved = false;
-
-    curatedCollections = reduce((acc, key) => {
-      const list = curatedCollections[key];
-      if (!Array.isArray(list)) {
-        acc[key] = list;
-        return acc;
-      }
-      const originalCount = list.length;
-      const uniqueList = filter(photo => {
-        if (!photo || !photo.url) return false;
-        if (seenUrls.has(photo.url)) {
-          duplicatesRemoved = true;
-          return false;
-        }
-        seenUrls.add(photo.url);
-        return true;
-      }, list);
-
-      if (uniqueList.length < originalCount) {
-        console.log(`Global Deduplication: Cleaned ${originalCount - uniqueList.length} duplicate photos from category "${key}".`);
-      }
-      acc[key] = uniqueList;
-      return acc;
-    }, {}, Object.keys(curatedCollections));
-
-    if (duplicatesRemoved) {
-      saveCuratedCollections(curatedCollections, screensaverState);
-    }
-
-    // Make sure every photo in curatedCollections has its category attached
-    for (const key of Object.keys(curatedCollections)) {
-      if (Array.isArray(curatedCollections[key])) {
-        curatedCollections[key] = curatedCollections[key].map(p => ({ ...p, category: key }));
-      }
-    }
-
-    if (data.searchKeywords) {
-      screensaverState.searchKeywords = data.searchKeywords;
-    }
-
-    if (data.feedConfigs) {
-      screensaverState.feedConfigs = data.feedConfigs;
-    } else if (screensaverState.searchKeywords) {
-      screensaverState.feedConfigs = buildFeedConfigsFromKeywords(screensaverState.searchKeywords);
-      saveCuratedCollections(curatedCollections, screensaverState);
-    }
-
-    // Restore persisted location settings so they survive server restarts
-    if (data.locationSettings) {
-      if (data.locationSettings.autoLocation !== undefined) {
-        screensaverState.autoLocation = data.locationSettings.autoLocation;
-      }
-      if (data.locationSettings.manualLocation) {
-        screensaverState.manualLocation = data.locationSettings.manualLocation;
-      }
-    }
-
-    if (data.visionConfig) {
-      screensaverState.visionConfig = data.visionConfig;
-    }
-    if (data.scaleMode) {
-      screensaverState.scaleMode = data.scaleMode;
-    }
-    if (data.splitPortrait !== undefined) {
-      screensaverState.splitPortrait = data.splitPortrait;
-    }
-    if (data.splitCropPercent !== undefined) {
-      screensaverState.splitCropPercent = data.splitCropPercent;
-    }
-    if (data.excludedKeywords) {
-      screensaverState.excludedKeywords = data.excludedKeywords;
-    } else {
-      screensaverState.excludedKeywords = [];
-    }
-    console.log('Successfully loaded persisted curated collections from file!');
-  } catch (err) {
-    console.error('Failed to parse curated_collections.json, falling back to defaults:', err.message);
-    curatedCollections = defaultCuratedCollections;
-    for (const key of Object.keys(curatedCollections)) {
-      if (Array.isArray(curatedCollections[key])) {
-        curatedCollections[key] = curatedCollections[key].map(p => ({ ...p, category: key }));
-      }
-    }
-  }
+if (loadedCollectionsSnapshot.parseError) {
+  console.error('Failed to parse curated_collections.json, falling back to normalized defaults:', loadedCollectionsSnapshot.parseError.message);
 } else {
-  curatedCollections = defaultCuratedCollections;
-  for (const key of Object.keys(curatedCollections)) {
-    if (Array.isArray(curatedCollections[key])) {
-      curatedCollections[key] = curatedCollections[key].map(p => ({ ...p, category: key }));
-    }
-  }
-  try {
-    fs.writeFileSync(jsonPath, JSON.stringify({ 
-      lastUpdated: 0, 
-      feeds: curatedCollections, 
-      searchKeywords: screensaverState.searchKeywords 
-    }, null, 2), 'utf8');
-    console.log('Created new curated_collections.json file from seed data.');
-  } catch (err) {
-    console.error('Failed to create curated_collections.json:', err.message);
-  }
+  console.log('Successfully loaded persisted curated collections from file!');
 }
+
+if (loadedCollectionsSnapshot.createdFile) {
+  console.log('Created new curated_collections.json file from seed data.');
+}
+
+if (loadedCollectionsSnapshot.duplicatesRemoved) {
+  console.log('Global Deduplication: Removed duplicate photo URLs during snapshot normalization.');
+}
+
+screensaverState.searchKeywords = loadedCollectionsSnapshot.persistedState.searchKeywords;
+screensaverState.feedConfigs = loadedCollectionsSnapshot.persistedState.feedConfigs;
+screensaverState.autoLocation = loadedCollectionsSnapshot.persistedState.autoLocation;
+screensaverState.manualLocation = loadedCollectionsSnapshot.persistedState.manualLocation;
+screensaverState.visionConfig = loadedCollectionsSnapshot.persistedState.visionConfig;
+screensaverState.scaleMode = loadedCollectionsSnapshot.persistedState.scaleMode;
+screensaverState.splitPortrait = loadedCollectionsSnapshot.persistedState.splitPortrait;
+screensaverState.splitCropPercent = loadedCollectionsSnapshot.persistedState.splitCropPercent;
+screensaverState.excludedKeywords = loadedCollectionsSnapshot.persistedState.excludedKeywords;
 
 const hasWord = includes;
 
@@ -453,7 +362,7 @@ async function updateNewsSentiment() {
     const text = await res.text();
     screensaverState.newsSentiment = analyzeSentiment(text);
     console.log(`News Sentiment: Success! Score=${screensaverState.newsSentiment.score.toFixed(3)} (${screensaverState.newsSentiment.label}) -> Correlated weather mood: ${screensaverState.newsSentiment.weatherMatch}`);
-    io.emit('state-sync', screensaverState);
+    emitStateSync();
   } catch (err) {
     console.error('Failed to update news sentiment:', err.message);
   }
@@ -483,7 +392,7 @@ async function updateServerWeather() {
         };
       }
       console.log('Server weather cache updated successfully.');
-      io.emit('state-sync', screensaverState);
+      emitStateSync();
     }
   } catch (err) {
     console.error('Failed to update server weather cache:', err.message);
@@ -530,7 +439,7 @@ async function triggerImageAnalysisBackground() {
     const currentCats = activeCategory ? activeCategory.split(',') : [];
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
     screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken);
-    io.emit('state-sync', screensaverState);
+    emitStateSync();
   } else {
     console.log('[Vision Service] All active images are already precisely analyzed.');
   }
@@ -579,7 +488,7 @@ async function updateFeedsDaily() {
     const currentCats = activeCategory ? activeCategory.split(',') : [];
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
     screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: 'Scenic Nature' }));
-    io.emit('state-sync', screensaverState);
+    emitStateSync();
     
     // Trigger vision analysis for any new crawl results
     triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
@@ -611,6 +520,19 @@ let isBrowserRunning = false;
 let manualOverride = false;
 let PORT = config.port || 5000;
 
+function getRuntimeContext() {
+  return {
+    weather: serverWeatherData,
+    browserRunning: isBrowserRunning,
+    manualOverride
+  };
+}
+
+function emitStateSync() {
+  syncLegacySnapshot(screensaverState, curatedCollections, getRuntimeContext());
+  io.emit('state-sync', screensaverState);
+}
+
 function launchKioskBrowser(forceManual = false) {
   if (forceManual) manualOverride = true;
   if (isBrowserRunning) return;
@@ -626,7 +548,7 @@ function launchKioskBrowser(forceManual = false) {
       if (manualOverride) {
         manualOverride = false;
         screensaverState.screensaverActive = false;
-        io.emit('state-sync', screensaverState);
+        emitStateSync();
       }
     });
   });
@@ -660,8 +582,20 @@ const triggerWeatherUpdate = async () => {
   await updateServerWeather();
 };
 
-require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride);
-require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate);
+const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
+  state: screensaverState,
+  collections: curatedCollections,
+  io,
+  getRuntimeContext,
+  launchKioskBrowser,
+  killKioskBrowser,
+  setManualOverride
+});
+
+refreshSnapshot();
+
+require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride, dispatchCommand, broadcastStateSync);
+require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync);
 
 /**
  * 🧠 getNextScreensaverState
@@ -724,7 +658,7 @@ if (process.env.NODE_ENV !== 'test') {
 
       if (screensaverState.screensaverActive !== nextState.screensaverActive) {
         screensaverState.screensaverActive = nextState.screensaverActive;
-        io.emit('state-sync', screensaverState);
+        emitStateSync();
       }
     } catch (err) {
       // Fallback

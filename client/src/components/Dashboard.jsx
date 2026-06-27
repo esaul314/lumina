@@ -232,72 +232,44 @@ function Dashboard({ state, socket, connectionInfo }) {
       return meta;
     };
 
-    const findSecondPortrait = async (candidates) => {
-      // Limit search to the first 8 candidate photos to prevent excessive network overhead
-      for (const candidate of candidates.slice(0, 8)) {
-        if (!active) return null;
-        try {
-          const meta = await getImageMeta(candidate.url);
-          if (meta.orientation === 'portrait') {
-            return candidate;
-          }
-        } catch (e) {
-          // If a candidate image fails to load, classify as landscape to skip it
-          imageOrientationCache.current[candidate.url] = 'landscape';
-        }
-      }
-      return null;
-    };
-
     const preloadAndMount = async () => {
       try {
-        const meta = await getImageMeta(state.activePhoto.url);
+        const primaryPhoto = state.currentFrame?.primary || state.activePhoto;
+        const secondaryPhoto = state.currentFrame?.secondary || state.activeSecondPhoto;
+        if (!primaryPhoto) return;
+
+        const meta = await getImageMeta(primaryPhoto.url);
         if (!active) return;
 
         consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
 
-        const isPortrait = meta.orientation === 'portrait';
-        const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
+        socket.emit('report-photo-metadata', {
+          url: primaryPhoto.url,
+          orientation: meta.orientation,
+          width: meta.w,
+          height: meta.h
+        });
 
-        if (isPortrait && state.splitPortrait && !isPhotoPreventPairing) {
-          // Find if we have another cached portrait image in photosList from the same category
-          const cachedPortraits = (state.photosList || []).filter(p => 
-            p.url !== state.activePhoto.url && 
-            imageOrientationCache.current[p.url] === 'portrait' &&
-            p.preventPairing !== true &&
-            (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
-          );
-
-          if (cachedPortraits.length > 0) {
-            const secondPhoto = cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)];
+        if (state.currentFrame?.layout === 'split' && secondaryPhoto) {
+          try {
+            const secondaryMeta = await getImageMeta(secondaryPhoto.url);
             if (active) {
-              addSplitSlide(state.activePhoto, secondPhoto);
-              socket.emit('set-active-second-photo', secondPhoto);
+              socket.emit('report-photo-metadata', {
+                url: secondaryPhoto.url,
+                orientation: secondaryMeta.orientation,
+                width: secondaryMeta.w,
+                height: secondaryMeta.h
+              });
             }
-          } else {
-            // Find candidates that are not landscape and are from the same category
-            const candidates = (state.photosList || []).filter(p => 
-              p.url !== state.activePhoto.url && 
-              imageOrientationCache.current[p.url] !== 'landscape' &&
-              p.preventPairing !== true &&
-              (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
-            );
-
-            const secondPhoto = await findSecondPortrait(candidates);
-            if (!active) return;
-
-            if (secondPhoto) {
-              addSplitSlide(state.activePhoto, secondPhoto);
-              socket.emit('set-active-second-photo', secondPhoto);
-            } else {
-              addSingleSlide(state.activePhoto);
-              socket.emit('set-active-second-photo', null);
-            }
+          } catch (error) {
+            console.warn('Failed to load secondary wallpaper image:', secondaryPhoto.url);
+          }
+          if (active) {
+            addSplitSlide(primaryPhoto, secondaryPhoto);
           }
         } else {
           if (active) {
-            addSingleSlide(state.activePhoto);
-            socket.emit('set-active-second-photo', null);
+            addSingleSlide(primaryPhoto);
           }
         }
       } catch (err) {
@@ -335,7 +307,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     return () => {
       active = false;
     };
-  }, [state.activePhoto, state.splitPortrait, state.photosList]);
+  }, [state.activePhoto, state.currentFrame?.layout, state.currentFrame?.secondary?.url, state.photosList]);
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic
   const resetInactivityTimer = () => {

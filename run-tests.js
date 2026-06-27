@@ -684,16 +684,17 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 logSuite('Live Server Endpoint Smoke Tests');
 
 async function runIntegrationTests() {
-  const port = 5001;
-  const baseUrl = `http://localhost:${port}`;
-  
-  console.log(`Starting temporary test server on ${baseUrl}...`);
+  const port = 0;
+  console.log('Starting temporary test server on an ephemeral localhost port...');
   const testServer = await new Promise((resolve, reject) => {
     server.listen(port, '127.0.0.1', (err) => {
       if (err) return reject(err);
       resolve(server);
     });
   });
+  const actualPort = testServer.address().port;
+  const baseUrl = `http://localhost:${actualPort}`;
+  console.log(`Temporary test server bound to ${baseUrl}`);
 
   try {
     const serverConfig = await fetchJson(`${baseUrl}/api/config`);
@@ -786,6 +787,12 @@ async function runIntegrationTests() {
       assert.strictEqual(stateGet.status, 200);
       assert.ok(stateGet.body.widgets, 'State must contain widgets object');
       assert.ok(stateGet.body.theme, 'State must contain theme');
+      assert.ok(stateGet.body.currentFrame, 'State must expose derived currentFrame');
+      assert.strictEqual(
+        stateGet.body.currentFrame.primary?.url || null,
+        stateGet.body.activePhoto?.url || null,
+        'currentFrame.primary should mirror activePhoto in the snapshot'
+      );
     });
 
     // 2. PATCH /api/state
@@ -826,27 +833,28 @@ async function runIntegrationTests() {
     });
 
     // 5. POST /api/pools (create)
+    const poolName = `REST Pool Test ${Date.now()}`;
     const newPoolRes = await requestJson(`${baseUrl}/api/pools`, 'POST', {
-      name: 'REST Pool Test',
+      name: poolName,
       keywords: ['test-rest-keyword-1', 'test-rest-keyword-2']
     });
     assertTest('POST /api/pools creates a new pool with custom keywords', () => {
       assert.strictEqual(newPoolRes.status, 201);
       assert.strictEqual(newPoolRes.body.success, true);
-      assert.strictEqual(newPoolRes.body.pool.name, 'REST Pool Test');
+      assert.strictEqual(newPoolRes.body.pool.name, poolName);
       assert.deepStrictEqual(newPoolRes.body.pool.keywords, ['test-rest-keyword-1', 'test-rest-keyword-2']);
       assert.strictEqual(newPoolRes.body.pool.feedConfigs.artic.enabled, false);
     });
 
     // 6. GET /api/pools/:name/photos
-    const poolPhotosGet = await requestJson(`${baseUrl}/api/pools/REST Pool Test/photos`, 'GET');
+    const poolPhotosGet = await requestJson(`${baseUrl}/api/pools/${encodeURIComponent(poolName)}/photos`, 'GET');
     assertTest('GET /api/pools/:name/photos retrieves photo metadata for a pool', () => {
       assert.strictEqual(poolPhotosGet.status, 200);
       assert.ok(Array.isArray(poolPhotosGet.body));
     });
 
     // 7. PATCH /api/pools/:name (update keywords)
-    const patchPoolRes = await requestJson(`${baseUrl}/api/pools/REST Pool Test`, 'PATCH', {
+    const patchPoolRes = await requestJson(`${baseUrl}/api/pools/${encodeURIComponent(poolName)}`, 'PATCH', {
       keywords: ['modified-keyword-1']
     });
     assertTest('PATCH /api/pools/:name updates pool settings/keywords', () => {
@@ -856,7 +864,7 @@ async function runIntegrationTests() {
     });
 
     // 8. DELETE /api/pools/:name
-    const deletePoolRes = await requestJson(`${baseUrl}/api/pools/REST Pool Test`, 'DELETE');
+    const deletePoolRes = await requestJson(`${baseUrl}/api/pools/${encodeURIComponent(poolName)}`, 'DELETE');
     assertTest('DELETE /api/pools/:name removes the pool completely', () => {
       assert.strictEqual(deletePoolRes.status, 200);
       assert.strictEqual(deletePoolRes.body.success, true);

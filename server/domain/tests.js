@@ -17,6 +17,10 @@ const {
   decodeCategorySelectionFromSocket,
   decodePhotoRatingCommand
 } = require('./commands.js');
+const {
+  buildPersistedSnapshot,
+  normalizePersistedSnapshot
+} = require('../config/collectionsCodec.js');
 
 function createState(overrides = {}) {
   const baseState = {
@@ -251,6 +255,58 @@ function runDomainTests({ logSuite, assertTest }) {
       rng: () => 0.1
     });
     assert.strictEqual(photo?.url, 'port-1');
+  });
+
+  assertTest('persistence codec normalizes legacy shapes and restores feed configs', () => {
+    const normalized = normalizePersistedSnapshot({
+      feeds: {
+        'Scenic Nature': [{ url: 'dup', title: 'One' }],
+        'Liminal Spaces': [{ url: 'dup', title: 'Duplicate' }]
+      },
+      searchKeywords: {
+        'Scenic Nature': ['forest']
+      }
+    }, {
+      defaultCollections: createState().library.collections,
+      defaultState: {
+        ...createState().config,
+        searchKeywords: createState().config.searchKeywords,
+        autoLocation: false,
+        manualLocation: {},
+        excludedKeywords: []
+      },
+      buildFeedConfigsFromKeywords: (searchKeywords) => ({
+        'Scenic Nature': {
+          unsplash: { enabled: true, keywords: searchKeywords['Scenic Nature'] }
+        }
+      })
+    });
+
+    assert.strictEqual(normalized.duplicatesRemoved, true);
+    assert.ok(normalized.collections['Liminal Spaces'].length > 0);
+    assert.deepStrictEqual(normalized.persistedState.feedConfigs['Scenic Nature'], {
+      unsplash: { enabled: true, keywords: ['forest'] }
+    });
+  });
+
+  assertTest('persistence codec round-trips canonical snapshot fields', () => {
+    const persisted = buildPersistedSnapshot(createState().library.collections, {
+      searchKeywords: createState().config.searchKeywords,
+      feedConfigs: { foo: { enabled: true } },
+      autoLocation: true,
+      manualLocation: { city: 'Montreal' },
+      visionConfig: { model: 'gpt-4.1-mini' },
+      scaleMode: 'contain',
+      splitPortrait: true,
+      splitCropPercent: 42,
+      excludedKeywords: ['anime']
+    }, 123);
+
+    assert.strictEqual(persisted.lastUpdated, 123);
+    assert.strictEqual(persisted.scaleMode, 'contain');
+    assert.strictEqual(persisted.splitCropPercent, 42);
+    assert.deepStrictEqual(persisted.locationSettings.manualLocation, { city: 'Montreal' });
+    assert.deepStrictEqual(persisted.excludedKeywords, ['anime']);
   });
 }
 

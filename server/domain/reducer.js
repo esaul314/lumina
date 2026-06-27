@@ -13,6 +13,7 @@ const {
   buildBalancedFeed,
   findPhotoInFeed,
   getActivePhoto,
+  getPhotoByUrl,
   normalizeCategorySelection,
   selectSmartPhoto,
   updatePhotoInCollections
@@ -187,12 +188,22 @@ function reduceDomainCommand(state, command, env = {}) {
 
     case 'set-active-photo': {
       const url = String(command.payload?.url || '');
-      const selectedPhoto = findPhotoInFeed(state.library.photosList, url) || null;
+      const payloadPhoto = command.payload?.photo && typeof command.payload.photo === 'object'
+        ? /** @type {Photo} */ ({ ...command.payload.photo })
+        : null;
+      const selectedPhoto = findPhotoInFeed(state.library.photosList, url) || getPhotoByUrl(state.library.collections, url) || payloadPhoto;
       if (!selectedPhoto) {
         return createResult(state, [], []);
       }
-      const nextState = updateActivePhotoUrl(cloneState(state), selectedPhoto, state.playback.lastDirection);
-      return createResult(nextState.state, emitPhotoUpdate(), []);
+      const nextState = cloneState(state);
+      if (!findPhotoInFeed(nextState.library.photosList, url) && payloadPhoto) {
+        nextState.library.photosList = [
+          payloadPhoto,
+          ...nextState.library.photosList.filter((photo) => photo.url !== url)
+        ];
+      }
+      const updatedState = updateActivePhotoUrl(nextState, selectedPhoto, state.playback.lastDirection);
+      return createResult(updatedState.state, emitPhotoUpdate(), []);
     }
 
     case 'advance-photo': {

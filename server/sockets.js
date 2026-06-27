@@ -1,6 +1,17 @@
 const { sendEmailAlert } = require('./services/notifier.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const { saveCuratedCollections } = require('./config/collections.js');
+const {
+  decodeActivePhotoCommand,
+  decodeAdvancePhotoCommand,
+  decodeCategorySelectionFromSocket,
+  decodeExcludedKeywordsCommand,
+  decodePhotoCropCommand,
+  decodePhotoMetadataCommand,
+  decodePhotoRatingCommand,
+  decodeSplitCropCommand,
+  decodeSplitPortraitCommand
+} = require('./domain/commands.js');
 
 /**
  * 💾 persistLocationSettings
@@ -16,7 +27,14 @@ function persistLocationSettings(state, collections) {
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
  */
-module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate) {
+module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync) {
+  const broadcast = () => {
+    if (typeof broadcastStateSync === 'function') {
+      broadcastStateSync();
+      return;
+    }
+    io.emit('state-sync', state);
+  };
   
   io.on('connection', (socket) => {
     console.log('Device connected to Lumina network:', socket.id);
@@ -32,7 +50,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('toggle-widget', ({ widgetName, visible }) => {
       if (state.widgets[widgetName] !== undefined) {
         state.widgets[widgetName] = visible;
-        io.emit('state-sync', state);
+        broadcast();
       }
     });
 
@@ -48,6 +66,14 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     // Change Wallpaper category
     socket.on('change-category', async (category) => {
       console.log(`[SOCKET EVENT] change-category received: "${category}"`);
+
+      if (dispatchCommand) {
+        const command = decodeCategorySelectionFromSocket(category);
+        if (command) {
+          await dispatchCommand(command);
+          return;
+        }
+      }
       
       const selectedCategories = category.split(',').map(c => {
         const catName = c.trim();
@@ -76,7 +102,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         }
         
         console.log(`[SOCKET EVENT] Broadcasting state-sync with categories: "${state.currentCategory}"`);
-        io.emit('state-sync', state);
+        broadcast();
       } else {
         console.error(`[SOCKET EVENT] ERROR: None of the categories in "${category}" exist in curatedCollections keys:`, Object.keys(collections));
       }
@@ -86,49 +112,68 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('toggle-align-time', (enabled) => {
       state.alignTimeOfDay = enabled;
       console.log(`Align Time of Day changed to: ${enabled}`);
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Toggle weather alignment
     socket.on('toggle-align-weather', (enabled) => {
       state.alignWeather = enabled;
       console.log(`Align Weather changed to: ${enabled}`);
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Toggle OpenAI fallback consent
     socket.on('toggle-allow-openai-fallback', (enabled) => {
       state.allowOpenAiFallback = !!enabled;
       console.log(`Allow OpenAI Fallback changed to: ${state.allowOpenAiFallback}`);
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Change scale mode
     socket.on('change-scale-mode', (mode) => {
       if (mode === 'cover' || mode === 'contain') {
+        if (dispatchCommand) {
+          dispatchCommand({
+            type: 'set-scale-mode',
+            payload: { mode }
+          });
+          return;
+        }
         state.scaleMode = mode;
         console.log(`Scale Mode changed to: ${mode}`);
         saveCuratedCollections(collections, state);
-        io.emit('state-sync', state);
+        broadcast();
       }
     });
 
     // Toggle split portrait display
     socket.on('toggle-split-portrait', (enabled) => {
+      if (dispatchCommand) {
+        const command = decodeSplitPortraitCommand(enabled);
+        dispatchCommand(command);
+        return;
+      }
       state.splitPortrait = !!enabled;
       console.log(`Split Portrait changed to: ${state.splitPortrait}`);
       saveCuratedCollections(collections, state);
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Update split portrait crop percentage
     socket.on('change-split-crop', (percent) => {
+      if (dispatchCommand) {
+        const command = decodeSplitCropCommand(percent);
+        if (command) {
+          dispatchCommand(command);
+        }
+        return;
+      }
       const val = parseInt(percent, 10);
       if (!isNaN(val) && val >= 0 && val <= 100) {
         state.splitCropPercent = val;
         console.log(`Split Crop Percent changed to: ${val}%`);
         saveCuratedCollections(collections, state);
-        io.emit('state-sync', state);
+        broadcast();
       }
     });
 
@@ -145,7 +190,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         };
         console.log('[Config Socket] Saved updated Vision API Configuration.');
         saveCuratedCollections(collections, state);
-        io.emit('state-sync', state);
+        broadcast();
       }
     });
 
@@ -154,20 +199,34 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       if (typeof percentage === 'number' && percentage >= 0 && percentage <= 100) {
         state.nightPercentage = percentage;
         console.log(`Night Photo Percentage changed to: ${percentage}%`);
-        io.emit('state-sync', state);
+        broadcast();
       }
     });
 
     // Change slideshow transition interval
     socket.on('change-interval', (intervalMs) => {
       if (intervalMs && typeof intervalMs === 'number') {
+        if (dispatchCommand) {
+          dispatchCommand({
+            type: 'change-interval',
+            payload: { intervalMs }
+          });
+          return;
+        }
         state.slideshowInterval = intervalMs;
-        io.emit('state-sync', state);
+        broadcast();
       }
     });
 
     // Change individual active photo
     socket.on('set-active-photo', (photo) => {
+      if (dispatchCommand) {
+        const command = decodeActivePhotoCommand(photo);
+        if (command) {
+          dispatchCommand(command);
+        }
+        return;
+      }
       state.activePhoto = photo;
       io.emit('photo-update', photo);
     });
@@ -178,49 +237,64 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       io.emit('second-photo-update', photo);
     });
 
+    socket.on('report-photo-metadata', (payload) => {
+      if (!dispatchCommand) return;
+      const command = decodePhotoMetadataCommand(payload);
+      if (command) {
+        dispatchCommand(command);
+      }
+    });
+
     // Rate photo socket event
     socket.on('rate-photo', ({ url, rating }) => {
-      if (!url || typeof url !== 'string') return;
-      const { validateRating } = require('./utils/validation.js');
-      const numericRating = validateRating(rating);
-      if (numericRating === null) return;
+      const command = decodePhotoRatingCommand({ url, rating });
+      if (command && dispatchCommand) {
+        dispatchCommand(command);
+        return;
+      }
+      if (!command) return;
 
       const { updatePhotoRating } = require('./config/collections.js');
-      updatePhotoRating(collections, state, url, numericRating);
-      if (numericRating === 1 && state.activePhoto && state.activePhoto.url === url) {
+      updatePhotoRating(collections, state, command.payload.url, command.payload.rating);
+      if (command.payload.rating === 1 && state.activePhoto && state.activePhoto.url === command.payload.url) {
         const nextPhoto = getSmartPhoto('next');
         if (nextPhoto) {
           state.activePhoto = nextPhoto;
           io.emit('photo-update', state.activePhoto);
         }
       }
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Set individual photo crop ratio and vertical position
     socket.on('set-photo-crop', ({ url, cropPercent, cropPositionY }) => {
-      if (!url || typeof url !== 'string') return;
-      
-      const { validatePercent } = require('./utils/validation.js');
-      const numericCrop = cropPercent !== undefined ? validatePercent(cropPercent) : undefined;
-      const numericCropY = cropPositionY !== undefined ? validatePercent(cropPositionY) : undefined;
-      
-      if (cropPercent !== undefined && numericCrop === null) return;
-      if (cropPositionY !== undefined && numericCropY === null) return;
+      const command = decodePhotoCropCommand({ url, cropPercent, cropPositionY });
+      if (command && dispatchCommand) {
+        dispatchCommand(command);
+        return;
+      }
+      if (!command) return;
 
       const { updatePhotoCrop } = require('./config/collections.js');
-      updatePhotoCrop(collections, state, url, numericCrop, numericCropY);
-      io.emit('state-sync', state);
+      updatePhotoCrop(collections, state, command.payload.url, command.payload.cropPercent, command.payload.cropPositionY);
+      broadcast();
     });
 
 
     // Set individual photo pairing prevention
     socket.on('set-photo-prevent-pairing', ({ url, preventPairing }) => {
+      if (dispatchCommand) {
+        dispatchCommand({
+          type: 'set-photo-prevent-pairing',
+          payload: { url, preventPairing }
+        });
+        return;
+      }
       if (!url || typeof url !== 'string') return;
 
       const { updatePhotoPreventPairing } = require('./config/collections.js');
       updatePhotoPreventPairing(collections, state, url, preventPairing);
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Update keywords socket event
@@ -236,7 +310,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       saveCuratedCollections(collections, state);
       console.log(`[Config Socket] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
 
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Update feed config socket event
@@ -261,11 +335,20 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       saveCuratedCollections(collections, state);
       console.log(`[Config Socket] Saved updated feed config for category "${category}" source "${source}":`, state.feedConfigs[category][source]);
 
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Save and sync excluded keywords
     socket.on('update-excluded-keywords', (keywords) => {
+      if (dispatchCommand) {
+        const command = decodeExcludedKeywordsCommand(keywords);
+        if (command) {
+          dispatchCommand(command);
+          console.log('[SOCKET EVENT] update-excluded-keywords saved and broadcasted:', keywords);
+        }
+        return;
+      }
+
       if (Array.isArray(keywords)) {
         state.excludedKeywords = keywords.map(kw => String(kw).trim()).filter(Boolean);
         saveCuratedCollections(collections, state);
@@ -286,7 +369,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
           }
         }
 
-        io.emit('state-sync', state);
+        broadcast();
         console.log('[SOCKET EVENT] update-excluded-keywords saved and broadcasted:', state.excludedKeywords);
       }
     });
@@ -342,7 +425,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       saveCuratedCollections(collections, state);
 
       // Sync state to all clients so remote control UI knows about the category right away
-      io.emit('state-sync', state);
+      broadcast();
 
       // 4. Trigger crawlAllCollections to download photos for this category instantly
       try {
@@ -366,7 +449,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         }
         
         // Broadcast fully loaded updated state
-        io.emit('state-sync', state);
+        broadcast();
         
         // Run background image analysis on the new photos
         const { triggerImageAnalysisBackground } = require('./app.js');
@@ -422,11 +505,15 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
 
       // 4. Sync state
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Trigger Next Photo
     socket.on('next-photo', () => {
+      if (dispatchCommand) {
+        dispatchCommand(decodeAdvancePhotoCommand('next'));
+        return;
+      }
       const photo = getSmartPhoto('next');
       if (photo) {
         state.activePhoto = photo;
@@ -436,6 +523,10 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
     // Trigger Prev Photo
     socket.on('prev-photo', () => {
+      if (dispatchCommand) {
+        dispatchCommand(decodeAdvancePhotoCommand('prev'));
+        return;
+      }
       const photo = getSmartPhoto('prev');
       if (photo) {
         state.activePhoto = photo;
@@ -445,12 +536,26 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
     // Update Mood Theme
     socket.on('change-theme', (themeName) => {
+      if (dispatchCommand) {
+        dispatchCommand({
+          type: 'change-theme',
+          payload: { theme: themeName }
+        });
+        return;
+      }
       state.theme = themeName;
-      io.emit('state-sync', state);
+      broadcast();
     });
 
     // Update screensaver active state
     socket.on('set-screensaver-active', (active) => {
+      if (dispatchCommand) {
+        dispatchCommand({
+          type: 'set-screensaver-active',
+          payload: { active }
+        });
+        return;
+      }
       if (active) {
         state.screensaverActive = true;
         // Arm manualOverride BEFORE launching so the idle daemon doesn't
@@ -462,7 +567,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         setManualOverride(false);
         killKioskBrowser();
       }
-      io.emit('state-sync', state);
+      broadcast();
     });
     
     // Dynamic signed URL refresh for Google Photos casting on demand
@@ -481,7 +586,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       console.log(`[SOCKET EVENT] toggle-auto-location: ${autoLocation}`);
       state.autoLocation = !!autoLocation;
       persistLocationSettings(state, collections);
-      io.emit('state-sync', state);
+      broadcast();
       if (triggerWeatherUpdate) {
         await triggerWeatherUpdate();
       }
@@ -498,7 +603,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         country: String(country || 'Canada').trim()
       };
       persistLocationSettings(state, collections);
-      io.emit('state-sync', state);
+      broadcast();
       if (triggerWeatherUpdate) {
         await triggerWeatherUpdate();
       }
@@ -508,6 +613,13 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('mark-photo-broken', ({ url }) => {
       if (!url || typeof url !== 'string') return;
       console.log(`[SOCKET EVENT] mark-photo-broken received for URL: ${url}`);
+      if (dispatchCommand) {
+        dispatchCommand({
+          type: 'mark-photo-broken',
+          payload: { url }
+        });
+        return;
+      }
       const { markPhotoBroken } = require('./config/collections.js');
       const updated = markPhotoBroken(collections, state, url);
       if (updated) {
@@ -519,7 +631,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
             io.emit('photo-update', state.activePhoto);
           }
         }
-        io.emit('state-sync', state);
+        broadcast();
       }
     });
 
@@ -544,7 +656,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         const currentCats = activeCategory ? activeCategory.split(',') : [];
         state.photosList = combineFeedsBalanced(currentCats, collections);
         
-        io.emit('state-sync', state);
+        broadcast();
         socket.emit('recrawl-complete', { success: true, count: state.photosList.length });
         
         // Trigger background content-aware vision analysis for any newly crawled photos
@@ -561,7 +673,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       const sanitizedToken = String(token || '').trim();
       process.env.USEAPI_TOKEN = sanitizedToken;
       state.hasUseApiToken = !!sanitizedToken;
-      io.emit('state-sync', state);
+      broadcast();
 
       try {
         const fs = require('fs');

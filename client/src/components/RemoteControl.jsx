@@ -31,7 +31,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     activePhotoOrientation, 
     localSecondPhoto 
   } = useActivePhotoSync(state, remoteDimensionsCache, remoteOrientationCache);
-  const secondPhoto = state.activeSecondPhoto || localSecondPhoto;
+  const secondPhoto = state.currentFrame?.secondary || state.activeSecondPhoto || localSecondPhoto;
 
   // 3. Swipe & Touch Gesture Controller Hook
   const { 

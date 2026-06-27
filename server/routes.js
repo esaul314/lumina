@@ -2,6 +2,14 @@ const os = require('os');
 const { resolveActiveLocation, fetchWeatherForecast } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const {
+  decodeActivePhotoCommand,
+  decodeAdvancePhotoCommand,
+  decodeCategorySelectionFromHttp,
+  decodeExcludedKeywordsCommand,
+  decodePhotoCropCommand,
+  decodePhotoRatingCommand
+} = require('./domain/commands.js');
+const {
   map,
   filter,
   reduce,
@@ -53,7 +61,22 @@ function getLocalIpAddresses() {
  * 🧭 configureRoutes
  * Sets up Express HTTP routes for the Lumina API.
  */
-module.exports = function(app, state, collections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride) {
+module.exports = function(app, state, collections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride, dispatchCommand, broadcastStateSync) {
+  const broadcast = () => {
+    if (typeof broadcastStateSync === 'function') {
+      broadcastStateSync();
+      return;
+    }
+    io.emit('state-sync', state);
+  };
+  const buildStateResponse = () => ({
+    ...state,
+    currentFrame: state.currentFrame || null,
+    config: state.config || null,
+    runtime: state.runtime || null,
+    library: state.library || null,
+    playback: state.playback || null
+  });
   
   // GET /api/weather
   app.get('/api/weather', async (req, res) => {
@@ -103,7 +126,12 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     const { category } = req.query;
     
     try {
-      if (category) {
+      if (category && dispatchCommand && !String(category).includes('Google Photos')) {
+        const command = decodeCategorySelectionFromHttp(req.query);
+        if (command) {
+          await dispatchCommand(command);
+        }
+      } else if (category) {
         const selectedCategories = category.split(',').map(c => {
           const catName = c.trim();
           if (catName === 'Liminal Space' || catName === 'Liminal Spaces') {
@@ -128,7 +156,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
             state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
           }
           
-          io.emit('state-sync', state);
+          broadcast();
         }
       }
       
@@ -143,34 +171,39 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
   // POST /api/photos/rate
   app.post('/api/photos/rate', (req, res) => {
-    const { url, rating } = req.body;
-    
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
+    const command = decodePhotoRatingCommand(req.body);
+    if (!command) {
+      return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string and "rating" must be an integer between 1 and 10.' });
     }
-    
-    const { validateRating } = require('./utils/validation.js');
-    const numericRating = validateRating(rating);
-    if (numericRating === null) {
-      return res.status(400).json({ error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' });
+
+    if (dispatchCommand) {
+      dispatchCommand(command).then((result) => {
+        if (!result) {
+          return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
+        }
+        return res.json({ success: true, url: command.payload.url, rating: command.payload.rating });
+      }).catch((error) => {
+        res.status(500).json({ error: error.message });
+      });
+      return;
     }
 
     const { updatePhotoRating } = require('./config/collections.js');
-    const updated = updatePhotoRating(collections, state, url, numericRating);
+    const updated = updatePhotoRating(collections, state, command.payload.url, command.payload.rating);
 
-    if (updated) {
-      if (numericRating === 1 && state.activePhoto && state.activePhoto.url === url) {
-        const nextPhoto = getSmartPhoto('next');
-        if (nextPhoto) {
-          state.activePhoto = nextPhoto;
-          io.emit('photo-update', state.activePhoto);
-        }
-      }
-      io.emit('state-sync', state);
-      return res.json({ success: true, url, rating: numericRating });
-    } else {
+    if (!updated) {
       return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
     }
+
+    if (command.payload.rating === 1 && state.activePhoto && state.activePhoto.url === command.payload.url) {
+      const nextPhoto = getSmartPhoto('next');
+      if (nextPhoto) {
+        state.activePhoto = nextPhoto;
+        io.emit('photo-update', state.activePhoto);
+      }
+    }
+    broadcast();
+    return res.json({ success: true, url: command.payload.url, rating: command.payload.rating });
   });
 
   // POST /api/config/keywords
@@ -224,7 +257,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     saveCuratedCollections(collections, state);
     console.log(`[Config API] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
 
-    io.emit('state-sync', state);
+    broadcast();
     return res.json({ success: true, category, keywords: state.searchKeywords[category] });
   });
 
@@ -261,7 +294,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       await googlePhotos.syncGoogleAlbum();
       
       // Emit state-sync so clients know Google Photos is active
-      io.emit('state-sync', state);
+      broadcast();
       
       // Redirect back to mobile remote control with success indicator
       res.redirect(`http://${localIp}:${PORT}/?mode=remote&googleAuth=success`);
@@ -289,13 +322,13 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     res.json({
       localIps: getLocalIpAddresses(),
       port: PORT,
-      state
+      state: buildStateResponse()
     });
   });
 
   // GET /api/state
   app.get('/api/state', (req, res) => {
-    res.json(state);
+    res.json(buildStateResponse());
   });
 
   // PATCH /api/state
@@ -358,10 +391,10 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
     if (updated) {
       saveCuratedCollections(collections, state);
-      io.emit('state-sync', state);
+      broadcast();
     }
 
-    res.json(state);
+    res.json(buildStateResponse());
   });
 
   // POST /api/state/screensaver
@@ -369,6 +402,18 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     const { active } = req.body;
     if (active === undefined || typeof active !== 'boolean') {
       return res.status(400).json({ error: 'Invalid parameter: "active" must be a boolean.' });
+    }
+
+    if (dispatchCommand) {
+      dispatchCommand({
+        type: 'set-screensaver-active',
+        payload: { active }
+      }).then(() => {
+        res.json({ success: true, screensaverActive: state.screensaverActive });
+      }).catch((error) => {
+        res.status(500).json({ error: error.message });
+      });
+      return;
     }
 
     if (active) {
@@ -381,7 +426,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       if (typeof killKioskBrowser === 'function') killKioskBrowser();
     }
 
-    io.emit('state-sync', state);
+    broadcast();
     res.json({ success: true, screensaverActive: state.screensaverActive });
   });
 
@@ -440,7 +485,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     const { saveCuratedCollections } = require('./config/collections.js');
     saveCuratedCollections(collections, state);
 
-    io.emit('state-sync', state);
+    broadcast();
 
     // Trigger crawl asynchronously in the background so the HTTP request returns quickly
     // ponytail: run crawler asynchronously for fast response
@@ -463,7 +508,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
             io.emit('photo-update', state.activePhoto);
           }
         }
-        io.emit('state-sync', state);
+        broadcast();
 
         const { triggerImageAnalysisBackground } = require('./app.js');
         triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
@@ -525,7 +570,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       }
     }
 
-    io.emit('state-sync', state);
+    broadcast();
     res.json({ success: true, message: `Pool "${cleanCategory}" deleted successfully.` });
   });
 
@@ -565,7 +610,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     if (updated) {
       const { saveCuratedCollections } = require('./config/collections.js');
       saveCuratedCollections(collections, state);
-      io.emit('state-sync', state);
+      broadcast();
     }
 
     res.json({
@@ -605,7 +650,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       const currentCats = activeCategory ? activeCategory.split(',') : [];
       state.photosList = combineFeedsBalanced(currentCats, collections);
       
-      io.emit('state-sync', state);
+      broadcast();
 
       const { triggerImageAnalysisBackground } = require('./app.js');
       triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
@@ -634,6 +679,61 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     const { url, rating, cropPercent, cropPositionY, preventPairing, isBroken } = req.body;
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
+    }
+
+    if (dispatchCommand) {
+      const commands = [];
+
+      if (rating !== undefined) {
+        const ratingCommand = decodePhotoRatingCommand({ url, rating });
+        if (!ratingCommand) {
+          return res.status(400).json({ error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' });
+        }
+        commands.push(ratingCommand);
+      }
+
+      if (isBroken === true) {
+        commands.push({
+          type: 'mark-photo-broken',
+          payload: { url }
+        });
+      }
+
+      if (cropPercent !== undefined || cropPositionY !== undefined) {
+        const cropCommand = decodePhotoCropCommand({ url, cropPercent, cropPositionY });
+        if (!cropCommand) {
+          return res.status(400).json({ error: 'Invalid crop payload.' });
+        }
+        commands.push(cropCommand);
+      }
+
+      if (preventPairing !== undefined) {
+        commands.push({
+          type: 'set-photo-prevent-pairing',
+          payload: { url, preventPairing }
+        });
+      }
+
+      Promise.all(commands.map((command) => dispatchCommand(command))).then((results) => {
+        if (results.length === 0 || results.every((result) => !result)) {
+          return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
+        }
+
+        return res.json({
+          success: true,
+          photo: {
+            url,
+            ...(rating !== undefined ? { rating: Number(rating) } : {}),
+            ...(isBroken === true ? { isBroken: true } : {}),
+            ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
+            ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {}),
+            ...(preventPairing !== undefined ? { preventPairing: !!preventPairing } : {})
+          }
+        });
+      }).catch((error) => {
+        res.status(500).json({ error: error.message });
+      });
+      return;
     }
 
     let updated = false;
@@ -713,7 +813,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
     }
 
-    io.emit('state-sync', state);
+    broadcast();
     res.json({ success: true, photo: responsePayload });
   });
 
@@ -740,20 +840,41 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
     }
 
+    if (dispatchCommand) {
+      dispatchCommand(decodeActivePhotoCommand(foundPhoto)).then(() => {
+        res.json({ success: true, activePhoto: state.activePhoto });
+      }).catch((error) => {
+        res.status(500).json({ error: error.message });
+      });
+      return;
+    }
+
     state.activePhoto = foundPhoto;
     io.emit('photo-update', foundPhoto);
-    io.emit('state-sync', state);
+    broadcast();
 
     res.json({ success: true, activePhoto: foundPhoto });
   });
 
   // POST /api/photos/next
   app.post('/api/photos/next', (req, res) => {
+    if (dispatchCommand) {
+      dispatchCommand(decodeAdvancePhotoCommand('next')).then((result) => {
+        if (!result || !state.activePhoto) {
+          return res.status(500).json({ error: 'Could not transition to next photo.' });
+        }
+        return res.json({ success: true, activePhoto: state.activePhoto });
+      }).catch((error) => {
+        res.status(500).json({ error: error.message });
+      });
+      return;
+    }
+
     const photo = getSmartPhoto('next');
     if (photo) {
       state.activePhoto = photo;
       io.emit('photo-update', state.activePhoto);
-      io.emit('state-sync', state);
+      broadcast();
       return res.json({ success: true, activePhoto: state.activePhoto });
     }
     res.status(500).json({ error: 'Could not transition to next photo.' });
@@ -761,14 +882,25 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
   // POST /api/photos/prev
   app.post('/api/photos/prev', (req, res) => {
+    if (dispatchCommand) {
+      dispatchCommand(decodeAdvancePhotoCommand('prev')).then((result) => {
+        if (!result || !state.activePhoto) {
+          return res.status(500).json({ error: 'Could not transition to previous photo.' });
+        }
+        return res.json({ success: true, activePhoto: state.activePhoto });
+      }).catch((error) => {
+        res.status(500).json({ error: error.message });
+      });
+      return;
+    }
+
     const photo = getSmartPhoto('prev');
     if (photo) {
       state.activePhoto = photo;
       io.emit('photo-update', state.activePhoto);
-      io.emit('state-sync', state);
+      broadcast();
       return res.json({ success: true, activePhoto: state.activePhoto });
     }
     res.status(500).json({ error: 'Could not transition to previous photo.' });
   });
 };
-
