@@ -130,10 +130,16 @@ function Dashboard({ state, socket, connectionInfo }) {
     const currentActiveSlide = activeSlides.find(s => s.active);
     const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
     const expectedSplit = !!(state.splitPortrait && imageOrientationCache.current[state.activePhoto.url] === 'portrait' && !isPhotoPreventPairing);
+
+    // Ensure that if a split layout is expected, the slide's secondary photo URL matches the target secondary URL
+    const targetSecondUrl = state.currentFrame?.secondary?.url || state.activeSecondPhoto?.url;
+    const isSecondUrlMatched = !expectedSplit || (currentActiveSlide && currentActiveSlide.url2 === targetSecondUrl);
+
     if (
       currentActiveSlide && 
       currentActiveSlide.url === state.activePhoto.url && 
-      !!currentActiveSlide.isSplit === expectedSplit
+      !!currentActiveSlide.isSplit === expectedSplit &&
+      isSecondUrlMatched
     ) {
       // Check if crop/zoom settings have changed and update the active slide in place
       const isSplitCropChanged = expectedSplit && (
