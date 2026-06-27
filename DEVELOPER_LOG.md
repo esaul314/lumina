@@ -85,6 +85,12 @@ This document serves as a public-facing, generic history of technical developmen
   * **Pruning and Fallback**: If the secondary photo fails to load, the client now emits a `mark-photo-broken` socket event using the secondary image URL to immediately flag and prune it from the collections, and falls back to rendering the primary photo as a fullscreen single slide (`addSingleSlide`).
 * **Verification**: Verified that unit tests (`npm test`) and E2E integration tests (`node test_split_sync.js`) pass successfully.
 
+### 2026-06-27 (Part 8): Remove Google DeepMind Footer Attribution
+* **Goal**: Remove incorrect footer attribution "POWERED BY GOOGLE DEEPMIND" from the Remote Control user interface.
+* **Implementation**:
+  * Modified [RemoteControl.jsx](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx) to omit the "• POWERED BY GOOGLE DEEPMIND" string from the system info paragraph.
+* **Verification**: Verified that all diagnostics and tests run successfully.
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules

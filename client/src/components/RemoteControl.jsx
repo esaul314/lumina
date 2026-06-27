@@ -542,7 +542,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
       {/* Footer Info */}
       <p style={{ fontSize: '0.75rem', opacity: 0.35, marginTop: '16px', letterSpacing: '0.05em' }}>
-        LUMINA SYSTEM v1.0.0 • POWERED BY GOOGLE DEEPMIND
+        LUMINA SYSTEM v1.0.0
       </p>
     </div>
   );
