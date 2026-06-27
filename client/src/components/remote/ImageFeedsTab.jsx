@@ -1,4 +1,5 @@
-import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 function ImageFeedsTab({
   state,
@@ -28,6 +29,28 @@ function ImageFeedsTab({
   setGoogleClientSecret,
   saveGoogleCredentials
 }) {
+  const [keywordInput, setKeywordInput] = useState('');
+
+  const activeChips = newCategoryKeyword ? newCategoryKeyword.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const handleAddChip = (text) => {
+    const clean = text.trim();
+    if (!clean) return;
+
+    const words = clean.split(/[;,]/).map(w => w.trim()).filter(Boolean);
+    const uniqueNewWords = words.filter(w => !activeChips.some(existing => existing.toLowerCase() === w.toLowerCase()));
+
+    if (uniqueNewWords.length > 0) {
+      const nextChips = [...activeChips, ...uniqueNewWords];
+      setNewCategoryKeyword(nextChips.join(', '));
+    }
+  };
+
+  const handleRemoveChip = (chipToRemove) => {
+    const nextChips = activeChips.filter(c => c !== chipToRemove);
+    setNewCategoryKeyword(nextChips.join(', '));
+  };
+
   return (
     <>
       <div className="remote-card">
@@ -105,42 +128,156 @@ function ImageFeedsTab({
           gap: '10px'
         }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Create New Scenic Pool</span>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <input
               type="text"
               placeholder="Pool Name (e.g. Classic Art)"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               style={{
-                flex: 1,
+                width: '100%',
                 padding: '8px 12px',
                 background: 'rgba(0,0,0,0.3)',
                 border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '6px',
                 color: '#fff',
                 fontSize: '0.85rem',
-                outline: 'none'
+                outline: 'none',
+                boxSizing: 'border-box'
               }}
             />
-            <input
-              type="text"
-              placeholder="Keywords (e.g. oil painting, renaissance)"
-              value={newCategoryKeyword}
-              onChange={(e) => setNewCategoryKeyword(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '6px',
-                color: '#fff',
-                fontSize: '0.85rem',
-                outline: 'none'
-              }}
-            />
+            
+            {/* Tag/Chip Input for Pool Keywords */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              boxSizing: 'border-box'
+            }}>
+              {/* Chips container */}
+              {activeChips.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {activeChips.map((chip, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        color: '#fff',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      <span>{chip}</span>
+                      <span
+                        onClick={() => handleRemoveChip(chip)}
+                        style={{
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          transition: 'color 0.2s',
+                          fontSize: '0.9rem',
+                          lineHeight: '1'
+                        }}
+                      >
+                        ×
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Input field */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder={activeChips.length === 0 ? "Keywords (e.g. oil painting, renaissance)" : "Add more keywords..."}
+                  value={keywordInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // If they typed a comma or semicolon, add the chip immediately
+                    if (val.endsWith(',') || val.endsWith(';')) {
+                      handleAddChip(val.slice(0, -1));
+                      setKeywordInput('');
+                    } else {
+                      setKeywordInput(val);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddChip(keywordInput);
+                      setKeywordInput('');
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    background: 'none',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    padding: '4px 0'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddChip(keywordInput);
+                    setKeywordInput('');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accent-color)',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px'
+                  }}
+                >
+                  <Plus size={14} style={{ marginRight: '2px' }} /> ADD
+                </button>
+              </div>
+            </div>
           </div>
           <button
-            onClick={handleCreateCategory}
+            onClick={() => {
+              if (keywordInput.trim()) {
+                const clean = keywordInput.trim();
+                const words = clean.split(/[;,]/).map(w => w.trim()).filter(Boolean);
+                const uniqueNewWords = words.filter(w => !activeChips.some(existing => existing.toLowerCase() === w.toLowerCase()));
+                const nextChips = [...activeChips, ...uniqueNewWords];
+                const nextKeywordStr = nextChips.join(', ');
+                
+                const name = newCategoryName.trim();
+                if (!name || nextChips.length === 0) {
+                  alert('Please fill out both pool name and initial keyword(s).');
+                  return;
+                }
+                const cleanName = name.replace(/,/g, ' ');
+                if (cleanName.toLowerCase() === 'google photos') {
+                  alert('Reserved name. Please choose a different name.');
+                  return;
+                }
+                socket.emit('add-category', { category: cleanName, keyword: nextKeywordStr });
+                setNewCategoryName('');
+                setNewCategoryKeyword('');
+                setKeywordInput('');
+              } else {
+                handleCreateCategory();
+              }
+            }}
             style={{
               background: 'var(--accent-color)',
               color: '#fff',
@@ -571,35 +708,42 @@ function ImageFeedsTab({
                         const inputVal = e.target.elements[src.key + '_input'].value.trim();
                         if (!inputVal) return;
 
-                        let parsedVal = inputVal;
+                        let newVals = [];
                         const timeRangeRegex = /^\[([0-1]?[0-9]|2[0-3]):[0-5][0-9]-([0-1]?[0-9]|2[0-3]):[0-5][0-9]\]\s+(.+)$/;
                         const match = inputVal.match(timeRangeRegex);
                         if (match) {
                           const [, start, end, kwsStr] = match;
-                          parsedVal = {
+                          newVals = [{
                             timeStart: start,
                             timeEnd: end,
-                            keywords: kwsStr.split(',').map(kw => kw.trim()).filter(Boolean)
-                          };
+                            keywords: kwsStr.split(/[;,]/).map(kw => kw.trim()).filter(Boolean)
+                          }];
+                        } else {
+                          // Regular parameters: split by comma/semicolon to allow multiple inputs
+                          newVals = inputVal.split(/[;,]/).map(val => val.trim()).filter(Boolean);
                         }
 
-                        const isDuplicate = paramsList.some(item => {
-                          if (typeof item === 'string' && typeof parsedVal === 'string') {
-                              return item.toLowerCase() === parsedVal.toLowerCase();
-                          }
-                          if (item && typeof item === 'object' && parsedVal && typeof parsedVal === 'object') {
-                              return item.timeStart === parsedVal.timeStart &&
-                                     item.timeEnd === parsedVal.timeEnd &&
-                                     JSON.stringify(item.keywords) === JSON.stringify(parsedVal.keywords);
-                          }
-                          return false;
+                        // Filter out duplicates
+                        const uniqueNewVals = newVals.filter(newVal => {
+                          return !paramsList.some(item => {
+                            if (typeof item === 'string' && typeof newVal === 'string') {
+                              return item.toLowerCase() === newVal.toLowerCase();
+                            }
+                            if (item && typeof item === 'object' && newVal && typeof newVal === 'object') {
+                              return item.timeStart === newVal.timeStart &&
+                                     item.timeEnd === newVal.timeEnd &&
+                                     JSON.stringify(item.keywords) === JSON.stringify(newVal.keywords);
+                            }
+                            return false;
+                          });
                         });
-                        if (isDuplicate) {
-                          alert('This configuration parameter already exists.');
+
+                        if (uniqueNewVals.length === 0) {
+                          alert('The entered parameter(s) already exist.');
                           return;
                         }
 
-                        const nextParams = [...paramsList, parsedVal];
+                        const nextParams = [...paramsList, ...uniqueNewVals];
                         socket.emit('update-feed-config', {
                           category: keywordCategory,
                           source: src.key,
