@@ -60,6 +60,14 @@ This document serves as a public-facing, generic history of technical developmen
   * **Local IP Resolver**: Refactored `getLocalIpAddresses` in `app.js` to use a single chain of `Object.values`, `.flat()`, `.filter()`, and `.map()`.
 * **Verification**: All 50 diagnostics and smoke tests passed. Integration split sync test suite passed.
 
+### 2026-06-27 (Part 5): Pure System Reducers & Curried Validators
+* **Goal**: Refactor the main screensaver daemon activation loop, crawler scheduling blocks, and endpoint validators to use pure state machine reducers, declarative map-flatMap queues, and curried parameter validator scopes.
+* **Implementation**:
+  * **Daemon State Machine Reducer**: Extracted Mutter idle loop condition checks into a pure `getNextScreensaverState` state transition reducer. Unit tests were added to run-tests.js to assert action schedules ('launch' vs 'kill') and idle ticks.
+  * **Crawler Jobs mapping**: Refactored `crawlAllCollections` in `crawler.js` to flatMap configs into a flat Crawl Jobs array, replacing nested loops with flat sequential executions.
+  * **Curried validation scopes**: Created `validation.js` containing a curried `validateRange` factory, defining and exporting `validateRating` and `validatePercent`. We replaced inline parameter validations in routes.js and sockets.js with these clean validators.
+* **Verification**: All 51 assertions passed. Integration E2E tests verified successfully.
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules
