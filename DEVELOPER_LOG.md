@@ -85,6 +85,15 @@ This document serves as a public-facing, generic history of technical developmen
   * **Pruning and Fallback**: If the secondary photo fails to load, the client now emits a `mark-photo-broken` socket event using the secondary image URL to immediately flag and prune it from the collections, and falls back to rendering the primary photo as a fullscreen single slide (`addSingleSlide`).
 * **Verification**: Verified that unit tests (`npm test`) and E2E integration tests (`node test_split_sync.js`) pass successfully.
 
+### 2026-06-27 (Part 8): Optional Tumblr Tag Search via API Key
+* **Goal**: Add Tumblr tag-based crawling without disturbing the existing zero-credential public-blog Tumblr source.
+* **Implementation**:
+  * **Optional authenticated crawler**: Added `fetchTumblrTaggedImages` in [`server/services/crawler.js`](file:///home/alex/work/lumina/server/services/crawler.js) using Tumblr's official `GET /v2/tagged` API. The crawler activates only when `TUMBLR_API_KEY` is present in the server environment; otherwise it logs a skip and returns an empty result safely.
+  * **Feed config support**: Added a new `tumblrTags` source alongside existing `tumblr` blog crawling in the default feed config builders so built-in scenic pools can opt into curated tag queries without losing the legacy blog lists.
+  * **Remote UI**: Extended [`ImageFeedsTab.jsx`](file:///home/alex/work/lumina/client/src/components/remote/ImageFeedsTab.jsx) with a new `Tumblr Tag Search` source card and inline operator guidance that the source requires `TUMBLR_API_KEY`.
+  * **Regression coverage**: Added test coverage proving the tagged crawler is exported and safely no-ops when the API key is absent.
+* **Verification**: `npm test` passed. In this sandbox, the live endpoint smoke sub-suite still logs `listen EPERM` when trying to bind an ephemeral localhost port, but the command exits successfully and the new Tumblr-tag assertions pass.
+
 ### 2026-06-27 (Part 8): Remove Google DeepMind Footer Attribution
 * **Goal**: Remove incorrect footer attribution "POWERED BY GOOGLE DEEPMIND" from the Remote Control user interface.
 * **Implementation**:
