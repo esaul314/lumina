@@ -1,6 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
 
+/**
+ * 🖼️ loadImageMeta
+ * Pure Promise wrapper around native HTML Image element loading to extract dimensions and orientation.
+ * Always binds event handlers before setting src to ensure cached loads are handled correctly.
+ */
+const loadImageMeta = (url) => new Promise((resolve, reject) => {
+  const img = new window.Image();
+  img.onload = () => {
+    resolve({
+      url,
+      w: img.naturalWidth,
+      h: img.naturalHeight,
+      orientation: img.naturalHeight > img.naturalWidth ? 'portrait' : 'landscape'
+    });
+  };
+  img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+  img.src = url;
+});
+
 function Dashboard({ state, socket, connectionInfo }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
@@ -198,122 +217,123 @@ function Dashboard({ state, socket, connectionInfo }) {
       });
     };
 
-    const findSecondPortraitSequentially = (activePhoto, candidates, index) => {
-      if (!active) return;
-      if (index >= candidates.length || index >= 8) {
-        addSingleSlide(activePhoto);
-        socket.emit('set-active-second-photo', null);
-        return;
-      }
-      
-      const candidate = candidates[index];
-      const testImg = new window.Image();
-      testImg.onload = () => {
-        if (!active) return;
-        const isCandPortrait = testImg.naturalHeight > testImg.naturalWidth;
-        imageOrientationCache.current[candidate.url] = isCandPortrait ? 'portrait' : 'landscape';
-        imageDimensionsCache.current[candidate.url] = {
-          w: testImg.naturalWidth,
-          h: testImg.naturalHeight
+    const getImageMeta = async (url) => {
+      if (imageOrientationCache.current[url] && imageDimensionsCache.current[url]) {
+        return {
+          url,
+          w: imageDimensionsCache.current[url].w,
+          h: imageDimensionsCache.current[url].h,
+          orientation: imageOrientationCache.current[url]
         };
-        
-        if (isCandPortrait) {
-          addSplitSlide(activePhoto, candidate);
-          socket.emit('set-active-second-photo', candidate);
-        } else {
-          findSecondPortraitSequentially(activePhoto, candidates, index + 1);
-        }
-      };
-      testImg.onerror = () => {
-        if (!active) return;
-        imageOrientationCache.current[candidate.url] = 'landscape';
-        findSecondPortraitSequentially(activePhoto, candidates, index + 1);
-      };
-      testImg.src = candidate.url;
+      }
+      const meta = await loadImageMeta(url);
+      imageOrientationCache.current[url] = meta.orientation;
+      imageDimensionsCache.current[url] = { w: meta.w, h: meta.h };
+      return meta;
     };
 
-    // Preload image in the background using native Image element to prevent blank screens
-    const imgPreloader = new window.Image();
-    imgPreloader.onload = () => {
-      if (!active) return;
-      consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
-      const isPortrait = imgPreloader.naturalHeight > imgPreloader.naturalWidth;
-      imageOrientationCache.current[state.activePhoto.url] = isPortrait ? 'portrait' : 'landscape';
-      imageDimensionsCache.current[state.activePhoto.url] = {
-        w: imgPreloader.naturalWidth,
-        h: imgPreloader.naturalHeight
-      };
+    const findSecondPortrait = async (candidates) => {
+      // Limit search to the first 8 candidate photos to prevent excessive network overhead
+      for (const candidate of candidates.slice(0, 8)) {
+        if (!active) return null;
+        try {
+          const meta = await getImageMeta(candidate.url);
+          if (meta.orientation === 'portrait') {
+            return candidate;
+          }
+        } catch (e) {
+          // If a candidate image fails to load, classify as landscape to skip it
+          imageOrientationCache.current[candidate.url] = 'landscape';
+        }
+      }
+      return null;
+    };
 
-      const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
-      if (isPortrait && state.splitPortrait && !isPhotoPreventPairing) {
-        // Find if we have another cached portrait image in photosList from the same category
-        const cachedPortraits = (state.photosList || []).filter(p => 
-          p.url !== state.activePhoto.url && 
-          imageOrientationCache.current[p.url] === 'portrait' &&
-          p.preventPairing !== true &&
-          (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
-        );
-        
-        if (cachedPortraits.length > 0) {
-          const secondPhoto = cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)];
-          addSplitSlide(state.activePhoto, secondPhoto);
-          socket.emit('set-active-second-photo', secondPhoto);
-        } else {
-          // Find candidates that are not landscape and are from the same category
-          const candidates = (state.photosList || []).filter(p => 
+    const preloadAndMount = async () => {
+      try {
+        const meta = await getImageMeta(state.activePhoto.url);
+        if (!active) return;
+
+        consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
+
+        const isPortrait = meta.orientation === 'portrait';
+        const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
+
+        if (isPortrait && state.splitPortrait && !isPhotoPreventPairing) {
+          // Find if we have another cached portrait image in photosList from the same category
+          const cachedPortraits = (state.photosList || []).filter(p => 
             p.url !== state.activePhoto.url && 
-            imageOrientationCache.current[p.url] !== 'landscape' &&
+            imageOrientationCache.current[p.url] === 'portrait' &&
             p.preventPairing !== true &&
             (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
           );
-          
-          if (candidates.length > 0) {
-            findSecondPortraitSequentially(state.activePhoto, candidates, 0);
+
+          if (cachedPortraits.length > 0) {
+            const secondPhoto = cachedPortraits[Math.floor(Math.random() * cachedPortraits.length)];
+            if (active) {
+              addSplitSlide(state.activePhoto, secondPhoto);
+              socket.emit('set-active-second-photo', secondPhoto);
+            }
           } else {
+            // Find candidates that are not landscape and are from the same category
+            const candidates = (state.photosList || []).filter(p => 
+              p.url !== state.activePhoto.url && 
+              imageOrientationCache.current[p.url] !== 'landscape' &&
+              p.preventPairing !== true &&
+              (p.category && state.activePhoto.category && p.category === state.activePhoto.category)
+            );
+
+            const secondPhoto = await findSecondPortrait(candidates);
+            if (!active) return;
+
+            if (secondPhoto) {
+              addSplitSlide(state.activePhoto, secondPhoto);
+              socket.emit('set-active-second-photo', secondPhoto);
+            } else {
+              addSingleSlide(state.activePhoto);
+              socket.emit('set-active-second-photo', null);
+            }
+          }
+        } else {
+          if (active) {
             addSingleSlide(state.activePhoto);
             socket.emit('set-active-second-photo', null);
           }
         }
-      } else {
-        addSingleSlide(state.activePhoto);
-        socket.emit('set-active-second-photo', null);
-      }
-    };
-    imgPreloader.onerror = () => {
-      if (!active) return;
-      console.warn('Failed to load wallpaper image:', state.activePhoto.url);
-      
-      const maxFailures = state.photosList ? state.photosList.length : 5;
-      if (consecutiveFailuresRef.current >= maxFailures) {
-        console.error('All photos in current feed failed to load. Network might be down. Stopping infinite skip loop.');
-        
-        socket.emit('report-media-failure', {
-          category: state.currentCategory,
-          failedUrls: state.photosList ? state.photosList.map(p => p.url) : [state.activePhoto.url],
-          message: 'All wallpapers in this feed failed to load. The display client is likely offline.'
-        });
-        return;
-      }
+      } catch (err) {
+        if (!active) return;
+        console.warn('Failed to load wallpaper image:', state.activePhoto.url);
 
-      if (consecutiveFailuresRef.current < 3) {
-        console.log('Reporting specific broken link to server:', state.activePhoto.url);
-        socket.emit('mark-photo-broken', { url: state.activePhoto.url });
-      }
-
-      consecutiveFailuresRef.current += 1;
-      
-      setTimeout(() => {
-        if (active) {
-          socket.emit('next-photo');
+        const maxFailures = state.photosList ? state.photosList.length : 5;
+        if (consecutiveFailuresRef.current >= maxFailures) {
+          console.error('All photos in current feed failed to load. Network might be down. Stopping infinite skip loop.');
+          socket.emit('report-media-failure', {
+            category: state.currentCategory,
+            failedUrls: state.photosList ? state.photosList.map(p => p.url) : [state.activePhoto.url],
+            message: 'All wallpapers in this feed failed to load. The display client is likely offline.'
+          });
+          return;
         }
-      }, 1500);
+
+        if (consecutiveFailuresRef.current < 3) {
+          console.log('Reporting specific broken link to server:', state.activePhoto.url);
+          socket.emit('mark-photo-broken', { url: state.activePhoto.url });
+        }
+
+        consecutiveFailuresRef.current += 1;
+
+        setTimeout(() => {
+          if (active) {
+            socket.emit('next-photo');
+          }
+        }, 1500);
+      }
     };
-    imgPreloader.src = state.activePhoto.url;
+
+    preloadAndMount();
 
     return () => {
       active = false;
-      imgPreloader.onload = null;
-      imgPreloader.onerror = null;
     };
   }, [state.activePhoto, state.splitPortrait, state.photosList]);
 
