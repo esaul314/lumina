@@ -431,7 +431,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       unsplash: { enabled: true, keywords: [...parsedKeywords] },
       wallhaven: { enabled: true, keywords: [...parsedKeywords] },
       metmuseum: { enabled: true, keywords: [...parsedKeywords] },
-      artic: { enabled: true, keywords: [...parsedKeywords] }
+      artic: { enabled: false, keywords: [...parsedKeywords] }
     };
 
     collections[cleanCategory] = [];

@@ -330,7 +330,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         unsplash: { enabled: true, keywords: [...parsedKeywords] },
         wallhaven: { enabled: true, keywords: [...parsedKeywords] },
         metmuseum: { enabled: true, keywords: [...parsedKeywords] },
-        artic: { enabled: true, keywords: [...parsedKeywords] }
+        artic: { enabled: false, keywords: [...parsedKeywords] }
       };
 
       // 2. Initialize the collection list in collections

@@ -31,13 +31,25 @@ This document serves as a public-facing, generic history of technical developmen
   * **Tag Chip UI**: Replaced comma-separated text strings with an interactive tag chip component supporting tag creation via commas, semicolons, or the Enter key. Added automatic deduplication and validation for time-restricted keyword items.
   * **Safe Rating display**: Unified fallbacks across the remote dashboard, formatting `undefined` or default states explicitly as `10 (Default / Max)`.
 
+### 2026-06-27 (Part 2): TV Screensaver Rapid Skipping Fix & Default Pool Config
+* **Goal**: Fix rapid screensaver wallpaper rotation (every 3-5 seconds) when creating/activating new pools, and disable broken Art Institute of Chicago URLs by default.
+* **Implementation**:
+  * **Preloader Hook Cleanup**: Added cleanup logic to the preloader `useEffect` hook in `Dashboard.jsx` to abort previous preloading requests when the state or categories change, preventing orphaned background loaders from triggering slide skips on error.
+  * **Crawl Defaults**: Changed the default pool configurations to disable the `artic` crawler by default. This avoids flooding new custom pools with broken URLs that get Cloudflare 403 blocks in datacenter environments.
+* **Verification**: Added automated tests to assert the crawler configuration, rebuilt client assets, and successfully passed the Playwright E2E integration test (`test_split_sync.js`).
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules
 
 To prevent regressions, all visiting developers must strictly abide by the following architectural constraints:
 
-### 1. Always Bind Image Event Handlers Before Setting `src`
+### 1. React useEffect Hook Cleanup for Preloaders
+When writing components that preload images dynamically in response to state changes:
+* **Rule**: Always maintain an `active = true` local flag and return a cleanup function in the `useEffect` that sets `active = false` and cancels event handlers (`onload`/`onerror`). Verify this flag before executing any callbacks or emitting socket actions.
+* **Why**: Outstanding background preloaders from previous renders will otherwise trigger state updates or error cascades (e.g. next-photo skips) when they complete, leading to rapid slideshow rotation cycles.
+
+### 2. Always Bind Image Event Handlers Before Setting `src`
 When preloading wallpaper images dynamically via Javascript (`new Image()`), **always** assign `onload` and `onerror` handlers *before* setting the `src` property:
 ```javascript
 const img = new Image();

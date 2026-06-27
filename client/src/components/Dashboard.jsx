@@ -105,6 +105,8 @@ function Dashboard({ state, socket, connectionInfo }) {
   useEffect(() => {
     if (!state.activePhoto) return;
 
+    let active = true;
+
     // Check if this photo is already our current active slide with the same split layout setting
     const currentActiveSlide = activeSlides.find(s => s.active);
     const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
@@ -197,6 +199,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     };
 
     const findSecondPortraitSequentially = (activePhoto, candidates, index) => {
+      if (!active) return;
       if (index >= candidates.length || index >= 8) {
         addSingleSlide(activePhoto);
         socket.emit('set-active-second-photo', null);
@@ -206,6 +209,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       const candidate = candidates[index];
       const testImg = new window.Image();
       testImg.onload = () => {
+        if (!active) return;
         const isCandPortrait = testImg.naturalHeight > testImg.naturalWidth;
         imageOrientationCache.current[candidate.url] = isCandPortrait ? 'portrait' : 'landscape';
         imageDimensionsCache.current[candidate.url] = {
@@ -221,6 +225,7 @@ function Dashboard({ state, socket, connectionInfo }) {
         }
       };
       testImg.onerror = () => {
+        if (!active) return;
         imageOrientationCache.current[candidate.url] = 'landscape';
         findSecondPortraitSequentially(activePhoto, candidates, index + 1);
       };
@@ -230,6 +235,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     // Preload image in the background using native Image element to prevent blank screens
     const imgPreloader = new window.Image();
     imgPreloader.onload = () => {
+      if (!active) return;
       consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
       const isPortrait = imgPreloader.naturalHeight > imgPreloader.naturalWidth;
       imageOrientationCache.current[state.activePhoto.url] = isPortrait ? 'portrait' : 'landscape';
@@ -274,6 +280,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       }
     };
     imgPreloader.onerror = () => {
+      if (!active) return;
       console.warn('Failed to load wallpaper image:', state.activePhoto.url);
       
       const maxFailures = state.photosList ? state.photosList.length : 5;
@@ -296,10 +303,18 @@ function Dashboard({ state, socket, connectionInfo }) {
       consecutiveFailuresRef.current += 1;
       
       setTimeout(() => {
-        socket.emit('next-photo');
+        if (active) {
+          socket.emit('next-photo');
+        }
       }, 1500);
     };
     imgPreloader.src = state.activePhoto.url;
+
+    return () => {
+      active = false;
+      imgPreloader.onload = null;
+      imgPreloader.onerror = null;
+    };
   }, [state.activePhoto, state.splitPortrait, state.photosList]);
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic

@@ -774,6 +774,7 @@ async function runIntegrationTests() {
       assert.strictEqual(newPoolRes.body.success, true);
       assert.strictEqual(newPoolRes.body.pool.name, 'REST Pool Test');
       assert.deepStrictEqual(newPoolRes.body.pool.keywords, ['test-rest-keyword-1', 'test-rest-keyword-2']);
+      assert.strictEqual(newPoolRes.body.pool.feedConfigs.artic.enabled, false);
     });
 
     // 6. GET /api/pools/:name/photos
