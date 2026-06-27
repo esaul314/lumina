@@ -47,16 +47,23 @@ const countNegatives = countWordMatches(negativeWords);
  */
 const getHeadlines = (xmlText) => {
   const titleRegex = /<title>([^<]+)<\/title>/g;
-  const matches = [];
-  let match;
-  while ((match = titleRegex.exec(xmlText)) !== null) {
-    matches.push(match[1].toLowerCase());
-  }
+  const matches = [...xmlText.matchAll(titleRegex)].map(m => m[1].toLowerCase());
   // Skip the main RSS feed title if it includes "google news"
-  if (matches.length > 0 && matches[0].includes('google news')) {
-    return matches.slice(1);
+  return matches.length > 0 && matches[0].includes('google news') ? matches.slice(1) : matches;
+};
+
+/**
+ * 🧠 classifyScore
+ * Pure helper to map a sentiment score to screensaver label and weather matches.
+ */
+const classifyScore = (score) => {
+  if (score <= -0.1) {
+    return { label: 'Stormy / Tense', weatherMatch: 'Rainy' };
   }
-  return matches;
+  if (score >= 0.1) {
+    return { label: 'Sunny / Hopeful', weatherMatch: 'Sunny' };
+  }
+  return { label: 'Overcast / Calm', weatherMatch: 'Cloudy' };
 };
 
 /**
@@ -81,23 +88,12 @@ function analyzeSentiment(rssXmlText) {
 
   const totalMatches = posCount + negCount;
   const score = totalMatches > 0 ? (posCount - negCount) / (totalMatches + 1) : 0;
-
-  let label = 'Overcast / Calm';
-  let weatherMatch = 'Cloudy';
-
-  if (score <= -0.1) {
-    label = 'Stormy / Tense';
-    weatherMatch = 'Rainy';
-  } else if (score >= 0.1) {
-    label = 'Sunny / Hopeful';
-    weatherMatch = 'Sunny';
-  }
+  const roundedScore = parseFloat(score.toFixed(3));
 
   return {
-    score: parseFloat(score.toFixed(3)),
-    label,
-    weatherMatch,
-    headlinesCount: headlines.length
+    score: roundedScore,
+    headlinesCount: headlines.length,
+    ...classifyScore(roundedScore)
   };
 }
 

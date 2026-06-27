@@ -41,29 +41,43 @@ async function getIpLocation() {
   }
 }
 
+// WMO weather code to environmental mapping dictionary
+const weatherCodeMap = {
+  0: { physicalMatch: 'Sunny', physicalCond: 'Sunny / Clear' },
+  1: { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' },
+  2: { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' },
+  3: { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' },
+  45: { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' },
+  48: { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' },
+  51: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  53: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  55: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  56: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  57: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  61: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  63: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  65: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  67: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  80: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  81: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  82: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  95: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  96: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  99: { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+  71: { physicalMatch: 'Snowy', physicalCond: 'Snowy / Wintry' },
+  73: { physicalMatch: 'Snowy', physicalCond: 'Snowy / Wintry' },
+  75: { physicalMatch: 'Snowy', physicalCond: 'Snowy / Wintry' },
+  77: { physicalMatch: 'Snowy', physicalCond: 'Snowy / Wintry' },
+  85: { physicalMatch: 'Snowy', physicalCond: 'Snowy / Wintry' },
+  86: { physicalMatch: 'Snowy', physicalCond: 'Snowy / Wintry' }
+};
+
 /**
  * 🌦️ classifyWeatherCode
  * Standard WMO Code classification mapping for smart environmental wallpapers.
  */
 function classifyWeatherCode(code) {
-  let physicalMatch = 'Cloudy';
-  let physicalCond = 'Cloudy / Overcast';
-
-  if (code === 0) {
-    physicalMatch = 'Sunny';
-    physicalCond = 'Sunny / Clear';
-  } else if ([1, 2, 3, 45, 48].includes(code)) {
-    physicalMatch = 'Cloudy';
-    physicalCond = 'Cloudy / Overcast';
-  } else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) {
-    physicalMatch = 'Rainy';
-    physicalCond = 'Rainy / Stormy';
-  } else if ([71, 73, 75, 77, 85, 86].includes(code)) {
-    physicalMatch = 'Snowy';
-    physicalCond = 'Snowy / Wintry';
-  }
-
-  return { physicalMatch, physicalCond };
+  return weatherCodeMap[code] || { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' };
 }
 
 /**
