@@ -15,6 +15,49 @@ const searchQueries = {
   'AI Creations': 'surreal digital art generative midjourney cyberpunk futuristic'
 };
 
+const tumblrApiKey = () => (process.env.TUMBLR_API_KEY || '').trim();
+
+const cleanTumblrTitle = (rawTitle, fallback = 'Tumblr Scenic Photo') => {
+  const normalized = String(rawTitle || fallback)
+    .replace(/<[^>]*>/g, '')
+    .trim()
+    .replace(/[\r\n\t]+/g, ' ');
+  const trimmed = normalized.length > 55 ? `${normalized.substring(0, 52)}...` : normalized;
+  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : fallback;
+};
+
+const extractTumblrTaggedPhotoUrls = (post) => {
+  const legacyPhotos = Array.isArray(post?.photos)
+    ? post.photos
+        .map((photo) =>
+          photo?.original_size?.url ||
+          photo?.alt_sizes?.[0]?.url ||
+          photo?.url
+        )
+        .filter(Boolean)
+    : [];
+
+  if (legacyPhotos.length > 0) {
+    return legacyPhotos;
+  }
+
+  const contentPhotos = Array.isArray(post?.content)
+    ? post.content
+        .filter((block) => block?.type === 'image')
+        .map((block) => {
+          const media = Array.isArray(block?.media) ? block.media : [];
+          return media.reduce((best, candidate) => {
+            if (!candidate?.url) return best;
+            if (!best?.url) return candidate;
+            return (candidate.width || 0) > (best.width || 0) ? candidate : best;
+          }, null)?.url;
+        })
+        .filter(Boolean)
+    : [];
+
+  return contentPhotos;
+};
+
 /**
  * 🎨 fetchTumblrImages
  * Fetches photo posts from a public Tumblr blog keylessly.
@@ -49,13 +92,7 @@ async function fetchTumblrImages(blogName, count = 20) {
       if (post.type !== 'photo') continue;
 
       const postPhotos = post.photos || [];
-      const caption = post['photo-caption'] || post.slug || 'Tumblr Scenic Photo';
-      // Clean HTML tags from caption
-      let title = caption.replace(/<[^>]*>/g, '').trim().replace(/[\r\n\t]+/g, ' ');
-      if (title.length > 55) {
-        title = title.substring(0, 52) + '...';
-      }
-      title = title.charAt(0).toUpperCase() + title.slice(1);
+      const title = cleanTumblrTitle(post['photo-caption'] || post.slug, 'Tumblr Scenic Photo');
 
       const author = data.tumblelog ? data.tumblelog.title : 'Tumblr Contributor';
 
@@ -98,6 +135,70 @@ async function fetchTumblrImages(blogName, count = 20) {
     return photos;
   } catch (err) {
     console.error(`Tumblr crawler failed for blog "${blogName}":`, err.message);
+    return [];
+  }
+}
+
+/**
+ * 🏷️ fetchTumblrTaggedImages
+ * Fetches tagged Tumblr posts using the official API when TUMBLR_API_KEY is available.
+ */
+async function fetchTumblrTaggedImages(tag, count = 20) {
+  const apiKey = tumblrApiKey();
+  if (!apiKey) {
+    console.log(`Tumblr Tagged Crawler: Skipping tag "${tag}" because TUMBLR_API_KEY is not configured.`);
+    return [];
+  }
+
+  try {
+    console.log(`Tumblr Tagged Crawler: Fetching tag "${tag}"...`);
+    const limit = Math.min(Math.max(Number(count) || 20, 1), 20);
+    const url = `https://api.tumblr.com/v2/tagged?tag=${encodeURIComponent(tag)}&limit=${limit}&filter=text&npf=true&api_key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Lumina/1.0 TumblrTaggedCrawler'
+      }
+    });
+
+    if (!res.ok) {
+      console.warn(`Tumblr Tagged Crawler: Failed for tag "${tag}" (status ${res.status})`);
+      return [];
+    }
+
+    const data = await res.json();
+    const posts = Array.isArray(data?.response) ? data.response : [];
+    const photos = posts.flatMap((post) => {
+      const urls = extractTumblrTaggedPhotoUrls(post);
+      if (urls.length === 0) {
+        return [];
+      }
+
+      const title = cleanTumblrTitle(
+        post?.summary ||
+        post?.caption ||
+        post?.slug ||
+        post?.tags?.[0],
+        `Tumblr #${tag}`
+      );
+      const author = post?.blog_name || post?.blog?.name || 'Tumblr Contributor';
+
+      return urls.map((photoUrl) => ({
+        url: photoUrl,
+        title,
+        author,
+        source: 'tumblr_tagged',
+        isNight: false,
+        isRain: false,
+        isSunny: true,
+        isCloudy: false,
+        isSnowy: false
+      }));
+    });
+
+    console.log(`Tumblr Tagged Crawler: Successfully loaded ${photos.length} photos for tag "${tag}".`);
+    return photos;
+  } catch (err) {
+    console.error(`Tumblr Tagged crawler failed for tag "${tag}":`, err.message);
     return [];
   }
 }
@@ -760,22 +861,27 @@ const getCategoryDefaults = (category) => {
     'Scenic Nature': {
       reddit: { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] },
       tumblr: { enabled: true, blogs: ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'] },
+      tumblrTags: { enabled: false, tags: ['landscape', 'nature', 'mountains'] },
       picsum: { enabled: true },
       bing: { enabled: true }
     },
     'Cosmic Space': {
       reddit: { enabled: true, subreddits: ['spaceporn', 'Astrophotography'] },
       tumblr: { enabled: true, blogs: ['nasaimages', 'cosmic-space-explorer'] },
+      tumblrTags: { enabled: false, tags: ['space', 'nebula', 'astrophotography'] },
       nasaApod: { enabled: true }
     },
     'Abstract Art': {
-      tumblr: { enabled: true, blogs: ['abstractartgallery', 'generative-art'] }
+      tumblr: { enabled: true, blogs: ['abstractartgallery', 'generative-art'] },
+      tumblrTags: { enabled: false, tags: ['abstract', 'generative art', 'minimalism'] }
     },
     'Liminal Spaces': {
-      tumblr: { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] }
+      tumblr: { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] },
+      tumblrTags: { enabled: false, tags: ['liminal spaces', 'empty rooms', 'backrooms'] }
     },
     'AI Creations': {
       tumblr: { enabled: true, blogs: ['aiartgenerator', 'midjourneycreations'] },
+      tumblrTags: { enabled: false, tags: ['ai art', 'midjourney', 'surreal landscape'] },
       midjourney: { enabled: true }
     }
   };
@@ -792,6 +898,7 @@ function buildFeedConfigsFromKeywords(keywordsMap) {
     configs[category] = {
       unsplash: { enabled: true, keywords: [...keywords] },
       wallhaven: { enabled: true, keywords: [...keywords] },
+      tumblrTags: { enabled: false, tags: [...keywords] },
       ...getCategoryDefaults(category)
     };
     return configs;
@@ -871,6 +978,11 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
       key: 'tumblr',
       param: 'blogs',
       fetcher: async (blog) => fetchTumblrImages(blog, 10)
+    },
+    {
+      key: 'tumblrTags',
+      param: 'tags',
+      fetcher: async (tag) => fetchTumblrTaggedImages(tag, 10)
     },
     {
       key: 'metmuseum',
@@ -1009,6 +1121,8 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
 module.exports = {
   fetchRedditImages,
   fetchPicsumImages,
+  fetchTumblrImages,
+  fetchTumblrTaggedImages,
   fetchLexicaImages,
   fetchWallhavenImages,
   fetchNasaApod,

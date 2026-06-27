@@ -1,46 +1,52 @@
 const config = require('./configLoader.js');
 
+function collectKeywordStrings(kws) {
+  if (Array.isArray(kws)) {
+    return kws.flatMap(item => {
+      if (typeof item === 'string') {
+        return [item];
+      }
+      if (item && typeof item === 'object') {
+        const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
+        return itemKws.filter(kw => typeof kw === 'string');
+      }
+      return [];
+    });
+  }
+  return typeof kws === 'string' ? [kws] : [];
+}
+
 function buildFeedConfigsFromKeywords(keywordsMap) {
   const configs = {};
   for (const [category, kws] of Object.entries(keywordsMap)) {
-    let keywords = [];
-    if (Array.isArray(kws)) {
-      for (const item of kws) {
-        if (typeof item === 'string') {
-          keywords.push(item);
-        } else if (item && typeof item === 'object') {
-          const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
-          for (const kw of itemKws) {
-            if (typeof kw === 'string') {
-              keywords.push(kw);
-            }
-          }
-        }
-      }
-    } else if (typeof kws === 'string') {
-      keywords.push(kws);
-    }
+    const keywords = collectKeywordStrings(kws);
     configs[category] = {
       unsplash: { enabled: true, keywords: [...keywords] },
-      wallhaven: { enabled: true, keywords: [...keywords] }
+      wallhaven: { enabled: true, keywords: [...keywords] },
+      tumblrTags: { enabled: false, tags: [...keywords] }
     };
     
     // Add default integrations for built-in categories
     if (category === 'Scenic Nature') {
       configs[category].reddit = { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] };
       configs[category].tumblr = { enabled: true, blogs: ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'] };
+      configs[category].tumblrTags = { enabled: false, tags: ['landscape', 'nature', 'mountains'] };
       configs[category].picsum = { enabled: true };
       configs[category].bing = { enabled: true };
     } else if (category === 'Cosmic Space') {
       configs[category].reddit = { enabled: true, subreddits: ['spaceporn', 'Astrophotography'] };
       configs[category].tumblr = { enabled: true, blogs: ['nasaimages', 'cosmic-space-explorer'] };
+      configs[category].tumblrTags = { enabled: false, tags: ['space', 'nebula', 'astrophotography'] };
       configs[category].nasaApod = { enabled: true };
     } else if (category === 'Abstract Art') {
       configs[category].tumblr = { enabled: true, blogs: ['abstractartgallery', 'generative-art'] };
+      configs[category].tumblrTags = { enabled: false, tags: ['abstract', 'generative art', 'minimalism'] };
     } else if (category === 'Liminal Spaces') {
       configs[category].tumblr = { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] };
+      configs[category].tumblrTags = { enabled: false, tags: ['liminal spaces', 'empty rooms', 'backrooms'] };
     } else if (category === 'AI Creations') {
       configs[category].tumblr = { enabled: true, blogs: ['aiartgenerator', 'midjourneycreations'] };
+      configs[category].tumblrTags = { enabled: false, tags: ['ai art', 'midjourney', 'surreal landscape'] };
       configs[category].midjourney = { enabled: true };
     }
   }

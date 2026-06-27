@@ -574,7 +574,8 @@ assertTest('crawler exports Wallhaven, NASA APOD, Midjourney, Bing, MetMuseum, a
     fetchMidjourneyImages,
     fetchBingImageOfTheDay,
     fetchMetMuseumImages,
-    fetchAicImages
+    fetchAicImages,
+    fetchTumblrTaggedImages
   } = require('./server/services/crawler.js');
   assert.strictEqual(typeof fetchWallhavenImages, 'function', 'fetchWallhavenImages must be a function');
   assert.strictEqual(typeof fetchNasaApod, 'function', 'fetchNasaApod must be a function');
@@ -582,6 +583,24 @@ assertTest('crawler exports Wallhaven, NASA APOD, Midjourney, Bing, MetMuseum, a
   assert.strictEqual(typeof fetchBingImageOfTheDay, 'function', 'fetchBingImageOfTheDay must be a function');
   assert.strictEqual(typeof fetchMetMuseumImages, 'function', 'fetchMetMuseumImages must be a function');
   assert.strictEqual(typeof fetchAicImages, 'function', 'fetchAicImages must be a function');
+  assert.strictEqual(typeof fetchTumblrTaggedImages, 'function', 'fetchTumblrTaggedImages must be a function');
+});
+
+assertTest('Tumblr tagged crawler safely skips when TUMBLR_API_KEY is not configured', async () => {
+  const { fetchTumblrTaggedImages } = require('./server/services/crawler.js');
+  const originalKey = process.env.TUMBLR_API_KEY;
+  delete process.env.TUMBLR_API_KEY;
+
+  try {
+    const photos = await fetchTumblrTaggedImages('landscape', 2);
+    assert.deepStrictEqual(photos, [], 'Crawler should return an empty array without credentials');
+  } finally {
+    if (originalKey === undefined) {
+      delete process.env.TUMBLR_API_KEY;
+    } else {
+      process.env.TUMBLR_API_KEY = originalKey;
+    }
+  }
 });
 
 assertTest('MetMuseum crawler retrieves public domain artworks', async () => {

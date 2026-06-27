@@ -559,7 +559,7 @@ function ImageFeedsTab({
       <div className="remote-card">
         <span className="remote-section-title">Scenic Feed Source Manager</span>
         <p style={{ fontSize: '0.72rem', opacity: 0.5, lineHeight: '1.35', marginTop: '6px', marginBottom: '12px' }}>
-          Configure search keywords, subreddits, or Tumblr blogs for each image source in this scenic pool.
+          Configure search keywords, subreddits, Tumblr blogs, or Tumblr tags for each image source in this scenic pool.
         </p>
         
         {/* Category Dropdown Selector */}
@@ -598,6 +598,7 @@ function ImageFeedsTab({
             { key: 'artic', name: 'Art Institute of Chicago', param: 'keywords', placeholder: 'Add keyword (e.g. impressionism)...' },
             { key: 'reddit', name: 'Reddit Subreddits', param: 'subreddits', placeholder: 'Add subreddit (e.g. EarthPorn)...' },
             { key: 'tumblr', name: 'Tumblr Public Blogs', param: 'blogs', placeholder: 'Add blog name (e.g. nasaimages)...' },
+            { key: 'tumblrTags', name: 'Tumblr Tag Search', param: 'tags', placeholder: 'Add tag (e.g. landscape)...' },
             { key: 'nasaApod', name: 'NASA APOD', param: null },
             { key: 'bing', name: 'Bing Daily Wallpaper', param: null },
             { key: 'picsum', name: 'Lorem Picsum', param: null },
@@ -647,6 +648,12 @@ function ImageFeedsTab({
                     {isEnabled ? 'ENABLED' : 'DISABLED'}
                   </button>
                 </div>
+
+                {src.key === 'tumblrTags' && (
+                  <div style={{ marginTop: '8px', fontSize: '0.72rem', lineHeight: 1.35, color: 'rgba(255,255,255,0.45)' }}>
+                    Requires `TUMBLR_API_KEY` in the Lumina server environment. Without it, recrawls skip Tumblr tag lookups safely.
+                  </div>
+                )}
 
                 {isEnabled && hasParams && (
                   <div style={{ marginTop: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
