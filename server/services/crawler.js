@@ -733,50 +733,69 @@ async function fetchAicImages(query, count = 10) {
   }
 }
 
-function buildFeedConfigsFromKeywords(keywordsMap) {
-  const configs = {};
-  for (const [category, kws] of Object.entries(keywordsMap)) {
-    let keywords = [];
-    if (Array.isArray(kws)) {
-      for (const item of kws) {
-        if (typeof item === 'string') {
-          keywords.push(item);
-        } else if (item && typeof item === 'object') {
-          const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
-          for (const kw of itemKws) {
-            if (typeof kw === 'string') {
-              keywords.push(kw);
-            }
-          }
-        }
+/**
+ * 🔍 extractKeywords
+ * Declarative flatMap extractor resolving nested keyword configurations.
+ */
+const extractKeywords = (kws) => {
+  if (Array.isArray(kws)) {
+    return kws.flatMap(item => {
+      if (typeof item === 'string') return [item];
+      if (item && typeof item === 'object') {
+        const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
+        return itemKws.filter(kw => typeof kw === 'string');
       }
-    } else if (typeof kws === 'string') {
-      keywords.push(kws);
+      return [];
+    });
+  }
+  return typeof kws === 'string' ? [kws] : [];
+};
+
+/**
+ * ⚙️ getCategoryDefaults
+ * Pure registry mapping categories to their default service configurations.
+ */
+const getCategoryDefaults = (category) => {
+  const defaults = {
+    'Scenic Nature': {
+      reddit: { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] },
+      tumblr: { enabled: true, blogs: ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'] },
+      picsum: { enabled: true },
+      bing: { enabled: true }
+    },
+    'Cosmic Space': {
+      reddit: { enabled: true, subreddits: ['spaceporn', 'Astrophotography'] },
+      tumblr: { enabled: true, blogs: ['nasaimages', 'cosmic-space-explorer'] },
+      nasaApod: { enabled: true }
+    },
+    'Abstract Art': {
+      tumblr: { enabled: true, blogs: ['abstractartgallery', 'generative-art'] }
+    },
+    'Liminal Spaces': {
+      tumblr: { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] }
+    },
+    'AI Creations': {
+      tumblr: { enabled: true, blogs: ['aiartgenerator', 'midjourneycreations'] },
+      midjourney: { enabled: true }
     }
+  };
+  return defaults[category] || {};
+};
+
+/**
+ * 🛠️ buildFeedConfigsFromKeywords
+ * Declarative configuration builder. Translates custom keyword maps into structured crawler targets.
+ */
+function buildFeedConfigsFromKeywords(keywordsMap) {
+  return Object.entries(keywordsMap).reduce((configs, [category, kws]) => {
+    const keywords = extractKeywords(kws);
     configs[category] = {
       unsplash: { enabled: true, keywords: [...keywords] },
-      wallhaven: { enabled: true, keywords: [...keywords] }
+      wallhaven: { enabled: true, keywords: [...keywords] },
+      ...getCategoryDefaults(category)
     };
-    
-    if (category === 'Scenic Nature') {
-      configs[category].reddit = { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] };
-      configs[category].tumblr = { enabled: true, blogs: ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'] };
-      configs[category].picsum = { enabled: true };
-      configs[category].bing = { enabled: true };
-    } else if (category === 'Cosmic Space') {
-      configs[category].reddit = { enabled: true, subreddits: ['spaceporn', 'Astrophotography'] };
-      configs[category].tumblr = { enabled: true, blogs: ['nasaimages', 'cosmic-space-explorer'] };
-      configs[category].nasaApod = { enabled: true };
-    } else if (category === 'Abstract Art') {
-      configs[category].tumblr = { enabled: true, blogs: ['abstractartgallery', 'generative-art'] };
-    } else if (category === 'Liminal Spaces') {
-      configs[category].tumblr = { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] };
-    } else if (category === 'AI Creations') {
-      configs[category].tumblr = { enabled: true, blogs: ['aiartgenerator', 'midjourneycreations'] };
-      configs[category].midjourney = { enabled: true };
-    }
-  }
-  return configs;
+    return configs;
+  }, {});
 }
 
 /**

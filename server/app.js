@@ -648,16 +648,10 @@ function setManualOverride(value) {
 }
 
 function getLocalIpAddresses() {
-  const interfaces = os.networkInterfaces();
-  const addresses = [];
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        addresses.push(iface.address);
-      }
-    }
-  }
-  return addresses;
+  return Object.values(os.networkInterfaces())
+    .flat()
+    .filter(iface => iface && iface.family === 'IPv4' && !iface.internal)
+    .map(iface => iface.address);
 }
 
 // Wire up modular controllers

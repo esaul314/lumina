@@ -56,23 +56,17 @@ function isAudioPlaying() {
         return resolve(false);
       }
       
-      const inputs = pactlStdout.split(/Sink Input #/i);
-      let isPlaying = false;
+      const inputs = pactlStdout.split(/Sink Input #/i).slice(1);
       
-      for (let i = 1; i < inputs.length; i++) {
-        const input = inputs[i];
-        const isUncorked = input.toLowerCase().includes('corked: no') || 
-                           input.toLowerCase().includes('pulse.corked = "false"');
-        if (isUncorked) {
-          const isSystemSpeech = input.toLowerCase().includes('speech-dispatcher') || 
-                                 input.toLowerCase().includes('sd_dummy');
-          if (!isSystemSpeech) {
-            isPlaying = true;
-            break;
-          }
-        }
-      }
-      
+      const isUncorked = (input) =>
+        input.toLowerCase().includes('corked: no') || 
+        input.toLowerCase().includes('pulse.corked = "false"');
+        
+      const isSystemSpeech = (input) =>
+        input.toLowerCase().includes('speech-dispatcher') || 
+        input.toLowerCase().includes('sd_dummy');
+
+      const isPlaying = inputs.some(input => isUncorked(input) && !isSystemSpeech(input));
       resolve(isPlaying);
     });
   });
