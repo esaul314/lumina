@@ -1,0 +1,72 @@
+# 📖 Lumina Developer Log & AI Learnings Journal
+
+This document serves as a public-facing, generic history of technical developments, architectural decisions, and key technical lessons learned. Any developer or visiting AI agent should read this file to understand why certain features were built in a specific way and to avoid repeating past mistakes.
+
+---
+
+## 📅 Technical Changelog & Milestones
+
+### 2026-06-24: TV Controller Rating Fallback Bugfix
+* **Issue**: The remote control rating widget displayed `undefined (Weight: 1)` for photos that did not yet have a rating set.
+* **Root Cause**: The client-side rating component was reading the photo's rating field without providing a default value.
+* **Fix**: Added a safe fallback expression: `const currentRating = activePhoto && activePhoto.rating !== undefined ? activePhoto.rating : 10;`.
+* **Learning**: Avoid assuming all metadata properties are initialized; provide logical defaults (e.g. standard rating weight `10`).
+
+### 2026-06-25: REST API Integration & Test Automation
+* **Goal**: Implement a fully RESTful API to configure and control Lumina next to the real-time Socket.IO synchronization layer.
+* **Implementation**:
+  * Refactored server routes to expose endpoints for state query/updates (`GET`/`PATCH` `/api/state`), screensaver toggle (`POST` `/api/state/screensaver`), scenic pool configuration (`GET`/`POST`/`PATCH`/`DELETE` `/api/pools`), and photo actions (rating, cropping/zooming, previews, next/prev transitions).
+  * Automated testing: Added programmatic server start and teardown on a dedicated test port (`5001`) during integration testing to guarantee smoke tests run reliably and independently.
+* **Verification**: Established a suite of 50 unit and integration tests.
+
+### 2026-06-26: Live Weather Humidity & Cursor Auto-Hiding
+* **Goal**: Display relative humidity in the weather widget and hide the mouse pointer during screensaver playback.
+* **Implementation**:
+  * **Humidity**: Extracted `relative_humidity_2m` from the live meteorological API payload and added a soft-styled `.weather-humidity` display utilizing a droplet icon.
+  * **Cursor Auto-Hide**: Implemented a mouse-movement listener in the main dashboard. If no movement is detected for 3 seconds, a `.hide-cursor` class is applied via CSS (`cursor: none !important`). The timer clears automatically on movement and is paused when the settings drawer is open.
+
+### 2026-06-27: Custom Keyword Chip UI & Safety Bounds
+* **Goal**: Upgrade keyword configuration to a tag chip UI and ensure rating input bounds are safe.
+* **Implementation**:
+  * **Tag Chip UI**: Replaced comma-separated text strings with an interactive tag chip component supporting tag creation via commas, semicolons, or the Enter key. Added automatic deduplication and validation for time-restricted keyword items.
+  * **Safe Rating display**: Unified fallbacks across the remote dashboard, formatting `undefined` or default states explicitly as `10 (Default / Max)`.
+
+---
+
+## 🧬 Crucial Gotchas & Design Rules
+
+To prevent regressions, all visiting developers must strictly abide by the following architectural constraints:
+
+### 1. Always Bind Image Event Handlers Before Setting `src`
+When preloading wallpaper images dynamically via Javascript (`new Image()`), **always** assign `onload` and `onerror` handlers *before* setting the `src` property:
+```javascript
+const img = new Image();
+img.onload = () => { /* Handle load */ };
+img.onerror = () => { /* Handle error */ };
+img.src = imageUrl;
+```
+* **Why**: For cached images, browsers may execute the load handler synchronously upon setting `src`. Setting `src` first can cause these events to fire before the handlers are attached, resulting in frozen preloader spinners.
+
+### 2. Double-Buffer Slideshow (DOM Memory Guard)
+Chromium kiosk sessions running high-resolution (2K/4K) images can experience huge memory leaks if multiple slides linger in the DOM.
+* **Architecture**: The screensaver uses a double-buffering scheme keeping **at most two slide elements** in the DOM (one active, one fading out). Preloading is done off-screen in memory. Do not refactor the slideshow to keep large arrays of images in the DOM.
+
+### 3. Target Active Slides in Automated Integration/E2E Tests
+* **Gotcha**: Because the slideshow uses cross-fades, the old slide remains in the DOM temporarily while fading out.
+* **Rule**: When writing UI automation tests or selecting image elements, always qualify selectors with the active class (e.g. `.slide.active img`) to ensure you do not query an obsolete, transitioning-out element.
+
+### 4. Atmospheric Weather & News Sentiment Alignment
+The screensaver automatically maps live conditions and global sentiment to active wallpaper choices:
+* Meteorological rain/snow overrides everything, forcing rainy or snowy wallpapers.
+* If weather is clear, news sentiment RSS feeds are parsed: highly positive sentiment prioritizes sunny/golden wallpapers, while highly negative sentiment prioritizes stormy/rainy wallpapers.
+
+---
+
+## 🧪 Verification & Diagnostics
+
+To run the regression suite, run:
+```bash
+node run-tests.js
+```
+
+A local diagnostic utility script is available at `.agents/skills/lumina-diagnostics/scripts/diagnose.sh` to check port status, daemon status, Mutter DBus connection, and PulseAudio streams.
