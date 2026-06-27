@@ -149,8 +149,9 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
     }
     
-    const numericRating = parseInt(rating, 10);
-    if (isNaN(numericRating) || numericRating < 1 || numericRating > 10) {
+    const { validateRating } = require('./utils/validation.js');
+    const numericRating = validateRating(rating);
+    if (numericRating === null) {
       return res.status(400).json({ error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' });
     }
 
@@ -640,8 +641,9 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
     // 1. Rating update
     if (rating !== undefined) {
-      const numericRating = parseInt(rating, 10);
-      if (isNaN(numericRating) || numericRating < 1 || numericRating > 10) {
+      const { validateRating } = require('./utils/validation.js');
+      const numericRating = validateRating(rating);
+      if (numericRating === null) {
         return res.status(400).json({ error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' });
       }
       const { updatePhotoRating } = require('./config/collections.js');
@@ -679,12 +681,13 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
     // 3. Crop update
     if (cropPercent !== undefined || cropPositionY !== undefined) {
-      const numericCrop = cropPercent !== undefined ? parseInt(cropPercent, 10) : undefined;
-      const numericCropY = cropPositionY !== undefined ? parseInt(cropPositionY, 10) : undefined;
-      if (numericCrop !== undefined && (isNaN(numericCrop) || numericCrop < 0 || numericCrop > 100)) {
+      const { validatePercent } = require('./utils/validation.js');
+      const numericCrop = cropPercent !== undefined ? validatePercent(cropPercent) : undefined;
+      const numericCropY = cropPositionY !== undefined ? validatePercent(cropPositionY) : undefined;
+      if (cropPercent !== undefined && numericCrop === null) {
         return res.status(400).json({ error: 'Invalid parameter: "cropPercent" must be between 0 and 100.' });
       }
-      if (numericCropY !== undefined && (isNaN(numericCropY) || numericCropY < 0 || numericCropY > 100)) {
+      if (cropPositionY !== undefined && numericCropY === null) {
         return res.status(400).json({ error: 'Invalid parameter: "cropPositionY" must be between 0 and 100.' });
       }
       const { updatePhotoCrop } = require('./config/collections.js');

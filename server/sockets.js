@@ -181,8 +181,9 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     // Rate photo socket event
     socket.on('rate-photo', ({ url, rating }) => {
       if (!url || typeof url !== 'string') return;
-      const numericRating = parseInt(rating, 10);
-      if (isNaN(numericRating) || numericRating < 1 || numericRating > 10) return;
+      const { validateRating } = require('./utils/validation.js');
+      const numericRating = validateRating(rating);
+      if (numericRating === null) return;
 
       const { updatePhotoRating } = require('./config/collections.js');
       updatePhotoRating(collections, state, url, numericRating);
@@ -200,11 +201,12 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('set-photo-crop', ({ url, cropPercent, cropPositionY }) => {
       if (!url || typeof url !== 'string') return;
       
-      const numericCrop = cropPercent !== undefined ? parseInt(cropPercent, 10) : undefined;
-      const numericCropY = cropPositionY !== undefined ? parseInt(cropPositionY, 10) : undefined;
+      const { validatePercent } = require('./utils/validation.js');
+      const numericCrop = cropPercent !== undefined ? validatePercent(cropPercent) : undefined;
+      const numericCropY = cropPositionY !== undefined ? validatePercent(cropPositionY) : undefined;
       
-      if (numericCrop !== undefined && (isNaN(numericCrop) || numericCrop < 0 || numericCrop > 100)) return;
-      if (numericCropY !== undefined && (isNaN(numericCropY) || numericCropY < 0 || numericCropY > 100)) return;
+      if (cropPercent !== undefined && numericCrop === null) return;
+      if (cropPositionY !== undefined && numericCropY === null) return;
 
       const { updatePhotoCrop } = require('./config/collections.js');
       updatePhotoCrop(collections, state, url, numericCrop, numericCropY);
