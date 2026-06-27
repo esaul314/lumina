@@ -892,67 +892,76 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
     }
   ];
 
-  // Run all active configured scrapers in a declarative loop
-  for (const scraper of scrapers) {
-    for (const [category, config] of Object.entries(configs)) {
-      const sourceConfig = config[scraper.key];
-      if (!sourceConfig || !sourceConfig.enabled) continue;
+  // Generate a flat list of active crawl jobs from configs
+  const activeJobs = scrapers.flatMap(scraper =>
+    Object.entries(configs)
+      .filter(([_, config]) => config[scraper.key] && config[scraper.key].enabled)
+      .map(([category, config]) => ({ scraper, category, sourceConfig: config[scraper.key] }))
+  );
 
-      try {
-        let categoryList = [...(updatedCollections[category] || [])];
-        const initialLength = categoryList.length;
-
-        // Fetch new items
-        let newItems = [];
-        if (scraper.param) {
-          const params = sourceConfig[scraper.param] || [];
-          for (const param of params) {
-            if (typeof param === 'string') {
-              const items = await scraper.fetcher(param, category);
-              const itemsWithMeta = items.map(item => ({ ...item, queryKeyword: param }));
-              newItems = newItems.concat(itemsWithMeta);
-            } else if (param && typeof param === 'object') {
-              const kws = Array.isArray(param.keywords) ? param.keywords : [param.keywords];
-              for (const kw of kws) {
-                if (typeof kw === 'string') {
-                  const items = await scraper.fetcher(kw, category);
-                  const itemsWithMeta = items.map(item => ({
-                    ...item,
-                    queryKeyword: kw,
-                    timeRanges: [{ start: param.timeStart, end: param.timeEnd }]
-                  }));
-                  newItems = newItems.concat(itemsWithMeta);
-                }
+  // Modular job executor
+  const executeJob = async (job) => {
+    const { scraper, category, sourceConfig } = job;
+    try {
+      let newItems = [];
+      if (scraper.param) {
+        const params = sourceConfig[scraper.param] || [];
+        for (const param of params) {
+          if (typeof param === 'string') {
+            const items = await scraper.fetcher(param, category);
+            newItems = newItems.concat(items.map(item => ({ ...item, queryKeyword: param })));
+          } else if (param && typeof param === 'object') {
+            const kws = Array.isArray(param.keywords) ? param.keywords : [param.keywords];
+            for (const kw of kws) {
+              if (typeof kw === 'string') {
+                const items = await scraper.fetcher(kw, category);
+                newItems = newItems.concat(items.map(item => ({
+                  ...item,
+                  queryKeyword: kw,
+                  timeRanges: [{ start: param.timeStart, end: param.timeEnd }]
+                })));
               }
             }
           }
-        } else {
-          newItems = await scraper.fetcher(category);
         }
+      } else {
+        newItems = await scraper.fetcher(category);
+      }
+      return newItems;
+    } catch (err) {
+      console.error(`${scraper.key.toUpperCase()} daily crawl failed for category "${category}":`, err.message);
+      return [];
+    }
+  };
 
-        // Add unique items
-        for (const item of newItems) {
-          if (!globalExistingUrls.has(item.url) && !matchesExclusion(excludedKeywords, item)) {
-            // Special rules for Tumblr cosmic night alignment
-            if (scraper.key === 'tumblr') {
-              item.isNight = category === 'Cosmic Space';
-              item.isSunny = !item.isNight;
-            }
-            categoryList.push(item);
-            globalExistingUrls.add(item.url);
-          }
+  // Run all active configured scrapers in a flat loop
+  for (const job of activeJobs) {
+    const { scraper, category } = job;
+    const newItems = await executeJob(job);
+    if (newItems.length === 0) continue;
+
+    let categoryList = [...(updatedCollections[category] || [])];
+    const initialLength = categoryList.length;
+
+    // Filter unique items declaratively
+    const uniqueNewItems = newItems.filter(item => {
+      if (!globalExistingUrls.has(item.url) && !matchesExclusion(excludedKeywords, item)) {
+        if (scraper.key === 'tumblr') {
+          item.isNight = category === 'Cosmic Space';
+          item.isSunny = !item.isNight;
         }
+        globalExistingUrls.add(item.url);
+        return true;
+      }
+      return false;
+    });
 
-        // Cap limit
-        categoryList = capCollectionLimit(categoryList, initialLength, 2000);
-
-        if (categoryList.length > initialLength) {
-          console.log(`${scraper.key.toUpperCase()}: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
-          updatedCollections[category] = categoryList;
-          updatedAny = true;
-        }
-      } catch (err) {
-        console.error(`${scraper.key.toUpperCase()} daily crawl failed for category "${category}":`, err.message);
+    if (uniqueNewItems.length > 0) {
+      categoryList = capCollectionLimit(categoryList.concat(uniqueNewItems), initialLength, 2000);
+      if (categoryList.length > initialLength) {
+        console.log(`${scraper.key.toUpperCase()}: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
+        updatedCollections[category] = categoryList;
+        updatedAny = true;
       }
     }
   }
