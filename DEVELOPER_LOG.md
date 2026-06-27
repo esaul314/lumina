@@ -78,6 +78,13 @@ This document serves as a public-facing, generic history of technical developmen
   * **Transport Hardening**: Fixed test harnesses to bind ephemeral localhost ports instead of assuming `5001`, and changed the client Socket.IO URL logic to use same-origin by default with a Vite-dev exception (`5173 -> 5000`). This fixes split sync and REST smoke tests when the daemon self-heals onto fallback ports.
 * **Verification**: `npm test` passed with 64/64 assertions. `npm run test:integration` passed on `playwright` after rebuilding the client bundle.
 
+### 2026-06-27 (Part 7): Split Portrait Wallpaper Failures Fix
+* **Goal**: Prevent the screensaver from displaying a half-blank/black screen when a secondary split portrait wallpaper fails to load.
+* **Implementation**:
+  * **Secondary Preload Handling**: Updated the client-side preloader in [Dashboard.jsx](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) to track if the secondary photo loads successfully.
+  * **Pruning and Fallback**: If the secondary photo fails to load, the client now emits a `mark-photo-broken` socket event using the secondary image URL to immediately flag and prune it from the collections, and falls back to rendering the primary photo as a fullscreen single slide (`addSingleSlide`).
+* **Verification**: Verified that unit tests (`npm test`) and E2E integration tests (`node test_split_sync.js`) pass successfully.
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules

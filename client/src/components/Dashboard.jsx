@@ -251,6 +251,7 @@ function Dashboard({ state, socket, connectionInfo }) {
         });
 
         if (state.currentFrame?.layout === 'split' && secondaryPhoto) {
+          let secondaryLoaded = false;
           try {
             const secondaryMeta = await getImageMeta(secondaryPhoto.url);
             if (active) {
@@ -260,12 +261,21 @@ function Dashboard({ state, socket, connectionInfo }) {
                 width: secondaryMeta.w,
                 height: secondaryMeta.h
               });
+              secondaryLoaded = true;
             }
           } catch (error) {
             console.warn('Failed to load secondary wallpaper image:', secondaryPhoto.url);
+            if (active) {
+              socket.emit('mark-photo-broken', { url: secondaryPhoto.url });
+            }
           }
           if (active) {
-            addSplitSlide(primaryPhoto, secondaryPhoto);
+            if (secondaryLoaded) {
+              addSplitSlide(primaryPhoto, secondaryPhoto);
+            } else {
+              // Fallback to single slide since secondary photo is broken
+              addSingleSlide(primaryPhoto);
+            }
           }
         } else {
           if (active) {
