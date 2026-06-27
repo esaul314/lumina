@@ -291,6 +291,64 @@ assertTest('correctly classifies meteorological WMO weather codes', () => {
 });
 
 // ============================================================================
+// 3b. UNIT TEST SUITE: System Screensaver State Reducer & Validators
+// ============================================================================
+logSuite('System Screensaver State Reducer & Validators');
+
+assertTest('getNextScreensaverState transitions state and schedules actions correctly', () => {
+  const { getNextScreensaverState } = require('./server/app.js');
+  const { validateRating, validatePercent } = require('./server/utils/validation.js');
+
+  // Test validators
+  assert.strictEqual(validateRating(5), 5);
+  assert.strictEqual(validateRating('8'), 8);
+  assert.strictEqual(validateRating(15), null);
+  assert.strictEqual(validateRating('invalid'), null);
+
+  assert.strictEqual(validatePercent(0), 0);
+  assert.strictEqual(validatePercent(100), 100);
+  assert.strictEqual(validatePercent(-5), null);
+
+  // Test state transition reducer
+  let state = { idleCounter: 0, isBrowserRunning: false };
+
+  // 1. Idle but not enough ticks (idleCounter increments, no action)
+  let inputs = { isIdle: true, isMoviePlaying: false, manualOverride: false };
+  let transition = getNextScreensaverState(state, inputs);
+  assert.strictEqual(transition.nextState.idleCounter, 1);
+  assert.strictEqual(transition.nextState.isBrowserRunning, false);
+  assert.strictEqual(transition.action, null);
+
+  // Update state to 2 ticks
+  state = { idleCounter: 2, isBrowserRunning: false };
+  transition = getNextScreensaverState(state, inputs);
+  assert.strictEqual(transition.nextState.idleCounter, 3);
+  assert.strictEqual(transition.nextState.isBrowserRunning, true);
+  assert.strictEqual(transition.action, 'launch');
+
+  // 2. Movie is playing -> should not launch screensaver, resets idleCounter
+  state = { idleCounter: 2, isBrowserRunning: false };
+  inputs = { isIdle: true, isMoviePlaying: true, manualOverride: false };
+  transition = getNextScreensaverState(state, inputs);
+  assert.strictEqual(transition.nextState.idleCounter, 0);
+  assert.strictEqual(transition.action, null);
+
+  // 3. Manual override triggers screensaver immediately
+  state = { idleCounter: 0, isBrowserRunning: false };
+  inputs = { isIdle: false, isMoviePlaying: false, manualOverride: true };
+  transition = getNextScreensaverState(state, inputs);
+  assert.strictEqual(transition.action, 'launch');
+  assert.strictEqual(transition.nextState.isBrowserRunning, true);
+
+  // 4. Inactivity stops (screensaver running -> dismisses)
+  state = { idleCounter: 3, isBrowserRunning: true };
+  inputs = { isIdle: false, isMoviePlaying: false, manualOverride: false };
+  transition = getNextScreensaverState(state, inputs);
+  assert.strictEqual(transition.action, 'kill');
+  assert.strictEqual(transition.nextState.isBrowserRunning, false);
+});
+
+// ============================================================================
 // 4. UNIT TEST SUITE: Image Rating & Weighted Slideshow Engine
 // ============================================================================
 logSuite('Image Rating & Weighted Slideshow Engine');

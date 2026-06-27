@@ -663,36 +663,67 @@ const triggerWeatherUpdate = async () => {
 require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride);
 require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate);
 
+/**
+ * 🧠 getNextScreensaverState
+ * Pure state transition reducer for the system screensaver daemon.
+ * Decouples environmental queries from browser-launching side-effects.
+ */
+function getNextScreensaverState(currentState, inputs) {
+  const { idleCounter, isBrowserRunning } = currentState;
+  const { isIdle, isMoviePlaying, manualOverride } = inputs;
+
+  const isActuallyIdle = isIdle && !isMoviePlaying;
+  const nextIdleCounter = isActuallyIdle ? idleCounter + 1 : 0;
+  const shouldBeActive = (nextIdleCounter >= 3) || manualOverride;
+
+  let action = null;
+  if (shouldBeActive && !isBrowserRunning) {
+    action = 'launch';
+  } else if (!shouldBeActive && isBrowserRunning) {
+    action = 'kill';
+  }
+
+  return {
+    nextState: {
+      idleCounter: nextIdleCounter,
+      isBrowserRunning: shouldBeActive,
+      screensaverActive: shouldBeActive
+    },
+    action
+  };
+}
+
 // Mutter DBus Idle polling every 2 seconds with audio/inhibition checks and a 6-second debounce buffer
 if (process.env.NODE_ENV !== 'test') {
-  let idleCounter = 0;
+  let daemonState = {
+    idleCounter: 0
+  };
+
   setInterval(async () => {
     try {
       const idleMs = await getGnomeIdleTime();
-      const isIdle = idleMs >= screensaverState.inactivityTimeout;
-      const isPulseAudioPlaying = await isAudioPlaying();
-      const isGnomeInhibited = await isSessionInhibited();
-      const isMoviePlaying = isPulseAudioPlaying || isGnomeInhibited;
-
-      const isActuallyIdle = isIdle && !isMoviePlaying;
       
-      if (isActuallyIdle) {
-        idleCounter++;
-      } else {
-        idleCounter = 0;
-      }
+      const inputs = {
+        isIdle: idleMs >= screensaverState.inactivityTimeout,
+        isMoviePlaying: (await isAudioPlaying()) || (await isSessionInhibited()),
+        manualOverride
+      };
 
-      // Must be consecutively idle for at least 3 polling cycles (6 seconds) to prevent flickering/brief buffering activation
-      const shouldBeActive = (idleCounter >= 3) || manualOverride;
-      
-      if (shouldBeActive && !isBrowserRunning) {
+      const { nextState, action } = getNextScreensaverState(
+        { idleCounter: daemonState.idleCounter, isBrowserRunning },
+        inputs
+      );
+
+      daemonState.idleCounter = nextState.idleCounter;
+
+      if (action === 'launch') {
         launchKioskBrowser();
-      } else if (!shouldBeActive && isBrowserRunning) {
+      } else if (action === 'kill') {
         killKioskBrowser();
       }
 
-      if (screensaverState.screensaverActive !== shouldBeActive) {
-        screensaverState.screensaverActive = shouldBeActive;
+      if (screensaverState.screensaverActive !== nextState.screensaverActive) {
+        screensaverState.screensaverActive = nextState.screensaverActive;
         io.emit('state-sync', screensaverState);
       }
     } catch (err) {
@@ -744,5 +775,6 @@ module.exports = {
   triggerImageAnalysisBackground,
   combineFeedsBalanced,
   selectWeightedRandomPhoto,
-  isTimeInSchedule
+  isTimeInSchedule,
+  getNextScreensaverState
 };
