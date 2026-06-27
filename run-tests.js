@@ -23,6 +23,7 @@ const {
 } = require('./server/app.js');
 const { analyzeSentiment } = require('./server/services/sentiment.js');
 const { classifyWeatherCode } = require('./server/services/weather.js');
+const { runDomainTests } = require('./server/domain/tests.js');
 
 // Formatting constants for clean terminal reports
 const COLORS = {
@@ -558,6 +559,8 @@ assertTest('crawler consumes custom searchKeywords instead of static defaults', 
   const { crawlAllCollections } = require('./server/services/crawler.js');
   assert.ok(typeof crawlAllCollections === 'function', 'crawlAllCollections must be a function');
 });
+
+runDomainTests({ logSuite, assertTest });
 
 // ============================================================================
 // 6. UNIT TEST SUITE: Multi-Source Wallpaper Aggregator
