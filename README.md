@@ -38,16 +38,20 @@ npm install
 ```
 
 ### 3. Setup Configuration
-Lumina uses a dynamic JSON config file. Copy the example configuration to create your local `config.json` overrides:
+Lumina uses two local configuration files:
+
+1. `config.json` for non-secret runtime settings such as port, alerts, and location.
+2. `.env` for all secrets and API credentials.
+
+Copy the example configuration to create your local `config.json` overrides:
 ```bash
 cp config.json.example config.json
 ```
-Edit `config.json` to define your target coordinates, email alerts, or optional API tokens:
+Edit `config.json` to define your target coordinates and email alerts:
 ```json
 {
   "port": 5000,
   "alertEmail": "admin@localhost",
-  "nasaApiKey": "DEMO_KEY",
   "location": {
     "lat": 45.45,
     "lon": -73.56,
@@ -57,7 +61,20 @@ Edit `config.json` to define your target coordinates, email alerts, or optional 
   }
 }
 ```
-*(Note: `config.json` is gitignored and will never be committed to your repository).*
+Then create your secret store from the tracked example:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` for any secrets you need:
+```dotenv
+NASA_API_KEY="DEMO_KEY"
+USEAPI_TOKEN=""
+TUMBLR_API_KEY=""
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+```
+*(Both `config.json` and `.env` are gitignored and will never be committed to your repository.)*
 
 ### 4. Running Lumina
 Launch the server daemon in the background using the automated launcher script:

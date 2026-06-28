@@ -109,6 +109,19 @@ This document serves as a public-facing, generic history of technical developmen
   * **Resolved In-place Check**: Updated the TV view slide-change check in [Dashboard.jsx](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) to compare resolved crop values rather than raw values, ensuring changes to global defaults (like `splitCropPercent`) are applied instantly.
 * **Verification**: Verified successfully via automated unit tests (`npm test`) and Playwright E2E split sync tests (`node test_split_sync.js`).
 
+### 2026-06-27 (Part 10): Standardized Secret Storage on `.env`
+* **Goal**: Stop scattering secrets across `config.json`, sidecar JSON files, and ad hoc runtime paths by making `.env` the single secret store.
+* **Implementation**:
+  * **Central env helper**: Added [`server/config/env.js`](file:///home/alex/work/lumina/server/config/env.js) to load `.env`, read environment variables consistently, and persist updated keys back to the same file with quoted serialization.
+  * **Config hardening**: Updated [`configLoader.js`](file:///home/alex/work/lumina/server/config/configLoader.js) so secret-like keys in `config.json` are ignored with a warning instead of being treated as supported configuration.
+  * **Credential migration**:
+    * `USEAPI_TOKEN`, `TUMBLR_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `NASA_API_KEY` are now read from `.env`.
+    * Google Photos credentials no longer persist to `server/config/.google_credentials.json`; they are written to `.env` through the shared helper.
+  * **Admin UI alignment**: Added a Tumblr API key field in [`SystemSettingsTab.jsx`](file:///home/alex/work/lumina/client/src/components/remote/SystemSettingsTab.jsx) and updated Google/UseAPI copy so the operator-facing UI reflects the `.env` policy.
+  * **Documentation and examples**: Added a tracked [`.env.example`](file:///home/alex/work/lumina/.env.example), updated [`README.md`](file:///home/alex/work/lumina/README.md), and removed secret fields from [`config.json.example`](file:///home/alex/work/lumina/config.json.example).
+  * **Regression coverage**: Added an env-helper unit test proving secret values are appended/replaced safely with quoted serialization.
+* **Verification**: `npm test` passed. `npm run lint` passed cleanly. The existing smoke-test sandbox limitation still logs `listen EPERM` when binding ephemeral localhost ports.
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules

@@ -1,8 +1,6 @@
 {
   "port": 5000,
   "alertEmail": "admin@localhost",
-  "nasaApiKey": "DEMO_KEY",
-  "useapiToken": "",
   "location": {
     "lat": 45.45,
     "lon": -73.56,
