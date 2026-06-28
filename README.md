@@ -84,6 +84,24 @@ Launch the server daemon in the background using the automated launcher script:
 * Access the **Screensaver/TV Display** at: `http://localhost:5000/?mode=tv`
 * Access the **Mobile Remote Control** at: `http://localhost:5000/`
 
+### 5. Installing As A Persistent `systemd` User Service
+For the dedicated `playwright` host, Lumina should run under the logged-in user's `systemd --user` manager so it can access the GNOME session, Mutter DBus, PulseAudio/PipeWire, and kiosk browser environment.
+
+Install and start the user service:
+```bash
+./scripts/install-systemd-user-service.sh
+loginctl enable-linger "$(id -un)"
+```
+
+Common service commands:
+```bash
+systemctl --user status lumina
+systemctl --user restart lumina
+journalctl --user -u lumina -n 100 --no-pager
+```
+
+The installer materializes `~/.config/systemd/user/lumina.service` from the tracked template in `systemd/lumina.service.template`, resolving the current repo path, user, UID, and `node` binary at install time.
+
 ---
 
 ## 🧪 Testing

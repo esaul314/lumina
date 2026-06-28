@@ -1,0 +1,27 @@
+[Unit]
+Description=Lumina ambient screensaver daemon
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT_DIR__
+ExecStart=__NODE_BIN__ __ROOT_DIR__/server.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+Environment=NODE_ENV=production
+Environment=HOME=__HOME_DIR__
+Environment=USER=__USER_NAME__
+Environment=LOGNAME=__USER_NAME__
+Environment=PATH=__USER_BIN_DIR__:/usr/local/bin:/usr/bin:/bin
+Environment=XDG_RUNTIME_DIR=/run/user/__USER_UID__
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__USER_UID__/bus
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
