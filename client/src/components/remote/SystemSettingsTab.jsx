@@ -20,9 +20,12 @@ function SystemSettingsTab({
   setManualLon,
   useapiToken,
   setUseapiToken,
+  tumblrApiKey,
+  setTumblrApiKey,
   recrawlStatus,
   setRecrawlStatus,
   useapiStatus,
+  tumblrApiStatus,
   recrawlCount
 }) {
   return (
@@ -720,7 +723,7 @@ function SystemSettingsTab({
           </span>
         </div>
         <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '-4px', lineHeight: 1.3 }}>
-          Lumina crawls Midjourney AI landscape creations via UseAPI.net. Enter your UseAPI token below to enable direct casting.
+          Lumina crawls Midjourney AI landscape creations via UseAPI.net. Saving this token writes it to Lumina&apos;s shared `.env` file.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div>
@@ -755,6 +758,62 @@ function SystemSettingsTab({
             style={{ background: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)', fontSize: '0.85rem' }}
           >
             Update Midjourney Token
+          </button>
+        </div>
+      </div>
+
+      <div className="remote-card">
+        <span className="remote-section-title">Tumblr API Integration</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Connection Status</span>
+          <span style={{
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            color: state.hasTumblrApiKey ? '#10b981' : '#eab308',
+            background: state.hasTumblrApiKey ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            border: state.hasTumblrApiKey ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(234, 179, 8, 0.2)'
+          }}>
+            {state.hasTumblrApiKey ? '● Connected (Tumblr Tags)' : '● Blog-Only Mode'}
+          </span>
+        </div>
+        <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '-4px', lineHeight: 1.3 }}>
+          Store your Tumblr API key in Lumina&apos;s shared `.env` file to enable authenticated Tumblr tag crawling.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>TUMBLR API KEY</label>
+            <input
+              type="password"
+              placeholder={state.hasTumblrApiKey ? '••••••••••••••••••••' : 'Enter Tumblr API Key'}
+              value={tumblrApiKey}
+              onChange={(e) => setTumblrApiKey(e.target.value)}
+              style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem', outline: 'none' }}
+            />
+          </div>
+          {tumblrApiStatus === 'success' && (
+            <div style={{ color: '#10b981', fontSize: '0.8rem', textAlign: 'center', fontWeight: 500 }}>
+              ✓ Tumblr API key saved to `.env`.
+            </div>
+          )}
+          {tumblrApiStatus === 'error' && (
+            <div style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', fontWeight: 500 }}>
+              ✗ Failed to save Tumblr API key. Check filesystem permissions.
+            </div>
+          )}
+          <button
+            onClick={() => {
+              if (!tumblrApiKey.trim()) {
+                alert('Please enter a valid Tumblr API key.');
+                return;
+              }
+              socket.emit('save-tumblr-api-key', { token: tumblrApiKey.trim() });
+            }}
+            className="remote-btn"
+            style={{ background: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)', fontSize: '0.85rem' }}
+          >
+            Update Tumblr API Key
           </button>
         </div>
       </div>

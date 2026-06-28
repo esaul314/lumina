@@ -151,8 +151,10 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [manualLon, setManualLon] = useState(state.manualLocation?.lon || -73.56);
 
   const [useapiToken, setUseapiToken] = useState('');
+  const [tumblrApiKey, setTumblrApiKey] = useState('');
   const [recrawlStatus, setRecrawlStatus] = useState('idle'); // idle, loading, success, error
   const [useapiStatus, setUseapiStatus] = useState('idle'); // idle, success, error
+  const [tumblrApiStatus, setTumblrApiStatus] = useState('idle'); // idle, success, error
   const [recrawlCount, setRecrawlCount] = useState(0);
 
   useEffect(() => {
@@ -188,12 +190,24 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
       setTimeout(() => setUseapiStatus('idle'), 4000);
     };
 
+    const handleTumblrApiSaved = (data) => {
+      if (data.success) {
+        setTumblrApiStatus('success');
+        setTumblrApiKey('');
+      } else {
+        setTumblrApiStatus('error');
+      }
+      setTimeout(() => setTumblrApiStatus('idle'), 4000);
+    };
+
     socket.on('recrawl-complete', handleRecrawlComplete);
     socket.on('useapi-token-saved', handleUseApiSaved);
+    socket.on('tumblr-api-key-saved', handleTumblrApiSaved);
 
     return () => {
       socket.off('recrawl-complete', handleRecrawlComplete);
       socket.off('useapi-token-saved', handleUseApiSaved);
+      socket.off('tumblr-api-key-saved', handleTumblrApiSaved);
     };
   }, [socket]);
 
@@ -545,9 +559,12 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           setManualLon={setManualLon}
           useapiToken={useapiToken}
           setUseapiToken={setUseapiToken}
+          tumblrApiKey={tumblrApiKey}
+          setTumblrApiKey={setTumblrApiKey}
           recrawlStatus={recrawlStatus}
           setRecrawlStatus={setRecrawlStatus}
           useapiStatus={useapiStatus}
+          tumblrApiStatus={tumblrApiStatus}
           recrawlCount={recrawlCount}
         />
       )}

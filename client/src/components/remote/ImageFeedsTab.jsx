@@ -218,7 +218,7 @@ function ImageFeedsTab({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
                   type="text"
-                  placeholder={activeChips.length === 0 ? "Keywords (e.g. oil painting, renaissance)" : "Add more keywords..."}
+                  placeholder={activeChips.length === 0 ? 'Keywords (e.g. oil painting, renaissance)' : 'Add more keywords...'}
                   value={keywordInput}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -837,7 +837,7 @@ function ImageFeedsTab({
           <span className="remote-section-title" style={{ color: '#4285f4', marginBottom: 0 }}>Google Photos Link</span>
         </div>
         <p style={{ fontSize: '0.85rem', lineHeight: 1.4, color: 'rgba(255,255,255,0.7)', marginBottom: '16px' }}>
-          Authorise Lumina to fetch albums directly from your private Google Photos archive.
+          Authorise Lumina to fetch albums directly from your private Google Photos archive. These client credentials are stored in Lumina&apos;s shared `.env` file.
         </p>
         {isSavedEnv ? (
           <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid #10b981', padding: '12px', borderRadius: '12px', color: '#10b981', textAlign: 'center', fontSize: '0.9rem' }}>
