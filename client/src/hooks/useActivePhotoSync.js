@@ -1,30 +1,36 @@
 import { useState, useEffect } from 'react';
+import { getCurrentFrame, getFrameOrientation } from '../state/frameSelectors';
 
 export function useActivePhotoSync(state, remoteDimensionsCache, remoteOrientationCache) {
   const [activePhotoOrientation, setActivePhotoOrientation] = useState('landscape');
-  const [localSecondPhoto, setLocalSecondPhoto] = useState(null);
 
   useEffect(() => {
+    const frame = getCurrentFrame(state);
+    const activePhoto = frame.primary || state.activePhoto;
+    const frameOrientation = getFrameOrientation(state);
     let active = true;
-    if (!state.activePhoto) {
+    if (!activePhoto) {
       setActivePhotoOrientation('landscape');
-      setLocalSecondPhoto(null);
       return;
     }
 
     const checkActivePhoto = () => {
-      const activeUrl = state.activePhoto.url;
+      const activeUrl = activePhoto.url;
       const cached = remoteOrientationCache.current[activeUrl];
 
       const processActiveOrientation = (isPortrait, dimensions = remoteDimensionsCache.current[activeUrl]) => {
         if (!active) return;
         setActivePhotoOrientation(isPortrait ? 'portrait' : 'landscape');
-        setLocalSecondPhoto(state.currentFrame?.secondary || state.activeSecondPhoto || null);
 
         if (dimensions) {
           remoteDimensionsCache.current[activeUrl] = dimensions;
         }
       };
+
+      if (frameOrientation === 'portrait' || frameOrientation === 'landscape') {
+        processActiveOrientation(frameOrientation === 'portrait');
+        return;
+      }
 
       const cachedDims = remoteDimensionsCache.current[activeUrl];
       if (cached && cachedDims) {
@@ -54,11 +60,9 @@ export function useActivePhotoSync(state, remoteDimensionsCache, remoteOrientati
     return () => {
       active = false;
     };
-  }, [state.activePhoto?.url, state.currentFrame?.secondary?.url, state.activeSecondPhoto?.url, remoteDimensionsCache, remoteOrientationCache]);
+  }, [state.currentFrame?.primary?.url, state.currentFrame?.context?.orientation, remoteDimensionsCache, remoteOrientationCache]);
 
   return {
-    activePhotoOrientation,
-    localSecondPhoto,
-    setLocalSecondPhoto
+    activePhotoOrientation
   };
 }

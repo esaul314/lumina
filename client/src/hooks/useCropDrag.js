@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { findPhotoByUrl, getFramePhoto } from '../state/frameSelectors';
 
-export function useCropDrag(actions, state, secondPhoto, previewDimensions) {
+export function useCropDrag(actions, state, previewDimensions) {
   const [dragState, setDragState] = useState({
     isDragging: false,
     startY: 0,
@@ -24,14 +25,9 @@ export function useCropDrag(actions, state, secondPhoto, previewDimensions) {
     e.preventDefault();
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
-    let photoObj = null;
-    if (isSecond) {
-      photoObj = secondPhoto;
-    } else if (state.activePhoto && state.activePhoto.url === photoUrl) {
-      photoObj = state.activePhoto;
-    } else if (state.photosList) {
-      photoObj = state.photosList.find(p => p.url === photoUrl);
-    }
+    const photoObj = isSecond
+      ? findPhotoByUrl(state, photoUrl, getFramePhoto(state, 'secondary'))
+      : findPhotoByUrl(state, photoUrl, getFramePhoto(state, 'primary'));
     
     const currentCropY = photoObj && photoObj.cropPositionY !== undefined ? photoObj.cropPositionY : 50;
 

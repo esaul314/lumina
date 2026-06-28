@@ -101,13 +101,16 @@ const { chromium } = require('@playwright/test');
     });
     console.log('Initial TV backgroundSize:', initialSize);
 
-    // Emit crop change from remote
-    console.log('Emitting set-photo-crop with cropPercent = 80 from remote...');
+    // Change crop via the actual Direct Control slider UI
+    console.log('Changing Direct Control slider to 80 from remote UI...');
     await remotePage.evaluate(() => {
-      window.__socket.emit('set-photo-crop', {
-        url: 'https://picsum.photos/id/1025/1200/1800',
-        cropPercent: 80
-      });
+      const slider = document.querySelector('.split-crop-slider');
+      if (!slider) {
+        throw new Error('Direct Control slider was not found.');
+      }
+      slider.value = '80';
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      slider.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
     // Wait 2 seconds
@@ -124,6 +127,55 @@ const { chromium } = require('@playwright/test');
       throw new Error('Test Failed: TV backgroundSize did not change after setting cropPercent!');
     }
     console.log('✅ Zoom synchronization verified successfully!');
+
+    console.log('--- Testing Single Landscape Zoom Through The Same Slider ---');
+    await remotePage.evaluate(() => {
+      window.__socket.emit('set-active-photo', {
+        url: 'https://picsum.photos/id/1043/1800/1200',
+        title: 'Landscape Mountain',
+        author: 'Picsum',
+        source: 'picsum',
+        rating: 8,
+        isBroken: false,
+        isNight: false,
+        isRain: false,
+        isSunny: false,
+        isCloudy: false,
+        isSnowy: false,
+        category: 'Scenic Nature'
+      });
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 4000));
+
+    const landscapeInitialSize = await tvPage.evaluate(() => {
+      const el = document.querySelector('.slide.active .single-slide-image');
+      return el ? window.getComputedStyle(el).backgroundSize : null;
+    });
+    console.log('Initial landscape TV backgroundSize:', landscapeInitialSize);
+
+    await remotePage.evaluate(() => {
+      const slider = document.querySelector('.split-crop-slider');
+      if (!slider) {
+        throw new Error('Direct Control slider was not found for single landscape mode.');
+      }
+      slider.value = '15';
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      slider.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const landscapeNewSize = await tvPage.evaluate(() => {
+      const el = document.querySelector('.slide.active .single-slide-image');
+      return el ? window.getComputedStyle(el).backgroundSize : null;
+    });
+    console.log('New landscape TV backgroundSize after zoom:', landscapeNewSize);
+
+    if (landscapeInitialSize === landscapeNewSize) {
+      throw new Error('Test Failed: TV backgroundSize did not change for single landscape mode after moving the Direct Control slider!');
+    }
+    console.log('✅ Single landscape zoom synchronization verified successfully!');
 
     console.log('✅ TEST PASSED: Second photo and zoom successfully synchronized between TV and Remote!');
 

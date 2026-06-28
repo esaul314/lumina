@@ -130,6 +130,15 @@ This document serves as a public-facing, generic history of technical developmen
   * **Regression coverage**: Added a reducer test proving `set-photo-crop` updates flow through both the active portrait and its derived split partner frame metadata.
 * **Verification**: `npm test` passed, including the new crop regression. `npm --prefix client run build` passed. In this sandbox, the existing live-endpoint smoke section still logs `listen EPERM` when it attempts an ephemeral localhost bind.
 
+### 2026-06-28: Frame-Selector Cleanup for Zoom/Crop State
+* **Goal**: Reduce the client-side state ambiguity around `activePhoto`, `activeSecondPhoto`, `photosList`, and `currentFrame` so zoom/crop rendering follows one consistent execution path.
+* **Implementation**:
+  * **Single client selector layer**: Added [`frameSelectors.js`](file:///home/alex/work/lumina/client/src/state/frameSelectors.js) to normalize transport snapshots and expose helpers for current-frame lookup, split-layout detection, frame orientation, URL-based photo lookup, and effective crop state resolution.
+  * **TV renderer cleanup**: Refactored [`Dashboard.jsx`](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) to drive active slide updates and rendered crop math from the frame selectors instead of mixing `activePhoto`, `activeSecondPhoto`, local orientation guesses, and feed scans.
+  * **Remote control cleanup**: Refactored [`RemoteControl.jsx`](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx), [`useActivePhotoSync.js`](file:///home/alex/work/lumina/client/src/hooks/useActivePhotoSync.js), and [`useCropDrag.js`](file:///home/alex/work/lumina/client/src/hooks/useCropDrag.js) so the Direct Control tab resolves the focused image and crop values from the same frame-based selectors the TV uses.
+  * **UI-path regression**: Updated [`test_split_sync.js`](file:///home/alex/work/lumina/test_split_sync.js) so the integration test moves the actual Direct Control slider UI for both split portrait and single-landscape flows rather than bypassing the UI with a raw socket emit.
+* **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. In this sandbox, `node test_split_sync.js` still exits after the known ephemeral localhost bind warning (`listen EPERM`) before producing usable browser-stage logs, so the UI-path assertions could not be fully observed here.
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules

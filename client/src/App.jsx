@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import Dashboard from './components/Dashboard';
 import RemoteControl from './components/RemoteControl';
+import { normalizeSnapshot } from './state/frameSelectors';
 
 // Create a single socket connection to the server
 const socketUrl = window.location.port === '5173'
@@ -10,18 +11,6 @@ const socketUrl = window.location.port === '5173'
 
 const socket = io(socketUrl, { autoConnect: false });
 window.__socket = socket;
-
-function normalizeSnapshot(snapshot) {
-  if (!snapshot || !snapshot.currentFrame) {
-    return snapshot;
-  }
-
-  return {
-    ...snapshot,
-    activePhoto: snapshot.currentFrame.primary || snapshot.activePhoto || null,
-    activeSecondPhoto: snapshot.currentFrame.secondary || snapshot.activeSecondPhoto || null
-  };
-}
 
 function App() {
   const [deviceMode, setDeviceMode] = useState(null); // 'tv' or 'remote'

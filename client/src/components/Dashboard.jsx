@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
+import {
+  findPhotoByUrl,
+  getCurrentFrame,
+  getFramePhoto,
+  getPhotoCropState,
+  isSplitFrameActive
+} from '../state/frameSelectors';
 
 /**
  * 🖼️ loadImageMeta
@@ -37,6 +44,9 @@ function Dashboard({ state, socket, connectionInfo }) {
   const imageOrientationCache = useRef({}); // { [url]: 'portrait' | 'landscape' }
   const imageDimensionsCache = useRef({}); // { [url]: { w, h } }
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const currentFrame = getCurrentFrame(state);
+  const primaryPhoto = getFramePhoto(state, 'primary');
+  const secondaryPhoto = getFramePhoto(state, 'secondary');
 
   useEffect(() => {
     const handleResize = () => {
@@ -87,7 +97,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   // 3. Image Category Initial Fetch & Periodic Cycle
   const fetchPhotos = async (category) => {
     // If active photo is already initialized by server state-sync with a valid URL, skip redundant selection to prevent race conditions
-    if (state.activePhoto && state.activePhoto.url && state.activePhoto.url.startsWith('http')) return;
+    if (primaryPhoto && primaryPhoto.url && primaryPhoto.url.startsWith('http')) return;
 
     try {
       const res = await fetch(`/api/photos?category=${encodeURIComponent(category)}`);
@@ -104,7 +114,7 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   useEffect(() => {
     fetchPhotos(state.currentCategory);
-  }, [state.currentCategory]);
+  }, [state.currentCategory, primaryPhoto?.url]);
 
   // Slideshow auto-rotation based on global slideshowInterval (dynamic cycle timing)
   useEffect(() => {
@@ -122,28 +132,27 @@ function Dashboard({ state, socket, connectionInfo }) {
   // One is the currently active slide, and one is the previous slide transitioning out.
   // This drops Chromium's memory footprint from >1.5GB down to <80MB, preventing GPU out-of-memory locks.
   useEffect(() => {
-    if (!state.activePhoto) return;
+    if (!primaryPhoto) return;
 
     let active = true;
 
     // Check if this photo is already our current active slide with the same split layout setting
     const currentActiveSlide = activeSlides.find(s => s.active);
-    const isPhotoPreventPairing = state.activePhoto.preventPairing === true;
-    const expectedSplit = !!(state.splitPortrait && imageOrientationCache.current[state.activePhoto.url] === 'portrait' && !isPhotoPreventPairing);
+    const expectedSplit = isSplitFrameActive(state);
 
     // Ensure that if a split layout is expected, the slide's secondary photo URL matches the target secondary URL
-    const targetSecondUrl = state.currentFrame?.secondary?.url || state.activeSecondPhoto?.url;
+    const targetSecondUrl = secondaryPhoto?.url;
     const isSecondUrlMatched = !expectedSplit || (currentActiveSlide && currentActiveSlide.url2 === targetSecondUrl);
 
     if (
       currentActiveSlide && 
-      currentActiveSlide.url === state.activePhoto.url && 
+      currentActiveSlide.url === primaryPhoto.url && 
       !!currentActiveSlide.isSplit === expectedSplit &&
       isSecondUrlMatched
     ) {
-      const livePrimaryPhoto = resolveLivePhoto(state.activePhoto.url, state.activePhoto);
-      const liveSecondaryPhoto = expectedSplit
-        ? resolveLivePhoto(targetSecondUrl, state.currentFrame?.secondary || state.activeSecondPhoto || null)
+      const livePrimaryPhoto = findPhotoByUrl(state, primaryPhoto.url, primaryPhoto);
+      const liveSecondaryPhoto = expectedSplit && targetSecondUrl
+        ? findPhotoByUrl(state, targetSecondUrl, secondaryPhoto || null)
         : null;
 
       // Check if crop/zoom settings have changed and update the active slide in place
@@ -181,7 +190,7 @@ function Dashboard({ state, socket, connectionInfo }) {
 
       if (isSplitCropChanged || isSingleCropChanged) {
         setActiveSlides(prev => prev.map(s => {
-          if (s.active && s.url === state.activePhoto.url) {
+          if (s.active && s.url === primaryPhoto.url) {
             return {
               ...s,
               cropPercent: livePrimaryPhoto?.cropPercent,
@@ -265,14 +274,6 @@ function Dashboard({ state, socket, connectionInfo }) {
 
     const preloadAndMount = async () => {
       try {
-        const primaryPhoto = resolveLivePhoto(
-          state.currentFrame?.primary?.url || state.activePhoto?.url,
-          state.currentFrame?.primary || state.activePhoto
-        );
-        const secondaryPhoto = resolveLivePhoto(
-          state.currentFrame?.secondary?.url || state.activeSecondPhoto?.url,
-          state.currentFrame?.secondary || state.activeSecondPhoto
-        );
         if (!primaryPhoto) return;
 
         const meta = await getImageMeta(primaryPhoto.url);
@@ -287,7 +288,7 @@ function Dashboard({ state, socket, connectionInfo }) {
           height: meta.h
         });
 
-        if (state.currentFrame?.layout === 'split' && secondaryPhoto) {
+        if (expectedSplit && secondaryPhoto) {
           let secondaryLoaded = false;
           try {
             const secondaryMeta = await getImageMeta(secondaryPhoto.url);
@@ -321,22 +322,22 @@ function Dashboard({ state, socket, connectionInfo }) {
         }
       } catch (err) {
         if (!active) return;
-        console.warn('Failed to load wallpaper image:', state.activePhoto.url);
+        console.warn('Failed to load wallpaper image:', primaryPhoto.url);
 
         const maxFailures = state.photosList ? state.photosList.length : 5;
         if (consecutiveFailuresRef.current >= maxFailures) {
           console.error('All photos in current feed failed to load. Network might be down. Stopping infinite skip loop.');
           socket.emit('report-media-failure', {
             category: state.currentCategory,
-            failedUrls: state.photosList ? state.photosList.map(p => p.url) : [state.activePhoto.url],
+            failedUrls: state.photosList ? state.photosList.map(p => p.url) : [primaryPhoto.url],
             message: 'All wallpapers in this feed failed to load. The display client is likely offline.'
           });
           return;
         }
 
         if (consecutiveFailuresRef.current < 3) {
-          console.log('Reporting specific broken link to server:', state.activePhoto.url);
-          socket.emit('mark-photo-broken', { url: state.activePhoto.url });
+          console.log('Reporting specific broken link to server:', primaryPhoto.url);
+          socket.emit('mark-photo-broken', { url: primaryPhoto.url });
         }
 
         consecutiveFailuresRef.current += 1;
@@ -354,7 +355,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     return () => {
       active = false;
     };
-  }, [state.activePhoto, state.currentFrame?.layout, state.currentFrame?.secondary?.url, state.photosList]);
+  }, [primaryPhoto, secondaryPhoto, currentFrame.layout, currentFrame.crop.primaryPercent, currentFrame.crop.primaryPositionY, currentFrame.crop.secondaryPercent, currentFrame.crop.secondaryPositionY, state.photosList, state.scaleMode, state.splitCropPercent]);
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic
   const resetInactivityTimer = () => {
@@ -524,20 +525,6 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   const currentThemeClass = `theme-${state.theme.toLowerCase().replace(' ', '-')}`;
 
-  const resolveLivePhoto = (url, fallback = null) => {
-    if (!url) {
-      return fallback;
-    }
-
-    return [
-      state.currentFrame?.primary,
-      state.currentFrame?.secondary,
-      state.activePhoto,
-      state.activeSecondPhoto,
-      ...(state.photosList || [])
-    ].find((photo) => photo?.url === url) || fallback;
-  };
-
   const getSingleImageStyle = (url, w, h, slideCropPercent, slideCropPositionY) => {
     let R_i = 1.5;
     if (w && h) {
@@ -547,17 +534,16 @@ function Dashboard({ state, socket, connectionInfo }) {
     const containerHeight = dimensions.height;
     const R_c = containerWidth / containerHeight;
 
-    // Resolve the latest crop metadata from the live frame/feed before falling back to the slide snapshot.
-    const livePhoto = resolveLivePhoto(url);
-    let customCrop = livePhoto?.cropPercent;
-    let customCropY = livePhoto?.cropPositionY;
-    if (customCrop === undefined) {
-      customCrop = slideCropPercent;
-    }
-    const P_y = customCropY !== undefined ? customCropY : (slideCropPositionY !== undefined ? slideCropPositionY : 50);
+    const { cropPercent: liveCropPercent, cropPositionY: liveCropPositionY } = getPhotoCropState(
+      state,
+      url,
+      slideCropPercent,
+      slideCropPositionY !== undefined ? slideCropPositionY : 50
+    );
+    const P_y = liveCropPositionY !== undefined ? liveCropPositionY : (slideCropPositionY !== undefined ? slideCropPositionY : 50);
 
     const defaultP = state.scaleMode === 'contain' ? 0 : 100;
-    const P = customCrop !== undefined ? customCrop : defaultP;
+    const P = liveCropPercent !== undefined ? liveCropPercent : defaultP;
 
     let wDisp, hDisp;
     if (R_i < R_c) {
@@ -591,16 +577,15 @@ function Dashboard({ state, socket, connectionInfo }) {
     const halfHeight = dimensions.height - 32;
     const R_c = halfWidth / halfHeight;
 
-    // Resolve the latest crop metadata from the live frame/feed before falling back to the slide snapshot.
-    const livePhoto = resolveLivePhoto(url);
-    let customCrop = livePhoto?.cropPercent;
-    let customCropY = livePhoto?.cropPositionY;
-    if (customCrop === undefined) {
-      customCrop = slideCropPercent;
-    }
-    const P_y = customCropY !== undefined ? customCropY : (slideCropPositionY !== undefined ? slideCropPositionY : 50);
+    const { cropPercent: liveCropPercent, cropPositionY: liveCropPositionY } = getPhotoCropState(
+      state,
+      url,
+      slideCropPercent,
+      slideCropPositionY !== undefined ? slideCropPositionY : 50
+    );
+    const P_y = liveCropPositionY !== undefined ? liveCropPositionY : (slideCropPositionY !== undefined ? slideCropPositionY : 50);
 
-    const P = customCrop !== undefined ? customCrop : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50);
+    const P = liveCropPercent !== undefined ? liveCropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50);
 
     let wDisp, hDisp;
     if (R_i < R_c) {

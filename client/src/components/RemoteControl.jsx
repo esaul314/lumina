@@ -12,6 +12,13 @@ import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import { useCropDrag } from '../hooks/useCropDrag';
 import { useActivePhotoSync } from '../hooks/useActivePhotoSync';
 import { useImagePreloader } from '../hooks/useImagePreloader';
+import {
+  findPhotoByUrl,
+  getFrameOrientation,
+  getFramePhoto,
+  getPhotoCropState,
+  isSplitFrameActive
+} from '../state/frameSelectors';
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [activeTab, setActiveTab] = useState('controls'); // controls, settings, photos
@@ -28,24 +35,11 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
   // 2. Active Photo Orientation & Secondary Split Pairing Sync Hook
   const { 
-    activePhotoOrientation, 
-    localSecondPhoto 
+    activePhotoOrientation
   } = useActivePhotoSync(state, remoteDimensionsCache, remoteOrientationCache);
-  const secondPhoto = state.currentFrame?.secondary || state.activeSecondPhoto || localSecondPhoto;
-
-  const resolveLivePhoto = (url, fallback = null) => {
-    if (!url) {
-      return fallback;
-    }
-
-    return [
-      state.currentFrame?.primary,
-      state.currentFrame?.secondary,
-      state.activePhoto,
-      state.activeSecondPhoto,
-      ...(state.photosList || [])
-    ].find((photo) => photo?.url === url) || fallback;
-  };
+  const frameOrientation = getFrameOrientation(state);
+  const primaryPhoto = getFramePhoto(state, 'primary');
+  const secondPhoto = getFramePhoto(state, 'secondary');
 
   // 3. Swipe & Touch Gesture Controller Hook
   const { 
@@ -63,14 +57,14 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     dragState, 
     currentDragY, 
     handleDragStart 
-  } = useCropDrag(actions, state, secondPhoto, previewDimensions);
+  } = useCropDrag(actions, state, previewDimensions);
 
   // 5. Active Photo Crop (Debounced range input) State
   const [selectedPhotoSide, setSelectedPhotoSide] = useState('left'); // 'left' | 'right'
   const [activePhotoCrop, setActivePhotoCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
 
-  const isSplitLayoutActive = !!(state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto);
+  const isSplitLayoutActive = isSplitFrameActive(state);
 
   useEffect(() => {
     if (!isSplitLayoutActive) {
@@ -78,9 +72,9 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     }
   }, [isSplitLayoutActive]);
 
-  const selectedPhotoBase = (selectedPhotoSide === 'right' && isSplitLayoutActive) ? secondPhoto : state.activePhoto;
+  const selectedPhotoBase = (selectedPhotoSide === 'right' && isSplitLayoutActive) ? secondPhoto : primaryPhoto;
   const selectedPhoto = selectedPhotoBase?.url
-    ? resolveLivePhoto(selectedPhotoBase.url, selectedPhotoBase)
+    ? findPhotoByUrl(state, selectedPhotoBase.url, selectedPhotoBase)
     : null;
 
   useEffect(() => {
@@ -129,7 +123,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     updateDims();
     window.addEventListener('resize', updateDims);
     return () => window.removeEventListener('resize', updateDims);
-  }, [activeTab, state.activePhoto?.url]);
+  }, [activeTab, primaryPhoto?.url]);
 
   // 6. Feeds Tab Independent Rating Deck Preloader Hook
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -313,14 +307,14 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   ];
 
   const getSplitPreviewStyle = (url, isSecond) => {
-    const photoObj = resolveLivePhoto(url, isSecond ? secondPhoto : state.activePhoto);
+    const photoObj = findPhotoByUrl(state, url, isSecond ? secondPhoto : primaryPhoto);
     const cachedDims = photoObj ? remoteDimensionsCache.current[photoObj.url] : null;
 
     let R_i = 0.667;
     if (cachedDims && cachedDims.w && cachedDims.h) {
       R_i = cachedDims.w / cachedDims.h;
     } else {
-      const isPortrait = isSecond ? true : (activePhotoOrientation === 'portrait');
+      const isPortrait = isSecond ? true : ((frameOrientation === 'portrait') || activePhotoOrientation === 'portrait');
       R_i = isPortrait ? 0.667 : 1.5;
     }
     const padWidth = previewDimensions.width;
@@ -330,13 +324,20 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     const halfHeight = padHeight - 12;
     const R_c = halfWidth / halfHeight;
 
+    const { cropPercent, cropPositionY } = getPhotoCropState(
+      state,
+      url,
+      state.splitCropPercent !== undefined ? state.splitCropPercent : 50,
+      50
+    );
+
     const P = !isSecond
-      ? (selectedPhotoSide === 'left' ? activePhotoCrop : (photoObj?.cropPercent !== undefined ? photoObj.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)))
-      : (selectedPhotoSide === 'right' ? activePhotoCrop : (photoObj && photoObj.cropPercent !== undefined ? photoObj.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)));
+      ? (selectedPhotoSide === 'left' ? activePhotoCrop : cropPercent)
+      : (selectedPhotoSide === 'right' ? activePhotoCrop : cropPercent);
 
     const P_y = (dragState.isDragging && dragState.photoUrl === url && currentDragY !== null)
       ? currentDragY
-      : (photoObj && photoObj.cropPositionY !== undefined ? photoObj.cropPositionY : 50);
+      : cropPositionY;
 
     let wDisp, hDisp;
     if (R_i < R_c) {
@@ -362,7 +363,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   };
 
   const getSinglePreviewStyle = (url) => {
-    const photoObj = resolveLivePhoto(url, state.activePhoto);
+    const photoObj = findPhotoByUrl(state, url, primaryPhoto);
     if (!photoObj) return {};
     const cachedDims = remoteDimensionsCache.current[photoObj.url];
 
@@ -370,7 +371,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     if (cachedDims && cachedDims.w && cachedDims.h) {
       R_i = cachedDims.w / cachedDims.h;
     } else {
-      R_i = activePhotoOrientation === 'portrait' ? 0.667 : 1.5;
+      R_i = (frameOrientation === 'portrait' || activePhotoOrientation === 'portrait') ? 0.667 : 1.5;
     }
     const padWidth = previewDimensions.width;
     const padHeight = previewDimensions.height;
@@ -379,9 +380,11 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
     const P = activePhotoCrop;
 
+    const { cropPositionY } = getPhotoCropState(state, url, state.scaleMode === 'contain' ? 0 : 100, 50);
+
     const P_y = (dragState.isDragging && dragState.photoUrl === url && currentDragY !== null)
       ? currentDragY
-      : (photoObj && photoObj.cropPositionY !== undefined ? photoObj.cropPositionY : 50);
+      : cropPositionY;
 
     let wDisp, hDisp;
     if (R_i < R_c) {
