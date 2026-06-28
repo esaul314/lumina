@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-06-28 (Part 2): Nullish-Safe Selector Defaults & Declarative Cleanup
+* **Goal**: Make the selection and persistence layers more fluent and falsy-safe by using modern ES6+ operators where they improve both readability and behavior.
+* **Implementation**:
+  * **Selector cleanup**: Refactored [`server/domain/selectors.js`](file:///home/alex/work/lumina/server/domain/selectors.js) to use `??`, `?.`, default parameters, and `Array.prototype.at()` in category normalization, weighted selection, split-frame derivation, and weather/news fallbacks.
+  * **Night-percentage bugfix**: Replaced `nightPercentage || 50` with `nightPercentage ?? 50` in both the domain selectors and legacy [`server/app.js`](file:///home/alex/work/lumina/server/app.js), so an explicit `0` percent night preference is no longer silently treated as `50`.
+  * **Persistence codec cleanup**: Refactored [`server/config/collectionsCodec.js`](file:///home/alex/work/lumina/server/config/collectionsCodec.js) with destructuring, nullish-aware cloning helpers, and explicit fallback handling for persisted split crop values and manual location state.
+  * **Regression coverage**: Added tests proving that explicit `false` metadata is preserved during photo tagging and that persisted `splitCropPercent: 0` survives normalization.
+* **Learning**: Apply `??` only where `null`/`undefined` are the real “missing value” states. Keep truthy fallbacks or validation guards when empty strings or wrong types should still collapse to safe defaults.
+* **Verification**: `npm test` passed. The known ephemeral localhost bind warning (`listen EPERM`) still appears in the smoke-test section but the command exits successfully and all assertions pass.
+
 ### 2026-06-24: TV Controller Rating Fallback Bugfix
 * **Issue**: The remote control rating widget displayed `undefined (Weight: 1)` for photos that did not yet have a rating set.
 * **Root Cause**: The client-side rating component was reading the photo's rating field without providing a default value.
