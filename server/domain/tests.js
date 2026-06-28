@@ -162,6 +162,29 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(frame.context.splitEligible, true);
   });
 
+  assertTest('crop updates flow through the live split frame and persistence state', () => {
+    const primaryCropResult = reduceDomainCommand(createState(), {
+      type: 'set-photo-crop',
+      payload: { url: 'port-1', cropPercent: 37 }
+    });
+    const primaryFrame = deriveCurrentFrame(primaryCropResult.nextState);
+
+    assert.strictEqual(primaryFrame.primary?.cropPercent, 37);
+    assert.strictEqual(primaryCropResult.nextState.library.photosList.find((photo) => photo.url === 'port-1')?.cropPercent, 37);
+    assert.deepStrictEqual(primaryCropResult.events.map((event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(primaryCropResult.effects.map((effect) => effect.type), ['persist']);
+
+    const secondaryCropResult = reduceDomainCommand(primaryCropResult.nextState, {
+      type: 'set-photo-crop',
+      payload: { url: 'port-2', cropPercent: 82 }
+    });
+    const secondaryFrame = deriveCurrentFrame(secondaryCropResult.nextState);
+
+    assert.strictEqual(secondaryFrame.secondary?.url, 'port-2');
+    assert.strictEqual(secondaryFrame.secondary?.cropPercent, 82);
+    assert.strictEqual(secondaryCropResult.nextState.library.collections['Liminal Spaces'][1].cropPercent, 82);
+  });
+
   assertTest('reducer banning the active photo advances playback exactly once', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {

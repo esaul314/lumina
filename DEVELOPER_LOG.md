@@ -122,6 +122,14 @@ This document serves as a public-facing, generic history of technical developmen
   * **Regression coverage**: Added an env-helper unit test proving secret values are appended/replaced safely with quoted serialization.
 * **Verification**: `npm test` passed. `npm run lint` passed cleanly. The existing smoke-test sandbox limitation still logs `listen EPERM` when binding ephemeral localhost ports.
 
+### 2026-06-27 (Part 11): Direct Control Portrait Zoom Sync Hardening
+* **Goal**: Make per-image zoom changes from the Direct Control slider show up immediately on the TV for split portrait layouts and stay persisted on the correct image.
+* **Implementation**:
+  * **Live photo resolution**: Updated [`Dashboard.jsx`](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) and [`RemoteControl.jsx`](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx) to resolve crop metadata by image URL from the current frame, active photo pointers, and live feed list before falling back to stale slide snapshots.
+  * **Split-frame crop refresh**: Hardened the dashboard's in-place active-slide crop refresh so paired portrait updates read from the resolved live secondary photo instead of whichever `activeSecondPhoto` object happened to be cached.
+  * **Regression coverage**: Added a reducer test proving `set-photo-crop` updates flow through both the active portrait and its derived split partner frame metadata.
+* **Verification**: `npm test` passed, including the new crop regression. `npm --prefix client run build` passed. In this sandbox, the existing live-endpoint smoke section still logs `listen EPERM` when it attempts an ephemeral localhost bind.
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules

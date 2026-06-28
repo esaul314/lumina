@@ -33,6 +33,20 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   } = useActivePhotoSync(state, remoteDimensionsCache, remoteOrientationCache);
   const secondPhoto = state.currentFrame?.secondary || state.activeSecondPhoto || localSecondPhoto;
 
+  const resolveLivePhoto = (url, fallback = null) => {
+    if (!url) {
+      return fallback;
+    }
+
+    return [
+      state.currentFrame?.primary,
+      state.currentFrame?.secondary,
+      state.activePhoto,
+      state.activeSecondPhoto,
+      ...(state.photosList || [])
+    ].find((photo) => photo?.url === url) || fallback;
+  };
+
   // 3. Swipe & Touch Gesture Controller Hook
   const { 
     swipeStatus, 
@@ -64,7 +78,10 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     }
   }, [isSplitLayoutActive]);
 
-  const selectedPhoto = (selectedPhotoSide === 'right' && isSplitLayoutActive) ? secondPhoto : state.activePhoto;
+  const selectedPhotoBase = (selectedPhotoSide === 'right' && isSplitLayoutActive) ? secondPhoto : state.activePhoto;
+  const selectedPhoto = selectedPhotoBase?.url
+    ? resolveLivePhoto(selectedPhotoBase.url, selectedPhotoBase)
+    : null;
 
   useEffect(() => {
     if (selectedPhoto) {
@@ -296,7 +313,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   ];
 
   const getSplitPreviewStyle = (url, isSecond) => {
-    const photoObj = isSecond ? secondPhoto : state.activePhoto;
+    const photoObj = resolveLivePhoto(url, isSecond ? secondPhoto : state.activePhoto);
     const cachedDims = photoObj ? remoteDimensionsCache.current[photoObj.url] : null;
 
     let R_i = 0.667;
@@ -314,7 +331,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     const R_c = halfWidth / halfHeight;
 
     const P = !isSecond
-      ? (selectedPhotoSide === 'left' ? activePhotoCrop : (state.activePhoto?.cropPercent !== undefined ? state.activePhoto.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)))
+      ? (selectedPhotoSide === 'left' ? activePhotoCrop : (photoObj?.cropPercent !== undefined ? photoObj.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)))
       : (selectedPhotoSide === 'right' ? activePhotoCrop : (photoObj && photoObj.cropPercent !== undefined ? photoObj.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)));
 
     const P_y = (dragState.isDragging && dragState.photoUrl === url && currentDragY !== null)
@@ -345,7 +362,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   };
 
   const getSinglePreviewStyle = (url) => {
-    const photoObj = state.activePhoto;
+    const photoObj = resolveLivePhoto(url, state.activePhoto);
     if (!photoObj) return {};
     const cachedDims = remoteDimensionsCache.current[photoObj.url];
 

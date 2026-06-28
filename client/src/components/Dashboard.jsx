@@ -141,16 +141,21 @@ function Dashboard({ state, socket, connectionInfo }) {
       !!currentActiveSlide.isSplit === expectedSplit &&
       isSecondUrlMatched
     ) {
+      const livePrimaryPhoto = resolveLivePhoto(state.activePhoto.url, state.activePhoto);
+      const liveSecondaryPhoto = expectedSplit
+        ? resolveLivePhoto(targetSecondUrl, state.currentFrame?.secondary || state.activeSecondPhoto || null)
+        : null;
+
       // Check if crop/zoom settings have changed and update the active slide in place
       const currentCrop1 = currentActiveSlide.cropPercent !== undefined 
         ? currentActiveSlide.cropPercent 
         : (expectedSplit ? (state.splitCropPercent !== undefined ? state.splitCropPercent : 50) : (state.scaleMode === 'contain' ? 0 : 100));
       const currentCropY1 = currentActiveSlide.cropPositionY !== undefined ? currentActiveSlide.cropPositionY : 50;
 
-      const targetCrop1 = state.activePhoto.cropPercent !== undefined 
-        ? state.activePhoto.cropPercent 
+      const targetCrop1 = livePrimaryPhoto?.cropPercent !== undefined 
+        ? livePrimaryPhoto.cropPercent 
         : (expectedSplit ? (state.splitCropPercent !== undefined ? state.splitCropPercent : 50) : (state.scaleMode === 'contain' ? 0 : 100));
-      const targetCropY1 = state.activePhoto.cropPositionY !== undefined ? state.activePhoto.cropPositionY : 50;
+      const targetCropY1 = livePrimaryPhoto?.cropPositionY !== undefined ? livePrimaryPhoto.cropPositionY : 50;
 
       const currentCrop2 = expectedSplit 
         ? (currentActiveSlide.cropPercent2 !== undefined ? currentActiveSlide.cropPercent2 : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50))
@@ -158,9 +163,9 @@ function Dashboard({ state, socket, connectionInfo }) {
       const currentCropY2 = expectedSplit ? (currentActiveSlide.cropPositionY2 !== undefined ? currentActiveSlide.cropPositionY2 : 50) : undefined;
 
       const targetCrop2 = expectedSplit 
-        ? (state.activeSecondPhoto?.cropPercent !== undefined ? state.activeSecondPhoto.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50))
+        ? (liveSecondaryPhoto?.cropPercent !== undefined ? liveSecondaryPhoto.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50))
         : undefined;
-      const targetCropY2 = expectedSplit ? (state.activeSecondPhoto?.cropPositionY !== undefined ? state.activeSecondPhoto.cropPositionY : 50) : undefined;
+      const targetCropY2 = expectedSplit ? (liveSecondaryPhoto?.cropPositionY !== undefined ? liveSecondaryPhoto.cropPositionY : 50) : undefined;
 
       const isSplitCropChanged = expectedSplit && (
         currentCrop1 !== targetCrop1 ||
@@ -179,12 +184,12 @@ function Dashboard({ state, socket, connectionInfo }) {
           if (s.active && s.url === state.activePhoto.url) {
             return {
               ...s,
-              cropPercent: state.activePhoto.cropPercent,
-              cropPositionY: state.activePhoto.cropPositionY,
-              cropPercent2: state.activeSecondPhoto?.cropPercent !== undefined 
-                ? state.activeSecondPhoto.cropPercent 
+              cropPercent: livePrimaryPhoto?.cropPercent,
+              cropPositionY: livePrimaryPhoto?.cropPositionY,
+              cropPercent2: liveSecondaryPhoto?.cropPercent !== undefined 
+                ? liveSecondaryPhoto.cropPercent 
                 : state.splitCropPercent,
-              cropPositionY2: state.activeSecondPhoto?.cropPositionY
+              cropPositionY2: liveSecondaryPhoto?.cropPositionY
             };
           }
           return s;
@@ -260,8 +265,14 @@ function Dashboard({ state, socket, connectionInfo }) {
 
     const preloadAndMount = async () => {
       try {
-        const primaryPhoto = state.currentFrame?.primary || state.activePhoto;
-        const secondaryPhoto = state.currentFrame?.secondary || state.activeSecondPhoto;
+        const primaryPhoto = resolveLivePhoto(
+          state.currentFrame?.primary?.url || state.activePhoto?.url,
+          state.currentFrame?.primary || state.activePhoto
+        );
+        const secondaryPhoto = resolveLivePhoto(
+          state.currentFrame?.secondary?.url || state.activeSecondPhoto?.url,
+          state.currentFrame?.secondary || state.activeSecondPhoto
+        );
         if (!primaryPhoto) return;
 
         const meta = await getImageMeta(primaryPhoto.url);
@@ -513,6 +524,20 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   const currentThemeClass = `theme-${state.theme.toLowerCase().replace(' ', '-')}`;
 
+  const resolveLivePhoto = (url, fallback = null) => {
+    if (!url) {
+      return fallback;
+    }
+
+    return [
+      state.currentFrame?.primary,
+      state.currentFrame?.secondary,
+      state.activePhoto,
+      state.activeSecondPhoto,
+      ...(state.photosList || [])
+    ].find((photo) => photo?.url === url) || fallback;
+  };
+
   const getSingleImageStyle = (url, w, h, slideCropPercent, slideCropPositionY) => {
     let R_i = 1.5;
     if (w && h) {
@@ -522,19 +547,10 @@ function Dashboard({ state, socket, connectionInfo }) {
     const containerHeight = dimensions.height;
     const R_c = containerWidth / containerHeight;
 
-    // Resolve live cropPercent from state.activePhoto or state.photosList for reactivity, falling back to slide's captured cropPercent
-    let customCrop = undefined;
-    let customCropY = undefined;
-    if (state.activePhoto && state.activePhoto.url === url) {
-      customCrop = state.activePhoto.cropPercent;
-      customCropY = state.activePhoto.cropPositionY;
-    } else if (state.photosList) {
-      const match = state.photosList.find(p => p.url === url);
-      if (match) {
-        customCrop = match.cropPercent;
-        customCropY = match.cropPositionY;
-      }
-    }
+    // Resolve the latest crop metadata from the live frame/feed before falling back to the slide snapshot.
+    const livePhoto = resolveLivePhoto(url);
+    let customCrop = livePhoto?.cropPercent;
+    let customCropY = livePhoto?.cropPositionY;
     if (customCrop === undefined) {
       customCrop = slideCropPercent;
     }
@@ -575,19 +591,10 @@ function Dashboard({ state, socket, connectionInfo }) {
     const halfHeight = dimensions.height - 32;
     const R_c = halfWidth / halfHeight;
 
-    // Resolve live cropPercent from state.activePhoto or state.photosList for reactivity, falling back to slide's captured cropPercent
-    let customCrop = undefined;
-    let customCropY = undefined;
-    if (state.activePhoto && state.activePhoto.url === url) {
-      customCrop = state.activePhoto.cropPercent;
-      customCropY = state.activePhoto.cropPositionY;
-    } else if (state.photosList) {
-      const match = state.photosList.find(p => p.url === url);
-      if (match) {
-        customCrop = match.cropPercent;
-        customCropY = match.cropPositionY;
-      }
-    }
+    // Resolve the latest crop metadata from the live frame/feed before falling back to the slide snapshot.
+    const livePhoto = resolveLivePhoto(url);
+    let customCrop = livePhoto?.cropPercent;
+    let customCropY = livePhoto?.cropPositionY;
     if (customCrop === undefined) {
       customCrop = slideCropPercent;
     }
