@@ -6,6 +6,19 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-06-28 (Part 3): Persistent `systemd --user` Service Installation
+* **Goal**: Stop relying on ad hoc manual launches for the TV host and make Lumina survive logout and reboot through `systemd`.
+* **Implementation**:
+  * Added a tracked service template at [`systemd/lumina.service.template`](file:///home/alex/work/lumina/systemd/lumina.service.template) rather than committing host-specific absolute paths directly into git.
+  * Added [`scripts/install-systemd-user-service.sh`](file:///home/alex/work/lumina/scripts/install-systemd-user-service.sh), which resolves the current repo root, `node` binary, user, UID, and user config directory at install time, then materializes `~/.config/systemd/user/lumina.service`.
+  * Updated [`README.md`](file:///home/alex/work/lumina/README.md) with `systemctl --user` installation and operations guidance.
+  * Installed and enabled the user service on `playwright`, then enabled lingering for `alex` so the service stays available across logout/reboot.
+* **Operational Result**:
+  * `systemctl --user status lumina` reports the service active.
+  * `curl http://127.0.0.1:5000/api/config` responds successfully.
+* **Learning**: Because Lumina depends on the logged-in GNOME stack, Mutter DBus, PulseAudio/PipeWire, and kiosk browser launch behavior, a `systemd --user` service is the correct execution model; a root system service would be the wrong integration boundary here.
+* **Verification**: `npm test` passed. The long-standing sandbox-only `listen EPERM` warning still appears in the ephemeral localhost smoke-test section, but all assertions passed and the real host service responds on port `5000`.
+
 ### 2026-06-28 (Part 2): Nullish-Safe Selector Defaults & Declarative Cleanup
 * **Goal**: Make the selection and persistence layers more fluent and falsy-safe by using modern ES6+ operators where they improve both readability and behavior.
 * **Implementation**:
