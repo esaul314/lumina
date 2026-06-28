@@ -24,6 +24,7 @@ const {
 const { analyzeSentiment } = require('./server/services/sentiment.js');
 const { classifyWeatherCode } = require('./server/services/weather.js');
 const { runDomainTests } = require('./server/domain/tests.js');
+const { upsertEnvVarInContent } = require('./server/config/env.js');
 
 // Formatting constants for clean terminal reports
 const COLORS = {
@@ -347,6 +348,18 @@ assertTest('getNextScreensaverState transitions state and schedules actions corr
   transition = getNextScreensaverState(state, inputs);
   assert.strictEqual(transition.action, 'kill');
   assert.strictEqual(transition.nextState.isBrowserRunning, false);
+});
+
+logSuite('Env Secret Store');
+
+assertTest('upsertEnvVarInContent appends and replaces quoted secret values safely', () => {
+  const initial = 'USEAPI_TOKEN="old-token"\nPORT=5000\n';
+  const withTumblr = upsertEnvVarInContent(initial, 'TUMBLR_API_KEY', 'tumblr-key');
+  assert.ok(withTumblr.includes('TUMBLR_API_KEY="tumblr-key"'), 'Should append new env keys as quoted values');
+
+  const updated = upsertEnvVarInContent(withTumblr, 'USEAPI_TOKEN', 'new token #1');
+  assert.ok(updated.includes('USEAPI_TOKEN="new token #1"'), 'Should replace existing env keys with quoted values');
+  assert.ok(!updated.includes('old-token'), 'Old secret value must be removed from the updated content');
 });
 
 // ============================================================================

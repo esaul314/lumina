@@ -1,35 +1,33 @@
 const fs = require('fs');
 const path = require('path');
+const { readEnvVar, persistEnvVars } = require('../config/env.js');
 
-const CREDENTIALS_PATH = path.join(__dirname, '..', 'config', '.google_credentials.json');
 const CACHE_PATH = path.join(__dirname, '..', 'config', 'google_photos_cache.json');
 
 // Ensure parent directories exist
-const configDir = path.dirname(CREDENTIALS_PATH);
+const configDir = path.dirname(CACHE_PATH);
 if (!fs.existsSync(configDir)) {
   fs.mkdirSync(configDir, { recursive: true });
 }
 
-let credentials = { clientId: '', clientSecret: '' };
+let credentials = {
+  clientId: readEnvVar('GOOGLE_CLIENT_ID'),
+  clientSecret: readEnvVar('GOOGLE_CLIENT_SECRET')
+};
 let tokens = { accessToken: '', refreshToken: '', expiry: 0 };
-
-if (fs.existsSync(CREDENTIALS_PATH)) {
-  try {
-    credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
-  } catch (err) {
-    console.warn('Google Photos Service: Could not read credentials file:', err.message);
-  }
-}
 
 /**
  * 🔒 saveGoogleCredentials
- * Persists Google Photos API Client Credentials locally.
+ * Persists Google Photos API Client Credentials to the shared .env store.
  */
 function saveGoogleCredentials(clientId, clientSecret) {
   credentials = { clientId: clientId.trim(), clientSecret: clientSecret.trim() };
   try {
-    fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(credentials, null, 2), 'utf8');
-    console.log('Google Photos Service: Credentials saved successfully.');
+    persistEnvVars({
+      GOOGLE_CLIENT_ID: credentials.clientId,
+      GOOGLE_CLIENT_SECRET: credentials.clientSecret
+    });
+    console.log('Google Photos Service: Credentials saved successfully to .env.');
     return true;
   } catch (err) {
     console.error('Google Photos Service: Failed to save credentials:', err.message);

@@ -52,6 +52,7 @@ function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
     runtime: {
       screensaverActive: Boolean(legacyState.screensaverActive),
       hasUseApiToken: Boolean(legacyState.hasUseApiToken),
+      hasTumblrApiKey: Boolean(legacyState.hasTumblrApiKey),
       browserRunning: Boolean(runtimeOverrides.browserRunning),
       manualOverride: Boolean(runtimeOverrides.manualOverride),
       newsSentiment: { ...(legacyState.newsSentiment || {}) },

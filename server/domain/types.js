@@ -65,6 +65,7 @@
  * @typedef {object} RuntimeState
  * @property {boolean} screensaverActive
  * @property {boolean} hasUseApiToken
+ * @property {boolean=} hasTumblrApiKey
  * @property {boolean=} browserRunning
  * @property {boolean=} manualOverride
  * @property {Record<string, unknown>} newsSentiment

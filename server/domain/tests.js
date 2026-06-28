@@ -48,6 +48,7 @@ function createState(overrides = {}) {
     runtime: {
       screensaverActive: false,
       hasUseApiToken: false,
+      hasTumblrApiKey: false,
       browserRunning: false,
       manualOverride: false,
       newsSentiment: { weatherMatch: 'Cloudy' },

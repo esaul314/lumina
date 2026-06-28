@@ -1,4 +1,4 @@
-const config = require('../config/configLoader.js');
+const { readEnvVar } = require('../config/env.js');
 
 /**
  * 🖼️ Dynamic Image Crawler Service
@@ -15,7 +15,7 @@ const searchQueries = {
   'AI Creations': 'surreal digital art generative midjourney cyberpunk futuristic'
 };
 
-const tumblrApiKey = () => (process.env.TUMBLR_API_KEY || '').trim();
+const tumblrApiKey = () => readEnvVar('TUMBLR_API_KEY');
 
 const cleanTumblrTitle = (rawTitle, fallback = 'Tumblr Scenic Photo') => {
   const normalized = String(rawTitle || fallback)
@@ -458,7 +458,7 @@ async function fetchWallhavenImages(query, category, count = 15) {
 async function fetchNasaApod(count = 10) {
   try {
     console.log(`NASA APOD Crawler: Fetching ${count} cosmic photos...`);
-    const apiKey = config.nasaApiKey || 'DEMO_KEY';
+    const apiKey = readEnvVar('NASA_API_KEY', 'DEMO_KEY') || 'DEMO_KEY';
     const url = `https://api.nasa.gov/planetary/apod?api_key=${apiKey}&count=${count}`;
     
     const res = await fetch(url);
@@ -624,7 +624,7 @@ async function fetchUnsplashImages(query, count = 20) {
  * Supports token authorization, filters out portraits, extracts prompts, and handles self-healing fallback.
  */
 async function fetchMidjourneyImages(count = 15) {
-  const token = config.useapiToken;
+  const token = readEnvVar('USEAPI_TOKEN');
   if (!token) {
     console.log('UseAPI.net: No USEAPI_TOKEN configured. Using free keyless AI aggregators (Lexica Art + Wallhaven AI)...');
     try {

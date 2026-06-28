@@ -334,7 +334,7 @@ function reduceDomainCommand(state, command, env = {}) {
       return createResult(
         nextState,
         emitStateSync(),
-        [{ type: Boolean(command.payload?.active) ? 'launch-kiosk' : 'kill-kiosk' }]
+        [{ type: command.payload?.active ? 'launch-kiosk' : 'kill-kiosk' }]
       );
     }
 

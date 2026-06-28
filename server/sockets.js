@@ -1,6 +1,7 @@
 const { sendEmailAlert } = require('./services/notifier.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const { saveCuratedCollections } = require('./config/collections.js');
+const { persistEnvVars } = require('./config/env.js');
 const {
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
@@ -671,34 +672,32 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('save-useapi-token', ({ token }) => {
       console.log('[SOCKET EVENT] save-useapi-token received.');
       const sanitizedToken = String(token || '').trim();
-      process.env.USEAPI_TOKEN = sanitizedToken;
-      state.hasUseApiToken = !!sanitizedToken;
-      broadcast();
 
       try {
-        const fs = require('fs');
-        const path = require('path');
-        const rootDir = path.join(__dirname, '..');
-        const envPath = path.join(rootDir, '.env');
-
-        let envContent = '';
-        if (fs.existsSync(envPath)) {
-          envContent = fs.readFileSync(envPath, 'utf8');
-        }
-
-        // Replace or append USEAPI_TOKEN
-        if (envContent.includes('USEAPI_TOKEN=')) {
-          envContent = envContent.replace(/USEAPI_TOKEN=.*/g, `USEAPI_TOKEN=${sanitizedToken}`);
-        } else {
-          envContent += `\nUSEAPI_TOKEN=${sanitizedToken}\n`;
-        }
-
-        fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf8');
+        persistEnvVars({ USEAPI_TOKEN: sanitizedToken });
+        state.hasUseApiToken = !!sanitizedToken;
+        broadcast();
         console.log('[SOCKET EVENT] Successfully persisted USEAPI_TOKEN to .env file');
         socket.emit('useapi-token-saved', { success: true });
       } catch (err) {
         console.error('[SOCKET EVENT] Failed to save USEAPI_TOKEN to .env:', err.message);
         socket.emit('useapi-token-saved', { success: false, error: err.message });
+      }
+    });
+
+    socket.on('save-tumblr-api-key', ({ token }) => {
+      console.log('[SOCKET EVENT] save-tumblr-api-key received.');
+      const sanitizedToken = String(token || '').trim();
+
+      try {
+        persistEnvVars({ TUMBLR_API_KEY: sanitizedToken });
+        state.hasTumblrApiKey = !!sanitizedToken;
+        broadcast();
+        console.log('[SOCKET EVENT] Successfully persisted TUMBLR_API_KEY to .env file');
+        socket.emit('tumblr-api-key-saved', { success: true });
+      } catch (err) {
+        console.error('[SOCKET EVENT] Failed to save TUMBLR_API_KEY to .env:', err.message);
+        socket.emit('tumblr-api-key-saved', { success: false, error: err.message });
       }
     });
 

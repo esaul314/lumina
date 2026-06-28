@@ -1,9 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+require('./env.js');
 
 const rootDir = path.join(__dirname, '..', '..');
 const examplePath = path.join(rootDir, 'config.json.example');
 const configPath = path.join(rootDir, 'config.json');
+const deprecatedSecretKeys = ['nasaApiKey', 'useapiToken', 'googleClientId', 'googleClientSecret', 'tumblrApiKey'];
 
 let config = {};
 
@@ -18,12 +20,20 @@ try {
 if (fs.existsSync(configPath)) {
   try {
     const userConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const ignoredSecretKeys = deprecatedSecretKeys.filter((key) => userConfig[key] !== undefined);
+    if (ignoredSecretKeys.length > 0) {
+      console.warn(`Warning: Secret config keys must be stored in .env and will be ignored: ${ignoredSecretKeys.join(', ')}`);
+    }
+
+    const sanitizedConfig = { ...userConfig };
+    ignoredSecretKeys.forEach((key) => delete sanitizedConfig[key]);
+
     config = {
       ...config,
-      ...userConfig,
+      ...sanitizedConfig,
       location: {
         ...config.location,
-        ...(userConfig.location || {})
+        ...(sanitizedConfig.location || {})
       }
     };
   } catch (err) {

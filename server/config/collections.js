@@ -1,5 +1,5 @@
 const path = require('path');
-const { curry, reduce } = require('../utils/fn.js');
+const { curry } = require('../utils/fn.js');
 const { saveCollectionsSnapshot } = require('./collectionsCodec.js');
 
 /**
@@ -98,17 +98,6 @@ const updatePhotoByUrl = curry((url, updater, photo) =>
  */
 const updatePhotosList = curry((url, updater, list) =>
   list ? list.map(updatePhotoByUrl(url, updater)) : []
-);
-
-/**
- * 📂 updateCollections
- * Curried helper that maps over a collections dictionary, updating category lists.
- */
-const updateCollections = curry((url, updater, collections) =>
-  reduce((acc, cat) => {
-    acc[cat] = updatePhotosList(url, updater, collections[cat]);
-    return acc;
-  }, {}, Object.keys(collections))
 );
 
 /**

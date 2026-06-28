@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const config = require('./config/configLoader.js');
+const { readEnvVar } = require('./config/env.js');
 
 // Modular config and service imports
 const { sendEmailAlert } = require('./services/notifier.js');
@@ -34,8 +35,6 @@ const {
   pipe,
   prop,
   map,
-  filter,
-  reduce,
   toLower,
   includes,
   uniqBy
@@ -159,7 +158,8 @@ for (const key of Object.keys(curatedCollections)) {
 const initialCategory = Object.keys(curatedCollections)[0] || 'Scenic Nature';
 screensaverState.photosList = curatedCollections[initialCategory] ? curatedCollections[initialCategory].filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: initialCategory })) : [];
 screensaverState.activePhoto = screensaverState.photosList[0] || null;
-screensaverState.hasUseApiToken = !!config.useapiToken;
+screensaverState.hasUseApiToken = Boolean(readEnvVar('USEAPI_TOKEN'));
+screensaverState.hasTumblrApiKey = Boolean(readEnvVar('TUMBLR_API_KEY'));
 const uniqByUrl = uniqBy(prop('url'));
 
 /**

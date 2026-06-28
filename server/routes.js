@@ -5,7 +5,6 @@ const {
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
   decodeCategorySelectionFromHttp,
-  decodeExcludedKeywordsCommand,
   decodePhotoCropCommand,
   decodePhotoRatingCommand
 } = require('./domain/commands.js');
