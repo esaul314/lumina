@@ -19,7 +19,11 @@ function DirectControlTab({
   triggerNext,
   forceScreensaverToggle,
   themes,
-  handleThemeChange
+  handleThemeChange,
+  selectedPhotoSide,
+  setSelectedPhotoSide,
+  selectedPhoto,
+  isSplitLayoutActive
 }) {
   return (
     <>
@@ -50,33 +54,80 @@ function DirectControlTab({
               display: 'flex',
               backgroundColor: '#000'
             }}>
-              {state.splitPortrait && activePhotoOrientation === 'portrait' && !state.activePhoto.preventPairing && secondPhoto ? (
+              {isSplitLayoutActive ? (
                 <div style={{ display: 'flex', width: '100%', height: '100%', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
                   <div 
-                    onMouseDown={(e) => handleDragStart(e, state.activePhoto.url, false)}
-                    onTouchStart={(e) => handleDragStart(e, state.activePhoto.url, false)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPhotoSide('left');
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      handleDragStart(e, state.activePhoto.url, false);
+                      setSelectedPhotoSide('left');
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      handleDragStart(e, state.activePhoto.url, false);
+                      setSelectedPhotoSide('left');
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                    }}
                     style={{
                       flex: 1,
                       height: '100%',
                       cursor: dragState.isDragging && !dragState.isSecond ? 'grabbing' : 'ns-resize',
+                      boxSizing: 'border-box',
+                      border: selectedPhotoSide === 'left' ? '2px solid var(--accent-color)' : '2px solid rgba(255,255,255,0.12)',
+                      boxShadow: selectedPhotoSide === 'left' ? '0 0 10px var(--accent-color)' : 'none',
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
                       ...getSplitPreviewStyle(state.activePhoto.url, false)
                     }} 
                   />
                   <div 
-                    onMouseDown={(e) => handleDragStart(e, secondPhoto.url, true)}
-                    onTouchStart={(e) => handleDragStart(e, secondPhoto.url, true)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPhotoSide('right');
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      handleDragStart(e, secondPhoto.url, true);
+                      setSelectedPhotoSide('right');
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      handleDragStart(e, secondPhoto.url, true);
+                      setSelectedPhotoSide('right');
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                    }}
                     style={{
                       flex: 1,
                       height: '100%',
                       cursor: dragState.isDragging && dragState.isSecond ? 'grabbing' : 'ns-resize',
+                      boxSizing: 'border-box',
+                      border: selectedPhotoSide === 'right' ? '2px solid var(--accent-color)' : '2px solid rgba(255,255,255,0.12)',
+                      boxShadow: selectedPhotoSide === 'right' ? '0 0 10px var(--accent-color)' : 'none',
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
                       ...getSplitPreviewStyle(secondPhoto.url, true)
                     }} 
                   />
                 </div>
               ) : (
                 <div 
-                  onMouseDown={(e) => handleDragStart(e, state.activePhoto.url, false)}
-                  onTouchStart={(e) => handleDragStart(e, state.activePhoto.url, false)}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    handleDragStart(e, state.activePhoto.url, false);
+                  }}
+                  onTouchStart={(e) => {
+                    e.stopPropagation();
+                    handleDragStart(e, state.activePhoto.url, false);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                  }}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -122,17 +173,19 @@ function DirectControlTab({
               textAlign: 'center',
               pointerEvents: 'none'
             }}>
-              TV PREVIEW: {state.activePhoto.title}
+              {isSplitLayoutActive && selectedPhoto
+                ? `FOCUS: ${selectedPhoto.title} (${selectedPhotoSide === 'left' ? 'LEFT' : 'RIGHT'})`
+                : `TV PREVIEW: ${state.activePhoto.title}`}
             </span>
           )}
         </div>
 
-        {state.activePhoto && (
+        {selectedPhoto && (
           <div style={{ marginTop: '16px', padding: '0 4px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px' }}>
               <span style={{ opacity: 0.6 }}>
-                {state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto 
-                  ? 'Portrait Split Crop/Zoom' 
+                {isSplitLayoutActive
+                  ? `Zoom/Crop (${selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})`
                   : 'Photo Crop/Zoom'}
               </span>
               <span style={{ color: 'var(--accent-color)' }}>{activePhotoCrop}%</span>
@@ -153,42 +206,46 @@ function DirectControlTab({
           </div>
         )}
 
-        {state.activePhoto && activePhotoOrientation === 'portrait' && (
+        {selectedPhoto && (selectedPhotoSide === 'right' || activePhotoOrientation === 'portrait') && (
           <div style={{ marginTop: '16px', padding: '0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>Allow Side-by-Side Pairing</div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                Allow Side-by-Side Pairing ({selectedPhotoSide === 'left' ? 'Left' : 'Right'})
+              </div>
               <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>Pair this portrait with another side-by-side</div>
             </div>
             <div 
               className="switch-wrapper"
               onClick={() => socket.emit('set-photo-prevent-pairing', {
-                url: state.activePhoto.url,
-                preventPairing: !state.activePhoto.preventPairing
+                url: selectedPhoto.url,
+                preventPairing: !selectedPhoto.preventPairing
               })}
               style={{ cursor: 'pointer' }}
             >
-              <span className={`switch-slider ${!state.activePhoto.preventPairing ? 'checked' : ''}`}></span>
+              <span className={`switch-slider ${!selectedPhoto.preventPairing ? 'checked' : ''}`}></span>
             </div>
           </div>
         )}
 
-        {state.activePhoto && (
+        {selectedPhoto && (
           <div style={{ marginTop: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
-              <span style={{ opacity: 0.6 }}>Image Display Weight (Rating)</span>
+              <span style={{ opacity: 0.6 }}>
+                Image Display Weight ({selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})
+              </span>
               <span style={{ color: 'var(--accent-color)' }}>
-                {state.activePhoto.rating === 1 ? '🛑 1 (Banned / Blocked)' :
-                 (state.activePhoto.rating === 10 || state.activePhoto.rating === undefined) ? '🌟 10 (Default / Max)' :
-                 `📈 ${state.activePhoto.rating} (Weight: ${state.activePhoto.rating / 10})`}
+                {selectedPhoto.rating === 1 ? '🛑 1 (Banned / Blocked)' :
+                 (selectedPhoto.rating === 10 || selectedPhoto.rating === undefined) ? '🌟 10 (Default / Max)' :
+                 `📈 ${selectedPhoto.rating} (Weight: ${selectedPhoto.rating / 10})`}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
-                const isCurrent = (state.activePhoto.rating || 10) === num;
+                const isCurrent = (selectedPhoto.rating || 10) === num;
                 return (
                   <button
                     key={num}
-                    onClick={() => socket.emit('rate-photo', { url: state.activePhoto.url, rating: num })}
+                    onClick={() => socket.emit('rate-photo', { url: selectedPhoto.url, rating: num })}
                     className="remote-btn"
                     style={{
                       flex: 1,

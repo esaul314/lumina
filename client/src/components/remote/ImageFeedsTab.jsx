@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 function ImageFeedsTab({
@@ -30,6 +30,25 @@ function ImageFeedsTab({
   saveGoogleCredentials
 }) {
   const [keywordInput, setKeywordInput] = useState('');
+  const [localCrop, setLocalCrop] = useState(50);
+  const cropTimeoutRef = useRef(null);
+
+  const activeGalleryPhoto = state.photosList && state.photosList[galleryIndex] ? state.photosList[galleryIndex] : null;
+
+  useEffect(() => {
+    if (activeGalleryPhoto) {
+      const defaultP = state.scaleMode === 'contain' ? 0 : 100;
+      setLocalCrop(activeGalleryPhoto.cropPercent !== undefined ? activeGalleryPhoto.cropPercent : defaultP);
+    }
+  }, [activeGalleryPhoto?.url, activeGalleryPhoto?.cropPercent, state.scaleMode]);
+
+  useEffect(() => {
+    return () => {
+      if (cropTimeoutRef.current) {
+        clearTimeout(cropTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const activeChips = newCategoryKeyword ? newCategoryKeyword.split(',').map(s => s.trim()).filter(Boolean) : [];
 
@@ -491,7 +510,7 @@ function ImageFeedsTab({
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600 }}>
                     <span style={{ opacity: 0.6 }}>Photo Crop/Zoom (Rating Deck)</span>
                     <span style={{ color: 'var(--accent-color)' }}>
-                      {photo.cropPercent !== undefined ? photo.cropPercent : (state.scaleMode === 'contain' ? 0 : 100)}%
+                      {localCrop}%
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -500,13 +519,19 @@ function ImageFeedsTab({
                       type="range"
                       min="0"
                       max="100"
-                      value={photo.cropPercent !== undefined ? photo.cropPercent : (state.scaleMode === 'contain' ? 0 : 100)}
+                      value={localCrop}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10);
-                        socket.emit('set-photo-crop', {
-                          url: photo.url,
-                          cropPercent: val
-                        });
+                        setLocalCrop(val);
+                        if (cropTimeoutRef.current) {
+                          clearTimeout(cropTimeoutRef.current);
+                        }
+                        cropTimeoutRef.current = setTimeout(() => {
+                          socket.emit('set-photo-crop', {
+                            url: photo.url,
+                            cropPercent: val
+                          });
+                        }, 30); // 30ms debounce for real-time TV zoom
                       }}
                       className="split-crop-slider"
                       style={{

@@ -52,21 +52,31 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   } = useCropDrag(actions, state, secondPhoto, previewDimensions);
 
   // 5. Active Photo Crop (Debounced range input) State
+  const [selectedPhotoSide, setSelectedPhotoSide] = useState('left'); // 'left' | 'right'
   const [activePhotoCrop, setActivePhotoCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
 
+  const isSplitLayoutActive = !!(state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto);
+
   useEffect(() => {
-    if (state.activePhoto) {
-      const isSplitLayoutActive = state.splitPortrait && activePhotoOrientation === 'portrait' && secondPhoto;
-      if (state.activePhoto.cropPercent !== undefined) {
-        setActivePhotoCrop(state.activePhoto.cropPercent);
+    if (!isSplitLayoutActive) {
+      setSelectedPhotoSide('left');
+    }
+  }, [isSplitLayoutActive]);
+
+  const selectedPhoto = (selectedPhotoSide === 'right' && isSplitLayoutActive) ? secondPhoto : state.activePhoto;
+
+  useEffect(() => {
+    if (selectedPhoto) {
+      if (selectedPhoto.cropPercent !== undefined) {
+        setActivePhotoCrop(selectedPhoto.cropPercent);
       } else if (isSplitLayoutActive) {
         setActivePhotoCrop(state.splitCropPercent !== undefined ? state.splitCropPercent : 50);
       } else {
         setActivePhotoCrop(state.scaleMode === 'contain' ? 0 : 100);
       }
     }
-  }, [state.activePhoto?.url, state.activePhoto?.cropPercent, state.splitCropPercent, state.scaleMode, state.splitPortrait, activePhotoOrientation, secondPhoto]);
+  }, [selectedPhoto?.url, selectedPhoto?.cropPercent, state.splitCropPercent, state.scaleMode, isSplitLayoutActive, selectedPhotoSide]);
 
   useEffect(() => {
     return () => {
@@ -85,10 +95,10 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     }
 
     cropTimeoutRef.current = setTimeout(() => {
-      if (state.activePhoto) {
-        actions.setPhotoCrop(state.activePhoto.url, numericVal);
+      if (selectedPhoto) {
+        actions.setPhotoCrop(selectedPhoto.url, numericVal);
       }
-    }, 200); // 200ms debounce
+    }, 30); // 30ms debounce for near-instant TV feedback!
   };
 
   useEffect(() => {
@@ -290,10 +300,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     const R_c = halfWidth / halfHeight;
 
     const P = !isSecond
-      ? activePhotoCrop
-      : (photoObj && photoObj.cropPercent !== undefined 
-         ? photoObj.cropPercent 
-         : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50));
+      ? (selectedPhotoSide === 'left' ? activePhotoCrop : (state.activePhoto?.cropPercent !== undefined ? state.activePhoto.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)))
+      : (selectedPhotoSide === 'right' ? activePhotoCrop : (photoObj && photoObj.cropPercent !== undefined ? photoObj.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50)));
 
     const P_y = (dragState.isDragging && dragState.photoUrl === url && currentDragY !== null)
       ? currentDragY
@@ -481,6 +489,10 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           forceScreensaverToggle={forceScreensaverToggle}
           themes={themes}
           handleThemeChange={handleThemeChange}
+          selectedPhotoSide={selectedPhotoSide}
+          setSelectedPhotoSide={setSelectedPhotoSide}
+          selectedPhoto={selectedPhoto}
+          isSplitLayoutActive={isSplitLayoutActive}
         />
       )}
 

@@ -100,6 +100,15 @@ This document serves as a public-facing, generic history of technical developmen
   * Modified [RemoteControl.jsx](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx) to omit the "• POWERED BY GOOGLE DEEPMIND" string from the system info paragraph.
 * **Verification**: Verified that all diagnostics and tests run successfully.
 
+### 2026-06-27 (Part 9): Portrait Split Crop/Zoom Refinement & Touch Isolation
+* **Goal**: Fix touchpad drag-to-crop vs. swipe-to-skip touch conflicts, reduce slider zoom response latency on the TV, add focus-based dual photo controls, and correct in-place slide check caching bugs.
+* **Implementation**:
+  * **Touch Isolation**: Called `e.stopPropagation()` in touchstart, mousedown, and touchend handlers on both single and split preview panes in [DirectControlTab.jsx](file:///home/alex/work/lumina/client/src/components/remote/DirectControlTab.jsx), preventing drag gestures from triggering the parent swipe-to-skip controller.
+  * **Focus-Based Controls**: Introduced a `selectedPhotoSide` state in [RemoteControl.jsx](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx). Tapping on either the Left or Right preview pane focuses that photo (highlighted by a glowing border), dynamically binding the zoom slider, rating deck, and pairing toggle below to it.
+  * **Real-Time Responsiveness**: Reduced debounced socket emits from `200ms` to `30ms` on the Direct Control tab, and added a local crop range state with `30ms` throttled emits on the Image Feeds rating deck. Zoom changes now update the TV screen dynamically as you drag.
+  * **Resolved In-place Check**: Updated the TV view slide-change check in [Dashboard.jsx](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) to compare resolved crop values rather than raw values, ensuring changes to global defaults (like `splitCropPercent`) are applied instantly.
+* **Verification**: Verified successfully via automated unit tests (`npm test`) and Playwright E2E split sync tests (`node test_split_sync.js`).
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules

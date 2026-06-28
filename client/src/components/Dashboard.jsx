@@ -142,16 +142,36 @@ function Dashboard({ state, socket, connectionInfo }) {
       isSecondUrlMatched
     ) {
       // Check if crop/zoom settings have changed and update the active slide in place
+      const currentCrop1 = currentActiveSlide.cropPercent !== undefined 
+        ? currentActiveSlide.cropPercent 
+        : (expectedSplit ? (state.splitCropPercent !== undefined ? state.splitCropPercent : 50) : (state.scaleMode === 'contain' ? 0 : 100));
+      const currentCropY1 = currentActiveSlide.cropPositionY !== undefined ? currentActiveSlide.cropPositionY : 50;
+
+      const targetCrop1 = state.activePhoto.cropPercent !== undefined 
+        ? state.activePhoto.cropPercent 
+        : (expectedSplit ? (state.splitCropPercent !== undefined ? state.splitCropPercent : 50) : (state.scaleMode === 'contain' ? 0 : 100));
+      const targetCropY1 = state.activePhoto.cropPositionY !== undefined ? state.activePhoto.cropPositionY : 50;
+
+      const currentCrop2 = expectedSplit 
+        ? (currentActiveSlide.cropPercent2 !== undefined ? currentActiveSlide.cropPercent2 : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50))
+        : undefined;
+      const currentCropY2 = expectedSplit ? (currentActiveSlide.cropPositionY2 !== undefined ? currentActiveSlide.cropPositionY2 : 50) : undefined;
+
+      const targetCrop2 = expectedSplit 
+        ? (state.activeSecondPhoto?.cropPercent !== undefined ? state.activeSecondPhoto.cropPercent : (state.splitCropPercent !== undefined ? state.splitCropPercent : 50))
+        : undefined;
+      const targetCropY2 = expectedSplit ? (state.activeSecondPhoto?.cropPositionY !== undefined ? state.activeSecondPhoto.cropPositionY : 50) : undefined;
+
       const isSplitCropChanged = expectedSplit && (
-        currentActiveSlide.cropPercent !== state.activePhoto.cropPercent ||
-        currentActiveSlide.cropPositionY !== state.activePhoto.cropPositionY ||
-        currentActiveSlide.cropPercent2 !== (state.activeSecondPhoto?.cropPercent !== undefined ? state.activeSecondPhoto.cropPercent : state.splitCropPercent) ||
-        currentActiveSlide.cropPositionY2 !== state.activeSecondPhoto?.cropPositionY
+        currentCrop1 !== targetCrop1 ||
+        currentCropY1 !== targetCropY1 ||
+        currentCrop2 !== targetCrop2 ||
+        currentCropY2 !== targetCropY2
       );
 
       const isSingleCropChanged = !expectedSplit && (
-        currentActiveSlide.cropPercent !== state.activePhoto.cropPercent ||
-        currentActiveSlide.cropPositionY !== state.activePhoto.cropPositionY
+        currentCrop1 !== targetCrop1 ||
+        currentCropY1 !== targetCropY1
       );
 
       if (isSplitCropChanged || isSingleCropChanged) {
