@@ -2,39 +2,45 @@
 
 const fs = require('fs');
 
-function cloneCollectionEntries(collections) {
+function cloneCollectionEntries(collections = {}) {
   return Object.fromEntries(
-    Object.entries(collections || {}).map(([category, photos]) => [
+    Object.entries(collections).map(([category, photos]) => [
       category,
       Array.isArray(photos)
         ? photos
-            .filter((photo) => photo && photo.url)
-            .map((photo) => ({ ...photo, category: photo.category || category }))
+            .filter((photo) => photo?.url)
+            .map((photo) => ({ ...photo, category: photo.category ?? category }))
         : []
     ])
   );
 }
 
-function normalizeKeywordsMap(rawKeywords, fallbackKeywords) {
+function cloneCategoryEntries(category, photos) {
+  return cloneCollectionEntries({ [category]: photos })[category];
+}
+
+function normalizeKeywordsMap(rawKeywords = {}, fallbackKeywords = {}) {
   return {
     ...fallbackKeywords,
     ...Object.fromEntries(
-      Object.entries(rawKeywords || {}).map(([category, value]) => [category, Array.isArray(value) ? [...value] : value])
+      Object.entries(rawKeywords).map(([category, value]) => [category, Array.isArray(value) ? [...value] : value])
     )
   };
 }
 
 function ensureUsableCategory(category, photos, fallbackCollections) {
+  const fallbackPhotos = fallbackCollections[category] ?? [];
+
   if (!Array.isArray(photos) || photos.length === 0) {
-    return cloneCollectionEntries({ [category]: fallbackCollections[category] || [] })[category];
+    return cloneCategoryEntries(category, fallbackPhotos);
   }
 
-  const visiblePhotos = photos.filter((photo) => photo && photo.url && photo.rating !== 1 && !photo.isBroken);
-  if (visiblePhotos.length === 0 && fallbackCollections[category]) {
-    return cloneCollectionEntries({ [category]: fallbackCollections[category] || [] })[category];
+  const visiblePhotos = photos.filter((photo) => photo?.url && photo.rating !== 1 && !photo.isBroken);
+  if (visiblePhotos.length === 0 && fallbackPhotos.length > 0) {
+    return cloneCategoryEntries(category, fallbackPhotos);
   }
 
-  return cloneCollectionEntries({ [category]: photos })[category];
+  return cloneCategoryEntries(category, photos);
 }
 
 function dedupeCollections(collections) {
@@ -63,7 +69,7 @@ function dedupeCollections(collections) {
 }
 
 function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState, buildFeedConfigsFromKeywords }) {
-  const rawFeeds = cloneCollectionEntries(rawData?.feeds || {});
+  const rawFeeds = cloneCollectionEntries(rawData?.feeds);
   const mergedCollections = Object.fromEntries(
     [...new Set([...Object.keys(defaultCollections), ...Object.keys(rawFeeds)])].map((category) => [
       category,
@@ -78,10 +84,12 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
       ensureUsableCategory(category, photos, defaultCollections)
     ])
   );
-  const searchKeywords = normalizeKeywordsMap(rawData?.searchKeywords, defaultState.searchKeywords || {});
-  const feedConfigs = rawData?.feedConfigs && Object.keys(rawData.feedConfigs).length > 0
-    ? { ...rawData.feedConfigs }
+  const searchKeywords = normalizeKeywordsMap(rawData?.searchKeywords, defaultState.searchKeywords ?? {});
+  const rawFeedConfigs = rawData?.feedConfigs ?? {};
+  const feedConfigs = Object.keys(rawFeedConfigs).length > 0
+    ? { ...rawFeedConfigs }
     : buildFeedConfigsFromKeywords(searchKeywords);
+  const manualLocation = rawData?.locationSettings?.manualLocation ?? defaultState.manualLocation ?? {};
 
   return {
     collections,
@@ -89,58 +97,67 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
       searchKeywords,
       feedConfigs,
       autoLocation: rawData?.locationSettings?.autoLocation ?? defaultState.autoLocation,
-      manualLocation: rawData?.locationSettings?.manualLocation
-        ? { ...rawData.locationSettings.manualLocation }
-        : { ...(defaultState.manualLocation || {}) },
+      manualLocation: { ...manualLocation },
       visionConfig: rawData?.visionConfig ? { ...rawData.visionConfig } : defaultState.visionConfig,
       scaleMode: rawData?.scaleMode || defaultState.scaleMode,
       splitPortrait: rawData?.splitPortrait ?? defaultState.splitPortrait,
       splitCropPercent: rawData?.splitCropPercent ?? defaultState.splitCropPercent,
       excludedKeywords: Array.isArray(rawData?.excludedKeywords)
         ? rawData.excludedKeywords.map((keyword) => String(keyword).trim()).filter(Boolean)
-        : [...(defaultState.excludedKeywords || [])]
+        : [...(defaultState.excludedKeywords ?? [])]
     },
     duplicatesRemoved
   };
 }
 
-function buildPersistedSnapshot(collections, state, timestamp = Date.now()) {
+function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now()) {
+  const {
+    searchKeywords,
+    feedConfigs,
+    autoLocation,
+    manualLocation,
+    visionConfig,
+    scaleMode,
+    splitPortrait,
+    splitCropPercent,
+    excludedKeywords
+  } = state;
   const payload = {
     lastUpdated: timestamp,
     feeds: cloneCollectionEntries(collections)
   };
 
-  if (state?.searchKeywords) {
-    payload.searchKeywords = state.searchKeywords;
+  if (searchKeywords) {
+    payload.searchKeywords = searchKeywords;
   }
 
-  if (state?.feedConfigs) {
-    payload.feedConfigs = state.feedConfigs;
+  if (feedConfigs) {
+    payload.feedConfigs = feedConfigs;
   }
 
   payload.locationSettings = {
-    autoLocation: Boolean(state?.autoLocation),
-    manualLocation: state?.manualLocation ? { ...state.manualLocation } : undefined
+    autoLocation: Boolean(autoLocation),
+    manualLocation: manualLocation ? { ...manualLocation } : undefined
   };
 
-  if (state?.visionConfig) {
-    payload.visionConfig = state.visionConfig;
+  if (visionConfig) {
+    payload.visionConfig = visionConfig;
   }
 
-  if (state?.scaleMode) {
-    payload.scaleMode = state.scaleMode;
+  if (scaleMode) {
+    payload.scaleMode = scaleMode;
   }
 
-  if (state?.splitPortrait !== undefined) {
-    payload.splitPortrait = state.splitPortrait;
+  if (splitPortrait !== undefined) {
+    payload.splitPortrait = splitPortrait;
   }
 
-  if (state?.splitCropPercent !== undefined) {
-    payload.splitCropPercent = state.splitCropPercent;
+  if (splitCropPercent !== undefined) {
+    payload.splitCropPercent = splitCropPercent;
   }
 
-  if (Array.isArray(state?.excludedKeywords)) {
-    payload.excludedKeywords = state.excludedKeywords;
+  if (Array.isArray(excludedKeywords)) {
+    payload.excludedKeywords = excludedKeywords;
   }
 
   return payload;

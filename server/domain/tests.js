@@ -154,6 +154,15 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(night.map((photo) => photo.url), ['night']);
   });
 
+  assertTest('night filtering preserves an explicit 0% preference', () => {
+    const candidates = [
+      { url: 'night', isNight: true },
+      { url: 'day', isNight: false }
+    ];
+    const filtered = filterPhotosForNight(candidates, true, true, 0, () => 0.1);
+    assert.deepStrictEqual(filtered.map((photo) => photo.url), ['night', 'day']);
+  });
+
   assertTest('derives split currentFrame without mutable second-photo state', () => {
     const frame = deriveCurrentFrame(createState());
     assert.strictEqual(frame.layout, 'split');
@@ -331,6 +340,24 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(persisted.splitCropPercent, 42);
     assert.deepStrictEqual(persisted.locationSettings.manualLocation, { city: 'Montreal' });
     assert.deepStrictEqual(persisted.excludedKeywords, ['anime']);
+  });
+
+  assertTest('persistence codec keeps explicit zero-valued crop defaults', () => {
+    const normalized = normalizePersistedSnapshot({
+      splitCropPercent: 0
+    }, {
+      defaultCollections: createState().library.collections,
+      defaultState: {
+        ...createState().config,
+        searchKeywords: createState().config.searchKeywords,
+        autoLocation: false,
+        manualLocation: {},
+        excludedKeywords: []
+      },
+      buildFeedConfigsFromKeywords: () => ({})
+    });
+
+    assert.strictEqual(normalized.persistedState.splitCropPercent, 0);
   });
 }
 

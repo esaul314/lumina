@@ -184,6 +184,17 @@ assertTest('correctly tags weather-themed titles', () => {
   assert.strictEqual(tagged[3].isCloudy, true, 'Clouds should map to isCloudy=true');
 });
 
+assertTest('preserves explicit false and zero-valued metadata when tagging', () => {
+  const [tagged] = tagPhotosWithKeywords([
+    { title: 'Midnight Corridor', isNight: false, isRain: false, rating: 0, isBroken: false }
+  ]);
+
+  assert.strictEqual(tagged.isNight, false, 'Explicit false should not be replaced by inferred night tagging');
+  assert.strictEqual(tagged.isRain, false, 'Explicit false should not be replaced by inferred rain tagging');
+  assert.strictEqual(tagged.rating, 0, 'Nullish defaults should preserve explicit numeric zero values');
+  assert.strictEqual(tagged.isBroken, false, 'Explicit false should remain intact');
+});
+
 // ============================================================================
 // 2. UNIT TEST SUITE: Smart Wallpaper Selector Engine
 // ============================================================================

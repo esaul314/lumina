@@ -19,17 +19,17 @@ const CATEGORY_ALIASES = Object.freeze({
 });
 
 function normalizeCategoryName(name) {
-  const cleanName = String(name || '').trim();
-  return CATEGORY_ALIASES[cleanName] || cleanName;
+  const cleanName = String(name ?? '').trim();
+  return CATEGORY_ALIASES[cleanName] ?? cleanName;
 }
 
 function uniqueStrings(values) {
   return [...new Set(values)];
 }
 
-function normalizeCategorySelection(input, availableCategories, fallbackCategory = availableCategories[0] || 'Scenic Nature') {
+function normalizeCategorySelection(input, availableCategories, fallbackCategory = availableCategories[0] ?? 'Scenic Nature') {
   const normalized = uniqueStrings(
-    (Array.isArray(input) ? input : String(input || '').split(','))
+    (Array.isArray(input) ? input : String(input ?? '').split(','))
       .map(normalizeCategoryName)
       .filter(Boolean)
       .filter((category) => availableCategories.includes(category) || category === GOOGLE_PHOTOS_CATEGORY)
@@ -56,7 +56,7 @@ function matchesExcludedKeywords(excludedKeywords, photo) {
 }
 
 function filterVisiblePhotos(photos, excludedKeywords) {
-  return (photos || []).filter((photo) =>
+  return (photos ?? []).filter((photo) =>
     photo &&
     photo.url &&
     photo.rating !== 1 &&
@@ -106,7 +106,7 @@ function buildBalancedFeed({ selectedCategories, collections, excludedKeywords, 
   const lists = selectedCategories
     .map((category) =>
       shuffleWithRng(
-        filterVisiblePhotos(collections[category] || [], excludedKeywords).map((photo) => attachCategory(category, photo)),
+        filterVisiblePhotos(collections[category] ?? [], excludedKeywords).map((photo) => attachCategory(category, photo)),
         rng
       )
     )
@@ -124,13 +124,13 @@ function buildBalancedFeed({ selectedCategories, collections, excludedKeywords, 
 }
 
 function findPhotoInFeed(photosList, url) {
-  return (photosList || []).find((photo) => photo?.url === url) || null;
+  return (photosList ?? []).find((photo) => photo?.url === url) ?? null;
 }
 
 function getPhotoByUrl(collections, url) {
   return Object.values(collections)
     .flat()
-    .find((photo) => photo?.url === url) || null;
+    .find((photo) => photo?.url === url) ?? null;
 }
 
 function updatePhotoInCollections(collections, url, updater) {
@@ -139,12 +139,12 @@ function updatePhotoInCollections(collections, url, updater) {
 
   const nextCollections = Object.fromEntries(
     Object.entries(collections).map(([category, photos]) => {
-      const nextPhotos = (photos || []).map((photo) => {
+      const nextPhotos = (photos ?? []).map((photo) => {
         if (!photo || photo.url !== url) {
           return photo ? { ...photo } : photo;
         }
 
-        const nextPhoto = updater({ ...photo, category: photo.category || category });
+        const nextPhoto = updater({ ...photo, category: photo.category ?? category });
         updatedPhoto = nextPhoto;
         changed = true;
         return nextPhoto;
@@ -230,7 +230,7 @@ function filterPhotosForNight(photos, alignTimeOfDay, isNight, nightPercentage, 
   }
 
   const nightPhotos = photos.filter((photo) => photo.isNight);
-  return nightPhotos.length > 0 && rng() < ((nightPercentage || 50) / 100)
+  return nightPhotos.length > 0 && rng() < ((nightPercentage ?? 50) / 100)
     ? nightPhotos
     : photos;
 }
@@ -248,7 +248,7 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
   const weightedCandidates = withoutCurrent.length > 0 ? withoutCurrent : candidates;
 
   const thresholdMap = weightedCandidates.reduce((accumulator, photo) => {
-    const weight = (photo.rating !== undefined ? photo.rating : 10) / 10;
+    const weight = (photo.rating ?? 10) / 10;
     const threshold = accumulator.total + weight;
     return {
       total: threshold,
@@ -261,7 +261,7 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
   }
 
   const target = rng() * thresholdMap.total;
-  return thresholdMap.items.find((item) => item.threshold >= target)?.photo || weightedCandidates[weightedCandidates.length - 1];
+  return thresholdMap.items.find((item) => item.threshold >= target)?.photo ?? weightedCandidates.at(-1);
 }
 
 function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = Math.random }) {
@@ -269,8 +269,8 @@ function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = M
     filterPhotosForWeather(
       filterPhotosForTime(state.library.photosList, now),
       state.config.alignWeather,
-      String(state.runtime.physicalWeather?.weatherMatch || 'Cloudy'),
-      String(state.runtime.newsSentiment?.weatherMatch || 'Cloudy'),
+      String(state.runtime.physicalWeather?.weatherMatch ?? 'Cloudy'),
+      String(state.runtime.newsSentiment?.weatherMatch ?? 'Cloudy'),
       rng
     ),
     state.config.alignTimeOfDay,
@@ -304,7 +304,7 @@ function pickStablePhoto(candidates, seed) {
 
 function getActivePhoto(state) {
   return state.playback.activePhotoUrl
-    ? findPhotoInFeed(state.library.photosList, state.playback.activePhotoUrl) || getPhotoByUrl(state.library.collections, state.playback.activePhotoUrl)
+    ? findPhotoInFeed(state.library.photosList, state.playback.activePhotoUrl) ?? getPhotoByUrl(state.library.collections, state.playback.activePhotoUrl)
     : null;
 }
 
@@ -328,7 +328,7 @@ function deriveCurrentFrame(state) {
     : [];
 
   const secondary = splitEligible
-    ? pickStablePhoto(secondaryCandidates, `${primary?.url || 'none'}:${state.playback.splitSeed}`)
+    ? pickStablePhoto(secondaryCandidates, `${primary?.url ?? 'none'}:${state.playback.splitSeed}`)
     : null;
 
   return {
@@ -342,7 +342,7 @@ function deriveCurrentFrame(state) {
       secondaryPositionY: secondary?.cropPositionY ?? null
     },
     context: {
-      category: primary?.category || null,
+      category: primary?.category ?? null,
       categories: [...state.playback.selectedCategories],
       photoCount: state.library.photosList.length,
       orientation: /** @type {PhotoOrientation} */ (orientation),

@@ -85,15 +85,31 @@ if (loadedCollectionsSnapshot.duplicatesRemoved) {
   console.log('Global Deduplication: Removed duplicate photo URLs during snapshot normalization.');
 }
 
-screensaverState.searchKeywords = loadedCollectionsSnapshot.persistedState.searchKeywords;
-screensaverState.feedConfigs = loadedCollectionsSnapshot.persistedState.feedConfigs;
-screensaverState.autoLocation = loadedCollectionsSnapshot.persistedState.autoLocation;
-screensaverState.manualLocation = loadedCollectionsSnapshot.persistedState.manualLocation;
-screensaverState.visionConfig = loadedCollectionsSnapshot.persistedState.visionConfig;
-screensaverState.scaleMode = loadedCollectionsSnapshot.persistedState.scaleMode;
-screensaverState.splitPortrait = loadedCollectionsSnapshot.persistedState.splitPortrait;
-screensaverState.splitCropPercent = loadedCollectionsSnapshot.persistedState.splitCropPercent;
-screensaverState.excludedKeywords = loadedCollectionsSnapshot.persistedState.excludedKeywords;
+const {
+  persistedState: {
+    searchKeywords,
+    feedConfigs,
+    autoLocation,
+    manualLocation,
+    visionConfig,
+    scaleMode,
+    splitPortrait,
+    splitCropPercent,
+    excludedKeywords
+  }
+} = loadedCollectionsSnapshot;
+
+Object.assign(screensaverState, {
+  searchKeywords,
+  feedConfigs,
+  autoLocation,
+  manualLocation,
+  visionConfig,
+  scaleMode,
+  splitPortrait,
+  splitCropPercent,
+  excludedKeywords
+});
 
 const hasWord = includes;
 
@@ -112,7 +128,7 @@ const isSnowyPhoto = titleHasKeyword(['snow', 'snowy', 'winter', 'ice', 'frozen'
 
 // Functional, curried helper that checks if a photo matches any excluded keyword
 const matchesExclusion = curry((excludedList, photo) => {
-  if (!excludedList || excludedList.length === 0) return false;
+  if (!Array.isArray(excludedList) || excludedList.length === 0) return false;
   const titleText = pipe(prop('title'), toLower)(photo);
   return excludedList.some(kw => includes(toLower(kw), titleText));
 });
@@ -122,11 +138,11 @@ const matchesExclusion = curry((excludedList, photo) => {
  * Curried classifier mapping title keywords to environmental attributes.
  */
 const classifyAtmosphere = curry((defaultIsNight, photo) => ({
-  isNight: photo.isNight !== undefined ? photo.isNight : (defaultIsNight || isNightPhoto(photo)),
-  isRain: photo.isRain !== undefined ? photo.isRain : isRainPhoto(photo),
-  isSunny: photo.isSunny !== undefined ? photo.isSunny : isSunnyPhoto(photo),
-  isCloudy: photo.isCloudy !== undefined ? photo.isCloudy : isCloudyPhoto(photo),
-  isSnowy: photo.isSnowy !== undefined ? photo.isSnowy : isSnowyPhoto(photo)
+  isNight: photo.isNight ?? (defaultIsNight || isNightPhoto(photo)),
+  isRain: photo.isRain ?? isRainPhoto(photo),
+  isSunny: photo.isSunny ?? isSunnyPhoto(photo),
+  isCloudy: photo.isCloudy ?? isCloudyPhoto(photo),
+  isSnowy: photo.isSnowy ?? isSnowyPhoto(photo)
 }));
 
 /**
@@ -136,8 +152,8 @@ const classifyAtmosphere = curry((defaultIsNight, photo) => ({
 const tagSinglePhoto = curry((defaultIsNight, photo) => ({
   ...photo,
   source: photo.source || 'curated',
-  rating: photo.rating !== undefined ? photo.rating : 10,
-  isBroken: photo.isBroken || false,
+  rating: photo.rating ?? 10,
+  isBroken: photo.isBroken ?? false,
   ...classifyAtmosphere(defaultIsNight, photo)
 }));
 
@@ -150,14 +166,16 @@ function tagPhotosWithKeywords(photos, defaultIsNight = false) {
 }
 
 // Initial auto-tagging setup
-for (const key of Object.keys(curatedCollections)) {
-  const isCosmic = key === 'Cosmic Space';
-  curatedCollections[key] = tagPhotosWithKeywords(curatedCollections[key], isCosmic);
-}
+Object.entries(curatedCollections).forEach(([category, photos]) => {
+  curatedCollections[category] = tagPhotosWithKeywords(photos, category === 'Cosmic Space');
+});
 
-const initialCategory = Object.keys(curatedCollections)[0] || 'Scenic Nature';
-screensaverState.photosList = curatedCollections[initialCategory] ? curatedCollections[initialCategory].filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: initialCategory })) : [];
-screensaverState.activePhoto = screensaverState.photosList[0] || null;
+const initialCategory = Object.keys(curatedCollections)[0] ?? 'Scenic Nature';
+const initialPhotos = curatedCollections[initialCategory]
+  ?.filter((photo) => photo.rating !== 1 && !photo.isBroken)
+  .map((photo) => ({ ...photo, category: initialCategory })) ?? [];
+screensaverState.photosList = initialPhotos;
+screensaverState.activePhoto = initialPhotos[0] ?? null;
 screensaverState.hasUseApiToken = Boolean(readEnvVar('USEAPI_TOKEN'));
 screensaverState.hasTumblrApiKey = Boolean(readEnvVar('TUMBLR_API_KEY'));
 const uniqByUrl = uniqBy(prop('url'));
@@ -182,12 +200,9 @@ const shuffle = (arr) => {
 const interleave = (lists) => {
   if (lists.length === 0) return [];
   const maxLen = Math.max(...lists.map(l => l.length));
-  return Array.from({ length: maxLen }).reduce((acc, _, i) => {
-    lists.forEach(list => {
-      acc.push(list[i % list.length]);
-    });
-    return acc;
-  }, []);
+  return Array.from({ length: maxLen }, (_, index) =>
+    lists.map((list) => list[index % list.length])
+  ).flat();
 };
 
 /**
@@ -196,7 +211,7 @@ const interleave = (lists) => {
  */
 function combineFeedsBalanced(categories, collections) {
   const lists = categories
-    .map(cat => (collections[cat] || [])
+    .map(cat => (collections[cat] ?? [])
       .filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(screensaverState.excludedKeywords, p))
       .map(p => ({ ...p, category: cat }))
     )
@@ -232,7 +247,7 @@ function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
 
   // 3. Compute cumulative weight map
   const { items: weightedItems, cumulative: totalWeight } = candidatePhotos.reduce((acc, photo) => {
-    const r = photo.rating !== undefined ? photo.rating : 10;
+    const r = photo.rating ?? 10;
     const w = r / 10;
     const nextCumulative = acc.cumulative + w;
     return {
@@ -248,7 +263,7 @@ function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
 
   // 5. Cumulative distribution selector (using declarative find)
   const selected = weightedItems.find(item => item.threshold >= randomPoint);
-  return selected ? selected.photo : candidatePhotos[candidatePhotos.length - 1];
+  return selected?.photo ?? candidatePhotos.at(-1);
 }
 
 function isTimeInSchedule(currentTimeStr, startStr, endStr) {
@@ -307,7 +322,7 @@ const filterByWeather = curry((alignWeather, physicalMatch, newsMatch, list) => 
 const filterByNight = curry((alignTimeOfDay, isNight, nightPercentage, list) => {
   if (!alignTimeOfDay || !isNight) return list;
   const nightPhotos = list.filter(p => p.isNight);
-  const nightThreshold = (nightPercentage || 50) / 100;
+  const nightThreshold = (nightPercentage ?? 50) / 100;
   return nightPhotos.length > 0 && Math.random() < nightThreshold ? nightPhotos : list;
 });
 
@@ -318,7 +333,7 @@ const filterByNight = curry((alignTimeOfDay, isNight, nightPercentage, list) => 
  */
 function getSmartPhoto(_direction = 'next') {
   const list = screensaverState.photosList;
-  if (!list || list.length === 0) return null;
+  if (!list?.length) return null;
 
   const isNight = serverWeatherData?.current
     ? serverWeatherData.current.is_day === 0
@@ -327,8 +342,8 @@ function getSmartPhoto(_direction = 'next') {
         return hour >= 18 || hour < 6;
       })();
 
-  const physicalMatch = screensaverState.physicalWeather?.weatherMatch || 'Cloudy';
-  const newsMatch = screensaverState.newsSentiment?.weatherMatch || 'Cloudy';
+  const physicalMatch = screensaverState.physicalWeather?.weatherMatch ?? 'Cloudy';
+  const newsMatch = screensaverState.newsSentiment?.weatherMatch ?? 'Cloudy';
 
   const now = new Date();
   const hourStr = String(now.getHours()).padStart(2, '0');
@@ -436,9 +451,9 @@ async function triggerImageAnalysisBackground() {
     
     // Recalculate photos list & broadcast state sync so connected TVs get aligned photos immediately!
     const activeCategory = screensaverState.currentCategory;
-    const currentCats = activeCategory ? activeCategory.split(',') : [];
+    const currentCats = activeCategory?.split(',') ?? [];
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken);
+    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] ?? []).filter(p => p.rating !== 1 && !p.isBroken);
     emitStateSync();
   } else {
     console.log('[Vision Service] All active images are already precisely analyzed.');
@@ -456,7 +471,7 @@ async function updateFeedsDaily() {
   if (fs.existsSync(jsonPath)) {
     try {
       fileData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-      lastUpdated = fileData.lastUpdated || 0;
+      lastUpdated = fileData.lastUpdated ?? 0;
     } catch (e) {
       console.warn('Could not parse persisted curated collections for last update check:', e.message);
     }
@@ -485,9 +500,9 @@ async function updateFeedsDaily() {
     saveCuratedCollections(curatedCollections, screensaverState);
 
     const activeCategory = screensaverState.currentCategory;
-    const currentCats = activeCategory ? activeCategory.split(',') : [];
+    const currentCats = activeCategory?.split(',') ?? [];
     const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] || []).filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: 'Scenic Nature' }));
+    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] ?? []).filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: 'Scenic Nature' }));
     emitStateSync();
     
     // Trigger vision analysis for any new crawl results
@@ -518,7 +533,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Subprocess State Management helpers for Sockets
 let isBrowserRunning = false;
 let manualOverride = false;
-let PORT = config.port || 5000;
+let PORT = config.port ?? 5000;
 
 function getRuntimeContext() {
   return {
@@ -572,7 +587,7 @@ function setManualOverride(value) {
 function getLocalIpAddresses() {
   return Object.values(os.networkInterfaces())
     .flat()
-    .filter(iface => iface && iface.family === 'IPv4' && !iface.internal)
+    .filter(iface => iface?.family === 'IPv4' && !iface.internal)
     .map(iface => iface.address);
 }
 
