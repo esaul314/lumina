@@ -209,9 +209,29 @@ async function syncGoogleAlbum(sessionId) {
       }
     }
 
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(parsedItems, null, 2), 'utf8');
-    console.log(`Google Photos Service: Synced and cached ${parsedItems.length} selected items successfully.`);
-    return parsedItems;
+    const existingItems = getCachedMediaItems();
+    const itemsMap = new Map();
+    existingItems.forEach(item => itemsMap.set(item.id, item));
+
+    parsedItems.forEach(item => {
+      if (itemsMap.has(item.id)) {
+        const existing = itemsMap.get(item.id);
+        itemsMap.set(item.id, {
+          ...item,
+          rating: existing.rating !== undefined ? existing.rating : item.rating,
+          cropPercent: existing.cropPercent,
+          cropPositionY: existing.cropPositionY,
+          preventPairing: existing.preventPairing
+        });
+      } else {
+        itemsMap.set(item.id, item);
+      }
+    });
+
+    const mergedItems = Array.from(itemsMap.values());
+    fs.writeFileSync(CACHE_PATH, JSON.stringify(mergedItems, null, 2), 'utf8');
+    console.log(`Google Photos Service: Synced and cached ${mergedItems.length} selected items successfully (Merged ${parsedItems.length} new selections).`);
+    return mergedItems;
   } catch (err) {
     console.error('Google Photos Service: Picker session sync failed:', err.message);
     throw err;
