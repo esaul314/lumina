@@ -171,12 +171,13 @@ This document serves as a public-facing, generic history of technical developmen
   * **Remote control cleanup**: Refactored [`RemoteControl.jsx`](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx), [`useActivePhotoSync.js`](file:///home/alex/work/lumina/client/src/hooks/useActivePhotoSync.js), and [`useCropDrag.js`](file:///home/alex/work/lumina/client/src/hooks/useCropDrag.js) so the Direct Control tab resolves the focused image and crop values from the same frame-based selectors the TV uses.
   * **UI-path regression**: Updated [`test_split_sync.js`](file:///home/alex/work/lumina/test_split_sync.js) so the integration test moves the actual Direct Control slider UI for both split portrait and single-landscape flows rather than bypassing the UI with a raw socket emit.
 * **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. In this sandbox, `node test_split_sync.js` still exits after the known ephemeral localhost bind warning (`listen EPERM`) before producing usable browser-stage logs, so the UI-path assertions could not be fully observed here.
-### 2026-06-29: Dynamic OAuth Host Redirection
-* **Goal**: Support Google Photos OAuth handshake on local network environments without HTTPS by using `localhost` combined with SSH port forwarding.
+### 2026-06-29: Google Photos Picker API Migration
+* **Goal**: Fix the 403 Forbidden errors when listing media items due to Google's deprecation of broad `photoslibrary.readonly` scopes on March 31, 2025, and transition to the secure, privacy-respecting Google Photos Picker API.
 * **Implementation**:
-  * **Dynamic Redirect URI**: Modified [routes.js](file:///home/alex/work/lumina/server/routes.js) to build `redirectUri` using `req.headers.host` dynamically in the login, callback, and sandbox-callback routes, rather than utilizing the hardcoded `localIp` IP address.
-  * **Credential Correction**: Resolved a Client ID mismatch in `.env` by aligning it with the active project credentials.
-  * **Seamless Handshake**: Allows redirection to `http://localhost:5000/api/auth/google/callback` (which Google permits over plain HTTP) via SSH tunnel forwarding.
+  * **OAuth Scopes**: Updated scopes in [googlePhotos.js](file:///home/alex/work/lumina/server/services/googlePhotos.js) to request `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`.
+  * **Picker Session Manager**: Implemented `createPickerSession()`, `getPickerSession()`, `listPickerMediaItems()`, and `deletePickerSession()` to manage user-initiated photo picking sessions.
+  * **Dynamic Redirect URI**: Modified [routes.js](file:///home/alex/work/lumina/server/routes.js) to build `redirectUri` dynamically from `req.headers.host` for localhost SSH tunneling.
+  * **Background Polling & Sync**: Added a background polling process in `routes.js` that checks for session selection completion, pulls the selected private photo metadata, updates the display feed, and cleans up the session resources.
 * **Verification**: `npm test` passed successfully. Tested systemd service restarts and verified service is active.
 
 ---
