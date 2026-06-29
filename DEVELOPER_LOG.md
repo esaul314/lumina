@@ -175,6 +175,7 @@ This document serves as a public-facing, generic history of technical developmen
 * **Goal**: Support Google Photos OAuth handshake on local network environments without HTTPS by using `localhost` combined with SSH port forwarding.
 * **Implementation**:
   * **Dynamic Redirect URI**: Modified [routes.js](file:///home/alex/work/lumina/server/routes.js) to build `redirectUri` using `req.headers.host` dynamically in the login, callback, and sandbox-callback routes, rather than utilizing the hardcoded `localIp` IP address.
+  * **Credential Correction**: Resolved a Client ID mismatch in `.env` by aligning it with the active project credentials.
   * **Seamless Handshake**: Allows redirection to `http://localhost:5000/api/auth/google/callback` (which Google permits over plain HTTP) via SSH tunnel forwarding.
 * **Verification**: `npm test` passed successfully. Tested systemd service restarts and verified service is active.
 
