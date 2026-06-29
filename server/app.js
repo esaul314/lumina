@@ -14,6 +14,14 @@ const { screensaverState, buildFeedConfigsFromKeywords } = require('./config/sta
 const { defaultCuratedCollections, saveCuratedCollections } = require('./config/collections.js');
 const { loadCollectionsSnapshot } = require('./config/collectionsCodec.js');
 const { createDomainDispatcher } = require('./domain/dispatch.js');
+const {
+  buildBalancedFeed,
+  filterPhotosForNight,
+  filterPhotosForTime,
+  filterPhotosForWeather,
+  selectWeightedRandomPhoto: selectWeightedRandomPhotoFromSelectors,
+  isTimeInSchedule
+} = require('./domain/selectors.js');
 const { syncLegacySnapshot } = require('./domain/snapshot.js');
 const {
   setCpuGovernor,
@@ -36,8 +44,7 @@ const {
   prop,
   map,
   toLower,
-  includes,
-  uniqBy
+  includes
 } = require('./utils/fn.js');
 
 // Global Weather Telemetry Cache
@@ -126,13 +133,6 @@ const isSunnyPhoto = titleHasKeyword(['sun', 'sunny', 'clear', 'bright', 'golden
 const isCloudyPhoto = titleHasKeyword(['mist', 'cloud', 'cloudy', 'fog', 'foggy', 'mist-veiled', 'misty', 'hazy', 'overcast', 'moody', 'shadow', 'pale', 'eerie', 'familiar', 'empty', 'silent', 'deserted', 'abandoned', 'quiet']);
 const isSnowyPhoto = titleHasKeyword(['snow', 'snowy', 'winter', 'ice', 'frozen', 'cold', 'alpine']);
 
-// Functional, curried helper that checks if a photo matches any excluded keyword
-const matchesExclusion = curry((excludedList, photo) => {
-  if (!Array.isArray(excludedList) || excludedList.length === 0) return false;
-  const titleText = pipe(prop('title'), toLower)(photo);
-  return excludedList.some(kw => includes(toLower(kw), titleText));
-});
-
 /**
  * 🏷&zwj; classifyAtmosphere
  * Curried classifier mapping title keywords to environmental attributes.
@@ -178,53 +178,17 @@ screensaverState.photosList = initialPhotos;
 screensaverState.activePhoto = initialPhotos[0] ?? null;
 screensaverState.hasUseApiToken = Boolean(readEnvVar('USEAPI_TOKEN'));
 screensaverState.hasTumblrApiKey = Boolean(readEnvVar('TUMBLR_API_KEY'));
-const uniqByUrl = uniqBy(prop('url'));
-
-/**
- * 🔀 shuffle
- * Pure functional wrapper for list shuffling using an immutable copy.
- */
-const shuffle = (arr) => {
-  const newArr = [...arr];
-  for (let i = newArr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
-  }
-  return newArr;
-};
-
-/**
- * 🔀 interleave
- * Declarative interleaving of multiple lists (round-robin interleave layout).
- */
-const interleave = (lists) => {
-  if (lists.length === 0) return [];
-  const maxLen = Math.max(...lists.map(l => l.length));
-  return Array.from({ length: maxLen }, (_, index) =>
-    lists.map((list) => list[index % list.length])
-  ).flat();
-};
 
 /**
  * 🔄 combineFeedsBalanced
  * Combines active image feeds using a balanced round-robin interleave layout.
  */
 function combineFeedsBalanced(categories, collections) {
-  const lists = categories
-    .map(cat => (collections[cat] ?? [])
-      .filter(p => p.rating !== 1 && !p.isBroken && !matchesExclusion(screensaverState.excludedKeywords, p))
-      .map(p => ({ ...p, category: cat }))
-    )
-    .filter(list => list.length > 0)
-    .map(shuffle);
-
-  if (lists.length === 0) return [];
-  if (lists.length === 1) return uniqByUrl(lists[0]);
-
-  return pipe(
-    interleave,
-    uniqByUrl
-  )(lists);
+  return buildBalancedFeed({
+    selectedCategories: categories,
+    collections,
+    excludedKeywords: screensaverState.excludedKeywords
+  });
 }
 
 /**
@@ -233,98 +197,12 @@ function combineFeedsBalanced(categories, collections) {
  * Scales ratings 2-10 linearly (2=0.2, 10=1.0).
  */
 function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
-  // 1. Filter out banned images (rating = 1) and excluded images
-  const activePhotos = photos.filter(p => p.rating !== 1 && !matchesExclusion(screensaverState.excludedKeywords, p));
-  if (activePhotos.length === 0) return null;
-
-  // 2. Avoid consecutive repeat if possible
-  const candidatePhotos = (activePhotos.length > 1 && currentPhotoUrl)
-    ? (() => {
-        const withoutCurrent = activePhotos.filter(p => p.url !== currentPhotoUrl);
-        return withoutCurrent.length > 0 ? withoutCurrent : activePhotos;
-      })()
-    : activePhotos;
-
-  // 3. Compute cumulative weight map
-  const { items: weightedItems, cumulative: totalWeight } = candidatePhotos.reduce((acc, photo) => {
-    const r = photo.rating ?? 10;
-    const w = r / 10;
-    const nextCumulative = acc.cumulative + w;
-    return {
-      cumulative: nextCumulative,
-      items: [...acc.items, { photo, threshold: nextCumulative }]
-    };
-  }, { cumulative: 0, items: [] });
-
-  if (totalWeight === 0) return candidatePhotos[0];
-
-  // 4. Random float select point
-  const randomPoint = Math.random() * totalWeight;
-
-  // 5. Cumulative distribution selector (using declarative find)
-  const selected = weightedItems.find(item => item.threshold >= randomPoint);
-  return selected?.photo ?? candidatePhotos.at(-1);
+  return selectWeightedRandomPhotoFromSelectors({
+    photos,
+    currentPhotoUrl,
+    excludedKeywords: screensaverState.excludedKeywords
+  });
 }
-
-function isTimeInSchedule(currentTimeStr, startStr, endStr) {
-  const [curH, curM] = currentTimeStr.split(':').map(Number);
-  const [startH, startM] = startStr.split(':').map(Number);
-  const [endH, endM] = endStr.split(':').map(Number);
-  
-  const curMinutes = curH * 60 + curM;
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
-  
-  if (startMinutes <= endMinutes) {
-    return curMinutes >= startMinutes && curMinutes < endMinutes;
-  } else {
-    // Crosses midnight (e.g. 22:00 to 06:00)
-    return curMinutes >= startMinutes || curMinutes < endMinutes;
-  }
-}
-
-/**
- * 🕰️ filterByTime
- * Curried filter that restricts candidates based on time range schedules.
- */
-const filterByTime = curry((timeStr, list) =>
-  list.filter(p => !p.timeRanges || p.timeRanges.length === 0 ||
-    p.timeRanges.some(tr => isTimeInSchedule(timeStr, tr.start, tr.end)))
-);
-
-/**
- * 🌦️ filterByWeather
- * Curried filter that restricts candidates to map physical weather or news sentiment.
- */
-const filterByWeather = curry((alignWeather, physicalMatch, newsMatch, list) => {
-  if (!alignWeather) return list;
-  let weatherCandidates = [];
-  if (physicalMatch === 'Snowy') {
-    weatherCandidates = list.filter(p => p.isSnowy);
-  } else if (physicalMatch === 'Rainy') {
-    weatherCandidates = list.filter(p => p.isRain);
-  } else {
-    if (newsMatch === 'Rainy') {
-      weatherCandidates = list.filter(p => p.isRain || p.isCloudy);
-    } else if (newsMatch === 'Sunny') {
-      weatherCandidates = list.filter(p => p.isSunny);
-    } else {
-      weatherCandidates = list.filter(p => p.isCloudy);
-    }
-  }
-  return weatherCandidates.length > 0 && Math.random() < 0.8 ? weatherCandidates : list;
-});
-
-/**
- * 🌌 filterByNight
- * Curried filter that restricts candidates based on evening/night photo ratio sliders.
- */
-const filterByNight = curry((alignTimeOfDay, isNight, nightPercentage, list) => {
-  if (!alignTimeOfDay || !isNight) return list;
-  const nightPhotos = list.filter(p => p.isNight);
-  const nightThreshold = (nightPercentage ?? 50) / 100;
-  return nightPhotos.length > 0 && Math.random() < nightThreshold ? nightPhotos : list;
-});
 
 /**
  * 🎯 getSmartPhoto
@@ -346,15 +224,12 @@ function getSmartPhoto(_direction = 'next') {
   const newsMatch = screensaverState.newsSentiment?.weatherMatch ?? 'Cloudy';
 
   const now = new Date();
-  const hourStr = String(now.getHours()).padStart(2, '0');
-  const minStr = String(now.getMinutes()).padStart(2, '0');
-  const currentTimeStr = `${hourStr}:${minStr}`;
 
   // Composed pipeline of pure functional filters
   const candidates = pipe(
-    filterByTime(currentTimeStr),
-    filterByWeather(screensaverState.alignWeather, physicalMatch, newsMatch),
-    filterByNight(screensaverState.alignTimeOfDay, isNight, screensaverState.nightPercentage)
+    (photos) => filterPhotosForTime(photos, now),
+    (photos) => filterPhotosForWeather(photos, screensaverState.alignWeather, physicalMatch, newsMatch),
+    (photos) => filterPhotosForNight(photos, screensaverState.alignTimeOfDay, isNight, screensaverState.nightPercentage)
   )(list);
 
   // Delegate selection to the weighted CDF probability engine

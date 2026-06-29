@@ -1,6 +1,7 @@
 const path = require('path');
 const { curry } = require('../utils/fn.js');
 const { saveCollectionsSnapshot } = require('./collectionsCodec.js');
+const { updatePhotoInCollections } = require('../domain/selectors.js');
 
 /**
  * 🖼️ defaultCuratedCollections
@@ -100,12 +101,11 @@ const updatePhotosList = curry((url, updater, list) =>
   list ? list.map(updatePhotoByUrl(url, updater)) : []
 );
 
-/**
- * 🔍 hasPhotoUrl
- * Pure declarative checker to see if a photo URL exists in collections.
- */
-const hasPhotoUrl = (collections, url) =>
-  Object.values(collections).some(arr => Array.isArray(arr) && arr.some(p => p.url === url));
+const syncStatePhoto = (state, key, url, updater) => {
+  if (state?.[key]?.url === url) {
+    state[key] = updater(state[key]);
+  }
+};
 
 /**
  * 🔄 updatePhotoField
@@ -113,38 +113,25 @@ const hasPhotoUrl = (collections, url) =>
  * photosList, activePhoto, and activeSecondPhoto.
  */
 function updatePhotoField(collections, state, url, updater, optionalRating) {
-  const found = hasPhotoUrl(collections, url);
-  if (!found) return false;
+  const { collections: nextCollections, changed } = updatePhotoInCollections(collections, url, updater);
+  if (!changed) return false;
 
   // 1. Update collections database in place
-  for (const cat of Object.keys(collections)) {
-    const arr = collections[cat];
-    if (Array.isArray(arr)) {
-      for (let i = 0; i < arr.length; i++) {
-        if (arr[i].url === url) {
-          arr[i] = updater(arr[i]);
-        }
-      }
-    }
-  }
+  Object.assign(collections, nextCollections);
 
   // 2. Update state photosList
   if (state && Array.isArray(state.photosList)) {
-    state.photosList = updatePhotosList(url, updater, state.photosList);
-    if (optionalRating === 1) {
-      state.photosList = state.photosList.filter(p => p.url !== url);
-    }
+    const nextPhotosList = updatePhotosList(url, updater, state.photosList);
+    state.photosList = optionalRating === 1
+      ? nextPhotosList.filter(photo => photo?.url !== url)
+      : nextPhotosList;
   }
 
   // 3. Update activePhoto in state
-  if (state && state.activePhoto && state.activePhoto.url === url) {
-    state.activePhoto = updater(state.activePhoto);
-  }
+  syncStatePhoto(state, 'activePhoto', url, updater);
 
   // 4. Update activeSecondPhoto in state (fixes split pairing out-of-sync design bug)
-  if (state && state.activeSecondPhoto && state.activeSecondPhoto.url === url) {
-    state.activeSecondPhoto = updater(state.activeSecondPhoto);
-  }
+  syncStatePhoto(state, 'activeSecondPhoto', url, updater);
 
   // 5. Save to disk
   saveCuratedCollections(collections, state);

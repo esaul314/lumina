@@ -23,6 +23,8 @@ const {
 } = require('./server/app.js');
 const { analyzeSentiment } = require('./server/services/sentiment.js');
 const { classifyWeatherCode } = require('./server/services/weather.js');
+const { updatePhotoCrop } = require('./server/config/collections.js');
+const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 
@@ -272,6 +274,46 @@ assertTest('getSmartPhoto filters candidates by timeRanges constraint', () => {
     screensaverState.photosList = originalList;
     screensaverState.activePhoto = originalActive;
   }
+});
+
+// ============================================================================
+// 2c. UNIT TEST SUITE: Declarative Config & Collection Projections
+// ============================================================================
+logSuite('Declarative Config & Collection Projections');
+
+assertTest('buildFeedConfigsFromKeywords layers keyword sources and built-in overrides declaratively', () => {
+  const configs = buildFeedConfigsFromKeywords({
+    'Scenic Nature': [{ keywords: ['forest', 'mist'] }],
+    'Moody Rooms': ['moody rooms']
+  });
+
+  assert.deepStrictEqual(configs['Scenic Nature'].unsplash.keywords, ['forest', 'mist']);
+  assert.deepStrictEqual(configs['Scenic Nature'].tumblrTags.tags, ['landscape', 'nature', 'mountains']);
+  assert.strictEqual(configs['Scenic Nature'].picsum.enabled, true);
+  assert.deepStrictEqual(configs['Moody Rooms'].tumblrTags.tags, ['moody rooms']);
+  assert.strictEqual(configs['Moody Rooms'].reddit, undefined);
+});
+
+assertTest('updatePhotoCrop projects crop updates across list and active split photo state', () => {
+  const collections = {
+    'Scenic Nature': [
+      { url: 'a', title: 'Alpha', cropPercent: 20, cropPositionY: 10 },
+      { url: 'b', title: 'Beta', cropPercent: 40, cropPositionY: 30 }
+    ]
+  };
+  const state = {
+    photosList: collections['Scenic Nature'].map((photo) => ({ ...photo })),
+    activePhoto: { ...collections['Scenic Nature'][0] },
+    activeSecondPhoto: { ...collections['Scenic Nature'][1] }
+  };
+
+  const updated = updatePhotoCrop(collections, state, 'b', 82, 61);
+
+  assert.strictEqual(updated, true, 'Expected matching URL to be updated');
+  assert.strictEqual(collections['Scenic Nature'][1].cropPercent, 82);
+  assert.strictEqual(collections['Scenic Nature'][1].cropPositionY, 61);
+  assert.strictEqual(state.photosList[1].cropPercent, 82);
+  assert.strictEqual(state.activeSecondPhoto.cropPositionY, 61);
 });
 
 // ============================================================================

@@ -1,5 +1,40 @@
 const config = require('./configLoader.js');
 
+const createKeywordSourceConfig = (keywords) => ({
+  unsplash: { enabled: true, keywords: [...keywords] },
+  wallhaven: { enabled: true, keywords: [...keywords] },
+  tumblrTags: { enabled: false, tags: [...keywords] }
+});
+
+const builtInFeedConfigOverrides = Object.freeze({
+  'Scenic Nature': {
+    reddit: { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] },
+    tumblr: { enabled: true, blogs: ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'] },
+    tumblrTags: { enabled: false, tags: ['landscape', 'nature', 'mountains'] },
+    picsum: { enabled: true },
+    bing: { enabled: true }
+  },
+  'Cosmic Space': {
+    reddit: { enabled: true, subreddits: ['spaceporn', 'Astrophotography'] },
+    tumblr: { enabled: true, blogs: ['nasaimages', 'cosmic-space-explorer'] },
+    tumblrTags: { enabled: false, tags: ['space', 'nebula', 'astrophotography'] },
+    nasaApod: { enabled: true }
+  },
+  'Abstract Art': {
+    tumblr: { enabled: true, blogs: ['abstractartgallery', 'generative-art'] },
+    tumblrTags: { enabled: false, tags: ['abstract', 'generative art', 'minimalism'] }
+  },
+  'Liminal Spaces': {
+    tumblr: { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] },
+    tumblrTags: { enabled: false, tags: ['liminal spaces', 'empty rooms', 'backrooms'] }
+  },
+  'AI Creations': {
+    tumblr: { enabled: true, blogs: ['aiartgenerator', 'midjourneycreations'] },
+    tumblrTags: { enabled: false, tags: ['ai art', 'midjourney', 'surreal landscape'] },
+    midjourney: { enabled: true }
+  }
+});
+
 function collectKeywordStrings(kws) {
   if (Array.isArray(kws)) {
     return kws.flatMap(item => {
@@ -17,40 +52,18 @@ function collectKeywordStrings(kws) {
 }
 
 function buildFeedConfigsFromKeywords(keywordsMap) {
-  const configs = {};
-  for (const [category, kws] of Object.entries(keywordsMap)) {
-    const keywords = collectKeywordStrings(kws);
-    configs[category] = {
-      unsplash: { enabled: true, keywords: [...keywords] },
-      wallhaven: { enabled: true, keywords: [...keywords] },
-      tumblrTags: { enabled: false, tags: [...keywords] }
-    };
-    
-    // Add default integrations for built-in categories
-    if (category === 'Scenic Nature') {
-      configs[category].reddit = { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] };
-      configs[category].tumblr = { enabled: true, blogs: ['scenic-nature-lands', 'earthlandscape', 'nature-scenery'] };
-      configs[category].tumblrTags = { enabled: false, tags: ['landscape', 'nature', 'mountains'] };
-      configs[category].picsum = { enabled: true };
-      configs[category].bing = { enabled: true };
-    } else if (category === 'Cosmic Space') {
-      configs[category].reddit = { enabled: true, subreddits: ['spaceporn', 'Astrophotography'] };
-      configs[category].tumblr = { enabled: true, blogs: ['nasaimages', 'cosmic-space-explorer'] };
-      configs[category].tumblrTags = { enabled: false, tags: ['space', 'nebula', 'astrophotography'] };
-      configs[category].nasaApod = { enabled: true };
-    } else if (category === 'Abstract Art') {
-      configs[category].tumblr = { enabled: true, blogs: ['abstractartgallery', 'generative-art'] };
-      configs[category].tumblrTags = { enabled: false, tags: ['abstract', 'generative art', 'minimalism'] };
-    } else if (category === 'Liminal Spaces') {
-      configs[category].tumblr = { enabled: true, blogs: ['liminal-spaces', 'emptycorridors'] };
-      configs[category].tumblrTags = { enabled: false, tags: ['liminal spaces', 'empty rooms', 'backrooms'] };
-    } else if (category === 'AI Creations') {
-      configs[category].tumblr = { enabled: true, blogs: ['aiartgenerator', 'midjourneycreations'] };
-      configs[category].tumblrTags = { enabled: false, tags: ['ai art', 'midjourney', 'surreal landscape'] };
-      configs[category].midjourney = { enabled: true };
-    }
-  }
-  return configs;
+  return Object.fromEntries(
+    Object.entries(keywordsMap).map(([category, kws]) => {
+      const keywords = collectKeywordStrings(kws);
+      return [
+        category,
+        {
+          ...createKeywordSourceConfig(keywords),
+          ...(builtInFeedConfigOverrides[category] ?? {})
+        }
+      ];
+    })
+  );
 }
 
 const defaultKeywords = {
