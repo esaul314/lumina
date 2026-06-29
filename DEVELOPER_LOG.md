@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-06-29: Selector-Core Reuse & Declarative Feed Config Presets
+* **Goal**: Make another ES6+/functional cleanup pass without sacrificing readability, and keep the JavaScript surface closer to the reducer/selector foundation that will later migrate to TypeScript.
+* **Implementation**:
+  * **Legacy app dedupe**: Refactored [`server/app.js`](file:///home/alex/work/lumina/server/app.js) so `combineFeedsBalanced`, `selectWeightedRandomPhoto`, `isTimeInSchedule`, and the smart-photo filter pipeline now reuse the shared implementations in [`server/domain/selectors.js`](file:///home/alex/work/lumina/server/domain/selectors.js) instead of carrying parallel copies.
+  * **Preset-driven config builder**: Reworked [`server/config/state.js`](file:///home/alex/work/lumina/server/config/state.js) so feed configs are assembled from a small keyword-source factory plus a frozen built-in override table, replacing the long category `if/else` ladder with a declarative `Object.fromEntries(...)` projection.
+  * **Collection projection reuse**: Updated [`server/config/collections.js`](file:///home/alex/work/lumina/server/config/collections.js) to reuse the immutable `updatePhotoInCollections(...)` selector helper and compact state-photo sync helpers instead of nested mutation loops.
+  * **Regression coverage**: Added tests in [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) covering declarative feed-config layering and legacy crop projection across `photosList` plus `activeSecondPhoto`.
+* **Learning**: For Lumina, the cleanest “functional” move is often not adding more combinators or point-free wrappers, but collapsing duplicate implementations onto the existing pure selector layer. That reduces drift now and lowers the TypeScript conversion surface later.
+* **Verification**: `npm test` passed. `npm run lint` passed. The known sandbox-only ephemeral localhost bind warning still appears in the smoke-test section, but the regression suite exits successfully.
+
 ### 2026-06-28 (Part 3): Persistent `systemd --user` Service Installation
 * **Goal**: Stop relying on ad hoc manual launches for the TV host and make Lumina survive logout and reboot through `systemd`.
 * **Implementation**:
