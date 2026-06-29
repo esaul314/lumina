@@ -272,8 +272,8 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
   // GET /api/auth/google/login
   app.get('/api/auth/google/login', (req, res) => {
-    const localIp = getLocalIpAddresses()[0] || 'localhost';
-    const redirectUri = `http://${localIp}:${PORT}/api/auth/google/callback`;
+    const host = req.headers.host || `localhost:${PORT}`;
+    const redirectUri = `http://${host}/api/auth/google/callback`;
     const url = googlePhotos.getGoogleAuthUrl(redirectUri);
     res.redirect(url);
   });
@@ -286,8 +286,8 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     }
     
     try {
-      const localIp = getLocalIpAddresses()[0] || 'localhost';
-      const redirectUri = `http://${localIp}:${PORT}/api/auth/google/callback`;
+      const host = req.headers.host || `localhost:${PORT}`;
+      const redirectUri = `http://${host}/api/auth/google/callback`;
       
       await googlePhotos.exchangeGoogleCode(code, redirectUri);
       await googlePhotos.syncGoogleAlbum();
@@ -296,7 +296,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       broadcast();
       
       // Redirect back to mobile remote control with success indicator
-      res.redirect(`http://${localIp}:${PORT}/?mode=remote&googleAuth=success`);
+      res.redirect(`http://${host}/?mode=remote&googleAuth=success`);
     } catch (err) {
       console.error('Google Photos Auth Callback error:', err.message);
       res.status(500).send(`Google Photos Link Failed: ${err.message}`);
@@ -309,8 +309,8 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       await googlePhotos.exchangeGoogleCode('sandbox-code', '');
       await googlePhotos.syncGoogleAlbum();
       
-      const localIp = getLocalIpAddresses()[0] || 'localhost';
-      res.redirect(`http://${localIp}:${PORT}/?mode=remote&googleAuth=success`);
+      const host = req.headers.host || `localhost:${PORT}`;
+      res.redirect(`http://${host}/?mode=remote&googleAuth=success`);
     } catch (err) {
       res.status(500).send(`Sandbox Google Photos Link Failed: ${err.message}`);
     }
