@@ -54,8 +54,7 @@ function getGoogleAuthUrl(redirectUri) {
     response_type: 'code',
     prompt: 'consent',
     scope: [
-      'https://www.googleapis.com/auth/photoslibrary.readonly',
-      'https://www.googleapis.com/auth/photoslibrary.sharing'
+      'https://www.googleapis.com/auth/photospicker.mediaitems.readonly'
     ].join(' ')
   };
 
@@ -176,50 +175,148 @@ async function getValidToken() {
 
 /**
  * 💾 syncGoogleAlbum
- * Memory-safe paginated synchronization of Google Photos metadata.
- * Limits RAM footprint to <=80MB by only keeping local filesystem JSON indexes.
+ * Retrieves selected items from the Google Photos Picker session and caches them.
  */
-async function syncGoogleAlbum() {
+async function syncGoogleAlbum(sessionId) {
   try {
     if (!tokens.accessToken) {
       throw new Error('Google Photos Service: No active token session.');
     }
 
-    if (tokens.accessToken.startsWith('MOCK_')) {
-      console.log('Google Photos Service: Generating mock Google Photos feed for sandbox developer mode...');
-      const mockItems = [];
-      const picsumBase = 'https://picsum.photos/id';
-      const mockIds = [10, 15, 29, 37, 43, 48, 54, 57, 62, 76, 85, 93, 104, 116, 122];
-      
-      mockIds.forEach((id, idx) => {
-        mockItems.push({
-          id: `MOCK_MEDIA_ITEM_${id}`,
-          title: `Google Cast Landscape Photo #${idx + 1}`,
-          author: 'Synced Google User',
+    if (!sessionId) {
+      console.log('Google Photos Service: No sessionId provided, skipping sync.');
+      return [];
+    }
+
+    console.log(`Google Photos Service: Syncing selected items from session ${sessionId}...`);
+    const { mediaItems } = await listPickerMediaItems(sessionId);
+    
+    const parsedItems = [];
+    if (mediaItems && Array.isArray(mediaItems)) {
+      for (const item of mediaItems) {
+        if (item.mimeType && !item.mimeType.startsWith('image')) continue;
+
+        parsedItems.push({
+          id: item.id,
+          title: 'Google Photos Picker Cast',
+          author: 'Lumina Google Cast',
           source: 'google_photos',
-          url: `${picsumBase}/${id}/2560/1440`, // Temporary dynamic signed url representation
+          url: `${item.baseUrl}=w2560-h1440-c`, // Formats image to HD landscape format
           width: 2560,
           height: 1440,
           rating: 10
         });
-      });
-
-      fs.writeFileSync(CACHE_PATH, JSON.stringify(mockItems, null, 2), 'utf8');
-      return mockItems;
+      }
     }
 
-    const token = await getValidToken();
-    console.log('Google Photos Service: Initiating secure Google library sync...');
-    
-    const mediaItems = [];
-    let pageToken = '';
-    let fetchedPages = 0;
-    
+    fs.writeFileSync(CACHE_PATH, JSON.stringify(parsedItems, null, 2), 'utf8');
+    console.log(`Google Photos Service: Synced and cached ${parsedItems.length} selected items successfully.`);
+    return parsedItems;
+  } catch (err) {
+    console.error('Google Photos Service: Picker session sync failed:', err.message);
+    throw err;
+  }
+}
+
+/**
+ * 🛠️ createPickerSession
+ * Creates a secure photo picking session.
+ */
+async function createPickerSession() {
+  if (!tokens.accessToken) {
+    throw new Error('Google Photos Service: No active token session.');
+  }
+
+  if (tokens.accessToken.startsWith('MOCK_')) {
+    return {
+      id: 'MOCK_SESSION_ID_' + Date.now(),
+      pickerUri: '/api/auth/google/sandbox-callback',
+      mediaItemsSet: false
+    };
+  }
+
+  const token = await getValidToken();
+  try {
+    const res = await fetch('https://photospicker.googleapis.com/v1/sessions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Google Picker Session API failed (${res.status}): ${errText}`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error('Google Photos Service: Failed to create picker session:', err.message);
+    throw err;
+  }
+}
+
+/**
+ * 🔍 getPickerSession
+ * Retrieves picking session details (used to check if user has selected items).
+ */
+async function getPickerSession(sessionId) {
+  if (sessionId.startsWith('MOCK_')) {
+    return {
+      id: sessionId,
+      pickerUri: '/api/auth/google/sandbox-callback',
+      mediaItemsSet: true
+    };
+  }
+
+  const token = await getValidToken();
+  try {
+    const res = await fetch(`https://photospicker.googleapis.com/v1/sessions/${sessionId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Google Picker GET session failed (${res.status})`);
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.error(`Google Photos Service: Failed to get session ${sessionId}:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * 📸 listPickerMediaItems
+ * Lists selected media items in the picking session.
+ */
+async function listPickerMediaItems(sessionId) {
+  if (sessionId.startsWith('MOCK_')) {
+    const mockItems = [];
+    const picsumBase = 'https://picsum.photos/id';
+    const mockIds = [10, 15, 29, 37, 43, 48, 54, 57, 62, 76, 85, 93, 104, 116, 122];
+    mockIds.forEach((id, idx) => {
+      mockItems.push({
+        id: `MOCK_MEDIA_ITEM_${id}`,
+        baseUrl: `${picsumBase}/${id}/2560/1440`,
+        mimeType: 'image/jpeg'
+      });
+    });
+    return { mediaItems: mockItems };
+  }
+
+  const token = await getValidToken();
+  const mediaItems = [];
+  let pageToken = '';
+  
+  try {
     do {
-      // Limit to max 5 pages of 50 items to strictly prevent client memory bloating
-      if (fetchedPages >= 5) break; 
-      
-      let url = 'https://photoslibrary.googleapis.com/v1/mediaItems?pageSize=50';
+      let url = `https://photospicker.googleapis.com/v1/mediaItems?sessionId=${encodeURIComponent(sessionId)}&pageSize=50`;
       if (pageToken) {
         url += `&pageToken=${encodeURIComponent(pageToken)}`;
       }
@@ -232,46 +329,41 @@ async function syncGoogleAlbum() {
       });
 
       if (!res.ok) {
-        throw new Error(`Google API media list failed, status=${res.status}`);
+        const errText = await res.text();
+        throw new Error(`Google Picker MediaItems failed (${res.status}): ${errText}`);
       }
 
       const data = await res.json();
       if (data.mediaItems && Array.isArray(data.mediaItems)) {
-        for (const item of data.mediaItems) {
-          // 1. Only include photo images (exclude video/gif)
-          if (item.mimeType && !item.mimeType.startsWith('image')) continue;
-          
-          // 2. Landscape orientation aspect ratio filter
-          const metadata = item.mediaMetadata;
-          if (metadata && metadata.width && metadata.height) {
-            const w = parseInt(metadata.width, 10);
-            const h = parseInt(metadata.height, 10);
-            if (w < h) continue; // Skip portrait orientation
-          }
-
-          mediaItems.push({
-            id: item.id,
-            title: item.description || 'Google Photos Ambient Cast',
-            author: 'Lumina Google Cast',
-            source: 'google_photos',
-            url: `${item.baseUrl}=w2560-h1440-c`, // Formats image to HD landscape format
-            width: parseInt(metadata?.width || 2560, 10),
-            height: parseInt(metadata?.height || 1440, 10),
-            rating: 10
-          });
-        }
+        mediaItems.push(...data.mediaItems);
       }
-
       pageToken = data.nextPageToken;
-      fetchedPages++;
     } while (pageToken);
 
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(mediaItems, null, 2), 'utf8');
-    console.log(`Google Photos Service: Synced and cached ${mediaItems.length} landscape items successfully.`);
-    return mediaItems;
+    return { mediaItems };
   } catch (err) {
-    console.error('Google Photos Service: Album synchronization failed:', err.message);
+    console.error('Google Photos Service: Failed to list picker media items:', err.message);
     throw err;
+  }
+}
+
+/**
+ * 🗑️ deletePickerSession
+ * Cleans up the picking session.
+ */
+async function deletePickerSession(sessionId) {
+  if (sessionId.startsWith('MOCK_')) return true;
+
+  const token = await getValidToken();
+  try {
+    const res = await fetch(`https://photospicker.googleapis.com/v1/sessions/${sessionId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return res.ok;
+  } catch (err) {
+    console.error(`Google Photos Service: Failed to delete session ${sessionId}:`, err.message);
+    return false;
   }
 }
 
@@ -340,6 +432,10 @@ module.exports = {
   getGoogleAuthUrl,
   exchangeGoogleCode,
   syncGoogleAlbum,
+  createPickerSession,
+  getPickerSession,
+  listPickerMediaItems,
+  deletePickerSession,
   refreshMediaItemUrl,
   getCachedMediaItems,
   isAuthenticated

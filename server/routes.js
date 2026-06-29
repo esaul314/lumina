@@ -270,6 +270,45 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     return res.json({ success });
   });
 
+  function startPickerSessionPoller(sessionId) {
+    const startTime = Date.now();
+    const intervalId = setInterval(async () => {
+      // Timeout after 5 minutes (300,000 ms)
+      if (Date.now() - startTime > 300000) {
+        console.log(`Google Picker Poller: Session ${sessionId} timed out.`);
+        clearInterval(intervalId);
+        try {
+          await googlePhotos.deletePickerSession(sessionId);
+        } catch (err) {
+          console.error(`Google Picker Poller: Failed to delete timed out session ${sessionId}:`, err.message);
+        }
+        return;
+      }
+
+      try {
+        const session = await googlePhotos.getPickerSession(sessionId);
+        if (session.mediaItemsSet) {
+          console.log(`Google Picker Poller: Session ${sessionId} completed. Syncing items...`);
+          clearInterval(intervalId);
+          
+          await googlePhotos.syncGoogleAlbum(sessionId);
+          
+          const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+          if (currentCats.includes('Google Photos')) {
+            state.photosList = combineGoogleAndCuratedFeeds(currentCats, collections);
+          }
+          
+          broadcast();
+          await googlePhotos.deletePickerSession(sessionId);
+          console.log(`Google Picker Poller: Session ${sessionId} completed and cleaned up successfully.`);
+        }
+      } catch (err) {
+        console.error(`Google Picker Poller error for session ${sessionId}:`, err.message);
+        clearInterval(intervalId);
+      }
+    }, 3000);
+  }
+
   // GET /api/auth/google/login
   app.get('/api/auth/google/login', (req, res) => {
     const host = req.headers.host || `localhost:${PORT}`;
@@ -290,13 +329,11 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       const redirectUri = `http://${host}/api/auth/google/callback`;
       
       await googlePhotos.exchangeGoogleCode(code, redirectUri);
-      await googlePhotos.syncGoogleAlbum();
       
-      // Emit state-sync so clients know Google Photos is active
-      broadcast();
+      const session = await googlePhotos.createPickerSession();
+      startPickerSessionPoller(session.id);
       
-      // Redirect back to mobile remote control with success indicator
-      res.redirect(`http://${host}/?mode=remote&googleAuth=success`);
+      res.redirect(`${session.pickerUri}/autoclose`);
     } catch (err) {
       console.error('Google Photos Auth Callback error:', err.message);
       res.status(500).send(`Google Photos Link Failed: ${err.message}`);
@@ -307,7 +344,14 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
   app.get('/api/auth/google/sandbox-callback', async (req, res) => {
     try {
       await googlePhotos.exchangeGoogleCode('sandbox-code', '');
-      await googlePhotos.syncGoogleAlbum();
+      const session = await googlePhotos.createPickerSession();
+      await googlePhotos.syncGoogleAlbum(session.id);
+      
+      const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+      if (currentCats.includes('Google Photos')) {
+        state.photosList = combineGoogleAndCuratedFeeds(currentCats, collections);
+      }
+      broadcast();
       
       const host = req.headers.host || `localhost:${PORT}`;
       res.redirect(`http://${host}/?mode=remote&googleAuth=success`);
