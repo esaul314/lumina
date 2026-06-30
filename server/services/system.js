@@ -15,7 +15,8 @@ const BASE_CHROMIUM_FLAGS = Object.freeze([
   '--disable-gpu-shader-disk-cache',
   '--kiosk',
   '--no-first-run',
-  '--new-window'
+  '--new-window',
+  '--enable-offline-auto-reload'
 ]);
 
 const WAYLAND_PLATFORM_FLAGS = Object.freeze([
@@ -143,41 +144,68 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
   console.log(`System Service: Launching Chromium kiosk with ${accelerationProfile} acceleration profile on Wayland-first path.`);
 
   const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
-  
-  const processRef = exec(waylandCmd, (err) => {
-    if (err) {
-      if (err.signal === 'SIGTERM' || err.signal === 'SIGKILL') {
-        return; // Expected exit
-      }
-      
-      console.warn('Chromium Wayland launch failed, falling back to X11/Xwayland...', err.message);
-      
-      const x11Cmd = `XAUTH=$(find /run/user/${uid} -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="${homedir}/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${x11Flags} http://localhost:${port}/?mode=${mode}`;
-      
-      exec(x11Cmd, (x11Err) => {
-        if (x11Err) {
-          if (x11Err.signal === 'SIGTERM' || x11Err.signal === 'SIGKILL') {
-            return; // Expected exit
-          }
-          
-          console.warn('Chromium X11 launch failed, trying standard chromium (Wayland)...', x11Err.message);
-          
-          const waylandFallback = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
-          exec(waylandFallback, (wfErr) => {
-            if (wfErr) {
-              if (wfErr.signal === 'SIGTERM' || wfErr.signal === 'SIGKILL') {
-                return; // Expected exit
-              }
-              console.error('System Service: All Chromium kiosk launch attempts failed:', wfErr.message);
-              if (onUnexpectedExit) onUnexpectedExit();
-            }
-          });
-        }
-      });
-    }
-  });
+  const x11Cmd = `XAUTH=$(find /run/user/${uid} -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="${homedir}/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${x11Flags} http://localhost:${port}/?mode=${mode}`;
+  const waylandFallbackCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
 
-  return processRef;
+  let currentProcess = null;
+
+  function runCommandWithFallback(cmds, index) {
+    if (index >= cmds.length) {
+      console.error('System Service: All Chromium kiosk launch attempts failed.');
+      if (onUnexpectedExit) onUnexpectedExit();
+      return;
+    }
+
+    const { cmd, name } = cmds[index];
+    const startTime = Date.now();
+    let exited = false;
+
+    const p = exec(cmd, (err) => {
+      if (exited) return;
+      exited = true;
+
+      const duration = Date.now() - startTime;
+      if (err) {
+        if (err.signal === 'SIGTERM' || err.signal === 'SIGKILL') {
+          return; // Expected exit
+        }
+
+        // If the process was running for more than 5 seconds, treat it as a successful launch
+        // that crashed later, rather than a startup failure. Do not run fallbacks.
+        if (duration > 5000) {
+          console.warn(`System Service: Kiosk browser (${name}) exited unexpectedly after running for ${Math.round(duration / 1000)}s:`, err.message);
+          if (onUnexpectedExit) onUnexpectedExit();
+          return;
+        }
+
+        console.warn(`System Service: Kiosk browser (${name}) failed at startup:`, err.message);
+        runCommandWithFallback(cmds, index + 1);
+      } else {
+        // Normal exit (exit code 0) without explicit signal
+        console.log(`System Service: Kiosk browser (${name}) exited normally.`);
+        if (onUnexpectedExit) onUnexpectedExit();
+      }
+    });
+
+    currentProcess = p;
+  }
+
+  const launchSequence = [
+    { cmd: waylandCmd, name: 'Wayland (chromium-browser)' },
+    { cmd: x11Cmd, name: 'X11 fallback (chromium-browser)' },
+    { cmd: waylandFallbackCmd, name: 'Wayland fallback (chromium)' }
+  ];
+
+  runCommandWithFallback(launchSequence, 0);
+
+  // Return a proxy object that implements the kill method of child_process
+  return {
+    kill: (signal) => {
+      if (currentProcess) {
+        currentProcess.kill(signal);
+      }
+    }
+  };
 }
 
 /**

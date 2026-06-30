@@ -40,6 +40,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   const inactivityTimerRef = useRef(null);
   const particleCanvasRef = useRef(null);
   const mountTimeRef = useRef(Date.now());
+  const lastMousePosRef = useRef({ x: -1, y: -1 });
   const consecutiveFailuresRef = useRef(0);
   const imageOrientationCache = useRef({}); // { [url]: 'portrait' | 'landscape' }
   const imageDimensionsCache = useRef({}); // { [url]: { w, h } }
@@ -359,11 +360,26 @@ function Dashboard({ state, socket, connectionInfo }) {
   }, [primaryPhoto, secondaryPhoto, currentFrame.layout, currentFrame.crop.primaryPercent, currentFrame.crop.primaryPositionY, currentFrame.crop.secondaryPercent, currentFrame.crop.secondaryPositionY, state.photosList, state.scaleMode, state.splitCropPercent]);
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic
-  const resetInactivityTimer = () => {
+  const resetInactivityTimer = (e) => {
     // Prevent accidental triggers during the first 5 seconds after mount
     // (Chromium often fires synthetic mousemove/focus events on launch)
     if (Date.now() - mountTimeRef.current < 5000) {
       return;
+    }
+
+    if (e && e.type === 'mousemove') {
+      const { clientX: x, clientY: y } = e;
+      // If first mousemove, store coordinates and return without action.
+      // Synthetic events often fire on focus/render with default positions.
+      if (lastMousePosRef.current.x === -1 && lastMousePosRef.current.y === -1) {
+        lastMousePosRef.current = { x, y };
+        return;
+      }
+      // If coordinates haven't changed, ignore it (filters out synthetic/spurious movements).
+      if (x === lastMousePosRef.current.x && y === lastMousePosRef.current.y) {
+        return;
+      }
+      lastMousePosRef.current = { x, y };
     }
 
     // 1. If currently inactive (screensaver running), dismiss it instantly

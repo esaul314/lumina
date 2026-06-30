@@ -426,6 +426,14 @@ function emitStateSync() {
 function launchKioskBrowser(forceManual = false) {
   if (forceManual) manualOverride = true;
   if (isBrowserRunning) return;
+
+  // Defer launching if the server isn't ready/listening yet (e.g. during port collision fallback timeout)
+  if (!server.listening) {
+    console.warn(`System Service: Deferring kiosk browser launch because server is not listening on port ${PORT} yet.`);
+    setTimeout(() => launchKioskBrowser(forceManual), 1000);
+    return;
+  }
+
   console.log('Lumina System Idle: Spawning Fullscreen Kiosk Screensaver...');
   isBrowserRunning = true;
 
