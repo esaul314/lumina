@@ -1,10 +1,52 @@
 const { exec } = require('child_process');
 const os = require('os');
+const { readEnvVar } = require('../config/env.js');
 
 // Discover system information dynamically for robust daemon paths
 const userInfo = os.userInfo();
 const uid = userInfo.uid || 1000;
 const homedir = userInfo.homedir || os.homedir();
+
+const BASE_CHROMIUM_FLAGS = Object.freeze([
+  '--js-flags="--max-old-space-size=256"',
+  '--disable-dev-shm-usage',
+  '--disk-cache-size=52428800',
+  '--media-cache-size=20971520',
+  '--disable-gpu-shader-disk-cache',
+  '--kiosk',
+  '--no-first-run',
+  '--new-window'
+]);
+
+const WAYLAND_PLATFORM_FLAGS = Object.freeze([
+  '--ozone-platform=wayland',
+  '--enable-features=UseOzonePlatform'
+]);
+
+const AGGRESSIVE_GPU_FLAGS = Object.freeze([
+  '--ignore-gpu-blocklist',
+  '--enable-gpu-rasterization',
+  '--enable-zero-copy',
+  '--enable-native-gpu-memory-buffers'
+]);
+
+function getChromiumAccelerationProfile() {
+  const rawProfile = readEnvVar('LUMINA_CHROMIUM_ACCELERATION_PROFILE', 'safe').toLowerCase();
+  return rawProfile === 'aggressive' ? 'aggressive' : 'safe';
+}
+
+function buildChromiumFlags({ platform = 'wayland' } = {}) {
+  const flags = [
+    ...BASE_CHROMIUM_FLAGS,
+    ...(platform === 'wayland' ? WAYLAND_PLATFORM_FLAGS : [])
+  ];
+
+  if (getChromiumAccelerationProfile() === 'aggressive') {
+    flags.push(...AGGRESSIVE_GPU_FLAGS);
+  }
+
+  return flags.join(' ');
+}
 
 /**
  * ⚡ setCpuGovernor
@@ -95,10 +137,12 @@ function isSessionInhibited() {
  * Spawns Chromium in fullscreen kiosk mode with strict memory and GPU overrides.
  */
 function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
-  const optimizedFlags = '--ozone-platform=wayland --enable-features=UseOzonePlatform --js-flags="--max-old-space-size=256" --disable-dev-shm-usage --disk-cache-size=52428800 --media-cache-size=20971520 --disable-gpu-shader-disk-cache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --kiosk --no-first-run --new-window';
-  const x11Flags = '--js-flags="--max-old-space-size=256" --disable-dev-shm-usage --disk-cache-size=52428800 --media-cache-size=20971520 --disable-gpu-shader-disk-cache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --kiosk --no-first-run --new-window';
+  const waylandFlags = buildChromiumFlags({ platform: 'wayland' });
+  const x11Flags = buildChromiumFlags({ platform: 'x11' });
+  const accelerationProfile = getChromiumAccelerationProfile();
+  console.log(`System Service: Launching Chromium kiosk with ${accelerationProfile} acceleration profile on Wayland-first path.`);
 
-  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${optimizedFlags} http://localhost:${port}/?mode=${mode}`;
+  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
   
   const processRef = exec(waylandCmd, (err) => {
     if (err) {
@@ -118,7 +162,7 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
           
           console.warn('Chromium X11 launch failed, trying standard chromium (Wayland)...', x11Err.message);
           
-          const waylandFallback = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${optimizedFlags} http://localhost:${port}/?mode=${mode}`;
+          const waylandFallback = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
           exec(waylandFallback, (wfErr) => {
             if (wfErr) {
               if (wfErr.signal === 'SIGTERM' || wfErr.signal === 'SIGKILL') {
@@ -153,6 +197,8 @@ module.exports = {
   getGnomeIdleTime,
   isAudioPlaying,
   isSessionInhibited,
+  buildChromiumFlags,
+  getChromiumAccelerationProfile,
   launchChromiumKiosk,
   killChromiumKiosk
 };

@@ -96,8 +96,9 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   // 3. Image Category Initial Fetch & Periodic Cycle
   const fetchPhotos = async (category) => {
-    // If active photo is already initialized by server state-sync with a valid URL, skip redundant selection to prevent race conditions
-    if (primaryPhoto && primaryPhoto.url && primaryPhoto.url.startsWith('http')) return;
+    // If active photo is already initialized by server state-sync with any valid URL
+    // (remote CDN or same-origin proxy), skip redundant selection to prevent loops.
+    if (primaryPhoto?.url) return;
 
     try {
       const res = await fetch(`/api/photos?category=${encodeURIComponent(category)}`);

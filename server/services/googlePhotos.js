@@ -3,6 +3,9 @@ const path = require('path');
 const { readEnvVar, persistEnvVars } = require('../config/env.js');
 
 const CACHE_PATH = path.join(__dirname, '..', 'config', 'google_photos_cache.json');
+const DEFAULT_RENDER_WIDTH = 2560;
+const DEFAULT_RENDER_HEIGHT = 1440;
+const BASE_URL_TTL_MS = 55 * 60 * 1000;
 
 // Ensure parent directories exist
 const configDir = path.dirname(CACHE_PATH);
@@ -14,7 +17,189 @@ let credentials = {
   clientId: readEnvVar('GOOGLE_CLIENT_ID'),
   clientSecret: readEnvVar('GOOGLE_CLIENT_SECRET')
 };
-let tokens = { accessToken: '', refreshToken: '', expiry: 0 };
+let tokens = { accessToken: '', refreshToken: readEnvVar('GOOGLE_REFRESH_TOKEN'), expiry: 0 };
+
+function persistGoogleRefreshToken(refreshToken) {
+  const normalized = String(refreshToken || '').trim();
+  if (!normalized || normalized.startsWith('MOCK_')) {
+    return;
+  }
+
+  persistEnvVars({
+    GOOGLE_REFRESH_TOKEN: normalized
+  });
+}
+
+function buildGooglePhotoProxyUrl(mediaItemId, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = true } = {}) {
+  const params = new URLSearchParams({
+    w: String(width),
+    h: String(height)
+  });
+
+  if (crop) {
+    params.set('c', '1');
+  }
+
+  return `/api/google-photos/media/${encodeURIComponent(mediaItemId)}?${params.toString()}`;
+}
+
+function buildGooglePhotoContentUrl(baseUrl, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = true } = {}) {
+  if (!baseUrl) {
+    return '';
+  }
+
+  const directives = [`w${width}`, `h${height}`];
+  if (crop) {
+    directives.push('c');
+  }
+  return `${baseUrl}=${directives.join('-')}`;
+}
+
+function getPickerMediaFile(item) {
+  return item?.mediaFile && typeof item.mediaFile === 'object' ? item.mediaFile : item;
+}
+
+function getPickerItemBaseUrl(item) {
+  return String(getPickerMediaFile(item)?.baseUrl || '').trim();
+}
+
+function getPickerItemMimeType(item) {
+  return String(getPickerMediaFile(item)?.mimeType || item?.mimeType || '').trim();
+}
+
+function getPickerItemDimensions(item) {
+  const metadata = getPickerMediaFile(item)?.mediaFileMetadata || item?.mediaFileMetadata || {};
+  const width = Number.parseInt(metadata.width, 10);
+  const height = Number.parseInt(metadata.height, 10);
+
+  return {
+    width: Number.isFinite(width) && width > 0 ? width : DEFAULT_RENDER_WIDTH,
+    height: Number.isFinite(height) && height > 0 ? height : DEFAULT_RENDER_HEIGHT
+  };
+}
+
+function extractLegacyBaseUrl(url) {
+  const value = String(url || '').trim();
+  if (!value || value.startsWith('/api/google-photos/media/') || value.startsWith('undefined=')) {
+    return '';
+  }
+
+  const [baseUrl] = value.split('=');
+  return baseUrl || '';
+}
+
+function buildCachedMediaItem(item, sessionId, existing = {}) {
+  const { width, height } = getPickerItemDimensions(item);
+  const googleBaseUrl = getPickerItemBaseUrl(item) || existing.googleBaseUrl || extractLegacyBaseUrl(existing.url);
+
+  return {
+    id: item.id,
+    title: 'Google Photos Picker Cast',
+    author: 'Lumina Google Cast',
+    source: 'google_photos',
+    url: buildGooglePhotoProxyUrl(item.id),
+    googleBaseUrl,
+    googlePickerSessionId: sessionId || existing.googlePickerSessionId,
+    googleBaseUrlFetchedAt: googleBaseUrl ? Date.now() : existing.googleBaseUrlFetchedAt,
+    mimeType: getPickerItemMimeType(item) || existing.mimeType || 'image/jpeg',
+    width,
+    height,
+    rating: existing.rating !== undefined ? existing.rating : 10,
+    cropPercent: existing.cropPercent,
+    cropPositionY: existing.cropPositionY,
+    preventPairing: existing.preventPairing
+  };
+}
+
+function normalizeCachedMediaItem(item) {
+  if (!item?.id) {
+    return null;
+  }
+
+  const width = Number.parseInt(item.width, 10);
+  const height = Number.parseInt(item.height, 10);
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : DEFAULT_RENDER_WIDTH;
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : DEFAULT_RENDER_HEIGHT;
+  const googleBaseUrl = String(item.googleBaseUrl || extractLegacyBaseUrl(item.url) || '').trim();
+
+  return {
+    ...item,
+    source: 'google_photos',
+    url: buildGooglePhotoProxyUrl(item.id),
+    googleBaseUrl: googleBaseUrl || undefined,
+    width: safeWidth,
+    height: safeHeight,
+    rating: item.rating !== undefined ? item.rating : 10
+  };
+}
+
+function isUsableCachedMediaItem(item) {
+  if (!item?.id || !item?.url) {
+    return false;
+  }
+
+  if (item.id.startsWith('MOCK_')) {
+    return true;
+  }
+
+  return Boolean(item.googleBaseUrl || item.googlePickerSessionId);
+}
+
+function readCachedMediaItemsRaw() {
+  if (!fs.existsSync(CACHE_PATH)) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
+  } catch (err) {
+    console.warn('Google Photos Service: Failed to read media cache JSON:', err.message);
+    return [];
+  }
+}
+
+function writeCachedMediaItems(items) {
+  fs.writeFileSync(CACHE_PATH, JSON.stringify(items, null, 2), 'utf8');
+}
+
+function updateCachedMediaItem(item) {
+  const itemsMap = new Map(getCachedMediaItems().map((entry) => [entry.id, entry]));
+  itemsMap.set(item.id, item);
+  const mergedItems = Array.from(itemsMap.values());
+  writeCachedMediaItems(mergedItems);
+  return item;
+}
+
+function findCachedMediaItem(mediaItemId) {
+  return getCachedMediaItems().find((item) => item.id === mediaItemId) || null;
+}
+
+async function refreshCachedMediaItem(mediaItemId, sessionIdOverride) {
+  const existing = findCachedMediaItem(mediaItemId);
+  const sessionId = sessionIdOverride || existing?.googlePickerSessionId;
+
+  if (!sessionId) {
+    return existing;
+  }
+
+  const { mediaItems } = await listPickerMediaItems(sessionId);
+  const match = (mediaItems || []).find((item) => item.id === mediaItemId);
+
+  if (!match) {
+    throw new Error(`Google Photos Service: Media item ${mediaItemId} is no longer present in picker session ${sessionId}.`);
+  }
+
+  const refreshed = buildCachedMediaItem(match, sessionId, existing || {});
+  return updateCachedMediaItem(refreshed);
+}
+
+function isBaseUrlStale(item) {
+  if (!item?.googleBaseUrlFetchedAt) {
+    return true;
+  }
+
+  return (Date.now() - item.googleBaseUrlFetchedAt) >= BASE_URL_TTL_MS;
+}
 
 /**
  * 🔒 saveGoogleCredentials
@@ -104,6 +289,7 @@ async function exchangeGoogleCode(code, redirectUri) {
       refreshToken: data.refresh_token || tokens.refreshToken, // Google sometimes omits refresh_token on refresh
       expiry: Date.now() + (data.expires_in * 1000)
     };
+    persistGoogleRefreshToken(tokens.refreshToken);
 
     return tokens;
   } catch (err) {
@@ -163,6 +349,9 @@ async function refreshAccessToken() {
  */
 async function getValidToken() {
   if (!tokens.accessToken) {
+    if (tokens.refreshToken) {
+      return refreshAccessToken();
+    }
     throw new Error('Google Photos Service: Not authenticated.');
   }
   // Refresh access token if it expires in less than 5 minutes
@@ -190,48 +379,24 @@ async function syncGoogleAlbum(sessionId) {
 
     console.log(`Google Photos Service: Syncing selected items from session ${sessionId}...`);
     const { mediaItems } = await listPickerMediaItems(sessionId);
-    
-    const parsedItems = [];
+
+    const existingById = new Map(getCachedMediaItems().map((item) => [item.id, item]));
+
+    const syncedItems = [];
     if (mediaItems && Array.isArray(mediaItems)) {
       for (const item of mediaItems) {
-        if (item.mimeType && !item.mimeType.startsWith('image')) continue;
+        const mimeType = getPickerItemMimeType(item);
+        if (mimeType && !mimeType.startsWith('image')) continue;
 
-        parsedItems.push({
-          id: item.id,
-          title: 'Google Photos Picker Cast',
-          author: 'Lumina Google Cast',
-          source: 'google_photos',
-          url: `${item.baseUrl}=w2560-h1440-c`, // Formats image to HD landscape format
-          width: 2560,
-          height: 1440,
-          rating: 10
-        });
+        const existing = existingById.get(item.id) || {};
+        const nextItem = buildCachedMediaItem(item, sessionId, existing);
+        syncedItems.push(nextItem);
       }
     }
 
-    const existingItems = getCachedMediaItems();
-    const itemsMap = new Map();
-    existingItems.forEach(item => itemsMap.set(item.id, item));
-
-    parsedItems.forEach(item => {
-      if (itemsMap.has(item.id)) {
-        const existing = itemsMap.get(item.id);
-        itemsMap.set(item.id, {
-          ...item,
-          rating: existing.rating !== undefined ? existing.rating : item.rating,
-          cropPercent: existing.cropPercent,
-          cropPositionY: existing.cropPositionY,
-          preventPairing: existing.preventPairing
-        });
-      } else {
-        itemsMap.set(item.id, item);
-      }
-    });
-
-    const mergedItems = Array.from(itemsMap.values());
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(mergedItems, null, 2), 'utf8');
-    console.log(`Google Photos Service: Synced and cached ${mergedItems.length} selected items successfully (Merged ${parsedItems.length} new selections).`);
-    return mergedItems;
+    writeCachedMediaItems(syncedItems);
+    console.log(`Google Photos Service: Synced and cached ${syncedItems.length} selected items successfully for session ${sessionId}.`);
+    return syncedItems;
   } catch (err) {
     console.error('Google Photos Service: Picker session sync failed:', err.message);
     throw err;
@@ -320,7 +485,7 @@ async function listPickerMediaItems(sessionId) {
     const mockItems = [];
     const picsumBase = 'https://picsum.photos/id';
     const mockIds = [10, 15, 29, 37, 43, 48, 54, 57, 62, 76, 85, 93, 104, 116, 122];
-    mockIds.forEach((id, idx) => {
+    mockIds.forEach((id) => {
       mockItems.push({
         id: `MOCK_MEDIA_ITEM_${id}`,
         baseUrl: `${picsumBase}/${id}/2560/1440`,
@@ -391,7 +556,7 @@ async function deletePickerSession(sessionId) {
  * ⚡ refreshMediaItemUrl
  * Dynamically resolves and refreshes expired Google photo URLs on demand.
  */
-async function refreshMediaItemUrl(mediaItemId) {
+async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
   if (mediaItemId.startsWith('MOCK_')) {
     const idNum = mediaItemId.replace('MOCK_MEDIA_ITEM_', '');
     return `https://picsum.photos/id/${idNum}/2560/1440`;
@@ -417,11 +582,89 @@ async function refreshMediaItemUrl(mediaItemId) {
       throw new Error('Google Photos Service: API returned media item without baseUrl');
     }
 
-    return `${item.baseUrl}=w2560-h1440-c`;
+    return buildGooglePhotoContentUrl(item.baseUrl, renderOptions);
   } catch (err) {
     console.error(`Google Photos Service: Failed to refresh URL for item ${mediaItemId}:`, err.message);
     throw err;
   }
+}
+
+async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
+  const cachedItem = findCachedMediaItem(mediaItemId);
+  const contentTypeHint = cachedItem?.mimeType || 'image/jpeg';
+  const requiresAuth = !mediaItemId.startsWith('MOCK_');
+  const token = requiresAuth ? await getValidToken() : null;
+
+  const candidates = [];
+  const seenCandidates = new Set();
+  const appendCandidate = (url) => {
+    if (url && !seenCandidates.has(url)) {
+      seenCandidates.add(url);
+      candidates.push(url);
+    }
+  };
+
+  if (cachedItem?.googlePickerSessionId && (!cachedItem.googleBaseUrl || isBaseUrlStale(cachedItem))) {
+    try {
+      const refreshedItem = await refreshCachedMediaItem(mediaItemId, cachedItem.googlePickerSessionId);
+      if (refreshedItem?.googleBaseUrl) {
+        appendCandidate(buildGooglePhotoContentUrl(refreshedItem.googleBaseUrl, renderOptions));
+      }
+    } catch (err) {
+      console.warn(`Google Photos Service: Failed to refresh cached picker item ${mediaItemId}:`, err.message);
+    }
+  }
+
+  if (cachedItem?.googleBaseUrl) {
+    appendCandidate(buildGooglePhotoContentUrl(cachedItem.googleBaseUrl, renderOptions));
+  }
+
+  if (candidates.length === 0) {
+    appendCandidate(await refreshMediaItemUrl(mediaItemId, renderOptions));
+  }
+
+  let lastError = null;
+
+  for (const candidateUrl of candidates) {
+    const res = await fetch(candidateUrl, {
+      headers: requiresAuth ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+
+    if (res.ok) {
+      return {
+        buffer: Buffer.from(await res.arrayBuffer()),
+        contentType: res.headers.get('content-type') || contentTypeHint
+      };
+    }
+
+    lastError = new Error(`Google Photos media fetch failed (${res.status})`);
+  }
+
+  if (cachedItem?.googlePickerSessionId) {
+    try {
+      const refreshedItem = await refreshCachedMediaItem(mediaItemId, cachedItem.googlePickerSessionId);
+      const refreshedUrl = buildGooglePhotoContentUrl(refreshedItem?.googleBaseUrl, renderOptions);
+
+      if (refreshedUrl && !seenCandidates.has(refreshedUrl)) {
+        const retryRes = await fetch(refreshedUrl, {
+          headers: requiresAuth ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+
+        if (retryRes.ok) {
+          return {
+            buffer: Buffer.from(await retryRes.arrayBuffer()),
+            contentType: retryRes.headers.get('content-type') || contentTypeHint
+          };
+        }
+
+        lastError = new Error(`Google Photos media fetch failed after picker refresh (${retryRes.status})`);
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error(`Google Photos Service: Failed to fetch media bytes for item ${mediaItemId}.`);
 }
 
 /**
@@ -429,14 +672,17 @@ async function refreshMediaItemUrl(mediaItemId) {
  * Reads the safe filesystem caching database.
  */
 function getCachedMediaItems() {
-  if (fs.existsSync(CACHE_PATH)) {
-    try {
-      return JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
-    } catch (err) {
-      console.warn('Google Photos Service: Failed to read media cache JSON:', err.message);
-    }
+  const rawItems = readCachedMediaItemsRaw();
+  const normalizedItems = rawItems
+    .map(normalizeCachedMediaItem)
+    .filter(Boolean)
+    .filter(isUsableCachedMediaItem);
+
+  if (JSON.stringify(rawItems) !== JSON.stringify(normalizedItems) && process.env.NODE_ENV !== 'test') {
+    writeCachedMediaItems(normalizedItems);
   }
-  return [];
+
+  return normalizedItems;
 }
 
 /**
@@ -457,6 +703,11 @@ module.exports = {
   listPickerMediaItems,
   deletePickerSession,
   refreshMediaItemUrl,
+  fetchMediaItemBytes,
   getCachedMediaItems,
-  isAuthenticated
+  isAuthenticated,
+  buildGooglePhotoProxyUrl,
+  buildCachedMediaItem,
+  normalizeCachedMediaItem,
+  isUsableCachedMediaItem
 };

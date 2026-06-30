@@ -99,6 +99,30 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     }
   });
 
+  // GET /api/google-photos/media/:mediaItemId
+  app.get('/api/google-photos/media/:mediaItemId', async (req, res) => {
+    const width = Number.parseInt(req.query.w, 10);
+    const height = Number.parseInt(req.query.h, 10);
+    const crop = req.query.c !== '0';
+
+    try {
+      const media = await googlePhotos.fetchMediaItemBytes(req.params.mediaItemId, {
+        width: Number.isFinite(width) && width > 0 ? width : 2560,
+        height: Number.isFinite(height) && height > 0 ? height : 1440,
+        crop
+      });
+
+      res.setHeader('Content-Type', media.contentType);
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.send(media.buffer);
+    } catch (error) {
+      res.status(502).json({
+        error: 'Failed to proxy Google Photos media item.',
+        message: error.message
+      });
+    }
+  });
+
   // Helper to dynamically balance google photos and curated categories round-robin
   function combineGoogleAndCuratedFeeds(categoriesList, collectionsObj) {
     const lists = filter(list => list.length > 0, map(cat => {
@@ -299,8 +323,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
           }
           
           broadcast();
-          await googlePhotos.deletePickerSession(sessionId);
-          console.log(`Google Picker Poller: Session ${sessionId} completed and cleaned up successfully.`);
+          console.log(`Google Picker Poller: Session ${sessionId} completed and cached successfully.`);
         }
       } catch (err) {
         console.error(`Google Picker Poller error for session ${sessionId}:`, err.message);

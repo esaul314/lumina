@@ -526,10 +526,14 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(async () => {
     try {
       const idleMs = await getGnomeIdleTime();
+      const audioPlaying = await isAudioPlaying();
+      // Once Lumina has launched its own kiosk, ignore generic session inhibition
+      // so Chromium does not immediately veto the screensaver on the next poll.
+      const sessionInhibited = isBrowserRunning ? false : await isSessionInhibited();
       
       const inputs = {
         isIdle: idleMs >= screensaverState.inactivityTimeout,
-        isMoviePlaying: (await isAudioPlaying()) || (await isSessionInhibited()),
+        isMoviePlaying: audioPlaying || sessionInhibited,
         manualOverride
       };
 

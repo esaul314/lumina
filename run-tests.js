@@ -27,6 +27,16 @@ const { updatePhotoCrop } = require('./server/config/collections.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
+const {
+  buildGooglePhotoProxyUrl,
+  buildCachedMediaItem,
+  normalizeCachedMediaItem,
+  isUsableCachedMediaItem
+} = require('./server/services/googlePhotos.js');
+const {
+  buildChromiumFlags,
+  getChromiumAccelerationProfile
+} = require('./server/services/system.js');
 
 // Formatting constants for clean terminal reports
 const COLORS = {
@@ -413,6 +423,95 @@ assertTest('upsertEnvVarInContent appends and replaces quoted secret values safe
   const updated = upsertEnvVarInContent(withTumblr, 'USEAPI_TOKEN', 'new token #1');
   assert.ok(updated.includes('USEAPI_TOKEN="new token #1"'), 'Should replace existing env keys with quoted values');
   assert.ok(!updated.includes('old-token'), 'Old secret value must be removed from the updated content');
+});
+
+logSuite('Chromium Launch Profiles');
+
+assertTest('safe Chromium acceleration profile omits forced risky GPU flags', () => {
+  const original = process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE;
+  delete process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE;
+
+  try {
+    assert.strictEqual(getChromiumAccelerationProfile(), 'safe');
+    const flags = buildChromiumFlags({ platform: 'wayland' });
+    assert.ok(flags.includes('--ozone-platform=wayland'));
+    assert.ok(!flags.includes('--enable-zero-copy'));
+    assert.ok(!flags.includes('--enable-native-gpu-memory-buffers'));
+    assert.ok(!flags.includes('--ignore-gpu-blocklist'));
+  } finally {
+    if (original === undefined) {
+      delete process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE;
+    } else {
+      process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE = original;
+    }
+  }
+});
+
+assertTest('aggressive Chromium acceleration profile remains available as an opt-in override', () => {
+  const original = process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE;
+  process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE = 'aggressive';
+
+  try {
+    assert.strictEqual(getChromiumAccelerationProfile(), 'aggressive');
+    const flags = buildChromiumFlags({ platform: 'x11' });
+    assert.ok(flags.includes('--enable-zero-copy'));
+    assert.ok(flags.includes('--enable-native-gpu-memory-buffers'));
+    assert.ok(!flags.includes('--ozone-platform=wayland'));
+  } finally {
+    if (original === undefined) {
+      delete process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE;
+    } else {
+      process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE = original;
+    }
+  }
+});
+
+logSuite('Google Photos Picker Cache');
+
+assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {
+  const item = buildCachedMediaItem({
+    id: 'picker-123',
+    mediaFile: {
+      baseUrl: 'https://lh3.googleusercontent.com/picker-item',
+      mimeType: 'image/jpeg',
+      mediaFileMetadata: {
+        width: '4032',
+        height: '3024'
+      }
+    }
+  }, 'session-abc');
+
+  assert.strictEqual(item.url, '/api/google-photos/media/picker-123?w=2560&h=1440&c=1');
+  assert.strictEqual(item.googleBaseUrl, 'https://lh3.googleusercontent.com/picker-item');
+  assert.strictEqual(item.googlePickerSessionId, 'session-abc');
+  assert.strictEqual(item.width, 4032);
+  assert.strictEqual(item.height, 3024);
+  assert.strictEqual(item.mimeType, 'image/jpeg');
+});
+
+assertTest('buildGooglePhotoProxyUrl preserves same-origin rendering for browser previews', () => {
+  const proxyUrl = buildGooglePhotoProxyUrl('A/B+C', { width: 1080, height: 1920, crop: false });
+  assert.strictEqual(proxyUrl, '/api/google-photos/media/A%2FB%2BC?w=1080&h=1920');
+});
+
+assertTest('legacy Google Photos cache rows without baseUrl or picker session are filtered out', () => {
+  const normalized = normalizeCachedMediaItem({
+    id: 'legacy-broken',
+    url: '/api/google-photos/media/legacy-broken?w=2560&h=1440&c=1',
+    width: 2560,
+    height: 1440
+  });
+
+  assert.ok(normalized, 'Legacy row should still normalize structurally');
+  assert.strictEqual(isUsableCachedMediaItem(normalized), false, 'Legacy row without refreshable metadata must be excluded from active feeds');
+
+  const healthy = normalizeCachedMediaItem({
+    id: 'healthy',
+    url: '/api/google-photos/media/healthy?w=2560&h=1440&c=1',
+    googlePickerSessionId: 'session-1'
+  });
+
+  assert.strictEqual(isUsableCachedMediaItem(healthy), true, 'Rows with picker session metadata should remain eligible');
 });
 
 // ============================================================================

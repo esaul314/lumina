@@ -180,6 +180,19 @@ This document serves as a public-facing, generic history of technical developmen
   * **Background Polling & Sync**: Added a background polling process in `routes.js` that checks for session selection completion, pulls the selected private photo metadata, updates the display feed, and cleans up the session resources.
 * **Verification**: `npm test` passed successfully. Tested systemd service restarts and verified service is active.
 
+### 2026-06-29: Google Photos Admin Preview Proxy Repair
+* **Issue**: Google Photos items in the admin Image Feeds panel were showing "Source link is broken or restricted."
+* **Root cause**:
+  * The Picker sync layer was reading `item.baseUrl` even though the Picker API returns image data under `item.mediaFile.baseUrl`, so Lumina cached `url: "undefined=w2560-h1440-c"` entries in `server/config/google_photos_cache.json`.
+  * Even with a valid Picker `baseUrl`, the browser cannot fetch Google Photos image bytes directly from CSS/`Image()` because the Picker guide requires the app to attach an OAuth bearer token when requesting that URL.
+* **Fix**:
+  * Refactored [`server/services/googlePhotos.js`](file:///home/alex/work/lumina/server/services/googlePhotos.js) to normalize cached Google Photos items into Lumina-owned proxy URLs (`/api/google-photos/media/:id`), while storing the actual Picker `mediaFile.baseUrl`, MIME type, dimensions, and picker session id separately for server-side fetches.
+  * Added a protected proxy route in [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) that fetches the Google image bytes with the server's OAuth token and returns them to the browser as same-origin media.
+  * Kept completed picker sessions instead of deleting them immediately so Lumina can rehydrate stale Google base URLs later instead of treating the initial cached response as permanent.
+  * Persisted `GOOGLE_REFRESH_TOKEN` in Lumina's shared `.env` store and taught the service to mint a fresh access token on demand at startup, so Google Photos access now survives daemon restarts instead of living only in process memory.
+  * Added regression coverage in [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) for the nested `mediaFile` shape and the proxy URL contract.
+* **Verification**: `npm test` passed. `npm run lint` passed. `systemctl --user restart lumina` succeeded and `GET /api/photos?category=Google Photos` now returns proxy URLs under `/api/google-photos/media/...`.
+
 ---
 
 ## 🧬 Crucial Gotchas & Design Rules
@@ -222,6 +235,20 @@ The screensaver automatically maps live conditions and global sentiment to activ
 * **Failed Assumption**: Attempting to run tests, build the client, or start server daemons locally on the gateway host environment (`filament`) instead of the target TV host (`playwright`).
 * **Why it Fails**: The local gateway lacks graphical libraries, Wayland/X11 displays, Chromium dependencies, and the DBus session connections required by Mutter.
 * **Rule**: Perform all edits through the sshfs mount, but execute all commands, tests, and server processes strictly on the `playwright` host (`alex@playwright`).
+
+### 2026-06-29 (Phase 12): Proxy-backed Google Photos Exposed Two Separate Jump Loops
+- **Issue**: After Google Photos started rendering on the TV again, the slideshow still appeared to "jump" rapidly as if many photos were broken or inaccessible.
+- **Root Causes**:
+  - `Dashboard.jsx` treated a slide as uninitialized unless `primaryPhoto.url.startsWith('http')`. That was accidentally true for older third-party feeds, but false for the new same-origin Google Photos proxy URLs (`/api/google-photos/media/...`), so the client kept re-fetching and re-randomizing the category.
+  - Separately, the idle daemon loop in `server/app.js` combined `isAudioPlaying()` with `isSessionInhibited()`. Once Lumina launched its own Chromium kiosk, the running browser session could trip the inhibition check and make the daemon dismiss the kiosk it had just spawned, then relaunch it again on the next idle poll.
+- **Fix**:
+  - `Dashboard.jsx` now treats any truthy `primaryPhoto.url` as initialized instead of assuming valid slide URLs must begin with `http`.
+  - `server/app.js` now only considers session inhibition when the kiosk browser is not already running, which stops Lumina from using its own kiosk session as a reason to tear itself down.
+  - `server/services/system.js` also defaults Chromium back to a safer acceleration profile, with the more aggressive GPU flags available only through `LUMINA_CHROMIUM_ACCELERATION_PROFILE=aggressive`.
+- **Verification**:
+  - Live probe on `2026-06-29` showed the same `activePhoto.url` remaining stable across six 4-second samples on `Scenic Nature`.
+  - After switching the live category back to `Google Photos`, the same proxy URL remained stable across six 4-second samples instead of rotating every few seconds.
+  - `journalctl --user -u lumina` stopped showing the prior rapid `Spawning Fullscreen Kiosk Screensaver...` / `Dismissing Kiosk Browser...` oscillation after the service restart with the daemon fix.
 
 
 ---
