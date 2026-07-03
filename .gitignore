@@ -2,6 +2,7 @@ node_modules/
 client/node_modules/
 client/dist/
 server.log
+launch.log
 curated_collections.json
 .DS_Store
 .env
@@ -9,4 +10,5 @@ curated_collections.json
 !.env.example
 analysis_cache.json
 server/config/.google_credentials.json
+server/config/google_photos_cache.json
 config.json
