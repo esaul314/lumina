@@ -8,6 +8,7 @@ function DirectControlTab({
   dragState,
   activePhotoCrop,
   previewContainerRef,
+  tvPreviewFrameStyle,
   swipeStatus,
   handleTouchStart,
   handleTouchEnd,
@@ -25,6 +26,21 @@ function DirectControlTab({
   selectedPhoto,
   isSplitLayoutActive
 }) {
+  const handlePairingToggle = () => {
+    if (!selectedPhoto) {
+      return;
+    }
+
+    const nextPreventPairing = !selectedPhoto.preventPairing;
+    socket.emit('set-photo-prevent-pairing', {
+      url: selectedPhoto.url,
+      preventPairing: nextPreventPairing,
+      // Preserve the focused portrait as a single-image preview instead of
+      // collapsing back to the other half of the split frame immediately.
+      preserveActive: isSplitLayoutActive && nextPreventPairing
+    });
+  };
+
   return (
     <>
       <div className="remote-card">
@@ -54,88 +70,114 @@ function DirectControlTab({
               display: 'flex',
               backgroundColor: '#000'
             }}>
-              {isSplitLayoutActive ? (
-                <div style={{ display: 'flex', width: '100%', height: '100%', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
-                  <div 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedPhotoSide('left');
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      handleDragStart(e, state.activePhoto.url, false);
-                      setSelectedPhotoSide('left');
-                    }}
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      handleDragStart(e, state.activePhoto.url, false);
-                      setSelectedPhotoSide('left');
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                    }}
-                    style={{
-                      flex: 1,
-                      height: '100%',
-                      cursor: dragState.isDragging && !dragState.isSecond ? 'grabbing' : 'ns-resize',
-                      boxSizing: 'border-box',
-                      border: selectedPhotoSide === 'left' ? '2px solid var(--accent-color)' : '2px solid rgba(255,255,255,0.12)',
-                      boxShadow: selectedPhotoSide === 'left' ? '0 0 10px var(--accent-color)' : 'none',
-                      transition: 'border-color 0.2s, box-shadow 0.2s',
-                      ...getSplitPreviewStyle(state.activePhoto.url, false)
-                    }} 
-                  />
-                  <div 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedPhotoSide('right');
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      handleDragStart(e, secondPhoto.url, true);
-                      setSelectedPhotoSide('right');
-                    }}
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      handleDragStart(e, secondPhoto.url, true);
-                      setSelectedPhotoSide('right');
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                    }}
-                    style={{
-                      flex: 1,
-                      height: '100%',
-                      cursor: dragState.isDragging && dragState.isSecond ? 'grabbing' : 'ns-resize',
-                      boxSizing: 'border-box',
-                      border: selectedPhotoSide === 'right' ? '2px solid var(--accent-color)' : '2px solid rgba(255,255,255,0.12)',
-                      boxShadow: selectedPhotoSide === 'right' ? '0 0 10px var(--accent-color)' : 'none',
-                      transition: 'border-color 0.2s, box-shadow 0.2s',
-                      ...getSplitPreviewStyle(secondPhoto.url, true)
-                    }} 
-                  />
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxSizing: 'border-box'
+              }}>
+                <div style={{
+                  ...tvPreviewFrameStyle,
+                  position: 'relative',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  backgroundColor: '#000',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 18px 36px rgba(0,0,0,0.35)'
+                }}>
+                  {isSplitLayoutActive ? (
+                    <div style={{ display: 'flex', width: '100%', height: '100%', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPhotoSide('left');
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleDragStart(e, state.activePhoto.url, false);
+                          setSelectedPhotoSide('left');
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          handleDragStart(e, state.activePhoto.url, false);
+                          setSelectedPhotoSide('left');
+                        }}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation();
+                        }}
+                        style={{
+                          flex: 1,
+                          height: '100%',
+                          cursor: dragState.isDragging && !dragState.isSecond ? 'grabbing' : 'ns-resize',
+                          boxSizing: 'border-box',
+                          border: selectedPhotoSide === 'left' ? '2px solid var(--accent-color)' : '2px solid rgba(255,255,255,0.12)',
+                          boxShadow: selectedPhotoSide === 'left' ? '0 0 10px var(--accent-color)' : 'none',
+                          transition: 'border-color 0.2s, box-shadow 0.2s',
+                          ...getSplitPreviewStyle(state.activePhoto.url, false)
+                        }} 
+                      />
+                      <div 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPhotoSide('right');
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleDragStart(e, secondPhoto.url, true);
+                          setSelectedPhotoSide('right');
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          handleDragStart(e, secondPhoto.url, true);
+                          setSelectedPhotoSide('right');
+                        }}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation();
+                        }}
+                        style={{
+                          flex: 1,
+                          height: '100%',
+                          cursor: dragState.isDragging && dragState.isSecond ? 'grabbing' : 'ns-resize',
+                          boxSizing: 'border-box',
+                          border: selectedPhotoSide === 'right' ? '2px solid var(--accent-color)' : '2px solid rgba(255,255,255,0.12)',
+                          boxShadow: selectedPhotoSide === 'right' ? '0 0 10px var(--accent-color)' : 'none',
+                          transition: 'border-color 0.2s, box-shadow 0.2s',
+                          ...getSplitPreviewStyle(secondPhoto.url, true)
+                        }} 
+                      />
+                    </div>
+                  ) : (
+                    <div 
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        handleDragStart(e, state.activePhoto.url, false);
+                      }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        handleDragStart(e, state.activePhoto.url, false);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.stopPropagation();
+                      }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        cursor: dragState.isDragging ? 'grabbing' : 'ns-resize',
+                        ...getSinglePreviewStyle(state.activePhoto.url)
+                      }} 
+                    />
+                  )}
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '14px',
+                    pointerEvents: 'none'
+                  }} />
                 </div>
-              ) : (
-                <div 
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    handleDragStart(e, state.activePhoto.url, false);
-                  }}
-                  onTouchStart={(e) => {
-                    e.stopPropagation();
-                    handleDragStart(e, state.activePhoto.url, false);
-                  }}
-                  onTouchEnd={(e) => {
-                    e.stopPropagation();
-                  }}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    cursor: dragState.isDragging ? 'grabbing' : 'ns-resize',
-                    ...getSinglePreviewStyle(state.activePhoto.url)
-                  }} 
-                />
-              )}
+              </div>
               {/* Subtle dark overlay for readability of gesture instructions */}
               <div style={{
                 position: 'absolute',
@@ -216,10 +258,7 @@ function DirectControlTab({
             </div>
             <div 
               className="switch-wrapper"
-              onClick={() => socket.emit('set-photo-prevent-pairing', {
-                url: selectedPhoto.url,
-                preventPairing: !selectedPhoto.preventPairing
-              })}
+              onClick={handlePairingToggle}
               style={{ cursor: 'pointer' }}
             >
               <span className={`switch-slider ${!selectedPhoto.preventPairing ? 'checked' : ''}`}></span>

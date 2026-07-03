@@ -57,6 +57,17 @@ function Dashboard({ state, socket, connectionInfo }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    socket.emit('report-tv-viewport', {
+      width: dimensions.width,
+      height: dimensions.height
+    });
+  }, [socket, dimensions.width, dimensions.height]);
+
   // Weather code to text & icon mapper
   const getWeatherInfo = (code) => {
     if (code === 0) return { text: 'Clear Sky', icon: <Sun className="weather-icon-sun" style={{ color: '#fbbf24' }} /> };

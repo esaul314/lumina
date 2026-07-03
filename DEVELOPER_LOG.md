@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-06-30: Direct Control Pairing Toggle Preserves Focused Portrait Preview
+* **Goal**: Make the `Allow Side-by-Side Pairing` toggle in Direct Control behave like an editable preview control instead of seeming to skip away from the portrait being adjusted.
+* **Implementation**:
+  * **Focused single-photo preservation**: Updated [`server/domain/reducer.js`](file:///home/alex/work/lumina/server/domain/reducer.js) so a `set-photo-prevent-pairing` command can optionally preserve the targeted portrait as the active photo when pairing is turned off from a split view.
+  * **Socket passthrough**: Extended [`server/sockets.js`](file:///home/alex/work/lumina/server/sockets.js) to forward the new `preserveActive` intent and keep the legacy fallback path aligned.
+  * **Direct Control UX fix**: Updated [`DirectControlTab.jsx`](file:///home/alex/work/lumina/client/src/components/remote/DirectControlTab.jsx) so disabling pairing on the focused portrait requests that single-photo preservation instead of immediately collapsing back to the other half of the split frame.
+  * **Regression coverage**: Added a reducer test in [`server/domain/tests.js`](file:///home/alex/work/lumina/server/domain/tests.js) proving that disabling pairing on the focused secondary portrait yields a single-image frame with that same portrait still active.
+* **Learning**: In split portrait mode, metadata edits that change layout must preserve the operator's focused image when the intent is preview/editing, otherwise the toggle reads like a slideshow navigation action.
+* **Verification**: `npm test` passed. `npm run lint` passed. `npm --prefix client run build` passed. The known sandbox-only `listen EPERM` log still appears inside the ephemeral localhost smoke section, but the suite exits successfully.
+
 ### 2026-06-29: Selector-Core Reuse & Declarative Feed Config Presets
 * **Goal**: Make another ES6+/functional cleanup pass without sacrificing readability, and keep the JavaScript surface closer to the reducer/selector foundation that will later migrate to TypeScript.
 * **Implementation**:
@@ -250,6 +260,33 @@ The screensaver automatically maps live conditions and global sentiment to activ
   - After switching the live category back to `Google Photos`, the same proxy URL remained stable across six 4-second samples instead of rotating every few seconds.
   - `journalctl --user -u lumina` stopped showing the prior rapid `Spawning Fullscreen Kiosk Screensaver...` / `Dismissing Kiosk Browser...` oscillation after the service restart with the daemon fix.
 
+### 2026-06-30 (Phase 13): Resolved Fullscreen Chromium Error Pages & Spurious Dismissals
+- **Issue**: The HTPC would sometimes show a default Chromium connection error page full screen on the TV, and once displayed, the screensaver would not restart or recover automatically. Additionally, when the screensaver did launch, it would often immediately dismiss itself.
+- **Root Causes**:
+  - **Startup Race Condition**: When the server restarts (e.g. during a port collision), it takes up to 1 second to bind to the fallback port. Meanwhile, if the system is already idle, the Mutter daemon polls and spawns Chromium immediately, before the server is actually listening on the port.
+  - **No Auto-Reload**: Chromium doesn't try to auto-retry page loads by default, leaving the error screen displayed indefinitely.
+  - **Stuck Daemon State**: The launch callback in `launchChromiumKiosk` was broken. Normal exits (code 0) didn't call `onUnexpectedExit`, leaving `isBrowserRunning = true` stuck in the daemon. Post-launch crashes tried to run X11/Wayland startup fallbacks instead of just notifying the daemon.
+  - **Synthetic mousemove Dismissal**: The TV dashboard listened to any `mousemove` event to dismiss the screensaver, but Chromium fires synthetic `mousemove` events when elements are mounted/updated in the DOM, causing immediate self-dismissal.
+- **Fix**:
+  - **Kiosk Launch Guard**: Added `server.listening` check in `app.js` to defer spawning the kiosk browser if the server is not yet fully listening.
+  - **Auto-Reload**: Added `--enable-offline-auto-reload` to `BASE_CHROMIUM_FLAGS` in `system.js` so Chromium auto-retries on connection failures.
+  - **Robust Exit Monitoring**: Refactored `launchChromiumKiosk` to run a clean launch sequence. Checked process running duration: if a process exits after >5 seconds (crashes or normal exits), call `onUnexpectedExit` directly.
+  - **Synthetic Event Filter**: Added `lastMousePosRef` in `Dashboard.jsx` to store coordinates, ignoring `mousemove` events unless coordinates have actually changed.
+- **Verification**:
+  - All 77 unit and integration tests successfully passed.
+  - Manually verified that the screensaver successfully handles manual activation, respects audio playing/movie guards, and filters out synthetic mouse moves.
+
+### 2026-07-03 (Phase 14): Direct Control Preview Now Uses the TV's Real Viewport
+- **Issue**: The `TV Gesture Controller` preview on the remote used the full swipe-pad aspect ratio, which is wider than the actual TV viewport on the phone-sized card. That made the preview show misleading side borders and made crop/zoom adjustments harder to judge.
+- **Fix**:
+  - `Dashboard.jsx` now reports the live TV viewport size (`window.innerWidth` / `window.innerHeight`) back to the server after mount and resize.
+  - `server/sockets.js` stores that ephemeral `tvViewport` payload in live state and broadcasts it to remotes.
+  - `RemoteControl.jsx` now fits the preview into a traced inner TV frame using the reported aspect ratio, with `16:9` only as fallback before the TV reports in.
+  - `DirectControlTab.jsx` renders the active image inside that centered frame instead of stretching it across the entire gesture pad, and the crop drag math now targets the traced frame height rather than the wider outer card.
+- **Verification**:
+  - `npm test`, `npm run lint`, and `npm --prefix client run build` passed.
+  - Restarted the real `systemd --user` `lumina` service on `playwright`; `systemctl --user is-active lumina` returned `active`.
+  - Live `GET /api/state` verification showed `tvViewport={"width":1920,"height":1080,"aspectRatio":1.7777777777777777,...}` after the dashboard reconnected, confirming the remote now has the exact TV frame ratio.
 
 ---
 

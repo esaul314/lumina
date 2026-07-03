@@ -20,6 +20,45 @@ import {
   isSplitFrameActive
 } from '../state/frameSelectors';
 
+const DEFAULT_PREVIEW_DIMENSIONS = { width: 350, height: 180 };
+const TV_FRAME_ASPECT_RATIO = 16 / 9;
+const SPLIT_PREVIEW_PADDING = 6;
+const SPLIT_PREVIEW_GAP = 6;
+
+function getTvAspectRatio(viewport) {
+  const width = Number(viewport?.width);
+  const height = Number(viewport?.height);
+
+  if (width > 0 && height > 0) {
+    return width / height;
+  }
+
+  return TV_FRAME_ASPECT_RATIO;
+}
+
+function fitTvPreviewFrame(dimensions, aspectRatio = TV_FRAME_ASPECT_RATIO) {
+  const width = dimensions?.width || DEFAULT_PREVIEW_DIMENSIONS.width;
+  const height = dimensions?.height || DEFAULT_PREVIEW_DIMENSIONS.height;
+
+  if (width <= 0 || height <= 0) {
+    return DEFAULT_PREVIEW_DIMENSIONS;
+  }
+
+  const containerRatio = width / height;
+
+  if (containerRatio > aspectRatio) {
+    return {
+      width: height * aspectRatio,
+      height
+    };
+  }
+
+  return {
+    width,
+    height: width / aspectRatio
+  };
+}
+
 function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [activeTab, setActiveTab] = useState('controls'); // controls, settings, photos
   const [googleClientId, setGoogleClientId] = useState('');
@@ -52,12 +91,13 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
   // 4. Crop & Vertical Positioning Drag Physics Hook
   const previewContainerRef = useRef(null);
-  const [previewDimensions, setPreviewDimensions] = useState({ width: 350, height: 180 });
+  const [previewDimensions, setPreviewDimensions] = useState(DEFAULT_PREVIEW_DIMENSIONS);
+  const tvPreviewDimensions = fitTvPreviewFrame(previewDimensions, getTvAspectRatio(state.tvViewport));
   const { 
     dragState, 
     currentDragY, 
     handleDragStart 
-  } = useCropDrag(actions, state, previewDimensions);
+  } = useCropDrag(actions, state, tvPreviewDimensions);
 
   // 5. Active Photo Crop (Debounced range input) State
   const [selectedPhotoSide, setSelectedPhotoSide] = useState('left'); // 'left' | 'right'
@@ -317,11 +357,11 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
       const isPortrait = isSecond ? true : ((frameOrientation === 'portrait') || activePhotoOrientation === 'portrait');
       R_i = isPortrait ? 0.667 : 1.5;
     }
-    const padWidth = previewDimensions.width;
-    const padHeight = previewDimensions.height;
+    const padWidth = tvPreviewDimensions.width;
+    const padHeight = tvPreviewDimensions.height;
 
-    const halfWidth = (padWidth - 18) / 2;
-    const halfHeight = padHeight - 12;
+    const halfWidth = (padWidth - ((SPLIT_PREVIEW_PADDING * 2) + SPLIT_PREVIEW_GAP)) / 2;
+    const halfHeight = padHeight - (SPLIT_PREVIEW_PADDING * 2);
     const R_c = halfWidth / halfHeight;
 
     const { cropPercent, cropPositionY } = getPhotoCropState(
@@ -373,8 +413,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     } else {
       R_i = (frameOrientation === 'portrait' || activePhotoOrientation === 'portrait') ? 0.667 : 1.5;
     }
-    const padWidth = previewDimensions.width;
-    const padHeight = previewDimensions.height;
+    const padWidth = tvPreviewDimensions.width;
+    const padHeight = tvPreviewDimensions.height;
 
     const R_c = padWidth / padHeight;
 
@@ -454,6 +494,10 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
 
   const themes = ['Zen Retreat', 'Cosmic Night', 'Art Museum', 'Cyberpunk Rain'];
+  const tvPreviewFrameStyle = {
+    width: `${Math.round(tvPreviewDimensions.width)}px`,
+    height: `${Math.round(tvPreviewDimensions.height)}px`
+  };
 
   return (
     <div className={`lumina-remote-container theme-${state.theme.toLowerCase().replace(' ', '-')}`}>
@@ -511,6 +555,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           currentDragY={currentDragY}
           activePhotoCrop={activePhotoCrop}
           previewContainerRef={previewContainerRef}
+          tvPreviewFrameStyle={tvPreviewFrameStyle}
           swipeStatus={swipeStatus}
           handleTouchStart={handleTouchStart}
           handleTouchEnd={handleTouchEnd}

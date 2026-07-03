@@ -194,6 +194,22 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(secondaryCropResult.nextState.library.collections['Liminal Spaces'][1].cropPercent, 82);
   });
 
+  assertTest('disallowing pairing can preserve the focused split portrait as the active single photo', () => {
+    const result = reduceDomainCommand(createState(), {
+      type: 'set-photo-prevent-pairing',
+      payload: { url: 'port-2', preventPairing: true, preserveActive: true }
+    });
+    const frame = deriveCurrentFrame(result.nextState);
+
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
+    assert.strictEqual(frame.layout, 'single');
+    assert.strictEqual(frame.primary?.url, 'port-2');
+    assert.strictEqual(frame.secondary, null);
+    assert.strictEqual(frame.primary?.preventPairing, true);
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+  });
+
   assertTest('reducer banning the active photo advances playback exactly once', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {

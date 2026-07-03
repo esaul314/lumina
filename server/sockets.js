@@ -246,6 +246,23 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
+    socket.on('report-tv-viewport', (payload) => {
+      const width = Number(payload?.width);
+      const height = Number(payload?.height);
+
+      if (!(width > 0) || !(height > 0)) {
+        return;
+      }
+
+      state.tvViewport = {
+        width,
+        height,
+        aspectRatio: width / height,
+        updatedAt: Date.now()
+      };
+      broadcast();
+    });
+
     // Rate photo socket event
     socket.on('rate-photo', ({ url, rating }) => {
       const command = decodePhotoRatingCommand({ url, rating });
@@ -283,11 +300,11 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
 
     // Set individual photo pairing prevention
-    socket.on('set-photo-prevent-pairing', ({ url, preventPairing }) => {
+    socket.on('set-photo-prevent-pairing', ({ url, preventPairing, preserveActive }) => {
       if (dispatchCommand) {
         dispatchCommand({
           type: 'set-photo-prevent-pairing',
-          payload: { url, preventPairing }
+          payload: { url, preventPairing, preserveActive }
         });
         return;
       }
@@ -295,6 +312,14 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
       const { updatePhotoPreventPairing } = require('./config/collections.js');
       updatePhotoPreventPairing(collections, state, url, preventPairing);
+      if (preventPairing && preserveActive) {
+        const focusedPhoto = state.photosList?.find((photo) => photo?.url === url)
+          || Object.values(collections).flat().find((photo) => photo?.url === url);
+        if (focusedPhoto) {
+          state.activePhoto = focusedPhoto;
+          state.activeSecondPhoto = null;
+        }
+      }
       broadcast();
     });
 

@@ -275,13 +275,32 @@ function reduceDomainCommand(state, command, env = {}) {
     }
 
     case 'set-photo-prevent-pairing': {
+      const url = String(command.payload?.url || '');
+      const preventPairing = Boolean(command.payload?.preventPairing);
       const updated = withUpdatedPhoto(cloneState(state), String(command.payload?.url || ''), (photo) => ({
         ...photo,
-        preventPairing: Boolean(command.payload?.preventPairing)
+        preventPairing
       }));
-      return updated.changed
-        ? createResult(updated.state, emitStateSync(), [{ type: 'persist' }])
-        : createResult(state, [], []);
+      if (!updated.changed) {
+        return createResult(state, [], []);
+      }
+
+      const shouldPreserveActive = preventPairing && Boolean(command.payload?.preserveActive);
+      if (!shouldPreserveActive) {
+        return createResult(updated.state, emitStateSync(), [{ type: 'persist' }]);
+      }
+
+      const focusedPhoto = findPhotoInFeed(updated.state.library.photosList, url)
+        || getPhotoByUrl(updated.state.library.collections, url);
+      const preserved = focusedPhoto
+        ? updateActivePhotoUrl(updated.state, focusedPhoto, updated.state.playback.lastDirection)
+        : { state: updated.state, changed: false };
+
+      return createResult(
+        preserved.state,
+        preserved.changed ? emitPhotoUpdate() : emitStateSync(),
+        [{ type: 'persist' }]
+      );
     }
 
     case 'report-photo-metadata': {
