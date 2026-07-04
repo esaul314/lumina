@@ -36,6 +36,7 @@ const {
   classifyWeatherCode,
   fetchWeatherForecast
 } = require('./services/weather.js');
+const googlePhotos = require('./services/googlePhotos.js');
 const { analyzeSentiment } = require('./services/sentiment.js');
 const { crawlAllCollections } = require('./services/crawler.js');
 const {
@@ -187,8 +188,15 @@ function combineFeedsBalanced(categories, collections) {
   return buildBalancedFeed({
     selectedCategories: categories,
     collections,
+    externalCollections: getExternalCollections(),
     excludedKeywords: screensaverState.excludedKeywords
   });
+}
+
+function getExternalCollections() {
+  return {
+    'Google Photos': googlePhotos.getCachedMediaItems().map((photo) => ({ ...photo, category: 'Google Photos' }))
+  };
 }
 
 /**
@@ -414,7 +422,8 @@ function getRuntimeContext() {
   return {
     weather: serverWeatherData,
     browserRunning: isBrowserRunning,
-    manualOverride
+    manualOverride,
+    externalCollections: getExternalCollections()
   };
 }
 

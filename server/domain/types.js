@@ -105,7 +105,7 @@
  * @typedef {object} DomainState
  * @property {SessionConfig} config
  * @property {RuntimeState} runtime
- * @property {{ collections: CollectionsState, photosList: Photo[] }} library
+ * @property {{ collections: CollectionsState, externalCollections?: CollectionsState, photosList: Photo[] }} library
  * @property {PlaybackState} playback
  */
 

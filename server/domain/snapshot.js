@@ -61,6 +61,7 @@ function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
     },
     library: {
       collections: nextCollections,
+      externalCollections: cloneCollections(runtimeOverrides.externalCollections || {}),
       photosList: clonePhotosList(legacyState.photosList)
     },
     playback: {

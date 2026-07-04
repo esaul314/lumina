@@ -43,6 +43,12 @@ function cloneState(state) {
           photos.map((photo) => ({ ...photo }))
         ])
       ),
+      externalCollections: Object.fromEntries(
+        Object.entries(state.library.externalCollections || {}).map(([category, photos]) => [
+          category,
+          photos.map((photo) => ({ ...photo }))
+        ])
+      ),
       photosList: state.library.photosList.map((photo) => ({ ...photo }))
     },
     playback: {
@@ -72,6 +78,7 @@ function recomputeFeed(state, rng) {
       photosList: buildBalancedFeed({
         selectedCategories: state.playback.selectedCategories,
         collections: state.library.collections,
+        externalCollections: state.library.externalCollections,
         excludedKeywords: state.config.excludedKeywords,
         rng
       })
@@ -191,7 +198,9 @@ function reduceDomainCommand(state, command, env = {}) {
       const payloadPhoto = command.payload?.photo && typeof command.payload.photo === 'object'
         ? /** @type {Photo} */ ({ ...command.payload.photo })
         : null;
-      const selectedPhoto = findPhotoInFeed(state.library.photosList, url) || getPhotoByUrl(state.library.collections, url) || payloadPhoto;
+      const selectedPhoto = findPhotoInFeed(state.library.photosList, url)
+        || getPhotoByUrl(state.library.collections, url, state.library.externalCollections)
+        || payloadPhoto;
       if (!selectedPhoto) {
         return createResult(state, [], []);
       }

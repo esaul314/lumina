@@ -69,6 +69,10 @@ function attachCategory(category, photo) {
   return photo.category === category ? { ...photo } : { ...photo, category };
 }
 
+function getCategoryPhotos(category, collections, externalCollections = {}) {
+  return externalCollections[category] ?? collections[category] ?? [];
+}
+
 function uniqByUrl(photos) {
   /** @type {Set<string>} */
   const seen = new Set();
@@ -102,11 +106,12 @@ function interleaveLists(lists) {
   );
 }
 
-function buildBalancedFeed({ selectedCategories, collections, excludedKeywords, rng = Math.random }) {
+function buildBalancedFeed({ selectedCategories, collections, externalCollections = {}, excludedKeywords, rng = Math.random }) {
   const lists = selectedCategories
     .map((category) =>
       shuffleWithRng(
-        filterVisiblePhotos(collections[category] ?? [], excludedKeywords).map((photo) => attachCategory(category, photo)),
+        filterVisiblePhotos(getCategoryPhotos(category, collections, externalCollections), excludedKeywords)
+          .map((photo) => attachCategory(category, photo)),
         rng
       )
     )
@@ -127,8 +132,8 @@ function findPhotoInFeed(photosList, url) {
   return (photosList ?? []).find((photo) => photo?.url === url) ?? null;
 }
 
-function getPhotoByUrl(collections, url) {
-  return Object.values(collections)
+function getPhotoByUrl(collections, url, externalCollections = {}) {
+  return [...Object.values(collections), ...Object.values(externalCollections)]
     .flat()
     .find((photo) => photo?.url === url) ?? null;
 }
@@ -304,7 +309,8 @@ function pickStablePhoto(candidates, seed) {
 
 function getActivePhoto(state) {
   return state.playback.activePhotoUrl
-    ? findPhotoInFeed(state.library.photosList, state.playback.activePhotoUrl) ?? getPhotoByUrl(state.library.collections, state.playback.activePhotoUrl)
+    ? findPhotoInFeed(state.library.photosList, state.playback.activePhotoUrl)
+      ?? getPhotoByUrl(state.library.collections, state.playback.activePhotoUrl, state.library.externalCollections)
     : null;
 }
 
