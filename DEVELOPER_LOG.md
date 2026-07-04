@@ -334,7 +334,18 @@ The screensaver automatically maps live conditions and global sentiment to activ
 - **Verification**:
   - `npm test`, `npm run lint`, and `npm --prefix client run build` passed.
   - Restarted the real `systemd --user` `lumina` service on `playwright`; `systemctl --user is-active lumina` returned `active`.
-  - Live `GET /api/state` verification showed `tvViewport={"width":1920,"height":1080,"aspectRatio":1.7777777777777777,...}` after the dashboard reconnected, confirming the remote now has the exact TV frame ratio.
+### 2026-07-04 (Phase 15): Refactored TV Preview Resolution Labels, Layout Cleanups, and Enhanced Diagnostics
+- **Issue**:
+  - The TV-frame previews had a resolution note overlaid directly on the picture preview, cluttering the UI. The word "display" was used generically when HDMI device make/model couldn't be resolved, and the swipe instructions on the TV Gesture Controller pad had a heavy dark gradient and bouncing icons.
+  - The diagnostic check script `/scripts/diagnose.sh` was unable to detect running chromium processes correctly on the TV host due to a pattern matching only `chrome` instead of `chromium-browser` or `chromium`.
+- **Fix**:
+  - **Resolution metadata**: Refactored `formatTvPreviewMetaLabel` in `RemoteControl.jsx` to return `null` if generic display names (such as "display", "unknown", "default", adapters, or raw port names) are found. If display info has a valid vendor or model name, it formats the make/model and resolution dimensions.
+  - **Layout Refactor**: Moved the resolution note off the TV preview frame onto the card's outer subtitle layout in `DirectControlTab.jsx` and `ImageFeedsTab.jsx`.
+  - **Gesture pad updates**: Removed the dark gradient overlay and bouncing icon from the TV Gesture Controller pad. Placed the `swipeStatus` instructions underneath the swipe pad for a cleaner look.
+  - **Diagnostics & Health checks**: Replaced `pgrep -f "chrome.*kiosk.*mode=tv"` in `diagnose.sh` with `pgrep -f "chrom.*(kiosk|mode=tv)"` and filtered out search utility processes, enabling accurate detection of active `chromium-browser` processes. Added checks to verify the installation of `chromium`/`chromium-browser` and verify the presence/accessibility of the active Wayland display socket `/run/user/1000/wayland-0`.
+- **Verification**:
+  - All 84 unit and integration tests passed.
+  - Diagnostics script ran successfully, verifying the correct active status of the Wayland socket and path availability.
 
 ---
 
