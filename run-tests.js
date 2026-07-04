@@ -484,7 +484,7 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
     }
   }, 'session-abc');
 
-  assert.strictEqual(item.url, '/api/google-photos/media/picker-123?w=2560&h=1440&c=1');
+  assert.strictEqual(item.url, '/api/google-photos/media/picker-123?w=2560&h=1440');
   assert.strictEqual(item.googleBaseUrl, 'https://lh3.googleusercontent.com/picker-item');
   assert.strictEqual(item.googlePickerSessionId, 'session-abc');
   assert.strictEqual(item.width, 4032);
@@ -492,9 +492,14 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
   assert.strictEqual(item.mimeType, 'image/jpeg');
 });
 
-assertTest('buildGooglePhotoProxyUrl preserves same-origin rendering for browser previews', () => {
-  const proxyUrl = buildGooglePhotoProxyUrl('A/B+C', { width: 1080, height: 1920, crop: false });
+assertTest('buildGooglePhotoProxyUrl preserves same-origin rendering for browser previews without forced crop', () => {
+  const proxyUrl = buildGooglePhotoProxyUrl('A/B+C', { width: 1080, height: 1920 });
   assert.strictEqual(proxyUrl, '/api/google-photos/media/A%2FB%2BC?w=1080&h=1920');
+});
+
+assertTest('buildGooglePhotoProxyUrl still supports explicit crop opt-in', () => {
+  const proxyUrl = buildGooglePhotoProxyUrl('A/B+C', { width: 1080, height: 1920, crop: true });
+  assert.strictEqual(proxyUrl, '/api/google-photos/media/A%2FB%2BC?w=1080&h=1920&c=1');
 });
 
 assertTest('Google Photos proxy URLs round-trip their media item ids', () => {

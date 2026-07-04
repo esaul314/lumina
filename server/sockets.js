@@ -36,6 +36,17 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     }
     io.emit('state-sync', state);
   };
+
+  const applyGooglePhotoMetadata = (url, metadata) => {
+    const metadataPatch = googlePhotos.buildGooglePhotoMetadataPatch(metadata);
+    const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, metadataPatch);
+    if (!updatedPhoto) {
+      return null;
+    }
+
+    googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
+    return updatedPhoto;
+  };
   
   io.on('connection', (socket) => {
     console.log('Device connected to Lumina network:', socket.id);
@@ -239,8 +250,22 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     });
 
     socket.on('report-photo-metadata', (payload) => {
-      if (!dispatchCommand) return;
       const command = decodePhotoMetadataCommand(payload);
+      if (!command) return;
+
+      if (googlePhotos.isGooglePhotoProxyUrl(command.payload.url)) {
+        const updatedPhoto = applyGooglePhotoMetadata(command.payload.url, {
+          orientation: command.payload.orientation,
+          width: command.payload.width,
+          height: command.payload.height
+        });
+        if (updatedPhoto) {
+          broadcast();
+        }
+        return;
+      }
+
+      if (!dispatchCommand) return;
       if (command) {
         dispatchCommand(command);
       }
@@ -287,11 +312,23 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     // Set individual photo crop ratio and vertical position
     socket.on('set-photo-crop', ({ url, cropPercent, cropPositionY }) => {
       const command = decodePhotoCropCommand({ url, cropPercent, cropPositionY });
+      if (!command) return;
+
+      if (googlePhotos.isGooglePhotoProxyUrl(command.payload.url)) {
+        const updatedPhoto = applyGooglePhotoMetadata(command.payload.url, {
+          cropPercent: command.payload.cropPercent,
+          cropPositionY: command.payload.cropPositionY
+        });
+        if (updatedPhoto) {
+          broadcast();
+        }
+        return;
+      }
+
       if (command && dispatchCommand) {
         dispatchCommand(command);
         return;
       }
-      if (!command) return;
 
       const { updatePhotoCrop } = require('./config/collections.js');
       updatePhotoCrop(collections, state, command.payload.url, command.payload.cropPercent, command.payload.cropPositionY);
@@ -303,10 +340,9 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('set-photo-prevent-pairing', ({ url, preventPairing, preserveActive }) => {
       if (googlePhotos.isGooglePhotoProxyUrl(url)) {
         const metadata = { preventPairing: Boolean(preventPairing) };
-        const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, metadata);
+        const updatedPhoto = applyGooglePhotoMetadata(url, metadata);
         if (!updatedPhoto) return;
 
-        googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadata);
         if (metadata.preventPairing && preserveActive) {
           const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
           if (focusedPhoto) {

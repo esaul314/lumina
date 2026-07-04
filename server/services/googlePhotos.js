@@ -31,7 +31,7 @@ function persistGoogleRefreshToken(refreshToken) {
   });
 }
 
-function buildGooglePhotoProxyUrl(mediaItemId, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = true } = {}) {
+function buildGooglePhotoProxyUrl(mediaItemId, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = false } = {}) {
   const params = new URLSearchParams({
     w: String(width),
     h: String(height)
@@ -58,7 +58,7 @@ function isGooglePhotoProxyUrl(value) {
   return Boolean(getGooglePhotoMediaItemId(value));
 }
 
-function buildGooglePhotoContentUrl(baseUrl, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = true } = {}) {
+function buildGooglePhotoContentUrl(baseUrl, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = false } = {}) {
   if (!baseUrl) {
     return '';
   }
@@ -185,7 +185,7 @@ function updateCachedMediaItem(item) {
   return item;
 }
 
-function buildMetadataPatch(metadata = {}) {
+function buildGooglePhotoMetadataPatch(metadata = {}) {
   return Object.fromEntries(
     Object.entries({
       rating: metadata.rating,
@@ -202,7 +202,7 @@ function buildMetadataPatch(metadata = {}) {
 
 function mergeCachedMediaItemMetadata(items, mediaIdentifier, metadata = {}) {
   const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();
-  const metadataPatch = buildMetadataPatch(metadata);
+  const metadataPatch = buildGooglePhotoMetadataPatch(metadata);
 
   if (!mediaItemId || Object.keys(metadataPatch).length === 0) {
     return {
@@ -250,7 +250,7 @@ function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
 
 function applyCachedMediaItemMetadataToState(state, mediaIdentifier, metadata = {}) {
   const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();
-  const metadataPatch = buildMetadataPatch(metadata);
+  const metadataPatch = buildGooglePhotoMetadataPatch(metadata);
 
   if (!state || !mediaItemId || Object.keys(metadataPatch).length === 0) {
     return null;
@@ -813,6 +813,7 @@ function isAuthenticated() {
 
 module.exports = {
   applyCachedMediaItemMetadataToState,
+  buildGooglePhotoMetadataPatch,
   saveGoogleCredentials,
   getGoogleAuthUrl,
   exchangeGoogleCode,

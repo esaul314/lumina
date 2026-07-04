@@ -103,7 +103,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
   app.get('/api/google-photos/media/:mediaItemId', async (req, res) => {
     const width = Number.parseInt(req.query.w, 10);
     const height = Number.parseInt(req.query.h, 10);
-    const crop = req.query.c !== '0';
+    const crop = req.query.c === '1';
 
     try {
       const media = await googlePhotos.fetchMediaItemBytes(req.params.mediaItemId, {
@@ -747,33 +747,47 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
     }
 
-    const isGooglePairingPatch =
-      preventPairing !== undefined
+    const isGoogleMetadataPatch =
+      googlePhotos.isGooglePhotoProxyUrl(url)
       && rating === undefined
-      && cropPercent === undefined
-      && cropPositionY === undefined
       && isBroken !== true
-      && googlePhotos.isGooglePhotoProxyUrl(url);
+      && (
+        cropPercent !== undefined
+        || cropPositionY !== undefined
+        || preventPairing !== undefined
+      );
 
-    if (isGooglePairingPatch) {
-      const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, {
-        preventPairing: !!preventPairing
+    if (isGoogleMetadataPatch) {
+      const googleCropCommand = (cropPercent !== undefined || cropPositionY !== undefined)
+        ? decodePhotoCropCommand({ url, cropPercent, cropPositionY })
+        : null;
+
+      if ((cropPercent !== undefined || cropPositionY !== undefined) && !googleCropCommand) {
+        return res.status(400).json({ error: 'Invalid crop payload.' });
+      }
+
+      const metadataPatch = googlePhotos.buildGooglePhotoMetadataPatch({
+        ...(googleCropCommand?.payload.cropPercent !== undefined ? { cropPercent: googleCropCommand.payload.cropPercent } : {}),
+        ...(googleCropCommand?.payload.cropPositionY !== undefined ? { cropPositionY: googleCropCommand.payload.cropPositionY } : {}),
+        ...(preventPairing !== undefined ? { preventPairing: !!preventPairing } : {})
       });
+
+      const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, metadataPatch);
 
       if (!updatedPhoto) {
         return res.status(404).json({ error: 'Photo URL not found in Google Photos cache.' });
       }
 
-      googlePhotos.applyCachedMediaItemMetadataToState(state, url, {
-        preventPairing: !!preventPairing
-      });
+      googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
       broadcast();
 
       return res.json({
         success: true,
         photo: {
           url,
-          preventPairing: !!preventPairing
+          ...(googleCropCommand?.payload.cropPercent !== undefined ? { cropPercent: googleCropCommand.payload.cropPercent } : {}),
+          ...(googleCropCommand?.payload.cropPositionY !== undefined ? { cropPositionY: googleCropCommand.payload.cropPositionY } : {}),
+          ...(preventPairing !== undefined ? { preventPairing: !!preventPairing } : {})
         }
       });
     }

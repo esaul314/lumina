@@ -13,9 +13,11 @@ export function useImagePreloader(url, actions, remoteDimensionsCache, remoteOri
     // Set event handlers BEFORE setting src to prevent race conditions with cached images
     img.onload = () => {
       if (!active) return;
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
       setImageStatus('loaded');
-      remoteDimensionsCache.current[url] = { w: img.width, h: img.height };
-      remoteOrientationCache.current[url] = img.height > img.width ? 'portrait' : 'landscape';
+      remoteDimensionsCache.current[url] = { w: width, h: height };
+      remoteOrientationCache.current[url] = height > width ? 'portrait' : 'landscape';
     };
 
     img.onerror = () => {
