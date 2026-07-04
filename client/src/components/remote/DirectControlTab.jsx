@@ -190,26 +190,9 @@ function DirectControlTab({
                   }} />
                 </div>
               </div>
-              {/* Subtle dark overlay for readability of gesture instructions */}
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                background: 'linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.7))',
-                zIndex: 1,
-                pointerEvents: 'none'
-              }} />
             </div>
           )}
 
-          <div className="swipe-icon" style={{ position: 'relative', zIndex: 2, fontSize: '2.5rem', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))', marginTop: '-12px', pointerEvents: 'none' }}>
-            {state.activePhoto ? '🖼️' : '✨'}
-          </div>
-          <p style={{ position: 'relative', zIndex: 2, textAlign: 'center', padding: '0 20px 18px 20px', lineHeight: 1.4, fontWeight: 500, margin: 0, pointerEvents: 'none' }}>
-            {swipeStatus}
-          </p>
           {state.activePhoto && (
             <span style={{ 
               position: 'absolute',
@@ -218,7 +201,8 @@ function DirectControlTab({
               left: '16px',
               right: '16px',
               fontSize: '0.72rem',
-              opacity: 0.65,
+              opacity: 0.85,
+              textShadow: '0 1px 3px rgba(0,0,0,0.9)',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
               whiteSpace: 'nowrap',
@@ -232,6 +216,21 @@ function DirectControlTab({
                 : `TV PREVIEW: ${state.activePhoto.title}`}
             </span>
           )}
+        </div>
+
+        <div style={{
+          textAlign: 'center',
+          fontSize: '0.78rem',
+          color: 'rgba(255, 255, 255, 0.45)',
+          marginTop: '10px',
+          fontWeight: 500,
+          letterSpacing: '0.02em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px'
+        }}>
+          <span>👆</span> {swipeStatus}
         </div>
 
         {selectedPhoto && (
