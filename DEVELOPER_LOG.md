@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-04: Google Photos Category Selection Rehydrates the Active Pool
+* **Goal**: Fix the `No photos in active pool to display` regression that appeared when selecting the `Google Photos` feed.
+* **Implementation**:
+  * **Shared external-feed support**: Extended the functional-core feed builder in `server/domain/selectors.js` so category selection can merge curated collections with source-specific external collections such as cached Google Photos items.
+  * **Reducer and snapshot plumbing**: Updated `server/domain/reducer.js`, `server/domain/snapshot.js`, and `server/app.js` so the live dispatcher receives Google Photos cache rows as runtime `externalCollections` instead of treating `Google Photos` like a curated category with no backing list.
+  * **Regression coverage**: Added domain tests in `server/domain/tests.js` proving that `buildBalancedFeed(...)` and `select-categories` both keep a Google Photos pool populated from external cache state.
+* **Learning**: Category normalization was already permissive enough to accept `Google Photos`, but the pure recompute path only looked at curated collections. A category can be valid in the selector layer yet still collapse to an empty pool unless the feed source is represented explicitly in the shared state model.
+* **Verification**: `npm test` passed. `npm run lint` passed. `systemctl --user restart lumina` succeeded. Live checks against `http://127.0.0.1:5000/api/config` and `http://127.0.0.1:5000/api/photos?category=Google%20Photos` showed `currentCategory: "Google Photos"` with `74` photos in the active pool.
+
 ### 2026-07-04: Google Photos Crop Persistence & Aspect-Preserving Preview Fix
 * **Goal**: Fix three related Google Photos regressions: squished paired images in the `TV Gesture Controller` preview, Direct Control crop/scroll snap-back, and a non-working `Photo Crop/Zoom (Rating Deck)` slider.
 * **Implementation**:

@@ -66,6 +66,7 @@ function createState(overrides = {}) {
           { url: 'port-2', title: 'Silent Corridor', rating: 9, orientation: 'portrait', isCloudy: true, category: 'Liminal Spaces' }
         ]
       },
+      externalCollections: {},
       photosList: [
         { url: 'port-1', title: 'Midnight Hallway', rating: 10, orientation: 'portrait', isNight: true, category: 'Liminal Spaces' },
         { url: 'port-2', title: 'Silent Corridor', rating: 9, orientation: 'portrait', isCloudy: true, category: 'Liminal Spaces' }
@@ -121,6 +122,28 @@ function runDomainTests({ logSuite, assertTest }) {
     });
     assert.strictEqual(photos.some((photo) => photo.url === 'port-1'), false);
     assert.strictEqual(photos.length, 3);
+  });
+
+  assertTest('builds a Google Photos feed from external cached items', () => {
+    const photos = buildBalancedFeed({
+      selectedCategories: ['Google Photos'],
+      collections: createState().library.collections,
+      externalCollections: {
+        'Google Photos': [
+          {
+            url: '/api/google-photos/media/picker-123?w=2560&h=1440',
+            title: 'Picker Photo',
+            rating: 10
+          }
+        ]
+      },
+      excludedKeywords: [],
+      rng: () => 0.1
+    });
+
+    assert.strictEqual(photos.length, 1);
+    assert.strictEqual(photos[0].category, 'Google Photos');
+    assert.strictEqual(photos[0].title, 'Picker Photo');
   });
 
   assertTest('weighted selection favors high ratings with deterministic rng', () => {
@@ -276,6 +299,40 @@ function runDomainTests({ logSuite, assertTest }) {
     const httpResult = reduceDomainCommand(createState(), httpCommand, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
     const socketResult = reduceDomainCommand(createState(), socketCommand, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
     assert.deepStrictEqual(httpResult.nextState.playback, socketResult.nextState.playback);
+  });
+
+  assertTest('category selection keeps Google Photos active pools populated from external cache state', () => {
+    const baseState = createState();
+    const result = reduceDomainCommand(createState({
+      library: {
+        ...baseState.library,
+        externalCollections: {
+          'Google Photos': [
+            {
+              url: '/api/google-photos/media/picker-456?w=2560&h=1440',
+              title: 'Cached Google Photo',
+              rating: 10,
+              category: 'Google Photos'
+            }
+          ]
+        },
+        photosList: []
+      },
+      playback: {
+        selectedCategories: ['Scenic Nature'],
+        activePhotoUrl: 'land-1',
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    }), {
+      type: 'select-categories',
+      payload: { categories: 'Google Photos' }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.deepStrictEqual(result.nextState.playback.selectedCategories, ['Google Photos']);
+    assert.strictEqual(result.nextState.library.photosList.length, 1);
+    assert.strictEqual(result.nextState.library.photosList[0].title, 'Cached Google Photo');
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, result.nextState.library.photosList[0].url);
   });
 
   assertTest('REST and socket adapters decode the same rating command', () => {
