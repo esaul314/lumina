@@ -46,6 +46,17 @@ function DirectControlTab({
     <>
       <div className="remote-card">
         <span className="remote-section-title">TV Gesture Controller</span>
+        {tvPreviewMetaLabel && (
+          <div style={{
+            fontSize: '0.72rem',
+            color: 'rgba(255,255,255,0.4)',
+            marginTop: '-14px',
+            marginBottom: '4px',
+            letterSpacing: '0.02em'
+          }}>
+            📺 {tvPreviewMetaLabel}
+          </div>
+        )}
         <div 
           ref={previewContainerRef}
           className="swipe-pad"
@@ -177,24 +188,6 @@ function DirectControlTab({
                     borderRadius: '14px',
                     pointerEvents: 'none'
                   }} />
-                  <span style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '12px',
-                    zIndex: 2,
-                    fontSize: '0.62rem',
-                    letterSpacing: '0.04em',
-                    lineHeight: 1.2,
-                    color: 'rgba(255,255,255,0.72)',
-                    textShadow: '0 1px 3px rgba(0,0,0,0.85)',
-                    background: 'rgba(0,0,0,0.32)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '999px',
-                    padding: '4px 8px',
-                    pointerEvents: 'none'
-                  }}>
-                    {tvPreviewMetaLabel}
-                  </span>
                 </div>
               </div>
               {/* Subtle dark overlay for readability of gesture instructions */}

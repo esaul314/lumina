@@ -6,14 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
-### 2026-07-04: Host-Read Display Make/Model Badge in TV Preview Frames
-* **Goal**: Show a small screen-identity label inside the remote TV-frame previews using what the host can actually read about the active display, rather than the machine hostname.
+### 2026-07-04: TV Preview Resolution & Display Info Refactor & Adapter Filtering
+* **Goal**: Move the best-effort TV preview resolution metadata off the actual TV-frame preview outlines onto the outer layouts (under section headings), and hide it completely if a real physical TV make/model cannot be resolved (e.g. generic name "display" or video converters like "VGA to HDMI").
 * **Implementation**:
-  * **Mutter display probe**: Added a best-effort `getHostDisplayInfo()` helper in `server/services/system.js` that queries `org.gnome.Mutter.DisplayConfig.GetCurrentState` from the live GNOME user bus and extracts connector, vendor, product, display name, and current mode.
-  * **State sync hookup**: Updated `server/sockets.js` so the first live `report-tv-viewport` event also captures that host-read display descriptor and stores it in ephemeral state as `tvDisplayInfo`.
-  * **Remote badge**: Updated `client/src/components/RemoteControl.jsx`, `client/src/components/remote/DirectControlTab.jsx`, and `client/src/components/remote/ImageFeedsTab.jsx` to render a small caption inside both TV outline previews using best-effort make/model text plus the live preview dimensions.
-* **Learning**: The host may expose an adapter or connector path instead of a consumer TV brand. On the current setup, Mutter reports an adapter-like identity (`HJW`, `VGA TO HDMI`) rather than a clean brand string such as `Samsung`, so the UI must present this as best-effort display metadata rather than guaranteed marketing-name detection.
-* **Verification**: `npm test` passed. `npm --prefix client run build` passed.
+  * **Generic & Adapter Filter**: Updated `formatTvPreviewMetaLabel` in `client/src/components/RemoteControl.jsx` to match against generic words (`display`, `unknown`, `default`) and video adapters/converters (`vga to hdmi`, `hdmi to vga`, `adapter`, `converter`, `vga-`, `hdmi-`, `dp-`). If matched, it returns `null` to indicate no meta label should be rendered.
+  * **Direct Control Relocation**: Removed the meta span overlay from the preview frame inside `client/src/components/remote/DirectControlTab.jsx`, and rendered it as an outer text layout just below the "TV Gesture Controller" section header.
+  * **Image Feeds Relocation**: Removed the meta span overlay from all three states (loading, failed, loaded) of the preview frame in `client/src/components/remote/ImageFeedsTab.jsx`, and rendered it as an outer text layout below the "Independent Rating Deck" header.
+* **Learning**: High-fidelity TV preview overlays can easily look cluttered if metadata captions are rendered on top of them. Placing metadata on the outer card layout and hiding it when it is generic/adapter-based yields a cleaner and more professional remote control interface.
+* **Verification**: `npm test` and `npm --prefix client run build` passed successfully.
 
 ### 2026-07-04: Shared Detected TV Outline for Direct Control and Rating Deck
 * **Goal**: Keep the remote previews honest by rendering the same automatically detected TV frame outline in both `TV Gesture Controller` and `Independent Rating Deck`.

@@ -29,12 +29,37 @@ const SPLIT_PREVIEW_PADDING = 6;
 const SPLIT_PREVIEW_GAP = 6;
 
 function formatTvPreviewMetaLabel(displayInfo, viewport) {
+  const displayName = displayInfo?.makeModel || displayInfo?.displayName || displayInfo?.connector || '';
+  
+  if (!displayName) {
+    return null;
+  }
+
+  const lowerName = displayName.toLowerCase();
+  const isGenericOrAdapter = 
+    lowerName === 'display' ||
+    lowerName === 'unknown' ||
+    lowerName === 'default' ||
+    lowerName.includes('vga to hdmi') ||
+    lowerName.includes('hdmi to vga') ||
+    lowerName.includes('adapter') ||
+    lowerName.includes('converter') ||
+    lowerName.includes('vga-') ||
+    lowerName.includes('hdmi-') ||
+    lowerName.includes('dp-');
+
+  if (isGenericOrAdapter) {
+    return null;
+  }
+
   const width = Number(viewport?.width) || Number(displayInfo?.width);
   const height = Number(viewport?.height) || Number(displayInfo?.height);
-  const dimensions = width > 0 && height > 0 ? `${width}x${height}` : 'detecting size';
-  const displayName = displayInfo?.makeModel || displayInfo?.displayName || displayInfo?.connector || 'display';
+  const dimensions = width > 0 && height > 0 ? `${width}x${height}` : '';
 
-  return `${displayName} / ${dimensions}`;
+  if (dimensions) {
+    return `${displayName} / ${dimensions}`;
+  }
+  return displayName;
 }
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {

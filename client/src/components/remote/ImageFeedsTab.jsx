@@ -53,22 +53,6 @@ function ImageFeedsTab({
     border: '1px solid rgba(255,255,255,0.2)',
     boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 18px 36px rgba(0,0,0,0.35)'
   };
-  const tvFrameMetaStyle = {
-    position: 'absolute',
-    top: '10px',
-    left: '12px',
-    zIndex: 2,
-    fontSize: '0.62rem',
-    letterSpacing: '0.04em',
-    lineHeight: 1.2,
-    color: 'rgba(255,255,255,0.72)',
-    textShadow: '0 1px 3px rgba(0,0,0,0.85)',
-    background: 'rgba(0,0,0,0.32)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '999px',
-    padding: '4px 8px',
-    pointerEvents: 'none'
-  };
 
   useEffect(() => {
     if (activeGalleryPhoto) {
@@ -372,6 +356,17 @@ function ImageFeedsTab({
 
       <div className="remote-card">
         <span className="remote-section-title">Independent Rating Deck</span>
+        {tvPreviewMetaLabel && (
+          <div style={{
+            fontSize: '0.72rem',
+            color: 'rgba(255,255,255,0.4)',
+            marginTop: '-14px',
+            marginBottom: '4px',
+            letterSpacing: '0.02em'
+          }}>
+            📺 {tvPreviewMetaLabel}
+          </div>
+        )}
         {state.photosList && state.photosList.length > 0 ? (
           (() => {
             const photo = state.photosList[galleryIndex];
@@ -392,7 +387,6 @@ function ImageFeedsTab({
                     }}
                   >
                     <div style={tvFrameShellStyle}>
-                      <span style={tvFrameMetaStyle}>{tvPreviewMetaLabel}</span>
                       <div style={{
                         position: 'absolute',
                         inset: 0,
@@ -428,7 +422,6 @@ function ImageFeedsTab({
                     }}
                   >
                     <div style={tvFrameShellStyle}>
-                      <span style={tvFrameMetaStyle}>{tvPreviewMetaLabel}</span>
                       <div style={{
                         position: 'absolute',
                         inset: 0,
@@ -495,7 +488,6 @@ function ImageFeedsTab({
                     }}
                   >
                     <div style={tvFrameShellStyle}>
-                      <span style={tvFrameMetaStyle}>{tvPreviewMetaLabel}</span>
                       <div
                         onMouseDown={(e) => handleDragStart(e, photo.url, false)}
                         onTouchStart={(e) => handleDragStart(e, photo.url, false)}
