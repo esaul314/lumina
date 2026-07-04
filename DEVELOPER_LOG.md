@@ -9,50 +9,50 @@ This document serves as a public-facing, generic history of technical developmen
 ### 2026-07-04: Google Photos Crop Persistence & Aspect-Preserving Preview Fix
 * **Goal**: Fix three related Google Photos regressions: squished paired images in the `TV Gesture Controller` preview, Direct Control crop/scroll snap-back, and a non-working `Photo Crop/Zoom (Rating Deck)` slider.
 * **Implementation**:
-  * **Aspect-preserving proxy URLs**: Updated [`server/services/googlePhotos.js`](file:///home/alex/work/lumina/server/services/googlePhotos.js) and [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) so Google Photos proxy URLs no longer request server-side cropped landscape bytes by default. Explicit crop remains opt-in, but the normal rendering path now preserves the source aspect ratio.
-  * **Unified metadata projection**: Extended [`server/sockets.js`](file:///home/alex/work/lumina/server/sockets.js) so `report-photo-metadata` and `set-photo-crop` use the same cache-backed Google Photos metadata path as pairing updates, instead of falling through the curated-collections reducer path that cannot see proxy-only photos.
-  * **REST metadata parity**: Broadened the Google Photos branch in [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) so crop updates (`cropPercent`, `cropPositionY`) and pairing flags can be patched through one declarative metadata payload, with crop validation still flowing through the existing decoder.
-  * **Preview-dimension hygiene**: Updated [`client/src/hooks/useImagePreloader.js`](file:///home/alex/work/lumina/client/src/hooks/useImagePreloader.js) to cache `naturalWidth` / `naturalHeight` for preview math instead of relying on the looser `width` / `height` properties.
-  * **Regression coverage**: Expanded [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) to lock the new no-default-crop proxy contract while preserving an explicit crop opt-in path.
+  * **Aspect-preserving proxy URLs**: Updated `server/services/googlePhotos.js` and `server/routes.js` so Google Photos proxy URLs no longer request server-side cropped landscape bytes by default. Explicit crop remains opt-in, but the normal rendering path now preserves the source aspect ratio.
+  * **Unified metadata projection**: Extended `server/sockets.js` so `report-photo-metadata` and `set-photo-crop` use the same cache-backed Google Photos metadata path as pairing updates, instead of falling through the curated-collections reducer path that cannot see proxy-only photos.
+  * **REST metadata parity**: Broadened the Google Photos branch in `server/routes.js` so crop updates (`cropPercent`, `cropPositionY`) and pairing flags can be patched through one declarative metadata payload, with crop validation still flowing through the existing decoder.
+  * **Preview-dimension hygiene**: Updated `client/src/hooks/useImagePreloader.js` to cache `naturalWidth` / `naturalHeight` for preview math instead of relying on the looser `width` / `height` properties.
+  * **Regression coverage**: Expanded `run-tests.js` to lock the new no-default-crop proxy contract while preserving an explicit crop opt-in path.
 * **Learning**: For Google Photos, the remote preview and the live crop state are coupled through two independent truths: the actual proxied bitmap shape and the persisted per-image metadata. If either one falls back to a curated-only assumption, the operator sees either a squished preview or a crop value that snaps back after interaction.
 * **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. `systemctl --user restart lumina` succeeded, `http://127.0.0.1:5000/api/config` responded afterward, and the live Google Photos normalization now emits proxy URLs without the `c=1` crop flag by default.
 
 ### 2026-07-04: Google Photos Pairing Toggle Persists Outside Curated Collections
 * **Goal**: Fix the `Allow Side-by-Side Pairing` toggle when used on Google Photos items, where the switch appeared stuck in the `On` position.
 * **Implementation**:
-  * **Google Photos metadata helpers**: Extended [`server/services/googlePhotos.js`](file:///home/alex/work/lumina/server/services/googlePhotos.js) with proxy-url id parsing plus focused helpers to merge cached metadata updates and project them back onto the live runtime snapshot.
-  * **Socket fix**: Updated [`server/sockets.js`](file:///home/alex/work/lumina/server/sockets.js) so `set-photo-prevent-pairing` bypasses the curated-collections reducer path for Google Photos proxy URLs and persists the pairing flag directly into `google_photos_cache.json` while keeping the in-memory state in sync.
-  * **REST parity**: Updated [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) so `PATCH /api/photos` can apply a Google Photos pairing-only mutation through the same cache-backed path instead of silently missing the photo.
-  * **Regression coverage**: Added cache-helper assertions in [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) covering proxy id extraction, cached pairing metadata updates, and live-state projection.
+  * **Google Photos metadata helpers**: Extended `server/services/googlePhotos.js` with proxy-url id parsing plus focused helpers to merge cached metadata updates and project them back onto the live runtime snapshot.
+  * **Socket fix**: Updated `server/sockets.js` so `set-photo-prevent-pairing` bypasses the curated-collections reducer path for Google Photos proxy URLs and persists the pairing flag directly into `google_photos_cache.json` while keeping the in-memory state in sync.
+  * **REST parity**: Updated `server/routes.js` so `PATCH /api/photos` can apply a Google Photos pairing-only mutation through the same cache-backed path instead of silently missing the photo.
+  * **Regression coverage**: Added cache-helper assertions in `run-tests.js` covering proxy id extraction, cached pairing metadata updates, and live-state projection.
 * **Learning**: Per-image display metadata no longer belongs conceptually to only `curated_collections.json`. Source-specific feeds like Google Photos need the mutation path to target their own persistence store instead of assuming every editable image lives in the curated collections map.
 * **Verification**: `npm test`, `npm run lint`, and `.agents/skills/lumina-diagnostics/scripts/diagnose.sh` passed. `systemctl --user restart lumina` succeeded and `curl http://127.0.0.1:5000/api/config` responded successfully afterward.
 
 ### 2026-06-30: Direct Control Pairing Toggle Preserves Focused Portrait Preview
 * **Goal**: Make the `Allow Side-by-Side Pairing` toggle in Direct Control behave like an editable preview control instead of seeming to skip away from the portrait being adjusted.
 * **Implementation**:
-  * **Focused single-photo preservation**: Updated [`server/domain/reducer.js`](file:///home/alex/work/lumina/server/domain/reducer.js) so a `set-photo-prevent-pairing` command can optionally preserve the targeted portrait as the active photo when pairing is turned off from a split view.
-  * **Socket passthrough**: Extended [`server/sockets.js`](file:///home/alex/work/lumina/server/sockets.js) to forward the new `preserveActive` intent and keep the legacy fallback path aligned.
-  * **Direct Control UX fix**: Updated [`DirectControlTab.jsx`](file:///home/alex/work/lumina/client/src/components/remote/DirectControlTab.jsx) so disabling pairing on the focused portrait requests that single-photo preservation instead of immediately collapsing back to the other half of the split frame.
-  * **Regression coverage**: Added a reducer test in [`server/domain/tests.js`](file:///home/alex/work/lumina/server/domain/tests.js) proving that disabling pairing on the focused secondary portrait yields a single-image frame with that same portrait still active.
+  * **Focused single-photo preservation**: Updated `server/domain/reducer.js` so a `set-photo-prevent-pairing` command can optionally preserve the targeted portrait as the active photo when pairing is turned off from a split view.
+  * **Socket passthrough**: Extended `server/sockets.js` to forward the new `preserveActive` intent and keep the legacy fallback path aligned.
+  * **Direct Control UX fix**: Updated `client/src/components/remote/DirectControlTab.jsx` so disabling pairing on the focused portrait requests that single-photo preservation instead of immediately collapsing back to the other half of the split frame.
+  * **Regression coverage**: Added a reducer test in `server/domain/tests.js` proving that disabling pairing on the focused secondary portrait yields a single-image frame with that same portrait still active.
 * **Learning**: In split portrait mode, metadata edits that change layout must preserve the operator's focused image when the intent is preview/editing, otherwise the toggle reads like a slideshow navigation action.
 * **Verification**: `npm test` passed. `npm run lint` passed. `npm --prefix client run build` passed. The known sandbox-only `listen EPERM` log still appears inside the ephemeral localhost smoke section, but the suite exits successfully.
 
 ### 2026-06-29: Selector-Core Reuse & Declarative Feed Config Presets
 * **Goal**: Make another ES6+/functional cleanup pass without sacrificing readability, and keep the JavaScript surface closer to the reducer/selector foundation that will later migrate to TypeScript.
 * **Implementation**:
-  * **Legacy app dedupe**: Refactored [`server/app.js`](file:///home/alex/work/lumina/server/app.js) so `combineFeedsBalanced`, `selectWeightedRandomPhoto`, `isTimeInSchedule`, and the smart-photo filter pipeline now reuse the shared implementations in [`server/domain/selectors.js`](file:///home/alex/work/lumina/server/domain/selectors.js) instead of carrying parallel copies.
-  * **Preset-driven config builder**: Reworked [`server/config/state.js`](file:///home/alex/work/lumina/server/config/state.js) so feed configs are assembled from a small keyword-source factory plus a frozen built-in override table, replacing the long category `if/else` ladder with a declarative `Object.fromEntries(...)` projection.
-  * **Collection projection reuse**: Updated [`server/config/collections.js`](file:///home/alex/work/lumina/server/config/collections.js) to reuse the immutable `updatePhotoInCollections(...)` selector helper and compact state-photo sync helpers instead of nested mutation loops.
-  * **Regression coverage**: Added tests in [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) covering declarative feed-config layering and legacy crop projection across `photosList` plus `activeSecondPhoto`.
+  * **Legacy app dedupe**: Refactored `server/app.js` so `combineFeedsBalanced`, `selectWeightedRandomPhoto`, `isTimeInSchedule`, and the smart-photo filter pipeline now reuse the shared implementations in `server/domain/selectors.js` instead of carrying parallel copies.
+  * **Preset-driven config builder**: Reworked `server/config/state.js` so feed configs are assembled from a small keyword-source factory plus a frozen built-in override table, replacing the long category `if/else` ladder with a declarative `Object.fromEntries(...)` projection.
+  * **Collection projection reuse**: Updated `server/config/collections.js` to reuse the immutable `updatePhotoInCollections(...)` selector helper and compact state-photo sync helpers instead of nested mutation loops.
+  * **Regression coverage**: Added tests in `run-tests.js` covering declarative feed-config layering and legacy crop projection across `photosList` plus `activeSecondPhoto`.
 * **Learning**: For Lumina, the cleanest “functional” move is often not adding more combinators or point-free wrappers, but collapsing duplicate implementations onto the existing pure selector layer. That reduces drift now and lowers the TypeScript conversion surface later.
 * **Verification**: `npm test` passed. `npm run lint` passed. The known sandbox-only ephemeral localhost bind warning still appears in the smoke-test section, but the regression suite exits successfully.
 
 ### 2026-06-28 (Part 3): Persistent `systemd --user` Service Installation
 * **Goal**: Stop relying on ad hoc manual launches for the TV host and make Lumina survive logout and reboot through `systemd`.
 * **Implementation**:
-  * Added a tracked service template at [`systemd/lumina.service.template`](file:///home/alex/work/lumina/systemd/lumina.service.template) rather than committing host-specific absolute paths directly into git.
-  * Added [`scripts/install-systemd-user-service.sh`](file:///home/alex/work/lumina/scripts/install-systemd-user-service.sh), which resolves the current repo root, `node` binary, user, UID, and user config directory at install time, then materializes `~/.config/systemd/user/lumina.service`.
-  * Updated [`README.md`](file:///home/alex/work/lumina/README.md) with `systemctl --user` installation and operations guidance.
+  * Added a tracked service template at `systemd/lumina.service.template` rather than committing host-specific absolute paths directly into git.
+  * Added `scripts/install-systemd-user-service.sh`, which resolves the current repo root, `node` binary, user, UID, and user config directory at install time, then materializes `~/.config/systemd/user/lumina.service`.
+  * Updated `README.md` with `systemctl --user` installation and operations guidance.
   * Installed and enabled the user service on `playwright`, then enabled lingering for `alex` so the service stays available across logout/reboot.
 * **Operational Result**:
   * `systemctl --user status lumina` reports the service active.
@@ -63,9 +63,9 @@ This document serves as a public-facing, generic history of technical developmen
 ### 2026-06-28 (Part 2): Nullish-Safe Selector Defaults & Declarative Cleanup
 * **Goal**: Make the selection and persistence layers more fluent and falsy-safe by using modern ES6+ operators where they improve both readability and behavior.
 * **Implementation**:
-  * **Selector cleanup**: Refactored [`server/domain/selectors.js`](file:///home/alex/work/lumina/server/domain/selectors.js) to use `??`, `?.`, default parameters, and `Array.prototype.at()` in category normalization, weighted selection, split-frame derivation, and weather/news fallbacks.
-  * **Night-percentage bugfix**: Replaced `nightPercentage || 50` with `nightPercentage ?? 50` in both the domain selectors and legacy [`server/app.js`](file:///home/alex/work/lumina/server/app.js), so an explicit `0` percent night preference is no longer silently treated as `50`.
-  * **Persistence codec cleanup**: Refactored [`server/config/collectionsCodec.js`](file:///home/alex/work/lumina/server/config/collectionsCodec.js) with destructuring, nullish-aware cloning helpers, and explicit fallback handling for persisted split crop values and manual location state.
+  * **Selector cleanup**: Refactored `server/domain/selectors.js` to use `??`, `?.`, default parameters, and `Array.prototype.at()` in category normalization, weighted selection, split-frame derivation, and weather/news fallbacks.
+  * **Night-percentage bugfix**: Replaced `nightPercentage || 50` with `nightPercentage ?? 50` in both the domain selectors and legacy `server/app.js`, so an explicit `0` percent night preference is no longer silently treated as `50`.
+  * **Persistence codec cleanup**: Refactored `server/config/collectionsCodec.js` with destructuring, nullish-aware cloning helpers, and explicit fallback handling for persisted split crop values and manual location state.
   * **Regression coverage**: Added tests proving that explicit `false` metadata is preserved during photo tagging and that persisted `splitCropPercent: 0` survives normalization.
 * **Learning**: Apply `??` only where `null`/`undefined` are the real “missing value” states. Keep truthy fallbacks or validation guards when empty strings or wrong types should still collapse to safe defaults.
 * **Verification**: `npm test` passed. The known ephemeral localhost bind warning (`listen EPERM`) still appears in the smoke-test section but the command exits successfully and all assertions pass.
@@ -145,51 +145,51 @@ This document serves as a public-facing, generic history of technical developmen
 ### 2026-06-27 (Part 7): Split Portrait Wallpaper Failures Fix
 * **Goal**: Prevent the screensaver from displaying a half-blank/black screen when a secondary split portrait wallpaper fails to load.
 * **Implementation**:
-  * **Secondary Preload Handling**: Updated the client-side preloader in [Dashboard.jsx](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) to track if the secondary photo loads successfully.
+  * **Secondary Preload Handling**: Updated the client-side preloader in `client/src/components/Dashboard.jsx` to track if the secondary photo loads successfully.
   * **Pruning and Fallback**: If the secondary photo fails to load, the client now emits a `mark-photo-broken` socket event using the secondary image URL to immediately flag and prune it from the collections, and falls back to rendering the primary photo as a fullscreen single slide (`addSingleSlide`).
 * **Verification**: Verified that unit tests (`npm test`) and E2E integration tests (`node test_split_sync.js`) pass successfully.
 
 ### 2026-06-27 (Part 8): Optional Tumblr Tag Search via API Key
 * **Goal**: Add Tumblr tag-based crawling without disturbing the existing zero-credential public-blog Tumblr source.
 * **Implementation**:
-  * **Optional authenticated crawler**: Added `fetchTumblrTaggedImages` in [`server/services/crawler.js`](file:///home/alex/work/lumina/server/services/crawler.js) using Tumblr's official `GET /v2/tagged` API. The crawler activates only when `TUMBLR_API_KEY` is present in the server environment; otherwise it logs a skip and returns an empty result safely.
+  * **Optional authenticated crawler**: Added `fetchTumblrTaggedImages` in `server/services/crawler.js` using Tumblr's official `GET /v2/tagged` API. The crawler activates only when `TUMBLR_API_KEY` is present in the server environment; otherwise it logs a skip and returns an empty result safely.
   * **Feed config support**: Added a new `tumblrTags` source alongside existing `tumblr` blog crawling in the default feed config builders so built-in scenic pools can opt into curated tag queries without losing the legacy blog lists.
-  * **Remote UI**: Extended [`ImageFeedsTab.jsx`](file:///home/alex/work/lumina/client/src/components/remote/ImageFeedsTab.jsx) with a new `Tumblr Tag Search` source card and inline operator guidance that the source requires `TUMBLR_API_KEY`.
+  * **Remote UI**: Extended `client/src/components/remote/ImageFeedsTab.jsx` with a new `Tumblr Tag Search` source card and inline operator guidance that the source requires `TUMBLR_API_KEY`.
   * **Regression coverage**: Added test coverage proving the tagged crawler is exported and safely no-ops when the API key is absent.
 * **Verification**: `npm test` passed. In this sandbox, the live endpoint smoke sub-suite still logs `listen EPERM` when trying to bind an ephemeral localhost port, but the command exits successfully and the new Tumblr-tag assertions pass.
 
 ### 2026-06-27 (Part 8): Remove Google DeepMind Footer Attribution
 * **Goal**: Remove incorrect footer attribution "POWERED BY GOOGLE DEEPMIND" from the Remote Control user interface.
 * **Implementation**:
-  * Modified [RemoteControl.jsx](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx) to omit the "• POWERED BY GOOGLE DEEPMIND" string from the system info paragraph.
+  * Modified `client/src/components/RemoteControl.jsx` to omit the "• POWERED BY GOOGLE DEEPMIND" string from the system info paragraph.
 * **Verification**: Verified that all diagnostics and tests run successfully.
 
 ### 2026-06-27 (Part 9): Portrait Split Crop/Zoom Refinement & Touch Isolation
 * **Goal**: Fix touchpad drag-to-crop vs. swipe-to-skip touch conflicts, reduce slider zoom response latency on the TV, add focus-based dual photo controls, and correct in-place slide check caching bugs.
 * **Implementation**:
-  * **Touch Isolation**: Called `e.stopPropagation()` in touchstart, mousedown, and touchend handlers on both single and split preview panes in [DirectControlTab.jsx](file:///home/alex/work/lumina/client/src/components/remote/DirectControlTab.jsx), preventing drag gestures from triggering the parent swipe-to-skip controller.
-  * **Focus-Based Controls**: Introduced a `selectedPhotoSide` state in [RemoteControl.jsx](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx). Tapping on either the Left or Right preview pane focuses that photo (highlighted by a glowing border), dynamically binding the zoom slider, rating deck, and pairing toggle below to it.
+  * **Touch Isolation**: Called `e.stopPropagation()` in touchstart, mousedown, and touchend handlers on both single and split preview panes in `client/src/components/remote/DirectControlTab.jsx`, preventing drag gestures from triggering the parent swipe-to-skip controller.
+  * **Focus-Based Controls**: Introduced a `selectedPhotoSide` state in `client/src/components/RemoteControl.jsx`. Tapping on either the Left or Right preview pane focuses that photo (highlighted by a glowing border), dynamically binding the zoom slider, rating deck, and pairing toggle below to it.
   * **Real-Time Responsiveness**: Reduced debounced socket emits from `200ms` to `30ms` on the Direct Control tab, and added a local crop range state with `30ms` throttled emits on the Image Feeds rating deck. Zoom changes now update the TV screen dynamically as you drag.
-  * **Resolved In-place Check**: Updated the TV view slide-change check in [Dashboard.jsx](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) to compare resolved crop values rather than raw values, ensuring changes to global defaults (like `splitCropPercent`) are applied instantly.
+  * **Resolved In-place Check**: Updated the TV view slide-change check in `client/src/components/Dashboard.jsx` to compare resolved crop values rather than raw values, ensuring changes to global defaults (like `splitCropPercent`) are applied instantly.
 * **Verification**: Verified successfully via automated unit tests (`npm test`) and Playwright E2E split sync tests (`node test_split_sync.js`).
 
 ### 2026-06-27 (Part 10): Standardized Secret Storage on `.env`
 * **Goal**: Stop scattering secrets across `config.json`, sidecar JSON files, and ad hoc runtime paths by making `.env` the single secret store.
 * **Implementation**:
-  * **Central env helper**: Added [`server/config/env.js`](file:///home/alex/work/lumina/server/config/env.js) to load `.env`, read environment variables consistently, and persist updated keys back to the same file with quoted serialization.
-  * **Config hardening**: Updated [`configLoader.js`](file:///home/alex/work/lumina/server/config/configLoader.js) so secret-like keys in `config.json` are ignored with a warning instead of being treated as supported configuration.
+  * **Central env helper**: Added `server/config/env.js` to load `.env`, read environment variables consistently, and persist updated keys back to the same file with quoted serialization.
+  * **Config hardening**: Updated `server/config/configLoader.js` so secret-like keys in `config.json` are ignored with a warning instead of being treated as supported configuration.
   * **Credential migration**:
     * `USEAPI_TOKEN`, `TUMBLR_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `NASA_API_KEY` are now read from `.env`.
     * Google Photos credentials no longer persist to `server/config/.google_credentials.json`; they are written to `.env` through the shared helper.
-  * **Admin UI alignment**: Added a Tumblr API key field in [`SystemSettingsTab.jsx`](file:///home/alex/work/lumina/client/src/components/remote/SystemSettingsTab.jsx) and updated Google/UseAPI copy so the operator-facing UI reflects the `.env` policy.
-  * **Documentation and examples**: Added a tracked [`.env.example`](file:///home/alex/work/lumina/.env.example), updated [`README.md`](file:///home/alex/work/lumina/README.md), and removed secret fields from [`config.json.example`](file:///home/alex/work/lumina/config.json.example).
+  * **Admin UI alignment**: Added a Tumblr API key field in `client/src/components/remote/SystemSettingsTab.jsx` and updated Google/UseAPI copy so the operator-facing UI reflects the `.env` policy.
+  * **Documentation and examples**: Added a tracked `.env.example`, updated `README.md`, and removed secret fields from `config.json.example`.
   * **Regression coverage**: Added an env-helper unit test proving secret values are appended/replaced safely with quoted serialization.
 * **Verification**: `npm test` passed. `npm run lint` passed cleanly. The existing smoke-test sandbox limitation still logs `listen EPERM` when binding ephemeral localhost ports.
 
 ### 2026-06-27 (Part 11): Direct Control Portrait Zoom Sync Hardening
 * **Goal**: Make per-image zoom changes from the Direct Control slider show up immediately on the TV for split portrait layouts and stay persisted on the correct image.
 * **Implementation**:
-  * **Live photo resolution**: Updated [`Dashboard.jsx`](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) and [`RemoteControl.jsx`](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx) to resolve crop metadata by image URL from the current frame, active photo pointers, and live feed list before falling back to stale slide snapshots.
+  * **Live photo resolution**: Updated `client/src/components/Dashboard.jsx` and `client/src/components/RemoteControl.jsx` to resolve crop metadata by image URL from the current frame, active photo pointers, and live feed list before falling back to stale slide snapshots.
   * **Split-frame crop refresh**: Hardened the dashboard's in-place active-slide crop refresh so paired portrait updates read from the resolved live secondary photo instead of whichever `activeSecondPhoto` object happened to be cached.
   * **Regression coverage**: Added a reducer test proving `set-photo-crop` updates flow through both the active portrait and its derived split partner frame metadata.
 * **Verification**: `npm test` passed, including the new crop regression. `npm --prefix client run build` passed. In this sandbox, the existing live-endpoint smoke section still logs `listen EPERM` when it attempts an ephemeral localhost bind.
@@ -197,17 +197,17 @@ This document serves as a public-facing, generic history of technical developmen
 ### 2026-06-28: Frame-Selector Cleanup for Zoom/Crop State
 * **Goal**: Reduce the client-side state ambiguity around `activePhoto`, `activeSecondPhoto`, `photosList`, and `currentFrame` so zoom/crop rendering follows one consistent execution path.
 * **Implementation**:
-  * **Single client selector layer**: Added [`frameSelectors.js`](file:///home/alex/work/lumina/client/src/state/frameSelectors.js) to normalize transport snapshots and expose helpers for current-frame lookup, split-layout detection, frame orientation, URL-based photo lookup, and effective crop state resolution.
-  * **TV renderer cleanup**: Refactored [`Dashboard.jsx`](file:///home/alex/work/lumina/client/src/components/Dashboard.jsx) to drive active slide updates and rendered crop math from the frame selectors instead of mixing `activePhoto`, `activeSecondPhoto`, local orientation guesses, and feed scans.
-  * **Remote control cleanup**: Refactored [`RemoteControl.jsx`](file:///home/alex/work/lumina/client/src/components/RemoteControl.jsx), [`useActivePhotoSync.js`](file:///home/alex/work/lumina/client/src/hooks/useActivePhotoSync.js), and [`useCropDrag.js`](file:///home/alex/work/lumina/client/src/hooks/useCropDrag.js) so the Direct Control tab resolves the focused image and crop values from the same frame-based selectors the TV uses.
-  * **UI-path regression**: Updated [`test_split_sync.js`](file:///home/alex/work/lumina/test_split_sync.js) so the integration test moves the actual Direct Control slider UI for both split portrait and single-landscape flows rather than bypassing the UI with a raw socket emit.
+  * **Single client selector layer**: Added `client/src/state/frameSelectors.js` to normalize transport snapshots and expose helpers for current-frame lookup, split-layout detection, frame orientation, URL-based photo lookup, and effective crop state resolution.
+  * **TV renderer cleanup**: Refactored `client/src/components/Dashboard.jsx` to drive active slide updates and rendered crop math from the frame selectors instead of mixing `activePhoto`, `activeSecondPhoto`, local orientation guesses, and feed scans.
+  * **Remote control cleanup**: Refactored `client/src/components/RemoteControl.jsx`, `client/src/hooks/useActivePhotoSync.js`, and `client/src/hooks/useCropDrag.js` so the Direct Control tab resolves the focused image and crop values from the same frame-based selectors the TV uses.
+  * **UI-path regression**: Updated `test_split_sync.js` so the integration test moves the actual Direct Control slider UI for both split portrait and single-landscape flows rather than bypassing the UI with a raw socket emit.
 * **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. In this sandbox, `node test_split_sync.js` still exits after the known ephemeral localhost bind warning (`listen EPERM`) before producing usable browser-stage logs, so the UI-path assertions could not be fully observed here.
 ### 2026-06-29: Google Photos Picker API Migration
 * **Goal**: Fix the 403 Forbidden errors when listing media items due to Google's deprecation of broad `photoslibrary.readonly` scopes on March 31, 2025, and transition to the secure, privacy-respecting Google Photos Picker API.
 * **Implementation**:
-  * **OAuth Scopes**: Updated scopes in [googlePhotos.js](file:///home/alex/work/lumina/server/services/googlePhotos.js) to request `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`.
+  * **OAuth Scopes**: Updated scopes in `server/services/googlePhotos.js` to request `https://www.googleapis.com/auth/photospicker.mediaitems.readonly`.
   * **Picker Session Manager**: Implemented `createPickerSession()`, `getPickerSession()`, `listPickerMediaItems()`, and `deletePickerSession()` to manage user-initiated photo picking sessions.
-  * **Dynamic Redirect URI**: Modified [routes.js](file:///home/alex/work/lumina/server/routes.js) to build `redirectUri` dynamically from `req.headers.host` for localhost SSH tunneling.
+  * **Dynamic Redirect URI**: Modified `server/routes.js` to build `redirectUri` dynamically from `req.headers.host` for localhost SSH tunneling.
   * **Background Polling & Sync**: Added a background polling process in `routes.js` that checks for session selection completion, pulls the selected private photo metadata, updates the display feed, and cleans up the session resources.
 * **Verification**: `npm test` passed successfully. Tested systemd service restarts and verified service is active.
 
@@ -217,11 +217,11 @@ This document serves as a public-facing, generic history of technical developmen
   * The Picker sync layer was reading `item.baseUrl` even though the Picker API returns image data under `item.mediaFile.baseUrl`, so Lumina cached `url: "undefined=w2560-h1440-c"` entries in `server/config/google_photos_cache.json`.
   * Even with a valid Picker `baseUrl`, the browser cannot fetch Google Photos image bytes directly from CSS/`Image()` because the Picker guide requires the app to attach an OAuth bearer token when requesting that URL.
 * **Fix**:
-  * Refactored [`server/services/googlePhotos.js`](file:///home/alex/work/lumina/server/services/googlePhotos.js) to normalize cached Google Photos items into Lumina-owned proxy URLs (`/api/google-photos/media/:id`), while storing the actual Picker `mediaFile.baseUrl`, MIME type, dimensions, and picker session id separately for server-side fetches.
-  * Added a protected proxy route in [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) that fetches the Google image bytes with the server's OAuth token and returns them to the browser as same-origin media.
+  * Refactored `server/services/googlePhotos.js` to normalize cached Google Photos items into Lumina-owned proxy URLs (`/api/google-photos/media/:id`), while storing the actual Picker `mediaFile.baseUrl`, MIME type, dimensions, and picker session id separately for server-side fetches.
+  * Added a protected proxy route in `server/routes.js` that fetches the Google image bytes with the server's OAuth token and returns them to the browser as same-origin media.
   * Kept completed picker sessions instead of deleting them immediately so Lumina can rehydrate stale Google base URLs later instead of treating the initial cached response as permanent.
   * Persisted `GOOGLE_REFRESH_TOKEN` in Lumina's shared `.env` store and taught the service to mint a fresh access token on demand at startup, so Google Photos access now survives daemon restarts instead of living only in process memory.
-  * Added regression coverage in [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) for the nested `mediaFile` shape and the proxy URL contract.
+  * Added regression coverage in `run-tests.js` for the nested `mediaFile` shape and the proxy URL contract.
 * **Verification**: `npm test` passed. `npm run lint` passed. `systemctl --user restart lumina` succeeded and `GET /api/photos?category=Google Photos` now returns proxy URLs under `/api/google-photos/media/...`.
 
 ---
