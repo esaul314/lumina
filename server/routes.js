@@ -747,6 +747,37 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
     }
 
+    const isGooglePairingPatch =
+      preventPairing !== undefined
+      && rating === undefined
+      && cropPercent === undefined
+      && cropPositionY === undefined
+      && isBroken !== true
+      && googlePhotos.isGooglePhotoProxyUrl(url);
+
+    if (isGooglePairingPatch) {
+      const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, {
+        preventPairing: !!preventPairing
+      });
+
+      if (!updatedPhoto) {
+        return res.status(404).json({ error: 'Photo URL not found in Google Photos cache.' });
+      }
+
+      googlePhotos.applyCachedMediaItemMetadataToState(state, url, {
+        preventPairing: !!preventPairing
+      });
+      broadcast();
+
+      return res.json({
+        success: true,
+        photo: {
+          url,
+          preventPairing: !!preventPairing
+        }
+      });
+    }
+
     if (dispatchCommand) {
       const commands = [];
 

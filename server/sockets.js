@@ -301,6 +301,24 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
     // Set individual photo pairing prevention
     socket.on('set-photo-prevent-pairing', ({ url, preventPairing, preserveActive }) => {
+      if (googlePhotos.isGooglePhotoProxyUrl(url)) {
+        const metadata = { preventPairing: Boolean(preventPairing) };
+        const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, metadata);
+        if (!updatedPhoto) return;
+
+        googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadata);
+        if (metadata.preventPairing && preserveActive) {
+          const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
+          if (focusedPhoto) {
+            state.activePhoto = { ...focusedPhoto };
+            state.activeSecondPhoto = null;
+          }
+        }
+
+        broadcast();
+        return;
+      }
+
       if (dispatchCommand) {
         dispatchCommand({
           type: 'set-photo-prevent-pairing',

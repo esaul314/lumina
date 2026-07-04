@@ -28,8 +28,11 @@ const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const {
+  applyCachedMediaItemMetadataToState,
   buildGooglePhotoProxyUrl,
   buildCachedMediaItem,
+  getGooglePhotoMediaItemId,
+  mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
   isUsableCachedMediaItem
 } = require('./server/services/googlePhotos.js');
@@ -492,6 +495,56 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
 assertTest('buildGooglePhotoProxyUrl preserves same-origin rendering for browser previews', () => {
   const proxyUrl = buildGooglePhotoProxyUrl('A/B+C', { width: 1080, height: 1920, crop: false });
   assert.strictEqual(proxyUrl, '/api/google-photos/media/A%2FB%2BC?w=1080&h=1920');
+});
+
+assertTest('Google Photos proxy URLs round-trip their media item ids', () => {
+  const proxyUrl = buildGooglePhotoProxyUrl('A/B+C');
+  assert.strictEqual(getGooglePhotoMediaItemId(proxyUrl), 'A/B+C');
+});
+
+assertTest('mergeCachedMediaItemMetadata updates pairing flags for cached Google Photos rows', () => {
+  const cachedItems = [
+    {
+      id: 'picker-123',
+      url: '/api/google-photos/media/picker-123?w=2560&h=1440&c=1',
+      preventPairing: false,
+      rating: 10
+    }
+  ];
+
+  const merged = mergeCachedMediaItemMetadata(cachedItems, cachedItems[0].url, {
+    preventPairing: true
+  });
+
+  assert.strictEqual(merged.changed, true);
+  assert.strictEqual(merged.updatedItem?.preventPairing, true);
+  assert.strictEqual(merged.items[0].preventPairing, true);
+});
+
+assertTest('applyCachedMediaItemMetadataToState keeps Google Photos toggle state in sync with the live snapshot', () => {
+  const state = {
+    photosList: [
+      {
+        id: 'picker-123',
+        url: '/api/google-photos/media/picker-123?w=2560&h=1440&c=1',
+        preventPairing: false
+      }
+    ],
+    activePhoto: {
+      id: 'picker-123',
+      url: '/api/google-photos/media/picker-123?w=2560&h=1440&c=1',
+      preventPairing: false
+    },
+    activeSecondPhoto: null
+  };
+
+  const updatedPhoto = applyCachedMediaItemMetadataToState(state, state.photosList[0].url, {
+    preventPairing: true
+  });
+
+  assert.strictEqual(updatedPhoto?.preventPairing, true);
+  assert.strictEqual(state.photosList[0].preventPairing, true);
+  assert.strictEqual(state.activePhoto.preventPairing, true);
 });
 
 assertTest('legacy Google Photos cache rows without baseUrl or picker session are filtered out', () => {

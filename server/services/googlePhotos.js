@@ -6,6 +6,7 @@ const CACHE_PATH = path.join(__dirname, '..', 'config', 'google_photos_cache.jso
 const DEFAULT_RENDER_WIDTH = 2560;
 const DEFAULT_RENDER_HEIGHT = 1440;
 const BASE_URL_TTL_MS = 55 * 60 * 1000;
+const GOOGLE_PHOTO_PROXY_PREFIX = '/api/google-photos/media/';
 
 // Ensure parent directories exist
 const configDir = path.dirname(CACHE_PATH);
@@ -41,6 +42,20 @@ function buildGooglePhotoProxyUrl(mediaItemId, { width = DEFAULT_RENDER_WIDTH, h
   }
 
   return `/api/google-photos/media/${encodeURIComponent(mediaItemId)}?${params.toString()}`;
+}
+
+function getGooglePhotoMediaItemId(value) {
+  const text = String(value || '').trim();
+  if (!text.startsWith(GOOGLE_PHOTO_PROXY_PREFIX)) {
+    return '';
+  }
+
+  const [encodedId] = text.slice(GOOGLE_PHOTO_PROXY_PREFIX.length).split('?');
+  return encodedId ? decodeURIComponent(encodedId) : '';
+}
+
+function isGooglePhotoProxyUrl(value) {
+  return Boolean(getGooglePhotoMediaItemId(value));
 }
 
 function buildGooglePhotoContentUrl(baseUrl, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = true } = {}) {
@@ -168,6 +183,109 @@ function updateCachedMediaItem(item) {
   const mergedItems = Array.from(itemsMap.values());
   writeCachedMediaItems(mergedItems);
   return item;
+}
+
+function buildMetadataPatch(metadata = {}) {
+  return Object.fromEntries(
+    Object.entries({
+      rating: metadata.rating,
+      isBroken: metadata.isBroken,
+      cropPercent: metadata.cropPercent,
+      cropPositionY: metadata.cropPositionY,
+      preventPairing: metadata.preventPairing,
+      orientation: metadata.orientation,
+      width: metadata.width,
+      height: metadata.height
+    }).filter(([, value]) => value !== undefined)
+  );
+}
+
+function mergeCachedMediaItemMetadata(items, mediaIdentifier, metadata = {}) {
+  const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();
+  const metadataPatch = buildMetadataPatch(metadata);
+
+  if (!mediaItemId || Object.keys(metadataPatch).length === 0) {
+    return {
+      items: (items || []).map((item) => (item ? { ...item } : item)),
+      updatedItem: null,
+      changed: false
+    };
+  }
+
+  let updatedItem = null;
+  let changed = false;
+
+  const nextItems = (items || []).map((item) => {
+    if (!item || item.id !== mediaItemId) {
+      return item ? { ...item } : item;
+    }
+
+    const nextItem = { ...item, ...metadataPatch };
+    updatedItem = nextItem;
+    changed = Object.keys(metadataPatch).some((key) => item[key] !== nextItem[key]) || changed;
+    return nextItem;
+  });
+
+  return {
+    items: nextItems,
+    updatedItem,
+    changed
+  };
+}
+
+function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
+  const currentItems = getCachedMediaItems();
+  const merged = mergeCachedMediaItemMetadata(currentItems, mediaIdentifier, metadata);
+
+  if (!merged.updatedItem) {
+    return null;
+  }
+
+  if (merged.changed && process.env.NODE_ENV !== 'test') {
+    writeCachedMediaItems(merged.items);
+  }
+
+  return merged.updatedItem;
+}
+
+function applyCachedMediaItemMetadataToState(state, mediaIdentifier, metadata = {}) {
+  const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();
+  const metadataPatch = buildMetadataPatch(metadata);
+
+  if (!state || !mediaItemId || Object.keys(metadataPatch).length === 0) {
+    return null;
+  }
+
+  let updatedPhoto = null;
+  const matchesMediaItem = (photo) => {
+    if (!photo) {
+      return false;
+    }
+
+    const photoId = String(photo.id || getGooglePhotoMediaItemId(photo.url) || '').trim();
+    return photoId === mediaItemId;
+  };
+
+  if (Array.isArray(state.photosList)) {
+    state.photosList = state.photosList.map((photo) => {
+      if (!matchesMediaItem(photo)) {
+        return photo;
+      }
+
+      const nextPhoto = { ...photo, ...metadataPatch };
+      updatedPhoto = nextPhoto;
+      return nextPhoto;
+    });
+  }
+
+  ['activePhoto', 'activeSecondPhoto'].forEach((key) => {
+    if (matchesMediaItem(state[key])) {
+      Object.assign(state[key], metadataPatch);
+      updatedPhoto = state[key];
+    }
+  });
+
+  return updatedPhoto;
 }
 
 function findCachedMediaItem(mediaItemId) {
@@ -694,6 +812,7 @@ function isAuthenticated() {
 }
 
 module.exports = {
+  applyCachedMediaItemMetadataToState,
   saveGoogleCredentials,
   getGoogleAuthUrl,
   exchangeGoogleCode,
@@ -705,9 +824,13 @@ module.exports = {
   refreshMediaItemUrl,
   fetchMediaItemBytes,
   getCachedMediaItems,
+  getGooglePhotoMediaItemId,
   isAuthenticated,
+  isGooglePhotoProxyUrl,
   buildGooglePhotoProxyUrl,
   buildCachedMediaItem,
+  mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
-  isUsableCachedMediaItem
+  isUsableCachedMediaItem,
+  updateCachedMediaItemMetadata
 };
