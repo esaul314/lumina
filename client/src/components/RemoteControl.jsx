@@ -13,6 +13,11 @@ import { useCropDrag } from '../hooks/useCropDrag';
 import { useActivePhotoSync } from '../hooks/useActivePhotoSync';
 import { useImagePreloader } from '../hooks/useImagePreloader';
 import {
+  DEFAULT_TV_PREVIEW_DIMENSIONS,
+  fitTvPreviewFrame,
+  getTvAspectRatio
+} from './remote/tvPreview';
+import {
   findPhotoByUrl,
   getFrameOrientation,
   getFramePhoto,
@@ -20,44 +25,8 @@ import {
   isSplitFrameActive
 } from '../state/frameSelectors';
 
-const DEFAULT_PREVIEW_DIMENSIONS = { width: 350, height: 180 };
-const TV_FRAME_ASPECT_RATIO = 16 / 9;
 const SPLIT_PREVIEW_PADDING = 6;
 const SPLIT_PREVIEW_GAP = 6;
-
-function getTvAspectRatio(viewport) {
-  const width = Number(viewport?.width);
-  const height = Number(viewport?.height);
-
-  if (width > 0 && height > 0) {
-    return width / height;
-  }
-
-  return TV_FRAME_ASPECT_RATIO;
-}
-
-function fitTvPreviewFrame(dimensions, aspectRatio = TV_FRAME_ASPECT_RATIO) {
-  const width = dimensions?.width || DEFAULT_PREVIEW_DIMENSIONS.width;
-  const height = dimensions?.height || DEFAULT_PREVIEW_DIMENSIONS.height;
-
-  if (width <= 0 || height <= 0) {
-    return DEFAULT_PREVIEW_DIMENSIONS;
-  }
-
-  const containerRatio = width / height;
-
-  if (containerRatio > aspectRatio) {
-    return {
-      width: height * aspectRatio,
-      height
-    };
-  }
-
-  return {
-    width,
-    height: width / aspectRatio
-  };
-}
 
 function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [activeTab, setActiveTab] = useState('controls'); // controls, settings, photos
@@ -91,8 +60,9 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
 
   // 4. Crop & Vertical Positioning Drag Physics Hook
   const previewContainerRef = useRef(null);
-  const [previewDimensions, setPreviewDimensions] = useState(DEFAULT_PREVIEW_DIMENSIONS);
-  const tvPreviewDimensions = fitTvPreviewFrame(previewDimensions, getTvAspectRatio(state.tvViewport));
+  const [previewDimensions, setPreviewDimensions] = useState(DEFAULT_TV_PREVIEW_DIMENSIONS);
+  const tvAspectRatio = getTvAspectRatio(state.tvViewport);
+  const tvPreviewDimensions = fitTvPreviewFrame(previewDimensions, tvAspectRatio);
   const { 
     dragState, 
     currentDragY, 
@@ -448,7 +418,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
     };
   };
 
-  const getGalleryPhotoPreviewStyle = (photo) => {
+  const getGalleryPhotoPreviewStyle = (photo, frameDimensions = tvPreviewDimensions) => {
     if (!photo) return {};
     const cachedDims = remoteDimensionsCache.current[photo.url];
 
@@ -459,8 +429,8 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
       const isPortrait = remoteOrientationCache.current[photo.url] === 'portrait';
       R_i = isPortrait ? 0.667 : 1.5;
     }
-    const padWidth = previewDimensions.width || 350;
-    const padHeight = 160;
+    const padWidth = frameDimensions?.width || DEFAULT_TV_PREVIEW_DIMENSIONS.width;
+    const padHeight = frameDimensions?.height || DEFAULT_TV_PREVIEW_DIMENSIONS.height;
 
     const R_c = padWidth / padHeight;
 
@@ -594,6 +564,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           handleDragStart={handleDragStart}
           dragState={dragState}
           getGalleryPhotoPreviewStyle={getGalleryPhotoPreviewStyle}
+          tvAspectRatio={tvAspectRatio}
           remoteOrientationCache={remoteOrientationCache}
           keywordCategory={keywordCategory}
           setKeywordCategory={setKeywordCategory}

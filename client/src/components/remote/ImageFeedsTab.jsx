@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
 
 function ImageFeedsTab({
   state,
@@ -19,6 +20,7 @@ function ImageFeedsTab({
   handleDragStart,
   dragState,
   getGalleryPhotoPreviewStyle,
+  tvAspectRatio,
   remoteOrientationCache,
   keywordCategory,
   setKeywordCategory,
@@ -32,8 +34,24 @@ function ImageFeedsTab({
   const [keywordInput, setKeywordInput] = useState('');
   const [localCrop, setLocalCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
+  const ratingDeckPreviewContainerRef = useRef(null);
+  const [ratingDeckPreviewBounds, setRatingDeckPreviewBounds] = useState(DEFAULT_TV_PREVIEW_DIMENSIONS);
 
   const activeGalleryPhoto = state.photosList && state.photosList[galleryIndex] ? state.photosList[galleryIndex] : null;
+  const ratingDeckTvFrame = fitTvPreviewFrame(ratingDeckPreviewBounds, tvAspectRatio);
+  const ratingDeckTvFrameStyle = {
+    width: `${Math.round(ratingDeckTvFrame.width)}px`,
+    height: `${Math.round(ratingDeckTvFrame.height)}px`
+  };
+  const tvFrameShellStyle = {
+    ...ratingDeckTvFrameStyle,
+    position: 'relative',
+    borderRadius: '14px',
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    border: '1px solid rgba(255,255,255,0.2)',
+    boxShadow: '0 0 0 1px rgba(255,255,255,0.06), 0 18px 36px rgba(0,0,0,0.35)'
+  };
 
   useEffect(() => {
     if (activeGalleryPhoto) {
@@ -49,6 +67,27 @@ function ImageFeedsTab({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!ratingDeckPreviewContainerRef.current) {
+      return undefined;
+    }
+
+    const updatePreviewBounds = () => {
+      const rect = ratingDeckPreviewContainerRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setRatingDeckPreviewBounds({
+          width: rect.width,
+          height: rect.height
+        });
+      }
+    };
+
+    updatePreviewBounds();
+    window.addEventListener('resize', updatePreviewBounds);
+
+    return () => window.removeEventListener('resize', updatePreviewBounds);
+  }, [galleryIndex, imageStatus]);
 
   const activeChips = newCategoryKeyword ? newCategoryKeyword.split(',').map(s => s.trim()).filter(Boolean) : [];
 
@@ -327,114 +366,162 @@ function ImageFeedsTab({
                 {/* Thumbnail Preview with loading and error boundaries */}
                 {imageStatus === 'loading' && (
                   <div 
+                    ref={ratingDeckPreviewContainerRef}
                     style={{
-                      height: '160px',
-                      borderRadius: '12px',
-                      background: 'rgba(255,255,255,0.03)',
-                      border: '1px solid rgba(255,255,255,0.08)',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '8px'
+                      height: '180px'
                     }}
                   >
-                    <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--accent-color)', opacity: 0.8 }} />
-                    <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>Preloading preview...</span>
+                    <div style={tvFrameShellStyle}>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        background: 'rgba(255,255,255,0.03)'
+                      }}>
+                        <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--accent-color)', opacity: 0.8 }} />
+                        <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>Preloading preview...</span>
+                      </div>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '14px',
+                        pointerEvents: 'none'
+                      }} />
+                    </div>
                   </div>
                 )}
 
                 {imageStatus === 'failed' && (
                   <div 
+                    ref={ratingDeckPreviewContainerRef}
                     style={{
-                      height: '160px',
-                      borderRadius: '12px',
-                      background: 'rgba(239, 68, 68, 0.05)',
-                      border: '1px solid rgba(239, 68, 68, 0.2)',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      padding: '12px',
-                      gap: '6px',
-                      textAlign: 'center'
+                      height: '180px'
                     }}
                   >
-                    <HelpCircle size={24} style={{ color: '#ef4444' }} />
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>Preview Unavailable</span>
-                    <span style={{ fontSize: '0.72rem', opacity: 0.6, lineHeight: 1.3 }}>
-                      Source link is broken or restricted. Rate as 1 or use Ban & Next to skip.
-                    </span>
-                    
-                    <div style={{ display: 'flex', gap: '8px', width: '100%', marginTop: '6px', maxWidth: '240px' }}>
-                      <button 
-                        className="remote-btn" 
-                        onClick={() => {
-                          setImageStatus('loading');
-                          const img = new window.Image();
-                          img.onload = () => setImageStatus('loaded');
-                          img.onerror = () => setImageStatus('failed');
-                          img.src = photo.url;
-                        }}
-                        style={{ flex: 1, padding: '4px 0', fontSize: '0.75rem', background: 'rgba(255,255,255,0.02)' }}
-                      >
-                        Retry
-                      </button>
-                      <button 
-                        className="remote-btn" 
-                        onClick={() => {
-                          socket.emit('rate-photo', { url: photo.url, rating: 1 });
-                          setGalleryIndex((prev) => (prev + 1) % state.photosList.length);
-                        }}
-                        style={{ flex: 1.3, padding: '4px 0', fontSize: '0.75rem', borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239,68,68,0.05)' }}
-                      >
-                        🛑 Ban & Next
-                      </button>
+                    <div style={tvFrameShellStyle}>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '12px',
+                        gap: '6px',
+                        textAlign: 'center',
+                        background: 'rgba(239, 68, 68, 0.05)'
+                      }}>
+                        <HelpCircle size={24} style={{ color: '#ef4444' }} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ef4444' }}>Preview Unavailable</span>
+                        <span style={{ fontSize: '0.72rem', opacity: 0.6, lineHeight: 1.3 }}>
+                          Source link is broken or restricted. Rate as 1 or use Ban & Next to skip.
+                        </span>
+                        
+                        <div style={{ display: 'flex', gap: '8px', width: '100%', marginTop: '6px', maxWidth: '240px' }}>
+                          <button 
+                            className="remote-btn" 
+                            onClick={() => {
+                              setImageStatus('loading');
+                              const img = new window.Image();
+                              img.onload = () => setImageStatus('loaded');
+                              img.onerror = () => setImageStatus('failed');
+                              img.src = photo.url;
+                            }}
+                            style={{ flex: 1, padding: '4px 0', fontSize: '0.75rem', background: 'rgba(255,255,255,0.02)' }}
+                          >
+                            Retry
+                          </button>
+                          <button 
+                            className="remote-btn" 
+                            onClick={() => {
+                              socket.emit('rate-photo', { url: photo.url, rating: 1 });
+                              setGalleryIndex((prev) => (prev + 1) % state.photosList.length);
+                            }}
+                            style={{ flex: 1.3, padding: '4px 0', fontSize: '0.75rem', borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239,68,68,0.05)' }}
+                          >
+                            🛑 Ban & Next
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '14px',
+                        pointerEvents: 'none'
+                      }} />
                     </div>
                   </div>
                 )}
 
                 {imageStatus === 'loaded' && (
                   <div 
-                    onMouseDown={(e) => handleDragStart(e, photo.url, false)}
-                    onTouchStart={(e) => handleDragStart(e, photo.url, false)}
+                    ref={ratingDeckPreviewContainerRef}
                     style={{
-                      height: '160px',
-                      borderRadius: '12px',
-                      position: 'relative',
                       display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'flex-end',
-                      padding: '12px',
-                      border: '1px solid rgba(255,255,255,0.18)',
-                      cursor: dragState.isDragging && dragState.photoUrl === photo.url ? 'grabbing' : 'ns-resize',
-                      overflow: 'hidden',
-                      ...getGalleryPhotoPreviewStyle(photo)
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '180px'
                     }}
                   >
-                    <span style={{ 
-                      fontSize: '0.9rem', 
-                      fontWeight: 600, 
-                      color: '#fff',
-                      textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      zIndex: 2,
-                      pointerEvents: 'none'
-                    }}>
-                      {photo.title}
-                    </span>
-                    <span style={{ 
-                      fontSize: '0.75rem', 
-                      opacity: 0.8, 
-                      color: '#fff',
-                      textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                      zIndex: 2,
-                      pointerEvents: 'none'
-                    }}>
-                      by {photo.author}
-                    </span>
+                    <div style={tvFrameShellStyle}>
+                      <div
+                        onMouseDown={(e) => handleDragStart(e, photo.url, false)}
+                        onTouchStart={(e) => handleDragStart(e, photo.url, false)}
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'flex-end',
+                          padding: '12px',
+                          cursor: dragState.isDragging && dragState.photoUrl === photo.url ? 'grabbing' : 'ns-resize',
+                          ...getGalleryPhotoPreviewStyle(photo, ratingDeckTvFrame)
+                        }}
+                      >
+                        <span style={{ 
+                          fontSize: '0.9rem', 
+                          fontWeight: 600, 
+                          color: '#fff',
+                          textShadow: '0 2px 4px rgba(0,0,0,0.8)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          zIndex: 2,
+                          pointerEvents: 'none'
+                        }}>
+                          {photo.title}
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.75rem', 
+                          opacity: 0.8, 
+                          color: '#fff',
+                          textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                          zIndex: 2,
+                          pointerEvents: 'none'
+                        }}>
+                          by {photo.author}
+                        </span>
+                      </div>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '14px',
+                        pointerEvents: 'none'
+                      }} />
+                    </div>
                   </div>
                 )}
 

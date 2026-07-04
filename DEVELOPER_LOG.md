@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-04: Shared Detected TV Outline for Direct Control and Rating Deck
+* **Goal**: Keep the remote previews honest by rendering the same automatically detected TV frame outline in both `TV Gesture Controller` and `Independent Rating Deck`.
+* **Implementation**:
+  * **Single TV-frame helper**: Added `client/src/components/remote/tvPreview.js` so remote preview surfaces share the same fallback aspect ratio and fit logic instead of each card carrying its own sizing assumptions.
+  * **Detection confirmation path**: Kept `client/src/components/Dashboard.jsx` as the source of truth that reports `window.innerWidth` / `window.innerHeight`, with `server/sockets.js` persisting that live `tvViewport` snapshot for remotes.
+  * **Rating deck parity**: Updated `client/src/components/RemoteControl.jsx` and `client/src/components/remote/ImageFeedsTab.jsx` so the rating deck preview uses the detected TV aspect ratio, renders inside the same outlined shell, and drives crop math from that frame rather than a fixed generic thumbnail box.
+* **Learning**: A crop/rating preview is misleading even when the image itself is correct if the surrounding frame does not match the real TV viewport. The frame outline is part of the editing truth, not just decoration.
+* **Verification**: `npm test` passed. `npm --prefix client run build` passed.
+
 ### 2026-07-04: Google Photos Category Selection Rehydrates the Active Pool
 * **Goal**: Fix the `No photos in active pool to display` regression that appeared when selecting the `Google Photos` feed.
 * **Implementation**:
