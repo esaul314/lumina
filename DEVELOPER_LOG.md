@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-04: Google Photos Pairing Toggle Persists Outside Curated Collections
+* **Goal**: Fix the `Allow Side-by-Side Pairing` toggle when used on Google Photos items, where the switch appeared stuck in the `On` position.
+* **Implementation**:
+  * **Google Photos metadata helpers**: Extended [`server/services/googlePhotos.js`](file:///home/alex/work/lumina/server/services/googlePhotos.js) with proxy-url id parsing plus focused helpers to merge cached metadata updates and project them back onto the live runtime snapshot.
+  * **Socket fix**: Updated [`server/sockets.js`](file:///home/alex/work/lumina/server/sockets.js) so `set-photo-prevent-pairing` bypasses the curated-collections reducer path for Google Photos proxy URLs and persists the pairing flag directly into `google_photos_cache.json` while keeping the in-memory state in sync.
+  * **REST parity**: Updated [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) so `PATCH /api/photos` can apply a Google Photos pairing-only mutation through the same cache-backed path instead of silently missing the photo.
+  * **Regression coverage**: Added cache-helper assertions in [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) covering proxy id extraction, cached pairing metadata updates, and live-state projection.
+* **Learning**: Per-image display metadata no longer belongs conceptually to only `curated_collections.json`. Source-specific feeds like Google Photos need the mutation path to target their own persistence store instead of assuming every editable image lives in the curated collections map.
+* **Verification**: `npm test`, `npm run lint`, and `.agents/skills/lumina-diagnostics/scripts/diagnose.sh` passed. `systemctl --user restart lumina` succeeded and `curl http://127.0.0.1:5000/api/config` responded successfully afterward.
+
 ### 2026-06-30: Direct Control Pairing Toggle Preserves Focused Portrait Preview
 * **Goal**: Make the `Allow Side-by-Side Pairing` toggle in Direct Control behave like an editable preview control instead of seeming to skip away from the portrait being adjusted.
 * **Implementation**:
