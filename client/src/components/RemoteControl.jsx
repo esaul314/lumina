@@ -28,6 +28,15 @@ import {
 const SPLIT_PREVIEW_PADDING = 6;
 const SPLIT_PREVIEW_GAP = 6;
 
+function formatTvPreviewMetaLabel(displayInfo, viewport) {
+  const width = Number(viewport?.width) || Number(displayInfo?.width);
+  const height = Number(viewport?.height) || Number(displayInfo?.height);
+  const dimensions = width > 0 && height > 0 ? `${width}x${height}` : 'detecting size';
+  const displayName = displayInfo?.makeModel || displayInfo?.displayName || displayInfo?.connector || 'display';
+
+  return `${displayName} / ${dimensions}`;
+}
+
 function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [activeTab, setActiveTab] = useState('controls'); // controls, settings, photos
   const [googleClientId, setGoogleClientId] = useState('');
@@ -63,6 +72,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const [previewDimensions, setPreviewDimensions] = useState(DEFAULT_TV_PREVIEW_DIMENSIONS);
   const tvAspectRatio = getTvAspectRatio(state.tvViewport);
   const tvPreviewDimensions = fitTvPreviewFrame(previewDimensions, tvAspectRatio);
+  const tvPreviewMetaLabel = formatTvPreviewMetaLabel(state.tvDisplayInfo, state.tvViewport);
   const { 
     dragState, 
     currentDragY, 
@@ -526,6 +536,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           activePhotoCrop={activePhotoCrop}
           previewContainerRef={previewContainerRef}
           tvPreviewFrameStyle={tvPreviewFrameStyle}
+          tvPreviewMetaLabel={tvPreviewMetaLabel}
           swipeStatus={swipeStatus}
           handleTouchStart={handleTouchStart}
           handleTouchEnd={handleTouchEnd}
@@ -565,6 +576,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
           dragState={dragState}
           getGalleryPhotoPreviewStyle={getGalleryPhotoPreviewStyle}
           tvAspectRatio={tvAspectRatio}
+          tvPreviewMetaLabel={tvPreviewMetaLabel}
           remoteOrientationCache={remoteOrientationCache}
           keywordCategory={keywordCategory}
           setKeywordCategory={setKeywordCategory}

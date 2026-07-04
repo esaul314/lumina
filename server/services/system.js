@@ -30,6 +30,40 @@ const AGGRESSIVE_GPU_FLAGS = Object.freeze([
   '--enable-zero-copy',
   '--enable-native-gpu-memory-buffers'
 ]);
+const DISPLAY_CONFIG_CMD = `DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" gdbus call --session --dest org.gnome.Mutter.DisplayConfig --object-path /org/gnome/Mutter/DisplayConfig --method org.gnome.Mutter.DisplayConfig.GetCurrentState`;
+
+function parseCurrentDisplayInfo(stdout) {
+  if (!stdout) {
+    return null;
+  }
+
+  const connectorMatch = stdout.match(/\(\('([^']+)', '([^']*)', '([^']*)', '([^']*)'\),/);
+  const displayNameMatch = stdout.match(/'display-name': <'([^']+)'>/);
+  const currentModeMatch = stdout.match(/\('([^']+)', (\d+), (\d+), ([0-9.]+), [\s\S]*?\{'is-current': <true>[\s\S]*?\}\)/);
+
+  if (!connectorMatch) {
+    return null;
+  }
+
+  const [, connector, vendor, product, serial] = connectorMatch;
+  const [, modeName, width, height, refreshRate] = currentModeMatch || [];
+  const displayName = displayNameMatch?.[1] || '';
+  const makeModel = [vendor, product].filter(Boolean).join(' ').trim() || displayName || connector;
+
+  return {
+    connector,
+    vendor,
+    product,
+    serial,
+    displayName,
+    makeModel,
+    modeName: modeName || null,
+    width: width ? Number(width) : null,
+    height: height ? Number(height) : null,
+    refreshRate: refreshRate ? Number(refreshRate) : null,
+    source: 'mutter-displayconfig'
+  };
+}
 
 function getChromiumAccelerationProfile() {
   const rawProfile = readEnvVar('LUMINA_CHROMIUM_ACCELERATION_PROFILE', 'safe').toLowerCase();
@@ -47,6 +81,20 @@ function buildChromiumFlags({ platform = 'wayland' } = {}) {
   }
 
   return flags.join(' ');
+}
+
+function getHostDisplayInfo() {
+  return new Promise((resolve) => {
+    exec(DISPLAY_CONFIG_CMD, (err, stdout) => {
+      if (err) {
+        console.warn('System Service: Could not read host display info:', err.message);
+        resolve(null);
+        return;
+      }
+
+      resolve(parseCurrentDisplayInfo(stdout));
+    });
+  });
 }
 
 /**
@@ -225,6 +273,7 @@ module.exports = {
   getGnomeIdleTime,
   isAudioPlaying,
   isSessionInhibited,
+  getHostDisplayInfo,
   buildChromiumFlags,
   getChromiumAccelerationProfile,
   launchChromiumKiosk,

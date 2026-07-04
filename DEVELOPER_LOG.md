@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-04: Host-Read Display Make/Model Badge in TV Preview Frames
+* **Goal**: Show a small screen-identity label inside the remote TV-frame previews using what the host can actually read about the active display, rather than the machine hostname.
+* **Implementation**:
+  * **Mutter display probe**: Added a best-effort `getHostDisplayInfo()` helper in `server/services/system.js` that queries `org.gnome.Mutter.DisplayConfig.GetCurrentState` from the live GNOME user bus and extracts connector, vendor, product, display name, and current mode.
+  * **State sync hookup**: Updated `server/sockets.js` so the first live `report-tv-viewport` event also captures that host-read display descriptor and stores it in ephemeral state as `tvDisplayInfo`.
+  * **Remote badge**: Updated `client/src/components/RemoteControl.jsx`, `client/src/components/remote/DirectControlTab.jsx`, and `client/src/components/remote/ImageFeedsTab.jsx` to render a small caption inside both TV outline previews using best-effort make/model text plus the live preview dimensions.
+* **Learning**: The host may expose an adapter or connector path instead of a consumer TV brand. On the current setup, Mutter reports an adapter-like identity (`HJW`, `VGA TO HDMI`) rather than a clean brand string such as `Samsung`, so the UI must present this as best-effort display metadata rather than guaranteed marketing-name detection.
+* **Verification**: `npm test` passed. `npm --prefix client run build` passed.
+
 ### 2026-07-04: Shared Detected TV Outline for Direct Control and Rating Deck
 * **Goal**: Keep the remote previews honest by rendering the same automatically detected TV frame outline in both `TV Gesture Controller` and `Independent Rating Deck`.
 * **Implementation**:

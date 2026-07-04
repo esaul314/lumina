@@ -2,6 +2,7 @@ const { sendEmailAlert } = require('./services/notifier.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const { saveCuratedCollections } = require('./config/collections.js');
 const { persistEnvVars } = require('./config/env.js');
+const { getHostDisplayInfo } = require('./services/system.js');
 const {
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
@@ -271,7 +272,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
-    socket.on('report-tv-viewport', (payload) => {
+    socket.on('report-tv-viewport', async (payload) => {
       const width = Number(payload?.width);
       const height = Number(payload?.height);
 
@@ -285,6 +286,13 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         aspectRatio: width / height,
         updatedAt: Date.now()
       };
+
+      if (!state.tvDisplayInfo) {
+        const tvDisplayInfo = await getHostDisplayInfo();
+        if (tvDisplayInfo) {
+          state.tvDisplayInfo = tvDisplayInfo;
+        }
+      }
       broadcast();
     });
 
