@@ -6,6 +6,17 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-04: Google Photos Crop Persistence & Aspect-Preserving Preview Fix
+* **Goal**: Fix three related Google Photos regressions: squished paired images in the `TV Gesture Controller` preview, Direct Control crop/scroll snap-back, and a non-working `Photo Crop/Zoom (Rating Deck)` slider.
+* **Implementation**:
+  * **Aspect-preserving proxy URLs**: Updated [`server/services/googlePhotos.js`](file:///home/alex/work/lumina/server/services/googlePhotos.js) and [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) so Google Photos proxy URLs no longer request server-side cropped landscape bytes by default. Explicit crop remains opt-in, but the normal rendering path now preserves the source aspect ratio.
+  * **Unified metadata projection**: Extended [`server/sockets.js`](file:///home/alex/work/lumina/server/sockets.js) so `report-photo-metadata` and `set-photo-crop` use the same cache-backed Google Photos metadata path as pairing updates, instead of falling through the curated-collections reducer path that cannot see proxy-only photos.
+  * **REST metadata parity**: Broadened the Google Photos branch in [`server/routes.js`](file:///home/alex/work/lumina/server/routes.js) so crop updates (`cropPercent`, `cropPositionY`) and pairing flags can be patched through one declarative metadata payload, with crop validation still flowing through the existing decoder.
+  * **Preview-dimension hygiene**: Updated [`client/src/hooks/useImagePreloader.js`](file:///home/alex/work/lumina/client/src/hooks/useImagePreloader.js) to cache `naturalWidth` / `naturalHeight` for preview math instead of relying on the looser `width` / `height` properties.
+  * **Regression coverage**: Expanded [`run-tests.js`](file:///home/alex/work/lumina/run-tests.js) to lock the new no-default-crop proxy contract while preserving an explicit crop opt-in path.
+* **Learning**: For Google Photos, the remote preview and the live crop state are coupled through two independent truths: the actual proxied bitmap shape and the persisted per-image metadata. If either one falls back to a curated-only assumption, the operator sees either a squished preview or a crop value that snaps back after interaction.
+* **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. `systemctl --user restart lumina` succeeded, `http://127.0.0.1:5000/api/config` responded afterward, and the live Google Photos normalization now emits proxy URLs without the `c=1` crop flag by default.
+
 ### 2026-07-04: Google Photos Pairing Toggle Persists Outside Curated Collections
 * **Goal**: Fix the `Allow Side-by-Side Pairing` toggle when used on Google Photos items, where the switch appeared stuck in the `On` position.
 * **Implementation**:
