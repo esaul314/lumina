@@ -15,7 +15,7 @@ Welcome, fellow AI agent or human developer! This document is designed to give y
 
 ## 🛠️ Architecture & Data Flow
 
-Lumina utilizes a decoupled client-server architecture tied together with real-time Socket.IO events.
+Lumina utilizes a decoupled client-server architecture. The durable control surface is moving toward REST-first APIs, while Socket.IO remains the live-sync and low-latency event channel.
 
 ```mermaid
 graph TD
@@ -173,7 +173,7 @@ The client is built using React (Vite) and styled with raw vanilla CSS to enable
 
 ## 🛰️ Real-Time Socket.IO API Contracts
 
-All commands, sync indicators, and interaction updates flow bidirectionally through Socket.IO.
+Socket.IO remains the real-time synchronization channel, but durable control and settings work should continue migrating toward REST mutations backed by the shared domain command path.
 
 | Event Name | Direction | Payload Schema | Action / Purpose |
 | :--- | :--- | :--- | :--- |

@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-05: Product Roadmap Added for REST-First, Metadata, Sharing, and Sensor Work
+* **Goal**: Capture Lumina's next major product and architecture phases in one tracked roadmap so future work stops drifting back toward socket-only mutations and ad hoc feature additions.
+* **Implementation**:
+  * Added `ROADMAP.md` as the repo's phase-based planning document, anchored on a REST-first backend API, a functional core / imperative shell direction, and three major delivery phases.
+  * Aligned `README.md` with the current architecture reality by describing Lumina as a REST-first migration with Socket.IO reserved for live sync and low-latency events, and linked the new roadmap.
+  * Corrected `AGENTS.md` wording so future agents see Socket.IO as the real-time transport rather than the long-term durable control surface.
+* **Learning**: The repo already contains the server-side beginnings of this plan (`server/routes.js`, `server/domain/`, transport-parity tests), but the top-level docs were still describing Lumina as if Socket.IO were the primary integration boundary. That mismatch makes it too easy for future feature work to reintroduce transport drift.
+* **Verification**: `npm test` passed successfully.
+
 ### 2026-07-04: TV Preview Resolution & Display Info Refactor & Adapter Filtering
 * **Goal**: Move the best-effort TV preview resolution metadata off the actual TV-frame preview outlines onto the outer layouts (under section headings), and hide it completely if a real physical TV make/model cannot be resolved (e.g. generic name "display" or video converters like "VGA to HDMI").
 * **Implementation**:

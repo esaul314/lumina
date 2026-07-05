@@ -8,7 +8,7 @@ Lumina is an elegant, ambient smart display dashboard and Chromecast-style scree
 
 * **🎭 Dynamic Visual Feeds**: Combined feeds including Scenic Nature (Unsplash, Wallhaven), Cosmic Space (NASA APOD), Abstract Art, Liminal Spaces, and AI-Generated Creations (Lexica Art fallback / Midjourney via UseAPI).
 * **🌦️ Meteorological Atmospheric Fusion**: Adapts displayed image selections automatically according to current outdoor weather conditions (rain, snow, sunny, cloudy) and news sentiment.
-* **📱 Mobile Remote Control**: Real-time Socket.IO remote command deck for changing display themes, rating/favoriting wallpapers, adjusting intervals, and overriding coordinates manually.
+* **📱 Mobile Remote Control**: A REST-capable control surface with real-time Socket.IO live sync for changing display themes, rating/favoriting wallpapers, adjusting intervals, and overriding coordinates manually.
 * **🎵 Smart Media Playback Guard**: Actively monitors PulseAudio/PipeWire sink streams. If a movie is playing or music is active (e.g., Plex, YouTube, Spotify), screensaver activation is automatically bypassed to prevent interruption.
 * **⚡ CPU Governor Orchestration**: Automatically scales the CPU governor to `performance` when transitions or particle systems are active, and throttles back down to `schedutil` or `powersave` when the screensaver is dismissed (achieving 0% background CPU impact).
 * **🧠 Under 80MB RAM Footprint**: Implements strict V8 engine heap limitations (`--max-old-space-size=256`) and client-side image double-buffering to avoid typical Chromium memory leaks during endless runs.
@@ -17,10 +17,12 @@ Lumina is an elegant, ambient smart display dashboard and Chromecast-style scree
 
 ## 🛠️ Architecture
 
-Lumina utilizes a decoupled client-server architecture tied together with real-time Socket.IO events.
+Lumina uses a decoupled client-server architecture. The backend is moving toward a REST-first control surface, while Socket.IO remains the live sync and low-latency event channel.
 
 * **Server (Node.js/Express)**: Manages centralized geolocated API weather fusion, schedules image background pre-loading adapters, handles Mutter idle state DBus monitoring, and manages CPU orchestration.
 * **Client (React/Vite/Vanilla CSS)**: Renders a fluid, glassmorphic layout displaying high-definition imagery with subtle Ken Burns panning, customizable floating widgets (weather, clock), and atmospheric overlay shaders (snowdrift, rainwash, auraglow).
+
+See [ROADMAP.md](./ROADMAP.md) for the phased product and architecture plan.
 
 ---
 
