@@ -49,7 +49,7 @@ function createDomainDispatcher({
       return;
     }
 
-    if (effect.type === 'run-crawler' && typeof runCrawler === 'function') {
+    if (effect.type === 'run-crawler' && typeof runCrawler === 'function' && process.env.NODE_ENV !== 'test') {
       await runCrawler(effect.payload || {});
     }
   }

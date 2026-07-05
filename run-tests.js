@@ -795,8 +795,14 @@ async function runClientStateTests() {
   logSuite('Remote Feed Control Snapshot Mutations');
 
   const {
+    normalizeSnapshot: normalizeClientSnapshot
+  } = await importClientModule('./client/src/state/frameSelectors.js');
+
+  const {
     applyCategorySelection,
     applyFeedSourceConfigPatch,
+    getSelectedCategories,
+    isCategorySelected,
     normalizeCategorySelection,
     serializeCategorySelection,
     toggleCategorySelection
@@ -819,6 +825,62 @@ async function runClientStateTests() {
       serializeCategorySelection([' Scenic Nature ', 'AI Creations', 'Scenic Nature']),
       'Scenic Nature,AI Creations'
     );
+  });
+
+  assertTest('client category helpers prefer canonical playback selection over stale top-level category strings', () => {
+    const snapshot = {
+      currentCategory: 'Scenic Nature',
+      currentFrame: {
+        context: {
+          categories: ['AI Creation']
+        }
+      },
+      playback: {
+        selectedCategories: ['Liminal Space', 'Google Photos']
+      }
+    };
+
+    assert.deepStrictEqual(
+      getSelectedCategories(snapshot),
+      ['Liminal Spaces', 'Google Photos']
+    );
+    assert.strictEqual(isCategorySelected(snapshot, 'Liminal Spaces'), true);
+    assert.strictEqual(isCategorySelected(snapshot, 'AI Creations'), false);
+    assert.deepStrictEqual(
+      toggleCategorySelection('AI Creations', snapshot),
+      ['Liminal Spaces', 'Google Photos', 'AI Creations']
+    );
+  });
+
+  assertTest('normalizeSnapshot reconciles currentCategory with canonical playback selection', () => {
+    const nextSnapshot = normalizeClientSnapshot({
+      currentCategory: 'Scenic Nature',
+      currentFrame: {
+        layout: 'single',
+        primary: { url: 'land-1', category: 'Google Photos' },
+        secondary: null,
+        crop: {
+          primaryPercent: 100,
+          primaryPositionY: 50,
+          secondaryPercent: 50,
+          secondaryPositionY: 50
+        },
+        context: {
+          category: 'Google Photos',
+          categories: ['AI Creation'],
+          photoCount: 1,
+          orientation: 'landscape',
+          splitEligible: false
+        }
+      },
+      playback: {
+        selectedCategories: ['Liminal Space', 'Google Photos']
+      }
+    });
+
+    assert.strictEqual(nextSnapshot.currentCategory, 'Liminal Spaces,Google Photos');
+    assert.deepStrictEqual(nextSnapshot.playback.selectedCategories, ['Liminal Spaces', 'Google Photos']);
+    assert.deepStrictEqual(nextSnapshot.currentFrame.context.categories, ['Liminal Spaces', 'Google Photos']);
   });
 
   assertTest('applyCategorySelection patches both top-level and nested playback selection state', () => {
@@ -886,6 +948,44 @@ async function runClientStateTests() {
       subreddits: ['SkyPorn']
     });
   });
+
+  const originalWindow = global.window;
+  const originalFetch = global.fetch;
+
+  try {
+    global.window = {
+      location: {
+        port: '5000',
+        protocol: 'http:',
+        hostname: '127.0.0.1',
+        origin: 'http://127.0.0.1:5000'
+      }
+    };
+
+    const emittedEvents = [];
+    global.fetch = async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({})
+    });
+
+    const { selectCategories: selectClientCategories } = await importClientModule('./client/src/api/luminaClient.js');
+    const fallbackResult = await selectClientCategories('Scenic Nature,Liminal Spaces', {
+      socket: {
+        emit: (...args) => emittedEvents.push(args)
+      }
+    });
+
+    assertTest('selectCategories falls back to the legacy socket event when the REST route is missing', () => {
+      assert.strictEqual(fallbackResult, null);
+      assert.deepStrictEqual(emittedEvents, [
+        ['change-category', 'Scenic Nature,Liminal Spaces']
+      ]);
+    });
+  } finally {
+    global.window = originalWindow;
+    global.fetch = originalFetch;
+  }
 }
 
 // ============================================================================
@@ -1083,7 +1183,8 @@ async function runIntegrationTests() {
     let samplePhotoUrl = '';
     const poolPhotos = await fetchJson(`${baseUrl}/api/pools/Scenic%20Nature/photos`);
     if (Array.isArray(poolPhotos) && poolPhotos.length > 0) {
-      samplePhotoUrl = poolPhotos[0].url;
+      const validPhoto = poolPhotos.find(p => p && p.url && p.rating !== 1 && !p.isBroken);
+      samplePhotoUrl = validPhoto ? validPhoto.url : poolPhotos[0].url;
     }
 
     if (samplePhotoUrl) {
