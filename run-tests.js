@@ -1195,6 +1195,13 @@ async function runIntegrationTests() {
       assert.ok(nextPhotoRes.body.activePhoto);
     });
 
+    const prevPhotoRes = await requestJson(`${baseUrl}/api/photos/prev`, 'POST');
+    assertTest('POST /api/photos/prev reverses the direct-control sequence after next', () => {
+      assert.strictEqual(prevPhotoRes.status, 200);
+      assert.strictEqual(prevPhotoRes.body.success, true);
+      assert.strictEqual(prevPhotoRes.body.activePhoto.url, samplePhotoUrl);
+    });
+
   } catch (err) {
     console.error('Integration tests failed with error:', err);
     STATS.failed++;

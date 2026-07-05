@@ -269,6 +269,36 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
   return thresholdMap.items.find((item) => item.threshold >= target)?.photo ?? weightedCandidates.at(-1);
 }
 
+function wrapIndex(length, index) {
+  return ((index % length) + length) % length;
+}
+
+function getDirectionStep(direction = 'next') {
+  return direction === 'prev' ? -1 : 1;
+}
+
+function findPhotoIndexByUrl(photos, url) {
+  return (photos ?? []).findIndex((photo) => photo?.url === url);
+}
+
+function getSequenceFallbackIndex(direction, photos) {
+  return direction === 'prev' ? photos.length - 1 : 0;
+}
+
+function selectSequentialPhoto({ state, direction = 'next' }) {
+  const photos = filterVisiblePhotos(state.library.photosList, state.config.excludedKeywords);
+  if (photos.length === 0) {
+    return null;
+  }
+
+  const currentIndex = findPhotoIndexByUrl(photos, state.playback.activePhotoUrl);
+  const nextIndex = currentIndex === -1
+    ? getSequenceFallbackIndex(direction, photos)
+    : wrapIndex(photos.length, currentIndex + getDirectionStep(direction));
+
+  return photos[nextIndex] ?? null;
+}
+
 function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = Math.random }) {
   const basePhotos = filterPhotosForNight(
     filterPhotosForWeather(
@@ -374,6 +404,7 @@ module.exports = {
   matchesExcludedKeywords,
   normalizeCategoryName,
   normalizeCategorySelection,
+  selectSequentialPhoto,
   selectSmartPhoto,
   selectWeightedRandomPhoto,
   shuffleWithRng,

@@ -15,6 +15,7 @@ const {
   getActivePhoto,
   getPhotoByUrl,
   normalizeCategorySelection,
+  selectSequentialPhoto,
   selectSmartPhoto,
   updatePhotoInCollections
 } = require('./selectors.js');
@@ -230,16 +231,15 @@ function reduceDomainCommand(state, command, env = {}) {
     }
 
     case 'advance-photo': {
-      const nextPhoto = selectSmartPhoto({
-        state,
-        direction: /** @type {'next' | 'prev'} */ (command.payload?.direction || 'next'),
-        now,
-        rng
-      });
+      const direction = /** @type {'next' | 'prev'} */ (command.payload?.direction || 'next');
+      const strategy = command.payload?.strategy === 'sequence' ? 'sequence' : 'smart';
+      const nextPhoto = strategy === 'sequence'
+        ? selectSequentialPhoto({ state, direction })
+        : selectSmartPhoto({ state, direction, now, rng });
       if (!nextPhoto) {
         return createResult(state, [], []);
       }
-      const nextState = updateActivePhotoUrl(cloneState(state), nextPhoto, /** @type {'next' | 'prev'} */ (command.payload?.direction || 'next'));
+      const nextState = updateActivePhotoUrl(cloneState(state), nextPhoto, direction);
       return createResult(nextState.state, emitPhotoUpdate(), []);
     }
 

@@ -130,7 +130,7 @@ function decodeActivePhotoCommand(payload) {
   };
 }
 
-function decodeAdvancePhotoCommand(direction) {
+function decodeAdvancePhotoCommand(direction, strategy = 'smart') {
   if (direction !== 'next' && direction !== 'prev') {
     return null;
   }
@@ -138,7 +138,8 @@ function decodeAdvancePhotoCommand(direction) {
   return {
     type: 'advance-photo',
     payload: {
-      direction
+      direction,
+      strategy: strategy === 'sequence' ? 'sequence' : 'smart'
     }
   };
 }

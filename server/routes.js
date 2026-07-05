@@ -1001,7 +1001,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
   // POST /api/photos/next
   app.post('/api/photos/next', (req, res) => {
     if (dispatchCommand) {
-      dispatchCommand(decodeAdvancePhotoCommand('next')).then((result) => {
+      dispatchCommand(decodeAdvancePhotoCommand('next', 'sequence')).then((result) => {
         if (!result || !state.activePhoto) {
           return res.status(500).json({ error: 'Could not transition to next photo.' });
         }
@@ -1025,7 +1025,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
   // POST /api/photos/prev
   app.post('/api/photos/prev', (req, res) => {
     if (dispatchCommand) {
-      dispatchCommand(decodeAdvancePhotoCommand('prev')).then((result) => {
+      dispatchCommand(decodeAdvancePhotoCommand('prev', 'sequence')).then((result) => {
         if (!result || !state.activePhoto) {
           return res.status(500).json({ error: 'Could not transition to previous photo.' });
         }

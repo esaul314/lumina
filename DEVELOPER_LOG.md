@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-05: Direct Control Prev/Next Now Uses Deterministic Feed Navigation
+* **Goal**: Fix the Direct Control `Prev/Next` controls so multi-feed navigation can round-trip back to the same image instead of sampling another weighted candidate.
+* **Implementation**:
+  * Added a pure circular feed navigator in `server/domain/selectors.js` that advances over the already-balanced `photosList` order with wraparound behavior and explicit fallback when the active photo is no longer in the feed.
+  * Extended `advance-photo` commands with a small `strategy` discriminator in `server/domain/commands.js` / `server/domain/reducer.js`, keeping `smart` selection available for slideshow-style paths while routing the REST `/api/photos/next|prev` operator controls to deterministic `sequence` navigation.
+  * Added regression coverage in `server/domain/tests.js` for multi-feed next/prev round-tripping and in `run-tests.js` for the REST next-then-prev path.
+* **Learning**: `prev` cannot be modeled as “smart selection with a different flag” if the selector is still probabilistic. For operator navigation, the correct source of truth is the precomputed balanced feed order, not a fresh weighted pick.
+* **Verification**: `npm test` passed successfully.
+
 ### 2026-07-05: Category, Pool, and Feed Configuration Controls Now Use REST Mutations by Default
 * **Goal**: Complete Phase 1 Step 3 by moving category selection plus pool/feed-configuration writes off socket-only operator mutations and onto the shared REST/domain command path.
 * **Implementation**:

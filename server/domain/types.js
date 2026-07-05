@@ -5,6 +5,10 @@
  */
 
 /**
+ * @typedef {'sequence' | 'smart'} AdvanceStrategy
+ */
+
+/**
  * @typedef {{ start: string, end: string }} TimeRange
  */
 
@@ -131,7 +135,7 @@
  *     | 'set-pool-keywords'
  *     | 'merge-pool-feed-config'
  *     | 'delete-pool'
- *   payload?: Record<string, unknown>
+ *   payload?: Record<string, unknown> & { direction?: 'next' | 'prev', strategy?: AdvanceStrategy }
  * }} Command
  */
 

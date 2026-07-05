@@ -13,6 +13,7 @@ const {
 } = require('./selectors.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const {
+  decodeAdvancePhotoCommand,
   decodeAddPoolCommand,
   decodeCategorySelectionFromHttp,
   decodeCategorySelectionFromSocket,
@@ -161,6 +162,16 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(picked?.url, 'high');
   });
 
+  assertTest('advance-photo command decoder preserves an explicit sequence strategy', () => {
+    assert.deepStrictEqual(decodeAdvancePhotoCommand('prev', 'sequence'), {
+      type: 'advance-photo',
+      payload: {
+        direction: 'prev',
+        strategy: 'sequence'
+      }
+    });
+  });
+
   assertTest('filters time, weather, and night candidates declaratively', () => {
     const timed = filterPhotosForTime([
       { url: 'day', timeRanges: [{ start: '08:00', end: '18:00' }] },
@@ -247,6 +258,44 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
     assert.strictEqual(result.nextState.library.photosList.some((photo) => photo.url === 'port-1'), false);
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+  });
+
+  assertTest('sequence advance walks the balanced multi-feed order and prev reverses it', () => {
+    const state = createState({
+      library: {
+        collections: createState().library.collections,
+        externalCollections: {},
+        photosList: [
+          { url: 'land-1', title: 'Sunny Forest', rating: 10, orientation: 'landscape', category: 'Scenic Nature' },
+          { url: 'port-1', title: 'Midnight Hallway', rating: 10, orientation: 'portrait', category: 'Liminal Spaces' },
+          { url: 'land-2', title: 'Foggy River', rating: 8, orientation: 'landscape', category: 'Scenic Nature' },
+          { url: 'port-2', title: 'Silent Corridor', rating: 9, orientation: 'portrait', category: 'Liminal Spaces' }
+        ]
+      },
+      playback: {
+        selectedCategories: ['Scenic Nature', 'Liminal Spaces'],
+        activePhotoUrl: 'land-1',
+        splitSeed: 1,
+        lastDirection: 'next'
+      }
+    });
+
+    const goNext = (currentState) => reduceDomainCommand(currentState, {
+      type: 'advance-photo',
+      payload: { direction: 'next', strategy: 'sequence' }
+    });
+    const goPrev = (currentState) => reduceDomainCommand(currentState, {
+      type: 'advance-photo',
+      payload: { direction: 'prev', strategy: 'sequence' }
+    });
+
+    const second = goNext(state).nextState;
+    const third = goNext(second).nextState;
+    const rewound = goPrev(third).nextState;
+
+    assert.strictEqual(second.playback.activePhotoUrl, 'port-1');
+    assert.strictEqual(third.playback.activePhotoUrl, 'land-2');
+    assert.strictEqual(rewound.playback.activePhotoUrl, 'port-1');
   });
 
   assertTest('reducer exclusion updates recompute playback consistently', () => {
