@@ -220,9 +220,10 @@ function reduceDomainCommand(state, command, env = {}) {
         return createResult(state, [], []);
       }
       const nextState = cloneState(state);
-      if (!findPhotoInFeed(nextState.library.photosList, url) && payloadPhoto) {
+      if (!findPhotoInFeed(nextState.library.photosList, url)) {
+        const previewPhoto = payloadPhoto || selectedPhoto;
         nextState.library.photosList = [
-          payloadPhoto,
+          { ...previewPhoto },
           ...nextState.library.photosList.filter((photo) => photo.url !== url)
         ];
       }

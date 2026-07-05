@@ -25,6 +25,7 @@ import {
   isSplitFrameActive
 } from '../state/frameSelectors';
 import {
+  getSelectedCategories,
   serializeCategorySelection,
   toggleCategorySelection
 } from '../state/feedMutations';
@@ -288,7 +289,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
 
   const handleCategoryChange = (categoryName) => {
     actions.changeCategory(
-      serializeCategorySelection(toggleCategorySelection(categoryName, state.currentCategory))
+      serializeCategorySelection(toggleCategorySelection(categoryName, state))
     );
   };
 
@@ -345,6 +346,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     ...Object.keys(state.searchKeywords || {}),
     'Google Photos'
   ];
+  const selectedCategories = getSelectedCategories(state);
 
   const getSplitPreviewStyle = (url, isSecond) => {
     const photoObj = findPhotoByUrl(state, url, isSecond ? secondPhoto : primaryPhoto);
@@ -582,6 +584,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
           socket={socket}
           actions={actions}
           categories={categories}
+          selectedCategories={selectedCategories}
           handleCategoryChange={handleCategoryChange}
           handleDeleteCategory={handleDeleteCategory}
           newCategoryName={newCategoryName}

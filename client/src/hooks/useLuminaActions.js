@@ -122,8 +122,10 @@ export function useLuminaActions(socket, setState) {
 
       void runAction(async () => {
         applySnapshotPatch((current) => applyCategorySelection(current, categories));
-        const nextState = await selectCategories(categories);
-        applyStateResponse(nextState);
+        const nextState = await selectCategories(categories, { socket });
+        if (nextState) {
+          applyStateResponse(nextState);
+        }
       }, refreshState);
     },
     addCategory: (category, keyword) => {

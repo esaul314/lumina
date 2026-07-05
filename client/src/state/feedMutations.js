@@ -1,31 +1,14 @@
 import { normalizeSnapshot } from './frameSelectors.js';
+import {
+  getSelectedCategories,
+  isCategorySelected,
+  normalizeCategorySelection,
+  serializeCategorySelection,
+  toggleCategorySelection
+} from './categorySelection.js';
 
 const trim = (value) => String(value ?? '').trim();
 const identity = (value) => value;
-const pipe = (...fns) => (value) => fns.reduce((result, fn) => fn(result), value);
-const unique = (values) => [...new Set(values)];
-const splitCategories = (value) => (Array.isArray(value) ? value : String(value ?? '').split(','));
-const compactStrings = (values) => values.map(trim).filter(Boolean);
-
-export const normalizeCategorySelection = pipe(splitCategories, compactStrings, unique);
-export const serializeCategorySelection = pipe(normalizeCategorySelection, (values) => values.join(','));
-
-export const toggleCategorySelection = (category, selection) => {
-  const nextCategory = trim(category);
-  const normalizedSelection = normalizeCategorySelection(selection);
-
-  if (!nextCategory) {
-    return normalizedSelection;
-  }
-
-  if (normalizedSelection.includes(nextCategory)) {
-    return normalizedSelection.length > 1
-      ? normalizedSelection.filter((value) => value !== nextCategory)
-      : normalizedSelection;
-  }
-
-  return [...normalizedSelection, nextCategory];
-};
 
 const updateSnapshotSlice = (snapshot, key, updater = identity) => (
   snapshot?.[key] ? { ...snapshot[key], ...updater(snapshot[key]) } : snapshot?.[key]
@@ -36,7 +19,11 @@ export function applyCategorySelection(snapshot, selection) {
     return snapshot;
   }
 
-  const categories = normalizeCategorySelection(selection);
+  const categories = normalizeCategorySelection(
+    selection && typeof selection === 'object' && !Array.isArray(selection)
+      ? getSelectedCategories(selection)
+      : selection
+  );
   const currentCategory = categories.join(',');
 
   return normalizeSnapshot({
@@ -56,6 +43,14 @@ export function applyCategorySelection(snapshot, selection) {
       : snapshot.currentFrame
   });
 }
+
+export {
+  getSelectedCategories,
+  isCategorySelected,
+  normalizeCategorySelection,
+  serializeCategorySelection,
+  toggleCategorySelection
+};
 
 const mergeFeedSourceConfig = (feedConfigs, source, configPatch) => ({
   ...(feedConfigs || {}),

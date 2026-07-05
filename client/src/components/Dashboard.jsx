@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
 import { selectCategories } from '../api/luminaClient';
 import {
+  isCategorySelected,
+  serializeCategorySelection,
+  toggleCategorySelection
+} from '../state/feedMutations';
+import {
   findPhotoByUrl,
   getCurrentFrame,
   getFramePhoto,
@@ -922,23 +927,15 @@ function Dashboard({ state, socket, connectionInfo }) {
               <span className="desktop-settings-section-title">Visual Feed</span>
               <div className="desktop-settings-list">
                 {([...Object.keys(state.searchKeywords || {}), 'Google Photos']).map((cat) => {
-                  const isActive = state.currentCategory ? state.currentCategory.split(',').includes(cat) : false;
+                  const isActive = isCategorySelected(state, cat);
                   return (
                     <div
                       key={cat}
                       onClick={() => {
-                        const currentCats = state.currentCategory ? state.currentCategory.split(',') : [];
-                        let newCats;
-                        if (currentCats.includes(cat)) {
-                          if (currentCats.length > 1) {
-                            newCats = currentCats.filter(c => c !== cat);
-                          } else {
-                            newCats = currentCats;
-                          }
-                        } else {
-                          newCats = [...currentCats, cat];
-                        }
-                        void selectCategories(newCats.join(',')).catch((error) => {
+                        void selectCategories(
+                          serializeCategorySelection(toggleCategorySelection(cat, state)),
+                          { socket }
+                        ).catch((error) => {
                           console.error('[Dashboard] Failed to change categories:', error);
                         });
                       }}

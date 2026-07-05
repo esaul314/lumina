@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
+import { isCategorySelected } from '../../state/feedMutations';
 
 function ImageFeedsTab({
   state,
   actions,
   categories,
+  selectedCategories,
   handleCategoryChange,
   handleDeleteCategory,
   newCategoryName,
@@ -91,6 +93,9 @@ function ImageFeedsTab({
   }, [galleryIndex, imageStatus]);
 
   const activeChips = newCategoryKeyword ? newCategoryKeyword.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const selectedCategorySnapshot = selectedCategories?.length
+    ? { playback: { selectedCategories } }
+    : state;
 
   const handleAddChip = (text) => {
     const clean = text.trim();
@@ -115,11 +120,11 @@ function ImageFeedsTab({
       <div className="remote-card">
         <span className="remote-section-title">Curated Scenic Categories</span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {categories.map((cat, idx) => {
-            const isActive = state.currentCategory ? state.currentCategory.split(',').includes(cat) : false;
+          {categories.map((cat) => {
+            const isActive = isCategorySelected(selectedCategorySnapshot, cat);
             return (
               <div 
-                key={idx}
+                key={cat}
                 onClick={() => handleCategoryChange(cat)}
                 className="remote-btn"
                 role="button"

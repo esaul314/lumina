@@ -29,7 +29,10 @@ async function requestJson(path, { method = 'GET', body } = {}) {
     const errorMessage = typeof payload?.error === 'string'
       ? payload.error
       : (typeof payload?.message === 'string' ? payload.message : `Request failed: ${response.status}`);
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    error.path = path;
+    throw error;
   }
 
   return payload;
@@ -46,11 +49,21 @@ export function patchState(body) {
   });
 }
 
-export function selectCategories(categories) {
-  return requestJson('/api/state/categories', {
-    method: 'POST',
-    body: { categories }
-  });
+export async function selectCategories(categories, { socket } = {}) {
+  try {
+    return await requestJson('/api/state/categories', {
+      method: 'POST',
+      body: { categories }
+    });
+  } catch (error) {
+    // ponytail: mixed-version deploys can briefly pair a REST-first client with a daemon
+    // that still only understands the legacy socket mutation for categories.
+    if (error?.status === 404 && socket?.emit) {
+      socket.emit('change-category', categories);
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function setScreensaverActive(active) {

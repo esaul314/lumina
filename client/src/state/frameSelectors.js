@@ -1,4 +1,10 @@
+import {
+  getSelectedCategories,
+  serializeCategorySelection
+} from './categorySelection.js';
+
 function buildFallbackFrame(snapshot) {
+  const categories = getSelectedCategories(snapshot);
   const primary = snapshot?.activePhoto || null;
   const secondary = snapshot?.activeSecondPhoto || null;
   const layout = secondary ? 'split' : 'single';
@@ -15,7 +21,7 @@ function buildFallbackFrame(snapshot) {
     },
     context: {
       category: primary?.category || null,
-      categories: snapshot?.currentCategory ? String(snapshot.currentCategory).split(',').map((item) => item.trim()).filter(Boolean) : [],
+      categories,
       photoCount: Array.isArray(snapshot?.photosList) ? snapshot.photosList.length : 0,
       orientation: primary?.orientation || 'unknown',
       splitEligible: Boolean(secondary)
@@ -28,10 +34,30 @@ export function normalizeSnapshot(snapshot) {
     return snapshot;
   }
 
-  const currentFrame = snapshot.currentFrame || buildFallbackFrame(snapshot);
+  const selectedCategories = getSelectedCategories(snapshot);
+  const currentCategory = serializeCategorySelection(selectedCategories);
+  const currentFrame = snapshot.currentFrame
+    ? {
+        ...snapshot.currentFrame,
+        context: {
+          ...snapshot.currentFrame.context,
+          categories: selectedCategories
+        }
+      }
+    : buildFallbackFrame({
+        ...snapshot,
+        currentCategory,
+        playback: snapshot.playback
+          ? { ...snapshot.playback, selectedCategories }
+          : snapshot.playback
+      });
 
   return {
     ...snapshot,
+    currentCategory,
+    playback: snapshot.playback
+      ? { ...snapshot.playback, selectedCategories }
+      : snapshot.playback,
     currentFrame,
     activePhoto: currentFrame.primary || snapshot.activePhoto || null,
     activeSecondPhoto: currentFrame.secondary || snapshot.activeSecondPhoto || null

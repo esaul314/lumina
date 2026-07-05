@@ -215,6 +215,8 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
       const duration = Date.now() - startTime;
       if (err) {
         if (err.signal === 'SIGTERM' || err.signal === 'SIGKILL') {
+          console.log(`System Service: Kiosk browser (${name}) terminated via ${err.signal}.`);
+          if (onUnexpectedExit) onUnexpectedExit();
           return; // Expected exit
         }
 
