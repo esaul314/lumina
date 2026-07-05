@@ -13,8 +13,12 @@ const {
 } = require('./selectors.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const {
+  decodeAddPoolCommand,
   decodeCategorySelectionFromHttp,
   decodeCategorySelectionFromSocket,
+  decodeDeletePoolCommand,
+  decodePoolFeedConfigCommand,
+  decodePoolKeywordsCommand,
   decodePhotoRatingCommand
 } = require('./commands.js');
 const {
@@ -291,6 +295,43 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(deleted.nextState.library.collections['Moody Rooms'], undefined);
   });
 
+  assertTest('reducer pool keyword updates persist without mutating collections', () => {
+    const result = reduceDomainCommand(createState(), {
+      type: 'set-pool-keywords',
+      payload: { name: 'Scenic Nature', keywords: ['forest', 'mist'] }
+    });
+
+    assert.deepStrictEqual(result.nextState.config.searchKeywords['Scenic Nature'], ['forest', 'mist']);
+    assert.strictEqual(result.nextState.library.collections['Scenic Nature'].length, 2);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+  });
+
+  assertTest('reducer pool feed config updates merge a source patch instead of replacing sibling fields', () => {
+    const result = reduceDomainCommand(createState({
+      config: {
+        ...createState().config,
+        feedConfigs: {
+          'Scenic Nature': {
+            reddit: { enabled: true, subreddits: ['EarthPorn'] }
+          }
+        }
+      }
+    }), {
+      type: 'merge-pool-feed-config',
+      payload: {
+        name: 'Scenic Nature',
+        source: 'reddit',
+        config: { subreddits: ['CityPorn', 'WeatherPorn'] }
+      }
+    });
+
+    assert.deepStrictEqual(result.nextState.config.feedConfigs['Scenic Nature'].reddit, {
+      enabled: true,
+      subreddits: ['CityPorn', 'WeatherPorn']
+    });
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+  });
+
   assertTest('REST and socket adapters decode the same category command', () => {
     const httpCommand = decodeCategorySelectionFromHttp({ category: 'Liminal Space,AI Creation' });
     const socketCommand = decodeCategorySelectionFromSocket('Liminal Space,AI Creation');
@@ -299,6 +340,48 @@ function runDomainTests({ logSuite, assertTest }) {
     const httpResult = reduceDomainCommand(createState(), httpCommand, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
     const socketResult = reduceDomainCommand(createState(), socketCommand, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
     assert.deepStrictEqual(httpResult.nextState.playback, socketResult.nextState.playback);
+  });
+
+  assertTest('REST and socket adapters decode the same pool lifecycle commands', () => {
+    assert.deepStrictEqual(
+      decodeAddPoolCommand({ name: 'Moody Rooms', keywords: 'moody, rooms' }),
+      {
+        type: 'add-pool',
+        payload: { name: 'Moody Rooms', keywords: ['moody', 'rooms'] }
+      }
+    );
+
+    assert.deepStrictEqual(
+      decodeDeletePoolCommand({ category: 'Moody Rooms' }),
+      {
+        type: 'delete-pool',
+        payload: { name: 'Moody Rooms' }
+      }
+    );
+
+    assert.deepStrictEqual(
+      decodePoolKeywordsCommand({ category: 'Scenic Nature', keywords: ['forest', 'mist'] }),
+      {
+        type: 'set-pool-keywords',
+        payload: { name: 'Scenic Nature', keywords: ['forest', 'mist'] }
+      }
+    );
+
+    assert.deepStrictEqual(
+      decodePoolFeedConfigCommand({
+        category: 'Scenic Nature',
+        source: 'reddit',
+        config: { enabled: true, subreddits: ['EarthPorn'] }
+      }),
+      {
+        type: 'merge-pool-feed-config',
+        payload: {
+          name: 'Scenic Nature',
+          source: 'reddit',
+          config: { enabled: true, subreddits: ['EarthPorn'] }
+        }
+      }
+    );
   });
 
   assertTest('category selection keeps Google Photos active pools populated from external cache state', () => {

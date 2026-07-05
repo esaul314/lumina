@@ -2,9 +2,13 @@ const os = require('os');
 const { resolveActiveLocation, fetchWeatherForecast } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const {
+  decodeAddPoolCommand,
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
   decodeCategorySelectionFromHttp,
+  decodeDeletePoolCommand,
+  decodePoolFeedConfigCommand,
+  decodePoolKeywordsCommand,
   decodePhotoCropCommand,
   decodePhotoRatingCommand
 } = require('./domain/commands.js');
@@ -80,6 +84,18 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     library: state.library || null,
     playback: state.playback || null
   });
+  const hasPool = (name) => Boolean(name && collections[name]);
+  const buildPoolResponse = (name) => ({
+    name,
+    keywords: (state.searchKeywords && state.searchKeywords[name]) || [],
+    feedConfigs: (state.feedConfigs && state.feedConfigs[name]) || {},
+    photosCount: Array.isArray(collections[name]) ? collections[name].length : 0
+  });
+  const respondWithState = (res, status, body = {}) => res.status(status).json({
+    success: true,
+    ...body,
+    state: buildStateResponse()
+  });
   
   // GET /api/weather
   app.get('/api/weather', async (req, res) => {
@@ -153,7 +169,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     const { category } = req.query;
     
     try {
-      if (category && dispatchCommand && !String(category).includes('Google Photos')) {
+      if (category && dispatchCommand) {
         const command = decodeCategorySelectionFromHttp(req.query);
         if (command) {
           await dispatchCommand(command);
@@ -401,6 +417,25 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     res.json(buildStateResponse());
   });
 
+  // POST /api/state/categories
+  app.post('/api/state/categories', async (req, res) => {
+    const command = decodeCategorySelectionFromHttp(req.body);
+    if (!command) {
+      return res.status(400).json({ error: 'Invalid parameter: "categories" must be a non-empty string or array.' });
+    }
+
+    if (dispatchCommand) {
+      try {
+        await dispatchCommand(command);
+        return respondWithState(res, 200);
+      } catch (error) {
+        return res.status(500).json({ error: error.message });
+      }
+    }
+
+    return res.status(501).json({ error: 'Category selection dispatcher unavailable.' });
+  });
+
   // PATCH /api/state
   app.patch('/api/state', async (req, res) => {
     const { saveCuratedCollections } = require('./config/collections.js');
@@ -528,196 +563,144 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
   // GET /api/pools
   app.get('/api/pools', (req, res) => {
-    const pools = Object.keys(collections).map(name => {
-      const keywords = (state.searchKeywords && state.searchKeywords[name]) || [];
-      const feedConfigs = (state.feedConfigs && state.feedConfigs[name]) || {};
-      const photosCount = Array.isArray(collections[name]) ? collections[name].length : 0;
-      return {
-        name,
-        keywords,
-        feedConfigs,
-        photosCount
-      };
-    });
+    const pools = Object.keys(collections).map(buildPoolResponse);
     res.json(pools);
   });
 
   // POST /api/pools
   app.post('/api/pools', async (req, res) => {
-    const { name, keywords } = req.body;
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Invalid parameter: "name" must be a non-empty string.' });
+    const command = decodeAddPoolCommand(req.body);
+    if (!command) {
+      return res.status(400).json({ error: 'Invalid pool payload. Provide a non-empty "name" and at least one keyword.' });
     }
 
-    const cleanCategory = name.trim();
-    if (collections[cleanCategory] || (state.searchKeywords && state.searchKeywords[cleanCategory])) {
-      return res.status(409).json({ error: `Pool "${cleanCategory}" already exists.` });
+    if (hasPool(command.payload.name) || (state.searchKeywords && state.searchKeywords[command.payload.name])) {
+      return res.status(409).json({ error: `Pool "${command.payload.name}" already exists.` });
     }
 
-    let parsedKeywords = [];
-    if (Array.isArray(keywords)) {
-      parsedKeywords = keywords.map(kw => String(kw).trim()).filter(Boolean);
-    } else if (typeof keywords === 'string') {
-      parsedKeywords = keywords.split(/[;,]/).map(kw => kw.trim()).filter(Boolean);
-    }
-
-    if (parsedKeywords.length === 0) {
-      return res.status(400).json({ error: 'Invalid parameter: "keywords" must contain at least one non-empty string.' });
-    }
-
-    if (!state.searchKeywords) state.searchKeywords = {};
-    state.searchKeywords[cleanCategory] = parsedKeywords;
-
-    if (!state.feedConfigs) state.feedConfigs = {};
-    state.feedConfigs[cleanCategory] = {
-      unsplash: { enabled: true, keywords: [...parsedKeywords] },
-      wallhaven: { enabled: true, keywords: [...parsedKeywords] },
-      metmuseum: { enabled: true, keywords: [...parsedKeywords] },
-      artic: { enabled: false, keywords: [...parsedKeywords] }
-    };
-
-    collections[cleanCategory] = [];
-
-    const { saveCuratedCollections } = require('./config/collections.js');
-    saveCuratedCollections(collections, state);
-
-    broadcast();
-
-    // Trigger crawl asynchronously in the background so the HTTP request returns quickly
-    // ponytail: run crawler asynchronously for fast response
-    (async () => {
+    if (dispatchCommand) {
       try {
-        const { crawlAllCollections } = require('./services/crawler.js');
-        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
-        if (updatedAny) {
-          for (const key of Object.keys(updatedCollections)) {
-            collections[key] = updatedCollections[key];
-          }
-          saveCuratedCollections(collections, state);
-        }
-
-        const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
-        if (currentCats.includes(cleanCategory)) {
-          state.photosList = combineFeedsBalanced(currentCats, collections);
-          if (state.photosList.length > 0) {
-            state.activePhoto = getSmartPhoto('next') || state.photosList[0];
-            io.emit('photo-update', state.activePhoto);
-          }
-        }
-        broadcast();
-
-        const { triggerImageAnalysisBackground } = require('./app.js');
-        triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
-      } catch (err) {
-        console.error(`Error crawling new pool "${cleanCategory}":`, err.message);
+        await dispatchCommand(command);
+        return respondWithState(res, 201, {
+          pool: buildPoolResponse(command.payload.name)
+        });
+      } catch (error) {
+        return res.status(500).json({ error: error.message });
       }
-    })();
+    }
 
-    res.status(201).json({
-      success: true,
-      pool: {
-        name: cleanCategory,
-        keywords: parsedKeywords,
-        feedConfigs: state.feedConfigs[cleanCategory],
-        photosCount: 0
-      }
-    });
+    return res.status(501).json({ error: 'Pool dispatcher unavailable.' });
   });
 
   // DELETE /api/pools/:name
-  app.delete('/api/pools/:name', (req, res) => {
-    const { name } = req.params;
-    const cleanCategory = name.trim();
-
-    if (!collections[cleanCategory] && (!state.searchKeywords || !state.searchKeywords[cleanCategory])) {
-      return res.status(404).json({ error: `Pool "${cleanCategory}" not found.` });
+  app.delete('/api/pools/:name', async (req, res) => {
+    const command = decodeDeletePoolCommand({ name: req.params.name });
+    if (!command) {
+      return res.status(400).json({ error: 'Invalid pool name.' });
     }
 
-    if (state.searchKeywords) {
-      delete state.searchKeywords[cleanCategory];
+    if (!hasPool(command.payload.name) && (!state.searchKeywords || !state.searchKeywords[command.payload.name])) {
+      return res.status(404).json({ error: `Pool "${command.payload.name}" not found.` });
     }
-    if (state.feedConfigs) {
-      delete state.feedConfigs[cleanCategory];
-    }
-    delete collections[cleanCategory];
 
-    const { saveCuratedCollections } = require('./config/collections.js');
-    saveCuratedCollections(collections, state);
-
-    const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
-    if (currentCats.includes(cleanCategory)) {
-      const remainingCats = currentCats.filter(c => c !== cleanCategory);
-      if (remainingCats.length > 0) {
-        state.currentCategory = remainingCats.join(',');
-      } else {
-        const remainingKeys = Object.keys(state.searchKeywords || {});
-        state.currentCategory = remainingKeys[0] || 'Scenic Nature';
-      }
-      
-      const updatedCats = state.currentCategory.split(',').map(c => c.trim());
-      state.photosList = combineFeedsBalanced(updatedCats, collections);
-      const smartPhoto = getSmartPhoto('next');
-      if (smartPhoto) {
-        state.activePhoto = smartPhoto;
-      } else if (state.photosList.length > 0) {
-        state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
-      } else {
-        state.activePhoto = null;
+    if (dispatchCommand) {
+      try {
+        await dispatchCommand(command);
+        return respondWithState(res, 200, {
+          message: `Pool "${command.payload.name}" deleted successfully.`
+        });
+      } catch (error) {
+        return res.status(500).json({ error: error.message });
       }
     }
 
-    broadcast();
-    res.json({ success: true, message: `Pool "${cleanCategory}" deleted successfully.` });
+    return res.status(501).json({ error: 'Pool dispatcher unavailable.' });
   });
 
   // PATCH /api/pools/:name
-  app.patch('/api/pools/:name', (req, res) => {
-    const { name } = req.params;
-    const cleanCategory = name.trim();
+  app.patch('/api/pools/:name', async (req, res) => {
+    const cleanCategory = req.params.name.trim();
 
-    if (!collections[cleanCategory]) {
+    if (!hasPool(cleanCategory)) {
       return res.status(404).json({ error: `Pool "${cleanCategory}" not found.` });
     }
 
-    const { keywords, feedConfigs } = req.body;
-    let updated = false;
-
-    if (keywords !== undefined) {
-      if (!Array.isArray(keywords) || !keywords.every(kw => typeof kw === 'string' && kw.trim().length > 0)) {
-        return res.status(400).json({ error: 'Invalid parameter: "keywords" must be an array of non-empty strings.' });
-      }
-      if (!state.searchKeywords) state.searchKeywords = {};
-      state.searchKeywords[cleanCategory] = keywords.map(kw => kw.trim());
-      updated = true;
+    if (
+      req.body.feedConfigs !== undefined
+      && (
+        typeof req.body.feedConfigs !== 'object'
+        || req.body.feedConfigs === null
+        || Array.isArray(req.body.feedConfigs)
+      )
+    ) {
+      return res.status(400).json({ error: 'Invalid parameter: "feedConfigs" must be an object.' });
     }
 
-    if (feedConfigs !== undefined) {
-      if (typeof feedConfigs !== 'object' || feedConfigs === null) {
-        return res.status(400).json({ error: 'Invalid parameter: "feedConfigs" must be an object.' });
-      }
-      if (!state.feedConfigs) state.feedConfigs = {};
-      state.feedConfigs[cleanCategory] = {
-        ...state.feedConfigs[cleanCategory],
-        ...feedConfigs
-      };
-      updated = true;
+    const commands = [
+      req.body.keywords !== undefined
+        ? decodePoolKeywordsCommand({ name: cleanCategory, keywords: req.body.keywords })
+        : null,
+      ...Object.entries(req.body.feedConfigs || {}).map(([source, config]) =>
+        decodePoolFeedConfigCommand({ name: cleanCategory, source, config })
+      )
+    ].filter(Boolean);
+
+    const expectedCommandCount = (req.body.keywords !== undefined ? 1 : 0) + Object.keys(req.body.feedConfigs || {}).length;
+    if (commands.length !== expectedCommandCount) {
+      return res.status(400).json({ error: 'Invalid pool patch payload.' });
     }
 
-    if (updated) {
-      const { saveCuratedCollections } = require('./config/collections.js');
-      saveCuratedCollections(collections, state);
-      broadcast();
+    if (commands.length === 0) {
+      return respondWithState(res, 200, {
+        pool: buildPoolResponse(cleanCategory)
+      });
     }
 
-    res.json({
-      success: true,
-      pool: {
-        name: cleanCategory,
-        keywords: (state.searchKeywords && state.searchKeywords[cleanCategory]) || [],
-        feedConfigs: (state.feedConfigs && state.feedConfigs[cleanCategory]) || {},
-        photosCount: Array.isArray(collections[cleanCategory]) ? collections[cleanCategory].length : 0
+    if (dispatchCommand) {
+      try {
+        for (const command of commands) {
+          await dispatchCommand(command);
+        }
+        return respondWithState(res, 200, {
+          pool: buildPoolResponse(cleanCategory)
+        });
+      } catch (error) {
+        return res.status(500).json({ error: error.message });
       }
+    }
+
+    return res.status(501).json({ error: 'Pool dispatcher unavailable.' });
+  });
+
+  // PATCH /api/pools/:name/feed-sources/:source
+  app.patch('/api/pools/:name/feed-sources/:source', async (req, res) => {
+    const command = decodePoolFeedConfigCommand({
+      name: req.params.name,
+      source: req.params.source,
+      config: req.body
     });
+
+    if (!command) {
+      return res.status(400).json({ error: 'Invalid feed source patch payload.' });
+    }
+
+    if (!hasPool(command.payload.name)) {
+      return res.status(404).json({ error: `Pool "${command.payload.name}" not found.` });
+    }
+
+    if (dispatchCommand) {
+      try {
+        await dispatchCommand(command);
+        return respondWithState(res, 200, {
+          pool: buildPoolResponse(command.payload.name),
+          feedSource: command.payload.source
+        });
+      } catch (error) {
+        return res.status(500).json({ error: error.message });
+      }
+    }
+
+    return res.status(501).json({ error: 'Pool dispatcher unavailable.' });
   });
 
   // POST /api/pools/:name/crawl

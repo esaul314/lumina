@@ -155,6 +155,20 @@ function normalizeFeedConfigKeywords(keywords) {
   };
 }
 
+function hasPool(state, name) {
+  return Boolean(name && state.library.collections[name]);
+}
+
+function mergePoolFeedConfig(existingConfig, source, patch) {
+  return {
+    ...existingConfig,
+    [source]: {
+      ...(existingConfig[source] || {}),
+      ...patch
+    }
+  };
+}
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
@@ -369,7 +383,7 @@ function reduceDomainCommand(state, command, env = {}) {
     case 'add-pool': {
       const name = String(command.payload?.name || '').trim();
       const keywords = trimKeywords(command.payload?.keywords);
-      if (!name || keywords.length === 0 || state.library.collections[name]) {
+      if (!name || keywords.length === 0 || hasPool(state, name)) {
         return createResult(state, [], []);
       }
 
@@ -384,9 +398,38 @@ function reduceDomainCommand(state, command, env = {}) {
       );
     }
 
+    case 'set-pool-keywords': {
+      const name = String(command.payload?.name || '').trim();
+      const keywords = trimKeywords(command.payload?.keywords);
+      if (!hasPool(state, name) || keywords.length === 0) {
+        return createResult(state, [], []);
+      }
+
+      const nextState = cloneState(state);
+      nextState.config.searchKeywords[name] = keywords;
+      return createResult(nextState, emitStateSync(), [{ type: 'persist' }]);
+    }
+
+    case 'merge-pool-feed-config': {
+      const name = String(command.payload?.name || '').trim();
+      const source = String(command.payload?.source || '').trim();
+      const configPatch = command.payload?.config;
+      if (!hasPool(state, name) || !source || !configPatch || typeof configPatch !== 'object' || Array.isArray(configPatch)) {
+        return createResult(state, [], []);
+      }
+
+      const nextState = cloneState(state);
+      nextState.config.feedConfigs[name] = mergePoolFeedConfig(
+        nextState.config.feedConfigs[name] || {},
+        source,
+        configPatch
+      );
+      return createResult(nextState, emitStateSync(), [{ type: 'persist' }]);
+    }
+
     case 'delete-pool': {
       const name = String(command.payload?.name || '').trim();
-      if (!name || !state.library.collections[name]) {
+      if (!hasPool(state, name)) {
         return createResult(state, [], []);
       }
 

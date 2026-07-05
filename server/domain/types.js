@@ -128,6 +128,8 @@
  *     | 'change-interval'
  *     | 'set-screensaver-active'
  *     | 'add-pool'
+ *     | 'set-pool-keywords'
+ *     | 'merge-pool-feed-config'
  *     | 'delete-pool'
  *   payload?: Record<string, unknown>
  * }} Command

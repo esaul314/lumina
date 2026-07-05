@@ -6,6 +6,18 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-05: Category, Pool, and Feed Configuration Controls Now Use REST Mutations by Default
+* **Goal**: Complete Phase 1 Step 3 by moving category selection plus pool/feed-configuration writes off socket-only operator mutations and onto the shared REST/domain command path.
+* **Implementation**:
+  * Extended `server/domain/commands.js` and `server/domain/reducer.js` with pure pool lifecycle/config commands for add/delete, keyword updates, and per-source feed-config merges.
+  * Rewired `server/routes.js` so `POST /api/state/categories`, `POST|PATCH|DELETE /api/pools`, and `PATCH /api/pools/:name/feed-sources/:source` all flow through the same reducer/dispatcher contract, preserving source-level feed-config merges instead of clobbering sibling fields.
+  * Added dispatcher-backed crawler execution in `server/app.js` for `add-pool`, and updated `server/sockets.js` so the legacy socket events remain thin adapters over the same command shapes instead of carrying a second mutation implementation.
+  * Updated `client/src/api/luminaClient.js`, `client/src/hooks/useLuminaActions.js`, `client/src/components/remote/ImageFeedsTab.jsx`, and `client/src/components/Dashboard.jsx` so operator category/pool/feed actions now call REST by default.
+  * Expanded regression coverage in `server/domain/tests.js` and `run-tests.js` for pool command decoding, source-config merge behavior, `POST /api/state/categories`, and the dedicated feed-source patch route.
+  * Updated `AGENTS.md` to mark Phase 1 Step 3 complete.
+* **Learning**: Pool feed-config writes need source-level merge semantics. A shallow category-level merge is not transport parity because it silently drops sibling fields like `enabled` when only `subreddits` or `keywords` are being edited.
+* **Verification**: `npm run lint` passed. `npm --prefix client run build` passed. `npm test` passed its functional/domain/API assertions; the long-standing sandbox-only ephemeral localhost `listen EPERM` warning still appears in the smoke section but does not fail the suite.
+
 ### 2026-07-05: Remote Durable State & Settings Controls Now Use REST Mutations by Default
 * **Goal**: Continue Phase 1 by moving the remote's durable settings/state slice off socket-only mutations and onto `PATCH /api/state` plus `POST /api/state/screensaver`.
 * **Implementation**:

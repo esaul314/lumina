@@ -1,11 +1,16 @@
 import { useMemo } from 'react';
 import {
+  createPool,
+  deletePool,
   getStateSnapshot,
   nextPhoto,
+  patchPool,
+  patchPoolFeedSource,
   patchState,
   patchPhoto,
   previewPhoto,
   prevPhoto,
+  selectCategories,
   setScreensaverActive
 } from '../api/luminaClient';
 import { normalizeSnapshot, patchPhotoInSnapshot } from '../state/frameSelectors';
@@ -74,7 +79,10 @@ export function useLuminaActions(socket, setState) {
       });
     },
     updateFeedConfig: (category, source, config) => {
-      socket.emit('update-feed-config', { category, source, config });
+      void runPhotoAction(async () => {
+        await patchPoolFeedSource(category, source, config);
+        await refreshState();
+      });
     },
     changeInterval: (interval) => {
       void runPhotoAction(async () => {
@@ -97,13 +105,28 @@ export function useLuminaActions(socket, setState) {
       });
     },
     changeCategory: (categoriesStr) => {
-      socket.emit('change-category', categoriesStr);
+      void runPhotoAction(async () => {
+        const nextState = await selectCategories(categoriesStr);
+        applyStateResponse(nextState);
+      });
     },
     addCategory: (category, keyword) => {
-      socket.emit('add-category', { category, keyword });
+      void runPhotoAction(async () => {
+        await createPool({ name: category, keywords: keyword });
+        await refreshState();
+      });
     },
     deleteCategory: (category) => {
-      socket.emit('delete-category', { category });
+      void runPhotoAction(async () => {
+        await deletePool(category);
+        await refreshState();
+      });
+    },
+    updatePoolKeywords: (category, keywords) => {
+      void runPhotoAction(async () => {
+        await patchPool(category, { keywords });
+        await refreshState();
+      });
     },
     setScreensaverActive: (active) => {
       void runPhotoAction(async () => {

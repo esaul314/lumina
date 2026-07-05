@@ -489,6 +489,44 @@ const triggerWeatherUpdate = async () => {
   await updateServerWeather();
 };
 
+const runCrawler = async ({ categories = [] } = {}) => {
+  const { updatedCollections, updatedAny } = await crawlAllCollections(
+    curatedCollections,
+    screensaverState.feedConfigs,
+    screensaverState.searchKeywords,
+    screensaverState.excludedKeywords
+  );
+
+  if (!updatedAny) {
+    return;
+  }
+
+  Object.entries(updatedCollections).forEach(([category, photos]) => {
+    curatedCollections[category] = photos.map((photo) => ({ ...photo, category }));
+  });
+
+  saveCuratedCollections(curatedCollections, screensaverState);
+
+  const activeCategories = (screensaverState.currentCategory || '')
+    .split(',')
+    .map((category) => category.trim())
+    .filter(Boolean);
+  const affectsActiveFeed = activeCategories.some((category) => categories.includes(category));
+
+  if (affectsActiveFeed) {
+    const combinedPhotos = combineFeedsBalanced(activeCategories, curatedCollections);
+    screensaverState.photosList = combinedPhotos.length > 0
+      ? combinedPhotos
+      : (curatedCollections['Scenic Nature'] ?? [])
+        .filter((photo) => photo.rating !== 1 && !photo.isBroken)
+        .map((photo) => ({ ...photo, category: 'Scenic Nature' }));
+  }
+
+  triggerImageAnalysisBackground().catch((error) => {
+    console.error('Error in background image analysis:', error);
+  });
+};
+
 const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
   state: screensaverState,
   collections: curatedCollections,
@@ -496,7 +534,8 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   getRuntimeContext,
   launchKioskBrowser,
   killKioskBrowser,
-  setManualOverride
+  setManualOverride,
+  runCrawler
 });
 
 refreshSnapshot();

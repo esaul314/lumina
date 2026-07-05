@@ -20,7 +20,8 @@ Lumina utilizes a decoupled client-server architecture. The durable control surf
 Current migration checkpoint:
 - Phase 1 Step 1 complete: remote photo-control mutations are REST-first by default.
 - Phase 1 Step 2 complete: remote durable state/settings mutations are REST-first by default.
-- Phase 1 Step 3 is next: migrate category, pool, and feed-configuration mutations to REST and remove the remaining socket-only mutation overlap from operator UIs.
+- Phase 1 Step 3 complete: category selection, pool lifecycle, and feed-configuration mutations now use REST by default in operator UIs, with Socket.IO retained as the live sync/event transport.
+- Next focus: migrate the remaining asynchronous operator-triggered jobs that make sense as REST commands with live progress events, starting with recrawl flows.
 
 ```mermaid
 graph TD

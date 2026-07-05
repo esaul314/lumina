@@ -1063,7 +1063,19 @@ async function runIntegrationTests() {
       assert.strictEqual(screensaverInactiveRes.body.screensaverActive, false);
     });
 
-    // 4. GET /api/pools
+    // 4. POST /api/state/categories
+    const categoriesPost = await requestJson(`${baseUrl}/api/state/categories`, 'POST', {
+      categories: 'Scenic Nature,Liminal Spaces'
+    });
+    assertTest('POST /api/state/categories updates the active category selection through the shared command path', () => {
+      assert.strictEqual(categoriesPost.status, 200);
+      assert.strictEqual(categoriesPost.body.success, true);
+      assert.strictEqual(categoriesPost.body.state.currentCategory, 'Scenic Nature,Liminal Spaces');
+      assert.ok(Array.isArray(categoriesPost.body.state.photosList));
+      assert.ok(categoriesPost.body.state.photosList.length > 0);
+    });
+
+    // 5. GET /api/pools
     const poolsGet = await requestJson(`${baseUrl}/api/pools`, 'GET');
     assertTest('GET /api/pools lists all scenic pools with stats', () => {
       assert.strictEqual(poolsGet.status, 200);
@@ -1074,7 +1086,7 @@ async function runIntegrationTests() {
       assert.strictEqual(typeof scenicNaturePool.photosCount, 'number');
     });
 
-    // 5. POST /api/pools (create)
+    // 6. POST /api/pools (create)
     const poolName = `REST Pool Test ${Date.now()}`;
     const newPoolRes = await requestJson(`${baseUrl}/api/pools`, 'POST', {
       name: poolName,
@@ -1088,14 +1100,14 @@ async function runIntegrationTests() {
       assert.strictEqual(newPoolRes.body.pool.feedConfigs.artic.enabled, false);
     });
 
-    // 6. GET /api/pools/:name/photos
+    // 7. GET /api/pools/:name/photos
     const poolPhotosGet = await requestJson(`${baseUrl}/api/pools/${encodeURIComponent(poolName)}/photos`, 'GET');
     assertTest('GET /api/pools/:name/photos retrieves photo metadata for a pool', () => {
       assert.strictEqual(poolPhotosGet.status, 200);
       assert.ok(Array.isArray(poolPhotosGet.body));
     });
 
-    // 7. PATCH /api/pools/:name (update keywords)
+    // 8. PATCH /api/pools/:name (update keywords)
     const patchPoolRes = await requestJson(`${baseUrl}/api/pools/${encodeURIComponent(poolName)}`, 'PATCH', {
       keywords: ['modified-keyword-1']
     });
@@ -1105,14 +1117,33 @@ async function runIntegrationTests() {
       assert.deepStrictEqual(patchPoolRes.body.pool.keywords, ['modified-keyword-1']);
     });
 
-    // 8. DELETE /api/pools/:name
+    // 9. PATCH /api/pools/:name/feed-sources/:source
+    const patchFeedSourceRes = await requestJson(
+      `${baseUrl}/api/pools/${encodeURIComponent(poolName)}/feed-sources/reddit`,
+      'PATCH',
+      {
+        enabled: true,
+        subreddits: ['EarthPorn', 'SkyPorn']
+      }
+    );
+    assertTest('PATCH /api/pools/:name/feed-sources/:source merges a single feed source config without dropping fields', () => {
+      assert.strictEqual(patchFeedSourceRes.status, 200);
+      assert.strictEqual(patchFeedSourceRes.body.success, true);
+      assert.strictEqual(patchFeedSourceRes.body.feedSource, 'reddit');
+      assert.deepStrictEqual(patchFeedSourceRes.body.pool.feedConfigs.reddit, {
+        enabled: true,
+        subreddits: ['EarthPorn', 'SkyPorn']
+      });
+    });
+
+    // 10. DELETE /api/pools/:name
     const deletePoolRes = await requestJson(`${baseUrl}/api/pools/${encodeURIComponent(poolName)}`, 'DELETE');
     assertTest('DELETE /api/pools/:name removes the pool completely', () => {
       assert.strictEqual(deletePoolRes.status, 200);
       assert.strictEqual(deletePoolRes.body.success, true);
     });
 
-    // 9. PATCH /api/photos (composability testing: rating, crop, pairing)
+    // 11. PATCH /api/photos (composability testing: rating, crop, pairing)
     if (samplePhotoUrl) {
       const patchRateRes = await requestJson(`${baseUrl}/api/photos`, 'PATCH', {
         url: samplePhotoUrl,

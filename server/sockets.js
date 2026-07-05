@@ -4,10 +4,14 @@ const { saveCuratedCollections } = require('./config/collections.js');
 const { persistEnvVars } = require('./config/env.js');
 const { getHostDisplayInfo } = require('./services/system.js');
 const {
+  decodeAddPoolCommand,
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
   decodeCategorySelectionFromSocket,
+  decodeDeletePoolCommand,
   decodeExcludedKeywordsCommand,
+  decodePoolFeedConfigCommand,
+  decodePoolKeywordsCommand,
   decodePhotoCropCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
@@ -392,6 +396,14 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
     // Update keywords socket event
     socket.on('update-keywords', ({ category, keywords }) => {
+      if (dispatchCommand) {
+        const command = decodePoolKeywordsCommand({ category, keywords });
+        if (command) {
+          void dispatchCommand(command);
+        }
+        return;
+      }
+
       if (!category || typeof category !== 'string') return;
       if (!collections[category]) return;
       if (!Array.isArray(keywords) || !keywords.every(kw => typeof kw === 'string' && kw.trim().length > 0)) return;
@@ -408,6 +420,14 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
     // Update feed config socket event
     socket.on('update-feed-config', ({ category, source, config }) => {
+      if (dispatchCommand) {
+        const command = decodePoolFeedConfigCommand({ category, source, config });
+        if (command) {
+          void dispatchCommand(command);
+        }
+        return;
+      }
+
       if (!category || typeof category !== 'string') return;
       if (!source || typeof source !== 'string') return;
       if (!config || typeof config !== 'object') return;
@@ -469,6 +489,14 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
     // Add custom category / scenic pool
     socket.on('add-category', async ({ category, keyword }) => {
+      if (dispatchCommand) {
+        const command = decodeAddPoolCommand({ category, keyword });
+        if (command) {
+          await dispatchCommand(command);
+        }
+        return;
+      }
+
       if (!category || typeof category !== 'string') return;
       const cleanCategory = category.trim();
       if (!cleanCategory) return;
@@ -554,6 +582,14 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
 
     // Delete custom category / scenic pool
     socket.on('delete-category', ({ category }) => {
+      if (dispatchCommand) {
+        const command = decodeDeletePoolCommand({ category });
+        if (command) {
+          void dispatchCommand(command);
+        }
+        return;
+      }
+
       if (!category || typeof category !== 'string') return;
       const cleanCategory = category.trim();
       if (!cleanCategory) return;

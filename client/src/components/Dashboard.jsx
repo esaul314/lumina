@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
+import { selectCategories } from '../api/luminaClient';
 import {
   findPhotoByUrl,
   getCurrentFrame,
@@ -937,7 +938,9 @@ function Dashboard({ state, socket, connectionInfo }) {
                         } else {
                           newCats = [...currentCats, cat];
                         }
-                        socket.emit('change-category', newCats.join(','));
+                        void selectCategories(newCats.join(',')).catch((error) => {
+                          console.error('[Dashboard] Failed to change categories:', error);
+                        });
                       }}
                       className={`desktop-settings-item ${isActive ? 'active' : ''}`}
                     >

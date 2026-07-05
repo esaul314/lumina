@@ -4,7 +4,6 @@ import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
 
 function ImageFeedsTab({
   state,
-  socket,
   actions,
   categories,
   handleCategoryChange,
@@ -330,7 +329,7 @@ function ImageFeedsTab({
                   alert('Reserved name. Please choose a different name.');
                   return;
                 }
-                socket.emit('add-category', { category: cleanName, keyword: nextKeywordStr });
+                actions.addCategory(cleanName, nextKeywordStr);
                 setNewCategoryName('');
                 setNewCategoryKeyword('');
                 setKeywordInput('');
@@ -746,11 +745,7 @@ function ImageFeedsTab({
                   </div>
                   <button
                     onClick={() => {
-                      socket.emit('update-feed-config', {
-                        category: keywordCategory,
-                        source: src.key,
-                        config: { enabled: !isEnabled }
-                      });
+                      actions.updateFeedConfig(keywordCategory, src.key, { enabled: !isEnabled });
                     }}
                     style={{
                       background: isEnabled ? 'var(--accent-color)' : 'rgba(255,255,255,0.1)',
@@ -802,11 +797,7 @@ function ImageFeedsTab({
                           <span
                             onClick={() => {
                               const nextParams = paramsList.filter((_, pIdx) => pIdx !== idx);
-                              socket.emit('update-feed-config', {
-                                category: keywordCategory,
-                                source: src.key,
-                                config: { [src.param]: nextParams }
-                              });
+                              actions.updateFeedConfig(keywordCategory, src.key, { [src.param]: nextParams });
                             }}
                             style={{
                               cursor: 'pointer',
@@ -870,11 +861,7 @@ function ImageFeedsTab({
                         }
 
                         const nextParams = [...paramsList, ...uniqueNewVals];
-                        socket.emit('update-feed-config', {
-                          category: keywordCategory,
-                          source: src.key,
-                          config: { [src.param]: nextParams }
-                        });
+                        actions.updateFeedConfig(keywordCategory, src.key, { [src.param]: nextParams });
                         e.target.reset();
                       }}
                       style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}

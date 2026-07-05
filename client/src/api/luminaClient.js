@@ -46,6 +46,13 @@ export function patchState(body) {
   });
 }
 
+export function selectCategories(categories) {
+  return requestJson('/api/state/categories', {
+    method: 'POST',
+    body: { categories }
+  });
+}
+
 export function setScreensaverActive(active) {
   return requestJson('/api/state/screensaver', {
     method: 'POST',
@@ -76,5 +83,32 @@ export function nextPhoto() {
 export function prevPhoto() {
   return requestJson('/api/photos/prev', {
     method: 'POST'
+  });
+}
+
+export function createPool({ name, keywords }) {
+  return requestJson('/api/pools', {
+    method: 'POST',
+    body: { name, keywords }
+  });
+}
+
+export function deletePool(name) {
+  return requestJson(`/api/pools/${encodeURIComponent(name)}`, {
+    method: 'DELETE'
+  });
+}
+
+export function patchPool(name, body) {
+  return requestJson(`/api/pools/${encodeURIComponent(name)}`, {
+    method: 'PATCH',
+    body
+  });
+}
+
+export function patchPoolFeedSource(name, source, config) {
+  return requestJson(`/api/pools/${encodeURIComponent(name)}/feed-sources/${encodeURIComponent(source)}`, {
+    method: 'PATCH',
+    body: config
   });
 }
