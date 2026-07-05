@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-05: Feed Category Active-State Rendering Now Follows Canonical Selected Categories
+* **Goal**: Fix the remaining `Image Feeds` category-toggle regression where a tapped category could flash active on the initiating remote and then immediately appear inactive again.
+* **Implementation**:
+  * Extracted a small functional category-selection core in `client/src/state/categorySelection.js` to canonicalize aliases (`Liminal Space`/`AI Creation`), derive the active selection from `playback.selectedCategories` before falling back to older snapshot fields, and compose toggle operations against that canonical selection.
+  * Updated `client/src/state/feedMutations.js` and `client/src/state/frameSelectors.js` so optimistic category patches and general snapshot normalization both reconcile `currentCategory`, `playback.selectedCategories`, and `currentFrame.context.categories` to the same canonical value.
+  * Rewired `client/src/components/RemoteControl.jsx`, `client/src/components/remote/ImageFeedsTab.jsx`, and `client/src/components/Dashboard.jsx` to render and toggle category buttons through the shared selector helpers instead of directly splitting `state.currentCategory`.
+  * Added regression coverage in `run-tests.js` for stale top-level category drift, alias normalization, snapshot reconciliation, and snapshot-driven category toggling.
+* **Learning**: The real bug boundary was no longer “did the mutation succeed?” but “which category field does the client trust after several transport migrations?” Once multiple snapshot shapes coexist, active-state rendering must be derived from one canonical selector layer or harmless field drift turns into visible toggle flicker.
+* **Verification**: `npm run lint` passed. `npm --prefix client run build` passed. The new client category regression assertions passed inside `npm test`; the suite still finishes with the pre-existing unrelated `POST /api/photos/prev reverses the direct-control sequence after next` failure.
+
 ### 2026-07-05: Image Feeds Toggles Now Patch the Initiating Remote Snapshot Optimistically
 * **Goal**: Fix the `Image Feeds` regression where category and per-source enable/disable clicks could leave the initiating remote looking unchanged until a later sync or refresh.
 * **Implementation**:
@@ -406,6 +416,17 @@ The screensaver automatically maps live conditions and global sentiment to activ
 - **Verification**:
   - All 84 unit and integration tests passed.
   - Diagnostics script ran successfully, verifying the correct active status of the Wayland socket and path availability.
+
+### 2026-07-05 (Phase 16): Documentation Overhaul & Local Screensaver Previews Added
+- **Goal**: Bring the main project `README.md` fully up to date with the actual features and backend behaviors, and add local screenshots for direct visual reference.
+- **Changes**:
+  - Downloaded high-resolution screenshots of the TV weather display dashboard and the mobile remote control interface directly into the repository under a new `screenshots/` directory.
+  - Overhauled `README.md` to feature the two local screenshots side-by-side.
+  - Updated the Features section to cover Reddit crawls, Lorem Picsum, Bing Image of the Day, the Lexica/Wallhaven fallback AI creation aggregation, and detailed weather-news sentiment alignment logic.
+  - Documented mobile remote control updates (swipe pad, system switchboard, mood themes) and Chromium kiosk acceleration profiles (Wayland display resolution, max V8 space size).
+- **Verification**:
+  - Commits were structured clean and conventional: `docs(readme): overhaul features, architecture, and add screenshots`.
+  - Verified files and relative links to `screenshots/remote_control.png` and `screenshots/tv_dashboard.png`.
 
 ---
 
