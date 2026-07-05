@@ -14,11 +14,20 @@ import {
   setScreensaverActive
 } from '../api/luminaClient';
 import { normalizeSnapshot, patchPhotoInSnapshot } from '../state/frameSelectors';
+import {
+  applyCategorySelection,
+  applyFeedSourceConfigPatch,
+  serializeCategorySelection
+} from '../state/feedMutations';
 
 export function useLuminaActions(socket, setState) {
   const refreshState = async () => {
     const snapshot = await getStateSnapshot();
     setState(normalizeSnapshot(snapshot));
+  };
+
+  const applySnapshotPatch = (updater) => {
+    setState((current) => (current ? updater(current) : current));
   };
 
   const applyPhotoPatch = (url, patch) => {
@@ -31,11 +40,11 @@ export function useLuminaActions(socket, setState) {
     }
   };
 
-  const runPhotoAction = async (action, fallback = null) => {
+  const runAction = async (action, fallback = null) => {
     try {
       await action();
     } catch (error) {
-      console.error('[LuminaActions] Photo action failed:', error);
+      console.error('[LuminaActions] Action failed:', error);
       if (typeof fallback === 'function') {
         fallback();
       }
@@ -44,7 +53,7 @@ export function useLuminaActions(socket, setState) {
 
   return useMemo(() => ({
     setPhotoCrop: (url, cropPercent, cropPositionY) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await patchPhoto({ url, cropPercent, cropPositionY });
         applyPhotoPatch(url, {
           ...(cropPercent !== undefined ? { cropPercent } : {}),
@@ -53,7 +62,7 @@ export function useLuminaActions(socket, setState) {
       });
     },
     setPreventPairing: (url, preventPairing, options = {}) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await patchPhoto({ url, preventPairing, preserveActive: options.preserveActive });
         if (options.preserveActive && preventPairing) {
           await refreshState();
@@ -63,7 +72,7 @@ export function useLuminaActions(socket, setState) {
       });
     },
     ratePhoto: (url, rating) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await patchPhoto({ url, rating });
         if (rating === 1) {
           await refreshState();
@@ -73,25 +82,26 @@ export function useLuminaActions(socket, setState) {
       });
     },
     setActivePhoto: (photo) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await previewPhoto(photo);
         await refreshState();
       });
     },
     updateFeedConfig: (category, source, config) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
+        applySnapshotPatch((current) => applyFeedSourceConfigPatch(current, category, source, config));
         await patchPoolFeedSource(category, source, config);
         await refreshState();
-      });
+      }, refreshState);
     },
     changeInterval: (interval) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ slideshowInterval: interval });
         applyStateResponse(nextState);
       });
     },
     toggleWidget: (widgetName, visible) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({
           widgets: { [widgetName]: visible }
         });
@@ -99,121 +109,127 @@ export function useLuminaActions(socket, setState) {
       });
     },
     changeTheme: (themeName) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ theme: themeName });
         applyStateResponse(nextState);
       });
     },
     changeCategory: (categoriesStr) => {
-      void runPhotoAction(async () => {
-        const nextState = await selectCategories(categoriesStr);
+      const categories = serializeCategorySelection(categoriesStr);
+      if (!categories) {
+        return;
+      }
+
+      void runAction(async () => {
+        applySnapshotPatch((current) => applyCategorySelection(current, categories));
+        const nextState = await selectCategories(categories);
         applyStateResponse(nextState);
-      });
+      }, refreshState);
     },
     addCategory: (category, keyword) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await createPool({ name: category, keywords: keyword });
         await refreshState();
       });
     },
     deleteCategory: (category) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await deletePool(category);
         await refreshState();
       });
     },
     updatePoolKeywords: (category, keywords) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await patchPool(category, { keywords });
         await refreshState();
       });
     },
     setScreensaverActive: (active) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await setScreensaverActive(active);
         applyStateResponse(nextState);
       });
     },
     triggerNext: () => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await nextPhoto();
         await refreshState();
       });
     },
     triggerPrev: () => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await prevPhoto();
         await refreshState();
       });
     },
     markPhotoBroken: (url) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         await patchPhoto({ url, isBroken: true });
         await refreshState();
       });
     },
     changeScaleMode: (mode) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ scaleMode: mode });
         applyStateResponse(nextState);
       });
     },
     toggleSplitPortrait: (split) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ splitPortrait: split });
         applyStateResponse(nextState);
       });
     },
     changeSplitCrop: (percent) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ splitCropPercent: percent });
         applyStateResponse(nextState);
       });
     },
     toggleAlignTime: (align) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ alignTimeOfDay: align });
         applyStateResponse(nextState);
       });
     },
     changeNightPercentage: (percent) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ nightPercentage: percent });
         applyStateResponse(nextState);
       });
     },
     toggleAlignWeather: (align) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ alignWeather: align });
         applyStateResponse(nextState);
       });
     },
     updateVisionConfig: (config) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ visionConfig: config });
         applyStateResponse(nextState);
       });
     },
     toggleAllowOpenAiFallback: (allow) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ allowOpenAiFallback: allow });
         applyStateResponse(nextState);
       });
     },
     toggleAutoLocation: (auto) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ autoLocation: auto });
         applyStateResponse(nextState);
       });
     },
     updateManualLocation: (location) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ manualLocation: location });
         applyStateResponse(nextState);
       });
     },
     updateExcludedKeywords: (keywords) => {
-      void runPhotoAction(async () => {
+      void runAction(async () => {
         const nextState = await patchState({ excludedKeywords: keywords });
         applyStateResponse(nextState);
       });

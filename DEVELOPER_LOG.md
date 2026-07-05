@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-05: Image Feeds Toggles Now Patch the Initiating Remote Snapshot Optimistically
+* **Goal**: Fix the `Image Feeds` regression where category and per-source enable/disable clicks could leave the initiating remote looking unchanged until a later sync or refresh.
+* **Implementation**:
+  * Added `client/src/state/feedMutations.js` as a small pure helper layer for category-selection normalization, toggle composition, feed-source config merges, and snapshot patch projection.
+  * Updated `client/src/hooks/useLuminaActions.js` so `changeCategory(...)` and `updateFeedConfig(...)` apply those pure snapshot transforms immediately, then reconcile against the REST response or a fallback refresh if the request fails.
+  * Rewired `client/src/components/RemoteControl.jsx` to build category toggles through the shared pure helper instead of ad hoc `split(',')` state juggling.
+  * Added regression coverage in `run-tests.js` for category normalization/toggling plus feed-source config merge projection on the client snapshot layer.
+* **Learning**: The REST/domain path was still correct; the gap was on the initiating client. If the remote waits entirely on a later sync to reflect a durable click, the UI can feel broken even though the write contract itself is sound. Small pure snapshot projections are the right boundary here.
+* **Verification**: `npm run lint`, `npm --prefix client run build`, and `npm test` passed. The existing sandbox-only ephemeral localhost `listen EPERM` warning still appears in the smoke-test section without failing the suite.
+
 ### 2026-07-05: Direct Control Prev/Next Now Uses Deterministic Feed Navigation
 * **Goal**: Fix the Direct Control `Prev/Next` controls so multi-feed navigation can round-trip back to the same image instead of sampling another weighted candidate.
 * **Implementation**:

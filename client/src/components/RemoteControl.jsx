@@ -24,6 +24,10 @@ import {
   getPhotoCropState,
   isSplitFrameActive
 } from '../state/frameSelectors';
+import {
+  serializeCategorySelection,
+  toggleCategorySelection
+} from '../state/feedMutations';
 
 const SPLIT_PREVIEW_PADDING = 6;
 const SPLIT_PREVIEW_GAP = 6;
@@ -283,18 +287,9 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
   };
 
   const handleCategoryChange = (categoryName) => {
-    const currentCats = state.currentCategory ? state.currentCategory.split(',') : [];
-    let newCats;
-    if (currentCats.includes(categoryName)) {
-      if (currentCats.length > 1) {
-        newCats = currentCats.filter(c => c !== categoryName);
-      } else {
-        newCats = currentCats;
-      }
-    } else {
-      newCats = [...currentCats, categoryName];
-    }
-    actions.changeCategory(newCats.join(','));
+    actions.changeCategory(
+      serializeCategorySelection(toggleCategorySelection(categoryName, state.currentCategory))
+    );
   };
 
   const forceScreensaverToggle = () => {

@@ -11,6 +11,8 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const http = require('http');
+const path = require('path');
+const { pathToFileURL } = require('url');
 const config = require('./server/config/configLoader.js');
 const { 
   tagPhotosWithKeywords, 
@@ -160,6 +162,10 @@ async function requestJson(url, method = 'GET', body = null) {
     }
     req.end();
   });
+}
+
+async function importClientModule(relativePath) {
+  return import(pathToFileURL(path.join(__dirname, relativePath)).href);
 }
 
 
@@ -785,6 +791,103 @@ assertTest('crawler consumes custom searchKeywords instead of static defaults', 
 
 runDomainTests({ logSuite, assertTest });
 
+async function runClientStateTests() {
+  logSuite('Remote Feed Control Snapshot Mutations');
+
+  const {
+    applyCategorySelection,
+    applyFeedSourceConfigPatch,
+    normalizeCategorySelection,
+    serializeCategorySelection,
+    toggleCategorySelection
+  } = await importClientModule('./client/src/state/feedMutations.js');
+
+  assertTest('toggleCategorySelection normalizes commas and toggles without duplicating categories', () => {
+    assert.deepStrictEqual(
+      toggleCategorySelection('Liminal Spaces', 'Scenic Nature, Liminal Spaces'),
+      ['Scenic Nature']
+    );
+    assert.deepStrictEqual(
+      toggleCategorySelection('AI Creations', 'Scenic Nature, Liminal Spaces'),
+      ['Scenic Nature', 'Liminal Spaces', 'AI Creations']
+    );
+    assert.deepStrictEqual(
+      normalizeCategorySelection(' Scenic Nature , Scenic Nature ,AI Creations '),
+      ['Scenic Nature', 'AI Creations']
+    );
+    assert.strictEqual(
+      serializeCategorySelection([' Scenic Nature ', 'AI Creations', 'Scenic Nature']),
+      'Scenic Nature,AI Creations'
+    );
+  });
+
+  assertTest('applyCategorySelection patches both top-level and nested playback selection state', () => {
+    const snapshot = {
+      currentCategory: 'Scenic Nature',
+      currentFrame: {
+        layout: 'single',
+        primary: { url: 'land-1' },
+        secondary: null,
+        crop: {
+          primaryPercent: 100,
+          primaryPositionY: 50,
+          secondaryPercent: 50,
+          secondaryPositionY: 50
+        },
+        context: {
+          category: 'Scenic Nature',
+          categories: ['Scenic Nature'],
+          photoCount: 1,
+          orientation: 'landscape',
+          splitEligible: false
+        }
+      },
+      playback: {
+        selectedCategories: ['Scenic Nature'],
+        activePhotoUrl: 'land-1',
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    };
+
+    const nextSnapshot = applyCategorySelection(snapshot, 'Scenic Nature,Liminal Spaces');
+    assert.strictEqual(nextSnapshot.currentCategory, 'Scenic Nature,Liminal Spaces');
+    assert.deepStrictEqual(nextSnapshot.playback.selectedCategories, ['Scenic Nature', 'Liminal Spaces']);
+    assert.deepStrictEqual(nextSnapshot.currentFrame.context.categories, ['Scenic Nature', 'Liminal Spaces']);
+  });
+
+  assertTest('applyFeedSourceConfigPatch merges source patches without dropping sibling fields', () => {
+    const snapshot = {
+      feedConfigs: {
+        'Scenic Nature': {
+          reddit: { enabled: false, subreddits: ['EarthPorn'] }
+        }
+      },
+      config: {
+        feedConfigs: {
+          'Scenic Nature': {
+            reddit: { enabled: false, subreddits: ['EarthPorn'] }
+          }
+        }
+      }
+    };
+
+    const nextSnapshot = applyFeedSourceConfigPatch(snapshot, 'Scenic Nature', 'reddit', {
+      enabled: true,
+      subreddits: ['SkyPorn']
+    });
+
+    assert.deepStrictEqual(nextSnapshot.feedConfigs['Scenic Nature'].reddit, {
+      enabled: true,
+      subreddits: ['SkyPorn']
+    });
+    assert.deepStrictEqual(nextSnapshot.config.feedConfigs['Scenic Nature'].reddit, {
+      enabled: true,
+      subreddits: ['SkyPorn']
+    });
+  });
+}
+
 // ============================================================================
 // 6. UNIT TEST SUITE: Multi-Source Wallpaper Aggregator
 // ============================================================================
@@ -923,9 +1026,9 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // ============================================================================
 // 7. INTEGRATION TEST SUITE: Live Endpoint Verification
 // ============================================================================
-logSuite('Live Server Endpoint Smoke Tests');
-
 async function runIntegrationTests() {
+  await runClientStateTests();
+  logSuite('Live Server Endpoint Smoke Tests');
   const port = 0;
   console.log('Starting temporary test server on an ephemeral localhost port...');
   const testServer = await new Promise((resolve, reject) => {
