@@ -5,6 +5,7 @@ import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
 function ImageFeedsTab({
   state,
   socket,
+  actions,
   categories,
   handleCategoryChange,
   handleDeleteCategory,
@@ -457,7 +458,7 @@ function ImageFeedsTab({
                           <button 
                             className="remote-btn" 
                             onClick={() => {
-                              socket.emit('rate-photo', { url: photo.url, rating: 1 });
+                              actions.ratePhoto(photo.url, 1);
                               setGalleryIndex((prev) => (prev + 1) % state.photosList.length);
                             }}
                             style={{ flex: 1.3, padding: '4px 0', fontSize: '0.75rem', borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239,68,68,0.05)' }}
@@ -548,7 +549,7 @@ function ImageFeedsTab({
                   </button>
                   <button 
                     className="remote-btn" 
-                    onClick={() => socket.emit('set-active-photo', photo)}
+                    onClick={() => actions.setActivePhoto(photo)}
                     style={{ flex: 1.2, padding: '8px 0', fontSize: '0.85rem', borderColor: 'var(--accent-color)', background: 'rgba(255,255,255,0.03)' }}
                   >
                     📺 Cast to TV
@@ -578,7 +579,7 @@ function ImageFeedsTab({
                       return (
                         <button
                           key={num}
-                          onClick={() => socket.emit('rate-photo', { url: photo.url, rating: num })}
+                          onClick={() => actions.ratePhoto(photo.url, num)}
                           className="remote-btn"
                           style={{
                             flex: 1,
@@ -626,10 +627,7 @@ function ImageFeedsTab({
                           clearTimeout(cropTimeoutRef.current);
                         }
                         cropTimeoutRef.current = setTimeout(() => {
-                          socket.emit('set-photo-crop', {
-                            url: photo.url,
-                            cropPercent: val
-                          });
+                          actions.setPhotoCrop(photo.url, val);
                         }, 30); // 30ms debounce for real-time TV zoom
                       }}
                       className="split-crop-slider"
@@ -656,10 +654,7 @@ function ImageFeedsTab({
                     </div>
                     <div 
                       className="switch-wrapper"
-                      onClick={() => socket.emit('set-photo-prevent-pairing', {
-                        url: photo.url,
-                        preventPairing: !photo.preventPairing
-                      })}
+                      onClick={() => actions.setPreventPairing(photo.url, !photo.preventPairing)}
                       style={{ cursor: 'pointer' }}
                     >
                       <span className={`switch-slider ${!photo.preventPairing ? 'checked' : ''}`}></span>

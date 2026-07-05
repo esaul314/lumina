@@ -38,6 +38,47 @@ export function normalizeSnapshot(snapshot) {
   };
 }
 
+export function patchPhotoInSnapshot(snapshot, url, patch) {
+  if (!snapshot || !url || !patch || typeof patch !== 'object') {
+    return snapshot;
+  }
+
+  const currentFrame = getCurrentFrame(snapshot);
+  const nextPrimary = currentFrame.primary?.url === url
+    ? { ...currentFrame.primary, ...patch }
+    : currentFrame.primary;
+  const nextSecondary = currentFrame.secondary?.url === url
+    ? { ...currentFrame.secondary, ...patch }
+    : currentFrame.secondary;
+
+  const nextCrop = {
+    ...currentFrame.crop,
+    ...(currentFrame.primary?.url === url && patch.cropPercent !== undefined ? { primaryPercent: patch.cropPercent } : {}),
+    ...(currentFrame.primary?.url === url && patch.cropPositionY !== undefined ? { primaryPositionY: patch.cropPositionY } : {}),
+    ...(currentFrame.secondary?.url === url && patch.cropPercent !== undefined ? { secondaryPercent: patch.cropPercent } : {}),
+    ...(currentFrame.secondary?.url === url && patch.cropPositionY !== undefined ? { secondaryPositionY: patch.cropPositionY } : {})
+  };
+
+  return normalizeSnapshot({
+    ...snapshot,
+    currentFrame: {
+      ...currentFrame,
+      primary: nextPrimary,
+      secondary: nextSecondary,
+      crop: nextCrop
+    },
+    activePhoto: snapshot.activePhoto?.url === url
+      ? { ...snapshot.activePhoto, ...patch }
+      : snapshot.activePhoto,
+    activeSecondPhoto: snapshot.activeSecondPhoto?.url === url
+      ? { ...snapshot.activeSecondPhoto, ...patch }
+      : snapshot.activeSecondPhoto,
+    photosList: Array.isArray(snapshot.photosList)
+      ? snapshot.photosList.map((photo) => (photo?.url === url ? { ...photo, ...patch } : photo))
+      : snapshot.photosList
+  });
+}
+
 export function getCurrentFrame(state) {
   return state?.currentFrame || buildFallbackFrame(state || {});
 }

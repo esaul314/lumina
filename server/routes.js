@@ -742,7 +742,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
   // PATCH /api/photos
   app.patch('/api/photos', (req, res) => {
-    const { url, rating, cropPercent, cropPositionY, preventPairing, isBroken } = req.body;
+    const { url, rating, cropPercent, cropPositionY, preventPairing, preserveActive, isBroken } = req.body;
     if (!url || typeof url !== 'string') {
       return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
     }
@@ -779,6 +779,13 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       }
 
       googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
+      if (preventPairing && preserveActive) {
+        const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
+        if (focusedPhoto) {
+          state.activePhoto = { ...focusedPhoto };
+          state.activeSecondPhoto = null;
+        }
+      }
       broadcast();
 
       return res.json({
@@ -821,7 +828,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       if (preventPairing !== undefined) {
         commands.push({
           type: 'set-photo-prevent-pairing',
-          payload: { url, preventPairing }
+          payload: { url, preventPairing, preserveActive }
         });
       }
 
@@ -917,6 +924,14 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
       if (pairingUpdated) {
         updated = true;
         responsePayload.preventPairing = !!preventPairing;
+        if (preventPairing && preserveActive) {
+          const focusedPhoto = state.photosList?.find((photo) => photo?.url === url)
+            || Object.values(collections).flat().find((photo) => photo?.url === url);
+          if (focusedPhoto) {
+            state.activePhoto = focusedPhoto;
+            state.activeSecondPhoto = null;
+          }
+        }
       }
     }
 
@@ -930,29 +945,32 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
   // POST /api/photos/preview
   app.post('/api/photos/preview', (req, res) => {
-    const { url } = req.body;
-    if (!url || typeof url !== 'string') {
+    const command = decodeActivePhotoCommand(req.body);
+    if (!command) {
       return res.status(400).json({ error: 'Invalid parameter: "url" must be a non-empty string.' });
     }
 
-    let foundPhoto = null;
-    for (const cat of Object.keys(collections)) {
-      const arr = collections[cat];
-      if (Array.isArray(arr)) {
-        const match = arr.find(p => p.url === url);
-        if (match) {
-          foundPhoto = match;
-          break;
-        }
-      }
-    }
+    const requestedUrl = command.payload.url;
+    const payloadPhoto = command.payload.photo && typeof command.payload.photo === 'object'
+      ? command.payload.photo
+      : null;
+
+    const foundPhoto = state.photosList?.find((photo) => photo?.url === requestedUrl)
+      || Object.values(collections).flat().find((photo) => photo?.url === requestedUrl)
+      || payloadPhoto;
 
     if (!foundPhoto) {
-      return res.status(404).json({ error: 'Photo URL not found in curated collections.' });
+      return res.status(404).json({ error: 'Photo URL not found in active feed or curated collections.' });
     }
 
     if (dispatchCommand) {
-      dispatchCommand(decodeActivePhotoCommand(foundPhoto)).then(() => {
+      dispatchCommand({
+        ...command,
+        payload: {
+          ...command.payload,
+          photo: foundPhoto
+        }
+      }).then(() => {
         res.json({ success: true, activePhoto: state.activePhoto });
       }).catch((error) => {
         res.status(500).json({ error: error.message });

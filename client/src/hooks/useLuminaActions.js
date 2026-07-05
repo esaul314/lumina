@@ -1,18 +1,69 @@
 import { useMemo } from 'react';
+import {
+  getStateSnapshot,
+  nextPhoto,
+  patchPhoto,
+  previewPhoto,
+  prevPhoto
+} from '../api/luminaClient';
+import { normalizeSnapshot, patchPhotoInSnapshot } from '../state/frameSelectors';
 
-export function useLuminaActions(socket) {
+export function useLuminaActions(socket, setState) {
+  const refreshState = async () => {
+    const snapshot = await getStateSnapshot();
+    setState(normalizeSnapshot(snapshot));
+  };
+
+  const applyPhotoPatch = (url, patch) => {
+    setState((current) => patchPhotoInSnapshot(current, url, patch));
+  };
+
+  const runPhotoAction = async (action, fallback = null) => {
+    try {
+      await action();
+    } catch (error) {
+      console.error('[LuminaActions] Photo action failed:', error);
+      if (typeof fallback === 'function') {
+        fallback();
+      }
+    }
+  };
+
   return useMemo(() => ({
     setPhotoCrop: (url, cropPercent, cropPositionY) => {
-      socket.emit('set-photo-crop', { url, cropPercent, cropPositionY });
+      void runPhotoAction(async () => {
+        await patchPhoto({ url, cropPercent, cropPositionY });
+        applyPhotoPatch(url, {
+          ...(cropPercent !== undefined ? { cropPercent } : {}),
+          ...(cropPositionY !== undefined ? { cropPositionY } : {})
+        });
+      });
     },
-    setPreventPairing: (url, preventPairing) => {
-      socket.emit('set-photo-prevent-pairing', { url, preventPairing });
+    setPreventPairing: (url, preventPairing, options = {}) => {
+      void runPhotoAction(async () => {
+        await patchPhoto({ url, preventPairing, preserveActive: options.preserveActive });
+        if (options.preserveActive && preventPairing) {
+          await refreshState();
+          return;
+        }
+        applyPhotoPatch(url, { preventPairing });
+      });
     },
     ratePhoto: (url, rating) => {
-      socket.emit('rate-photo', { url, rating });
+      void runPhotoAction(async () => {
+        await patchPhoto({ url, rating });
+        if (rating === 1) {
+          await refreshState();
+          return;
+        }
+        applyPhotoPatch(url, { rating });
+      });
     },
     setActivePhoto: (photo) => {
-      socket.emit('set-active-photo', photo);
+      void runPhotoAction(async () => {
+        await previewPhoto(photo);
+        await refreshState();
+      });
     },
     updateFeedConfig: (category, source, config) => {
       socket.emit('update-feed-config', { category, source, config });
@@ -39,13 +90,22 @@ export function useLuminaActions(socket) {
       socket.emit('set-screensaver-active', active);
     },
     triggerNext: () => {
-      socket.emit('next-photo');
+      void runPhotoAction(async () => {
+        await nextPhoto();
+        await refreshState();
+      });
     },
     triggerPrev: () => {
-      socket.emit('prev-photo');
+      void runPhotoAction(async () => {
+        await prevPhoto();
+        await refreshState();
+      });
     },
     markPhotoBroken: (url) => {
-      socket.emit('mark-photo-broken', { url });
+      void runPhotoAction(async () => {
+        await patchPhoto({ url, isBroken: true });
+        await refreshState();
+      });
     },
     changeScaleMode: (mode) => {
       socket.emit('change-scale-mode', mode);
@@ -86,5 +146,5 @@ export function useLuminaActions(socket) {
     saveUseapiToken: (token) => {
       socket.emit('save-useapi-token', { token });
     }
-  }), [socket]);
+  }), [setState, socket]);
 }

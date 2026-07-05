@@ -150,6 +150,7 @@ function App() {
         <RemoteControl 
           state={state} 
           socket={socket} 
+          setClientState={setState}
           connected={connected} 
           connectionInfo={connectionInfo}
         />

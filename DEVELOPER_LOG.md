@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-05: Remote Photo Controls Now Use REST Mutations by Default
+* **Goal**: Take the first real Phase 1 roadmap step by moving the remote's photo-control slice off socket-only mutations and onto the existing REST surface, while keeping Socket.IO for live sync.
+* **Implementation**:
+  * Added a small typed-ish client REST wrapper at `client/src/api/luminaClient.js` for photo patching, previewing, advancing, and snapshot refreshes.
+  * Updated `client/src/hooks/useLuminaActions.js` so photo rating, crop, pairing, preview, next/prev, and broken-photo marking use REST by default, then patch or refresh the initiating client's local snapshot directly instead of waiting for a socket round-trip.
+  * Added `patchPhotoInSnapshot(...)` in `client/src/state/frameSelectors.js` so local crop/rating/pairing changes update `photosList`, active-photo pointers, and derived frame crop fields consistently.
+  * Extended `server/routes.js` so `PATCH /api/photos` supports `preserveActive` parity for pairing edits and `POST /api/photos/preview` can preview photos from the active feed snapshot, including source-backed items that are not only present in curated collections.
+* **Learning**: The first transport migration should target a slice where the server semantics already exist and tests already cover the domain surface. Photo controls fit that boundary well, but they still needed one client-side correction: REST mutations must update the initiating client directly, otherwise a socket disconnect still leaves the UI stale even though the write succeeded.
+* **Verification**: `npm test` passed successfully.
+
 ### 2026-07-05: Product Roadmap Added for REST-First, Metadata, Sharing, and Sensor Work
 * **Goal**: Capture Lumina's next major product and architecture phases in one tracked roadmap so future work stops drifting back toward socket-only mutations and ad hoc feature additions.
 * **Implementation**:

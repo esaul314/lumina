@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 
 function DirectControlTab({
   state,
-  socket,
+  actions,
   activePhotoOrientation,
   secondPhoto,
   dragState,
@@ -33,9 +33,7 @@ function DirectControlTab({
     }
 
     const nextPreventPairing = !selectedPhoto.preventPairing;
-    socket.emit('set-photo-prevent-pairing', {
-      url: selectedPhoto.url,
-      preventPairing: nextPreventPairing,
+    actions.setPreventPairing(selectedPhoto.url, nextPreventPairing, {
       // Preserve the focused portrait as a single-image preview instead of
       // collapsing back to the other half of the split frame immediately.
       preserveActive: isSplitLayoutActive && nextPreventPairing

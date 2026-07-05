@@ -62,7 +62,7 @@ function formatTvPreviewMetaLabel(displayInfo, viewport) {
   return displayName;
 }
 
-function RemoteControl({ state, socket, connected, connectionInfo }) {
+function RemoteControl({ state, socket, setClientState, connected, connectionInfo }) {
   const [activeTab, setActiveTab] = useState('controls'); // controls, settings, photos
   const [googleClientId, setGoogleClientId] = useState('');
   const [googleClientSecret, setGoogleClientSecret] = useState('');
@@ -73,7 +73,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
   const remoteDimensionsCache = useRef({});
 
   // 1. Socket Actions Helper Hook
-  const actions = useLuminaActions(socket);
+  const actions = useLuminaActions(socket, setClientState);
 
   // 2. Active Photo Orientation & Secondary Split Pairing Sync Hook
   const { 
@@ -553,7 +553,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
       {activeTab === 'controls' && (
         <DirectControlTab
           state={state}
-          socket={socket}
+          actions={actions}
           activePhotoOrientation={activePhotoOrientation}
           secondPhoto={secondPhoto}
           dragState={dragState}
@@ -585,6 +585,7 @@ function RemoteControl({ state, socket, connected, connectionInfo }) {
         <ImageFeedsTab
           state={state}
           socket={socket}
+          actions={actions}
           categories={categories}
           handleCategoryChange={handleCategoryChange}
           handleDeleteCategory={handleDeleteCategory}
