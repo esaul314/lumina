@@ -17,6 +17,11 @@ Welcome, fellow AI agent or human developer! This document is designed to give y
 
 Lumina utilizes a decoupled client-server architecture. The durable control surface is moving toward REST-first APIs, while Socket.IO remains the live-sync and low-latency event channel.
 
+Current migration checkpoint:
+- Phase 1 Step 1 complete: remote photo-control mutations are REST-first by default.
+- Phase 1 Step 2 complete: remote durable state/settings mutations are REST-first by default.
+- Phase 1 Step 3 is next: migrate category, pool, and feed-configuration mutations to REST and remove the remaining socket-only mutation overlap from operator UIs.
+
 ```mermaid
 graph TD
     A["📱 Mobile Phone Remote / Link"] <-->|Socket.IO Events & QR Connection| B["🟢 Node.js / Express Core Server"]

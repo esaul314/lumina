@@ -501,7 +501,7 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
 
 refreshSnapshot();
 
-require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride, dispatchCommand, broadcastStateSync);
+require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride, triggerWeatherUpdate, dispatchCommand, broadcastStateSync);
 require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync);
 
 /**

@@ -21,6 +21,10 @@ const {
 } = require('./utils/fn.js');
 
 const uniqByUrl = uniqBy(prop('url'));
+const normalizeCoordinate = (value, fallback) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 // Pure/functional shuffle helper
 const shuffle = (list) => {
@@ -60,7 +64,7 @@ function getLocalIpAddresses() {
  * 🧭 configureRoutes
  * Sets up Express HTTP routes for the Lumina API.
  */
-module.exports = function(app, state, collections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride, dispatchCommand, broadcastStateSync) {
+module.exports = function(app, state, collections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride, triggerWeatherUpdate, dispatchCommand, broadcastStateSync) {
   const broadcast = () => {
     if (typeof broadcastStateSync === 'function') {
       broadcastStateSync();
@@ -398,14 +402,16 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
   });
 
   // PATCH /api/state
-  app.patch('/api/state', (req, res) => {
+  app.patch('/api/state', async (req, res) => {
     const { saveCuratedCollections } = require('./config/collections.js');
     const writableFields = [
       'theme', 'inactivityTimeout', 'slideshowInterval', 'scaleMode',
       'splitPortrait', 'splitCropPercent', 'alignTimeOfDay', 'alignWeather',
-      'nightPercentage', 'allowOpenAiFallback', 'excludedKeywords', 'visionConfig'
+      'nightPercentage', 'allowOpenAiFallback', 'excludedKeywords', 'visionConfig',
+      'autoLocation'
     ];
     let updated = false;
+    let shouldRefreshWeather = false;
 
     // Handle top-level writable fields
     for (const key of writableFields) {
@@ -438,11 +444,28 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
             };
             updated = true;
           }
+        } else if (key === 'autoLocation') {
+          state.autoLocation = !!req.body.autoLocation;
+          updated = true;
+          shouldRefreshWeather = true;
         } else {
           state[key] = req.body[key];
           updated = true;
         }
       }
+    }
+
+    if (req.body.manualLocation && typeof req.body.manualLocation === 'object') {
+      const location = req.body.manualLocation;
+      state.manualLocation = {
+        lat: normalizeCoordinate(location.lat, 45.45),
+        lon: normalizeCoordinate(location.lon, -73.56),
+        city: String(location.city || 'Verdun').trim(),
+        regionName: String(location.regionName || 'Quebec').trim(),
+        country: String(location.country || 'Canada').trim()
+      };
+      updated = true;
+      shouldRefreshWeather = true;
     }
 
     // Handle nested widgets updates
@@ -457,6 +480,13 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
 
     if (updated) {
       saveCuratedCollections(collections, state);
+      if (shouldRefreshWeather && typeof triggerWeatherUpdate === 'function') {
+        try {
+          await triggerWeatherUpdate();
+        } catch (error) {
+          console.warn('[Config API] Weather refresh failed after state update:', error.message);
+        }
+      }
       broadcast();
     }
 
@@ -475,7 +505,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
         type: 'set-screensaver-active',
         payload: { active }
       }).then(() => {
-        res.json({ success: true, screensaverActive: state.screensaverActive });
+        res.json({ success: true, screensaverActive: state.screensaverActive, state: buildStateResponse() });
       }).catch((error) => {
         res.status(500).json({ error: error.message });
       });
@@ -493,7 +523,7 @@ module.exports = function(app, state, collections, getWeatherData, setWeatherDat
     }
 
     broadcast();
-    res.json({ success: true, screensaverActive: state.screensaverActive });
+    res.json({ success: true, screensaverActive: state.screensaverActive, state: buildStateResponse() });
   });
 
   // GET /api/pools

@@ -15,6 +15,11 @@ const {
   decodeSplitPortraitCommand
 } = require('./domain/commands.js');
 
+const normalizeCoordinate = (value, fallback) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 /**
  * 💾 persistLocationSettings
  * Saves autoLocation and manualLocation into curated_collections.json
@@ -684,8 +689,8 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     socket.on('update-manual-location', async ({ lat, lon, city, regionName, country }) => {
       console.log(`[SOCKET EVENT] update-manual-location: ${city} (${lat}, ${lon})`);
       state.manualLocation = {
-        lat: parseFloat(lat) || 45.45,
-        lon: parseFloat(lon) || -73.56,
+        lat: normalizeCoordinate(lat, 45.45),
+        lon: normalizeCoordinate(lon, -73.56),
         city: String(city || 'Verdun').trim(),
         regionName: String(regionName || 'Quebec').trim(),
         country: String(country || 'Canada').trim()

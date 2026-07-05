@@ -39,6 +39,20 @@ export function getStateSnapshot() {
   return requestJson('/api/state');
 }
 
+export function patchState(body) {
+  return requestJson('/api/state', {
+    method: 'PATCH',
+    body
+  });
+}
+
+export function setScreensaverActive(active) {
+  return requestJson('/api/state/screensaver', {
+    method: 'POST',
+    body: { active }
+  });
+}
+
 export function patchPhoto(body) {
   return requestJson('/api/photos', {
     method: 'PATCH',

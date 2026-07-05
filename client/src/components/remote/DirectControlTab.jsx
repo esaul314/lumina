@@ -293,7 +293,7 @@ function DirectControlTab({
                 return (
                   <button
                     key={num}
-                    onClick={() => socket.emit('rate-photo', { url: selectedPhoto.url, rating: num })}
+                    onClick={() => actions.ratePhoto(selectedPhoto.url, num)}
                     className="remote-btn"
                     style={{
                       flex: 1,

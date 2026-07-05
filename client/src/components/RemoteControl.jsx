@@ -619,6 +619,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
         <SystemSettingsTab
           state={state}
           socket={socket}
+          actions={actions}
           connectionInfo={connectionInfo}
           handleToggleWidget={handleToggleWidget}
           manualCity={manualCity}

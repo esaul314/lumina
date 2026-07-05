@@ -6,6 +6,7 @@ import {
 function SystemSettingsTab({
   state,
   socket,
+  actions,
   connectionInfo,
   handleToggleWidget,
   manualCity,
@@ -128,7 +129,7 @@ function SystemSettingsTab({
             </div>
             <div 
               className="switch-wrapper"
-              onClick={() => socket.emit('change-scale-mode', state.scaleMode === 'contain' ? 'cover' : 'contain')}
+              onClick={() => actions.changeScaleMode(state.scaleMode === 'contain' ? 'cover' : 'contain')}
             >
               <span className={`switch-slider ${state.scaleMode === 'contain' ? 'checked' : ''}`}></span>
             </div>
@@ -144,7 +145,7 @@ function SystemSettingsTab({
             </div>
             <div 
               className="switch-wrapper"
-              onClick={() => socket.emit('toggle-split-portrait', !state.splitPortrait)}
+              onClick={() => actions.toggleSplitPortrait(!state.splitPortrait)}
             >
               <span className={`switch-slider ${state.splitPortrait ? 'checked' : ''}`}></span>
             </div>
@@ -163,7 +164,7 @@ function SystemSettingsTab({
                   min="0" 
                   max="100" 
                   value={state.splitCropPercent !== undefined ? state.splitCropPercent : 50}
-                  onChange={(e) => socket.emit('change-split-crop', parseInt(e.target.value))}
+                  onChange={(e) => actions.changeSplitCrop(parseInt(e.target.value, 10))}
                   style={{
                     flex: 1,
                     height: '6px',
@@ -198,7 +199,7 @@ function SystemSettingsTab({
             </div>
             <div 
               className="switch-wrapper"
-              onClick={() => socket.emit('toggle-align-time', !state.alignTimeOfDay)}
+              onClick={() => actions.toggleAlignTime(!state.alignTimeOfDay)}
             >
               <span className={`switch-slider ${state.alignTimeOfDay ? 'checked' : ''}`}></span>
             </div>
@@ -208,15 +209,15 @@ function SystemSettingsTab({
             <div style={{ padding: '10px 14px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '12px', marginBottom: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '6px' }}>
                 <span style={{ opacity: 0.6 }}>Evening/Night Photo Ratio</span>
-                <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{state.nightPercentage || 50}%</span>
+                <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{state.nightPercentage ?? 50}%</span>
               </div>
               <input 
                 type="range" 
                 min="0" 
                 max="100" 
                 step="5"
-                value={state.nightPercentage || 50} 
-                onChange={(e) => socket.emit('change-night-percentage', parseInt(e.target.value))}
+                value={state.nightPercentage ?? 50} 
+                onChange={(e) => actions.changeNightPercentage(parseInt(e.target.value, 10))}
                 style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', outline: 'none', accentColor: 'var(--accent-color)', cursor: 'pointer' }}
               />
               <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '6px', textAlign: 'center' }}>
@@ -235,7 +236,7 @@ function SystemSettingsTab({
             </div>
             <div 
               className="switch-wrapper"
-              onClick={() => socket.emit('toggle-align-weather', !state.alignWeather)}
+              onClick={() => actions.toggleAlignWeather(!state.alignWeather)}
             >
               <span className={`switch-slider ${state.alignWeather ? 'checked' : ''}`}></span>
             </div>
@@ -289,7 +290,7 @@ function SystemSettingsTab({
                     type="text"
                     placeholder="http://localhost:8100/v1"
                     value={state.visionConfig?.apiUrl || ''}
-                    onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, apiUrl: e.target.value })}
+                    onChange={(e) => actions.updateVisionConfig({ ...state.visionConfig, apiUrl: e.target.value })}
                     style={{
                       background: 'rgba(0,0,0,0.3)',
                       border: '1px solid rgba(255,255,255,0.1)',
@@ -309,7 +310,7 @@ function SystemSettingsTab({
                       type="text"
                       placeholder="qwen-vl"
                       value={state.visionConfig?.model || ''}
-                      onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, model: e.target.value })}
+                      onChange={(e) => actions.updateVisionConfig({ ...state.visionConfig, model: e.target.value })}
                       style={{
                         background: 'rgba(0,0,0,0.3)',
                         border: '1px solid rgba(255,255,255,0.1)',
@@ -327,7 +328,7 @@ function SystemSettingsTab({
                       type="password"
                       placeholder="None"
                       value={state.visionConfig?.apiKey || ''}
-                      onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, apiKey: e.target.value })}
+                      onChange={(e) => actions.updateVisionConfig({ ...state.visionConfig, apiKey: e.target.value })}
                       style={{
                         background: 'rgba(0,0,0,0.3)',
                         border: '1px solid rgba(255,255,255,0.1)',
@@ -346,7 +347,7 @@ function SystemSettingsTab({
                   <div
                     className='switch-wrapper'
                     style={{ transform: 'scale(0.85)', transformOrigin: 'right center' }}
-                    onClick={() => socket.emit('toggle-allow-openai-fallback', !state.allowOpenAiFallback)}
+                    onClick={() => actions.toggleAllowOpenAiFallback(!state.allowOpenAiFallback)}
                   >
                     <span className={`switch-slider ${state.allowOpenAiFallback ? 'checked' : ''}`}></span>
                   </div>
@@ -369,7 +370,7 @@ function SystemSettingsTab({
                         type="text"
                         placeholder="https://api.openai.com/v1"
                         value={state.visionConfig?.fallbackUrl || ''}
-                        onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, fallbackUrl: e.target.value })}
+                        onChange={(e) => actions.updateVisionConfig({ ...state.visionConfig, fallbackUrl: e.target.value })}
                         style={{
                           background: 'rgba(0,0,0,0.3)',
                           border: '1px solid rgba(255,255,255,0.1)',
@@ -389,7 +390,7 @@ function SystemSettingsTab({
                           type="text"
                           placeholder="gpt-4o"
                           value={state.visionConfig?.fallbackModel || ''}
-                          onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, fallbackModel: e.target.value })}
+                          onChange={(e) => actions.updateVisionConfig({ ...state.visionConfig, fallbackModel: e.target.value })}
                           style={{
                             background: 'rgba(0,0,0,0.3)',
                             border: '1px solid rgba(255,255,255,0.1)',
@@ -407,7 +408,7 @@ function SystemSettingsTab({
                           type="password"
                           placeholder="sk-..."
                           value={state.visionConfig?.fallbackApiKey || ''}
-                          onChange={(e) => socket.emit('update-vision-config', { ...state.visionConfig, fallbackApiKey: e.target.value })}
+                          onChange={(e) => actions.updateVisionConfig({ ...state.visionConfig, fallbackApiKey: e.target.value })}
                           style={{
                             background: 'rgba(0,0,0,0.3)',
                             border: '1px solid rgba(255,255,255,0.1)',
@@ -441,7 +442,7 @@ function SystemSettingsTab({
             </div>
             <div 
               className="switch-wrapper"
-              onClick={() => socket.emit('toggle-auto-location', !state.autoLocation)}
+              onClick={() => actions.toggleAutoLocation(!state.autoLocation)}
             >
               <span className={`switch-slider ${state.autoLocation ? 'checked' : ''}`}></span>
             </div>
@@ -528,7 +529,7 @@ function SystemSettingsTab({
                     alert('Please enter a City name.');
                     return;
                   }
-                  socket.emit('update-manual-location', {
+                  actions.updateManualLocation({
                     lat: latVal,
                     lon: lonVal,
                     city: manualCity.trim(),
@@ -558,7 +559,7 @@ function SystemSettingsTab({
             return (
               <button
                 key={opt.value}
-                onClick={() => socket.emit('change-interval', opt.value)}
+                onClick={() => actions.changeInterval(opt.value)}
                 className="remote-btn"
                 style={{
                   background: isActive ? 'var(--accent-color)' : 'rgba(255, 255, 255, 0.03)',
@@ -609,7 +610,7 @@ function SystemSettingsTab({
                   type="button"
                   onClick={() => {
                     const updated = state.excludedKeywords.filter(k => k !== kw);
-                    socket.emit('update-excluded-keywords', updated);
+                    actions.updateExcludedKeywords(updated);
                   }}
                   style={{
                     background: 'none',
@@ -635,7 +636,7 @@ function SystemSettingsTab({
             if (kw) {
               const current = state.excludedKeywords || [];
               if (!current.includes(kw)) {
-                socket.emit('update-excluded-keywords', [...current, kw]);
+                actions.updateExcludedKeywords([...current, kw]);
               }
               form.reset();
             }

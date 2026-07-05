@@ -2,6 +2,14 @@
 
 Last updated: 2026-07-05
 
+## Execution Status
+
+Phase 1 is in progress. The current checkpoint is:
+
+- Done: Step 1. Remote photo-control mutations are REST-first by default.
+- Done: Step 2. Remote durable state/settings mutations are REST-first by default.
+- Next: Step 3. Migrate category, pool, and feed-configuration mutations to REST, then remove the remaining socket-only mutation overlap from the remote and dashboard admin surfaces.
+
 ## Architectural Rule
 
 Lumina should continue moving toward one stable integration boundary:
@@ -16,7 +24,8 @@ The codebase already contains part of this direction, but Phase 1 is not complet
 
 - `server/routes.js` exposes REST endpoints for state, photos, pools, weather, and screensaver control.
 - `server/domain/` already holds shared command decoding, reducers, selectors, and snapshot logic used by both REST and Socket.IO for part of the mutation surface.
-- `server/sockets.js` is still responsible for many durable mutations, and `client/src/hooks/useLuminaActions.js` is still primarily socket-driven.
+- `client/src/hooks/useLuminaActions.js` is now REST-first for remote photo controls plus durable state/settings controls, but category, pool, and feed-config mutations are still socket-driven.
+- `server/sockets.js` still carries those remaining durable mutation paths alongside live-sync and server-push responsibilities.
 - Source-specific metadata persistence now exists for Google Photos, which reinforces the broader rule that metadata should live at the correct source boundary and then be projected back into the live snapshot.
 
 ## Phase 1
@@ -29,6 +38,10 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
 - Frontend reads state from REST snapshots and writes state through REST mutations by default.
 - Keep Socket.IO for `state-sync`, playback push events, TV viewport/reporting, and real-time status only.
 - Replace socket-centric action helpers with a typed frontend API client plus a thinner live-sync layer.
+- Current checkpoint:
+  - Step 1 complete: remote photo-control mutations use REST by default.
+  - Step 2 complete: remote durable state/settings mutations use REST by default.
+  - Step 3 next: categories, pools, and feed-config mutations still need REST endpoints and client migration.
 
 ### Shared domain flow
 

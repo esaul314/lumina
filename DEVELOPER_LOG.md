@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-07-05: Remote Durable State & Settings Controls Now Use REST Mutations by Default
+* **Goal**: Continue Phase 1 by moving the remote's durable settings/state slice off socket-only mutations and onto `PATCH /api/state` plus `POST /api/state/screensaver`.
+* **Implementation**:
+  * Extended `client/src/api/luminaClient.js` with state mutation helpers and updated `client/src/hooks/useLuminaActions.js` so widget toggles, theme, slideshow interval, scale/split settings, weather/night alignment, vision config, fallback consent, location settings, excluded keywords, and screensaver activation all use REST by default.
+  * Rewired `client/src/components/remote/SystemSettingsTab.jsx` to call the shared action layer instead of emitting those durable mutations directly over Socket.IO, and cleaned up the last Direct Control rating button that was still emitting `rate-photo`.
+  * Added REST parity for location settings in `server/routes.js` by teaching `PATCH /api/state` about `autoLocation` and `manualLocation`, including weather refresh behavior, and broadened the screensaver route response to return the updated unified snapshot.
+  * Updated roadmap and agent-facing docs to mark Phase 1 Step 2 complete and Phase 1 Step 3 as the next slice: categories, pools, and feed-config mutation migration.
+* **Learning**: The clean boundary is becoming clearer now that two slices are in place. REST should own durable operator intent, while Socket.IO should remain for live push paths like `state-sync`, viewport reporting, crawler completion, and similar server-initiated events.
+* **Verification**: `npm test` and `npm --prefix client run build` passed successfully.
+
 ### 2026-07-05: Remote Photo Controls Now Use REST Mutations by Default
 * **Goal**: Take the first real Phase 1 roadmap step by moving the remote's photo-control slice off socket-only mutations and onto the existing REST surface, while keeping Socket.IO for live sync.
 * **Implementation**:

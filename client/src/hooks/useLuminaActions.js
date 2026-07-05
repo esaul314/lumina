@@ -2,9 +2,11 @@ import { useMemo } from 'react';
 import {
   getStateSnapshot,
   nextPhoto,
+  patchState,
   patchPhoto,
   previewPhoto,
-  prevPhoto
+  prevPhoto,
+  setScreensaverActive
 } from '../api/luminaClient';
 import { normalizeSnapshot, patchPhotoInSnapshot } from '../state/frameSelectors';
 
@@ -16,6 +18,12 @@ export function useLuminaActions(socket, setState) {
 
   const applyPhotoPatch = (url, patch) => {
     setState((current) => patchPhotoInSnapshot(current, url, patch));
+  };
+
+  const applyStateResponse = (nextState) => {
+    if (nextState) {
+      setState(normalizeSnapshot(nextState.state || nextState));
+    }
   };
 
   const runPhotoAction = async (action, fallback = null) => {
@@ -69,13 +77,24 @@ export function useLuminaActions(socket, setState) {
       socket.emit('update-feed-config', { category, source, config });
     },
     changeInterval: (interval) => {
-      socket.emit('change-interval', interval);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ slideshowInterval: interval });
+        applyStateResponse(nextState);
+      });
     },
     toggleWidget: (widgetName, visible) => {
-      socket.emit('toggle-widget', { widgetName, visible });
+      void runPhotoAction(async () => {
+        const nextState = await patchState({
+          widgets: { [widgetName]: visible }
+        });
+        applyStateResponse(nextState);
+      });
     },
     changeTheme: (themeName) => {
-      socket.emit('change-theme', themeName);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ theme: themeName });
+        applyStateResponse(nextState);
+      });
     },
     changeCategory: (categoriesStr) => {
       socket.emit('change-category', categoriesStr);
@@ -87,7 +106,10 @@ export function useLuminaActions(socket, setState) {
       socket.emit('delete-category', { category });
     },
     setScreensaverActive: (active) => {
-      socket.emit('set-screensaver-active', active);
+      void runPhotoAction(async () => {
+        const nextState = await setScreensaverActive(active);
+        applyStateResponse(nextState);
+      });
     },
     triggerNext: () => {
       void runPhotoAction(async () => {
@@ -108,37 +130,70 @@ export function useLuminaActions(socket, setState) {
       });
     },
     changeScaleMode: (mode) => {
-      socket.emit('change-scale-mode', mode);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ scaleMode: mode });
+        applyStateResponse(nextState);
+      });
     },
     toggleSplitPortrait: (split) => {
-      socket.emit('toggle-split-portrait', split);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ splitPortrait: split });
+        applyStateResponse(nextState);
+      });
     },
     changeSplitCrop: (percent) => {
-      socket.emit('change-split-crop', percent);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ splitCropPercent: percent });
+        applyStateResponse(nextState);
+      });
     },
     toggleAlignTime: (align) => {
-      socket.emit('toggle-align-time', align);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ alignTimeOfDay: align });
+        applyStateResponse(nextState);
+      });
     },
     changeNightPercentage: (percent) => {
-      socket.emit('change-night-percentage', percent);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ nightPercentage: percent });
+        applyStateResponse(nextState);
+      });
     },
     toggleAlignWeather: (align) => {
-      socket.emit('toggle-align-weather', align);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ alignWeather: align });
+        applyStateResponse(nextState);
+      });
     },
     updateVisionConfig: (config) => {
-      socket.emit('update-vision-config', config);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ visionConfig: config });
+        applyStateResponse(nextState);
+      });
     },
     toggleAllowOpenAiFallback: (allow) => {
-      socket.emit('toggle-allow-openai-fallback', allow);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ allowOpenAiFallback: allow });
+        applyStateResponse(nextState);
+      });
     },
     toggleAutoLocation: (auto) => {
-      socket.emit('toggle-auto-location', auto);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ autoLocation: auto });
+        applyStateResponse(nextState);
+      });
     },
     updateManualLocation: (location) => {
-      socket.emit('update-manual-location', location);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ manualLocation: location });
+        applyStateResponse(nextState);
+      });
     },
     updateExcludedKeywords: (keywords) => {
-      socket.emit('update-excluded-keywords', keywords);
+      void runPhotoAction(async () => {
+        const nextState = await patchState({ excludedKeywords: keywords });
+        applyStateResponse(nextState);
+      });
     },
     triggerRecrawl: () => {
       socket.emit('trigger-recrawl');
