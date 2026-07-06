@@ -15,14 +15,16 @@ This document serves as a public-facing, generic history of technical developmen
 * **Learning**: Background effects (like crawling) and disk persistence states from developer tests must be properly isolated under automated testing. Bypassing side-effect queues and writing robust fallback selectors keeps automated testing deterministic and fast.
 * **Verification**: All 98 unit, domain, and integration tests passed cleanly in under 10 seconds.
 
-### 2026-07-06: Optimize Vision Service Cache Initialization and Implement Circuit Breaker
-- **Goal**: Fix screensaver freezes and high CPU/swap thrashing caused by the background Vision Service loop attempting to process all 336 images on every daemon start when the local qwen3-vl API is offline/down.
+### 2026-07-06: Optimize Vision Service Cache Initialization, Implement Circuit Breaker, and Isolate Tests
+- **Goal**: Fix screensaver freezes and high CPU/swap thrashing caused by the background Vision Service loop attempting to process all 336 images on every daemon start when the local qwen3-vl API is offline/down, and prevent test runs from killing/interrupting the production kiosk browser.
 - **Implementation**:
   - **Lazy Cache Init**: Modified [vision.js](file:///home/alex/work/lumina/server/services/vision.js#L8-L15) to use a `cacheInitialized` boolean flag, ensuring `analysis_cache.json` is read and parsed from disk exactly once per process lifetime instead of on every image evaluation (which previously caused 336 synchronous disk reads).
   - **Circuit Breaker**: Added a failure-counter circuit breaker in `triggerImageAnalysisBackground` inside [app.js](file:///home/alex/work/lumina/server/app.js#L320-L330). If 3 consecutive Vision API inference failures are encountered on cache misses, the background analyzer immediately aborts the loop, preventing 336 high-bandwidth image downloads and inference requests.
-- **Learning**: Background loops processing large datasets must be safeguarded with circuit breakers when hitting external/local microservices. Unbounded retry loops and redundant disk I/O block event loops and saturate swap spaces on low-resource hardware.
+  - **Test Isolation Bypass**: Updated [system.js](file:///home/alex/work/lumina/server/services/system.js#L102-L272) to check `process.env.NODE_ENV === 'test'` and bypass real hardware CPU governor modifications, browser GUI spawns, and global process kills (which were executing `killall` and terminating the production TV screensaver browser).
+- **Learning**: Background loops processing large datasets must be safeguarded with circuit breakers when hitting external/local microservices. Unbounded retry loops and redundant disk I/O block event loops and saturate swap spaces on low-resource hardware. Additionally, test suites running integration smoke checks must be strictly decoupled from the host system's hardware configurations and active user sessions to avoid unexpected side effects (such as terminating active processes).
 - **Verification**:
   - Verified the `lumina` systemd service successfully restarted and logged the early abort after exactly 3 consecutive 404 inference failures.
+  - Verified that running `node run-tests.js` no longer affects the production kiosk browser on `playwright`.
   - All 98 regression tests passed cleanly.
 
 ### 2026-07-05: Feed Category Active-State Rendering Now Follows Canonical Selected Categories
