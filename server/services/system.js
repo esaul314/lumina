@@ -102,6 +102,9 @@ function getHostDisplayInfo() {
  * Toggles the CPU scaling governor profiles (e.g. performance vs schedutil).
  */
 function setCpuGovernor(profile) {
+  if (process.env.NODE_ENV === 'test') {
+    return Promise.resolve(true);
+  }
   return new Promise((resolve) => {
     exec(`echo "${profile}" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`, (err) => {
       if (err) {
@@ -186,6 +189,12 @@ function isSessionInhibited() {
  * Spawns Chromium in fullscreen kiosk mode with strict memory and GPU overrides.
  */
 function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
+  if (process.env.NODE_ENV === 'test') {
+    console.log('System Service: [Test Mode] Bypassing real Chromium kiosk spawn.');
+    return {
+      kill: () => {}
+    };
+  }
   const waylandFlags = buildChromiumFlags({ platform: 'wayland' });
   const x11Flags = buildChromiumFlags({ platform: 'x11' });
   const accelerationProfile = getChromiumAccelerationProfile();
@@ -263,6 +272,10 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
  * Hard kills all active Chromium/kiosk processes.
  */
 function killChromiumKiosk() {
+  if (process.env.NODE_ENV === 'test') {
+    console.log('System Service: [Test Mode] Bypassing real Chromium kiosk kill.');
+    return Promise.resolve(true);
+  }
   return new Promise((resolve) => {
     exec('killall chromium-browser || killall chromium', () => {
       resolve(true);
