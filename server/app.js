@@ -304,6 +304,8 @@ async function triggerImageAnalysisBackground() {
   console.log('[Vision Service] Starting background content analysis for curated collections...');
   
   let totalAnalyzed = 0;
+  let consecutiveFailures = 0;
+  const isConfigured = Boolean(screensaverState.visionConfig?.apiUrl);
   
   // Scrape through all categories
   for (const key of Object.keys(curatedCollections)) {
@@ -323,6 +325,13 @@ async function triggerImageAnalysisBackground() {
         photo.isCloudy = analysis.isCloudy;
         photo.isSnowy = analysis.isSnowy;
         totalAnalyzed++;
+        consecutiveFailures = 0;
+      } else if (isConfigured) {
+        consecutiveFailures++;
+        if (consecutiveFailures >= 3) {
+          console.warn('[Vision Service] Aborting background analysis: 3 consecutive API failures encountered. The Vision API server is likely offline or misconfigured.');
+          return;
+        }
       }
     }
   }

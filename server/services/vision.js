@@ -7,8 +7,11 @@ const cachePath = path.join(rootDir, 'analysis_cache.json');
 
 // Global analysis cache
 let analysisCache = {};
+let cacheInitialized = false;
 
 function initCache() {
+  if (cacheInitialized) return;
+  cacheInitialized = true;
   if (fs.existsSync(cachePath)) {
     try {
       analysisCache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
