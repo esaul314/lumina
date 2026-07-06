@@ -15,6 +15,16 @@ This document serves as a public-facing, generic history of technical developmen
 * **Learning**: Background effects (like crawling) and disk persistence states from developer tests must be properly isolated under automated testing. Bypassing side-effect queues and writing robust fallback selectors keeps automated testing deterministic and fast.
 * **Verification**: All 98 unit, domain, and integration tests passed cleanly in under 10 seconds.
 
+### 2026-07-06: Optimize Vision Service Cache Initialization and Implement Circuit Breaker
+- **Goal**: Fix screensaver freezes and high CPU/swap thrashing caused by the background Vision Service loop attempting to process all 336 images on every daemon start when the local qwen3-vl API is offline/down.
+- **Implementation**:
+  - **Lazy Cache Init**: Modified [vision.js](file:///home/alex/work/lumina/server/services/vision.js#L8-L15) to use a `cacheInitialized` boolean flag, ensuring `analysis_cache.json` is read and parsed from disk exactly once per process lifetime instead of on every image evaluation (which previously caused 336 synchronous disk reads).
+  - **Circuit Breaker**: Added a failure-counter circuit breaker in `triggerImageAnalysisBackground` inside [app.js](file:///home/alex/work/lumina/server/app.js#L320-L330). If 3 consecutive Vision API inference failures are encountered on cache misses, the background analyzer immediately aborts the loop, preventing 336 high-bandwidth image downloads and inference requests.
+- **Learning**: Background loops processing large datasets must be safeguarded with circuit breakers when hitting external/local microservices. Unbounded retry loops and redundant disk I/O block event loops and saturate swap spaces on low-resource hardware.
+- **Verification**:
+  - Verified the `lumina` systemd service successfully restarted and logged the early abort after exactly 3 consecutive 404 inference failures.
+  - All 98 regression tests passed cleanly.
+
 ### 2026-07-05: Feed Category Active-State Rendering Now Follows Canonical Selected Categories
 * **Goal**: Fix the remaining `Image Feeds` category-toggle regression where a tapped category could flash active on the initiating remote and then immediately appear inactive again.
 * **Implementation**:
