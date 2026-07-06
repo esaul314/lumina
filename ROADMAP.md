@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 ## Execution Status
 
@@ -74,6 +74,22 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
 - Add a background job subsystem for recrawls, vision analysis, later AI generation, and sensor polling or ingestion.
 - Add a typed frontend API client as the transport boundary for the remote UI.
 
+### TypeScript Migration (Transition Bridge)
+
+Convert the stabilized local codebase to TypeScript to build a bulletproof type contract before expanding into Phase 2's public services and third-party sensors.
+
+- **Frontend Migration**:
+  - Configure `tsconfig.json` in the Vite client.
+  - Rename `.js`/`.jsx` files to `.ts`/`.tsx`.
+  - Type-safe React components, canvas bokeh particle engine, state selectors, and hooks.
+  - Integrate type definitions for Socket.io-client.
+- **Backend Domain Migration**:
+  - Convert `server/domain/` from JSDoc `@ts-check` JS files to native `.ts` files.
+  - Establish compile-time validation for the command reducer, selectors, and state models.
+- **Backend Service & Daemon Migration**:
+  - Configure Node.js TS execution using Node v22's native type stripping (`--experimental-strip-types`) with appropriate package script configurations, or standard transpilation if required for tooling compatibility.
+  - Ensure the regression test runner (`run-tests.js`) and integration tests are updated to support TypeScript imports without breaking the zero-dependency execution model.
+
 ## Phase 2
 
 Goal: make Lumina socially extensible and context-aware without mixing public and private data.
@@ -143,6 +159,13 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - AI analysis is persisted as advisory metadata and does not silently override human judgment.
 - Domain tests cover REST and socket adapters producing the same command semantics.
 
+### TypeScript Migration (Transition Bridge)
+
+- Frontend runs entirely on TypeScript (.ts/.tsx) with Vite compiler checks passing.
+- Backend runs with Node's native type-stripping flags (`--experimental-strip-types`) or standard build transpilation.
+- Domain logic compiles under strict mode and all existing `run-tests.js` tests execute successfully without errors.
+- The screensaver client daemon continues to run under the strict 80MB memory footprint.
+
 ### Phase 2
 
 - Public bundle export excludes private feeds and secrets.
@@ -174,3 +197,4 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Video before AI generation.
 - Blue light filter belongs in Phase 1.
 - Typed frontend API client, public bundle contracts, source/device capability metadata, and background jobs are part of the intended platform foundation rather than optional extras.
+- TypeScript migration happens as a transition bridge between Phase 1 and Phase 2.

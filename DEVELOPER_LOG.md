@@ -5,6 +5,15 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-06: Integrated TypeScript Migration Strategy into the Product Roadmap
+- **Goal**: Update the Lumina product roadmap to include a detailed TypeScript migration plan and determine the most appropriate timing and scope for execution.
+- **Implementation**:
+  - Analyzed the codebase to determine the best phase for migration. Identified that migrating during Phase 1 (REST-first API migration) adds unnecessary churn, whereas migrating between Phase 1 and Phase 2 (as a transition bridge) is optimal because the API contracts and domain logic are stabilized.
+  - Updated [ROADMAP.md](file:///home/alex/work/lumina/ROADMAP.md) to define a dedicated "TypeScript Migration (Transition Bridge)" stage.
+  - Specified frontend migration scopes (Vite config, TSX conversion) and backend scopes (Node v22 `--experimental-strip-types`, domain conversions, `run-tests.js` updates).
+  - Added specific criteria to the Acceptance Plan and updated Defaults rules.
+- **Learning**: Implementing structural language migrations (like JavaScript to TypeScript) is most efficient when scheduled directly after major API and data model restructuring (Phase 1) is complete, preventing double-refactoring effort. Node v22's native type-stripping capabilities permit a lightweight transition without introducing heavy compile-step wrappers in production.
+
 ### 2026-07-05: Bypassed Test-Environment Crawls & Robust Photo Selection for Integration Suite
 * **Goal**: Fix a regression in the integration tests where `POST /api/photos/prev` failed to return the expected preview photo.
 * **Implementation**:
