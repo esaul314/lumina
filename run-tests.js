@@ -1252,6 +1252,29 @@ async function runIntegrationTests() {
       assert.strictEqual(statePatch.body.widgets.clock, false);
     });
 
+    const stateLocationPatch = await requestJson(`${baseUrl}/api/state`, 'PATCH', {
+      autoLocation: true,
+      manualLocation: {
+        city: 'Montreal',
+        regionName: 'Quebec',
+        country: 'Canada',
+        lat: 45.5,
+        lon: -73.6
+      }
+    });
+    assertTest('PATCH /api/state routes location settings through the shared command path without changing the response envelope', () => {
+      assert.strictEqual(stateLocationPatch.status, 200);
+      assert.strictEqual(stateLocationPatch.body.success, undefined);
+      assert.strictEqual(stateLocationPatch.body.autoLocation, true);
+      assert.deepStrictEqual(stateLocationPatch.body.manualLocation, {
+        city: 'Montreal',
+        regionName: 'Quebec',
+        country: 'Canada',
+        lat: 45.5,
+        lon: -73.6
+      });
+    });
+
     // 3. POST /api/state/screensaver
     const screensaverActiveRes = await requestJson(`${baseUrl}/api/state/screensaver`, 'POST', { active: true });
     assertTest('POST /api/state/screensaver toggles the screensaver status to active', () => {
@@ -1379,6 +1402,20 @@ async function runIntegrationTests() {
         assert.strictEqual(patchPairingRes.status, 200);
         assert.strictEqual(patchPairingRes.body.success, true);
         assert.strictEqual(patchPairingRes.body.photo.preventPairing, true);
+      });
+
+      const patchCombinedRes = await requestJson(`${baseUrl}/api/photos`, 'PATCH', {
+        url: samplePhotoUrl,
+        rating: 8,
+        cropPercent: 61,
+        cropPositionY: 27
+      });
+      assertTest('PATCH /api/photos batches rating and crop updates through the shared command path', () => {
+        assert.strictEqual(patchCombinedRes.status, 200);
+        assert.strictEqual(patchCombinedRes.body.success, true);
+        assert.strictEqual(patchCombinedRes.body.photo.rating, 8);
+        assert.strictEqual(patchCombinedRes.body.photo.cropPercent, 61);
+        assert.strictEqual(patchCombinedRes.body.photo.cropPositionY, 27);
       });
 
       const previewPhotoRes = await requestJson(`${baseUrl}/api/photos/preview`, 'POST', {

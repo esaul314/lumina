@@ -544,12 +544,23 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   launchKioskBrowser,
   killKioskBrowser,
   setManualOverride,
-  runCrawler
+  runCrawler,
+  triggerWeatherUpdate
 });
 
 refreshSnapshot();
 
-require('./routes.js')(app, screensaverState, curatedCollections, getWeatherData, setWeatherData, combineFeedsBalanced, getSmartPhoto, io, PORT, launchKioskBrowser, killKioskBrowser, setManualOverride, triggerWeatherUpdate, dispatchCommand, broadcastStateSync);
+require('./routes.js')({
+  app,
+  state: screensaverState,
+  collections: curatedCollections,
+  getWeatherData,
+  setWeatherData,
+  io,
+  port: PORT,
+  dispatchCommand,
+  broadcastStateSync
+});
 require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync);
 
 /**
