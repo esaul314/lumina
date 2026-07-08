@@ -458,6 +458,22 @@ The screensaver automatically maps live conditions and global sentiment to activ
   - Commits were structured clean and conventional: `docs(readme): overhaul features, architecture, and add screenshots`.
   - Verified files and relative links to `screenshots/remote_control.png` and `screenshots/tv_dashboard.png`.
 
+### 2026-07-07 (Phase 17): Refactored `server/routes.js` Into a Functional HTTP Adapter
+- **Goal**: Make `server/routes.js` read like an intentional functional adapter instead of a mixed transport/domain module.
+- **Changes**:
+  - Replaced the old positional route-registration call with an object-based environment contract, keeping route dependencies grouped by concern instead of argument order.
+  - Added shared higher-order route helpers in `server/routes.js` for async routes, single-command routes, and sequential batch-command routes, so the recurring `decode -> dispatch -> present` flow is expressed once.
+  - Removed the route-local balanced-feed/category-selection implementation and now build HTTP photo responses through `server/domain/selectors.js`, including Google Photos via `externalCollections`.
+  - Added `decodeStatePatchCommand` plus a reducer-backed `patch-state` command so `PATCH /api/state` no longer mutates legacy state inline. Weather refresh now flows through a reducer effect interpreted by `server/domain/dispatch.js`.
+  - Collapsed the photo-next/photo-prev handlers into one partially applied factory and moved photo/pool patch batching onto sequential command dispatch instead of ad hoc inline branching.
+  - Added domain tests for the new state-patch and screensaver decoders/reducer path, and route smoke coverage for raw-state `PATCH /api/state` responses plus combined `PATCH /api/photos` batching.
+- **Learning**:
+  - The real FP win was not inventing more small helpers inside the route file; it was deleting route-owned business rules and making the route layer structurally incapable of performing domain mutations outside the reducer.
+  - Sequential batch dispatch is the safer default for Lumina command routes because command order matters, and `Promise.all` hides stateful coupling instead of reducing it.
+- **Verification**:
+  - `npm test` passed.
+  - `npm run lint` passed.
+
 ---
 
 ## 🧪 Verification & Diagnostics
