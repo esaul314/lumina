@@ -474,6 +474,15 @@ The screensaver automatically maps live conditions and global sentiment to activ
   - `npm test` passed.
   - `npm run lint` passed.
 
+### 2026-07-07 (Phase 18): Added Functional Refactor Roadmap Artifact
+- **Goal**: Capture the next architectural cleanup sequence in one dedicated artifact that explicitly states Lumina's functional programming objectives and the intended order of refactors.
+- **Changes**:
+  - Added `FUNCTIONAL_REFACTOR_ROADMAP.md` at the repository root.
+  - Documented the coding philosophy, conventions, style rules, and objectives for the refactor program, with explicit bias toward composition, currying, partial application, pure reducers/selectors, and explicit effects.
+  - Expanded the roadmap into a step-by-step sequence, starting with `server/sockets.js`, then the remaining domain command surface, `server/app.js`, the command/effect pipeline, the client control surface, and the TypeScript-ready boundary pass.
+- **Learning**:
+  - The roadmap needed its own artifact instead of being merged into the product roadmap because the product roadmap answers "what Lumina should become," while this artifact answers "how the code should be reshaped to get there cleanly."
+
 ---
 
 ## 🧪 Verification & Diagnostics
