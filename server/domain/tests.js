@@ -20,7 +20,9 @@ const {
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
-  decodePhotoRatingCommand
+  decodePhotoRatingCommand,
+  decodeScreensaverActiveCommand,
+  decodeStatePatchCommand
 } = require('./commands.js');
 const {
   buildPersistedSnapshot,
@@ -170,6 +172,53 @@ function runDomainTests({ logSuite, assertTest }) {
         strategy: 'sequence'
       }
     });
+  });
+
+  assertTest('state patch decoder normalizes location, widgets, and vision config payloads', () => {
+    assert.deepStrictEqual(decodeStatePatchCommand({
+      widgets: { clock: 0 },
+      autoLocation: 1,
+      manualLocation: {
+        lat: 'bad',
+        lon: '-73.60',
+        city: ' Verdun ',
+        regionName: ' Quebec ',
+        country: ' Canada '
+      },
+      visionConfig: {
+        apiUrl: ' https://vision.example/api ',
+        model: ' gpt-4.1-mini '
+      }
+    }), {
+      type: 'patch-state',
+      payload: {
+        widgets: { clock: 0 },
+        autoLocation: true,
+        manualLocation: {
+          lat: 45.45,
+          lon: -73.6,
+          city: 'Verdun',
+          regionName: 'Quebec',
+          country: 'Canada'
+        },
+        visionConfig: {
+          apiUrl: 'https://vision.example/api',
+          apiKey: '',
+          model: 'gpt-4.1-mini',
+          fallbackUrl: '',
+          fallbackApiKey: '',
+          fallbackModel: ''
+        }
+      }
+    });
+  });
+
+  assertTest('screensaver decoder requires an explicit boolean active flag', () => {
+    assert.deepStrictEqual(decodeScreensaverActiveCommand({ active: true }), {
+      type: 'set-screensaver-active',
+      payload: { active: true }
+    });
+    assert.strictEqual(decodeScreensaverActiveCommand({ active: 'true' }), null);
   });
 
   assertTest('filters time, weather, and night candidates declaratively', () => {
@@ -327,6 +376,55 @@ function runDomainTests({ logSuite, assertTest }) {
 
     assert.strictEqual(result.nextState.playback.activePhotoUrl, 'land-1');
     assert.strictEqual(result.nextState.library.photosList.length, 1);
+  });
+
+  assertTest('reducer state patch updates widgets, exclusions, and weather-driven location settings declaratively', () => {
+    const state = createState({
+      library: {
+        collections: {
+          'Scenic Nature': [
+            { url: 'land-1', title: 'Sunny Forest', rating: 10, orientation: 'landscape', category: 'Scenic Nature' },
+            { url: 'land-2', title: 'Anime Forest', rating: 10, orientation: 'landscape', category: 'Scenic Nature' }
+          ],
+          'Liminal Spaces': createState().library.collections['Liminal Spaces']
+        },
+        photosList: [
+          { url: 'land-1', title: 'Sunny Forest', rating: 10, orientation: 'landscape', category: 'Scenic Nature' },
+          { url: 'land-2', title: 'Anime Forest', rating: 10, orientation: 'landscape', category: 'Scenic Nature' }
+        ]
+      },
+      playback: {
+        selectedCategories: ['Scenic Nature'],
+        activePhotoUrl: 'land-2',
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    });
+    const result = reduceDomainCommand(state, {
+      type: 'patch-state',
+      payload: {
+        theme: 'Cosmic Night',
+        widgets: { clock: false },
+        excludedKeywords: ['anime'],
+        autoLocation: true,
+        manualLocation: { city: 'Montreal', lat: 45.5, lon: -73.6, regionName: 'Quebec', country: 'Canada' }
+      }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.strictEqual(result.nextState.config.theme, 'Cosmic Night');
+    assert.strictEqual(result.nextState.config.widgets.clock, false);
+    assert.deepStrictEqual(result.nextState.config.excludedKeywords, ['anime']);
+    assert.strictEqual(result.nextState.config.autoLocation, true);
+    assert.deepStrictEqual(result.nextState.config.manualLocation, {
+      city: 'Montreal',
+      lat: 45.5,
+      lon: -73.6,
+      regionName: 'Quebec',
+      country: 'Canada'
+    });
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, 'land-1');
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist', 'refresh-weather']);
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
   assertTest('reducer pool add and delete transitions stay pure and explicit', () => {

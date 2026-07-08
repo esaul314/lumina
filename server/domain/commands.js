@@ -144,6 +144,92 @@ function decodeAdvancePhotoCommand(direction, strategy = 'smart') {
   };
 }
 
+function normalizeCoordinate(value, fallback) {
+  const parsed = Number.parseFloat(String(value ?? ''));
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeVisionConfig(config) {
+  return {
+    apiUrl: trimString(config?.apiUrl),
+    apiKey: trimString(config?.apiKey),
+    model: trimString(config?.model),
+    fallbackUrl: trimString(config?.fallbackUrl),
+    fallbackApiKey: trimString(config?.fallbackApiKey),
+    fallbackModel: trimString(config?.fallbackModel)
+  };
+}
+
+function decodeStatePatchCommand(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  /** @type {Record<string, unknown>} */
+  const patch = {};
+
+  [
+    'theme',
+    'inactivityTimeout',
+    'slideshowInterval',
+    'scaleMode',
+    'splitPortrait',
+    'splitCropPercent',
+    'alignTimeOfDay',
+    'alignWeather',
+    'nightPercentage',
+    'allowOpenAiFallback'
+  ].forEach((field) => {
+    if (payload[field] !== undefined) {
+      patch[field] = payload[field];
+    }
+  });
+
+  if (Array.isArray(payload.excludedKeywords)) {
+    patch.excludedKeywords = payload.excludedKeywords;
+  }
+
+  if (payload.visionConfig && typeof payload.visionConfig === 'object' && !Array.isArray(payload.visionConfig)) {
+    patch.visionConfig = normalizeVisionConfig(payload.visionConfig);
+  }
+
+  if (payload.autoLocation !== undefined) {
+    patch.autoLocation = Boolean(payload.autoLocation);
+  }
+
+  if (payload.manualLocation && typeof payload.manualLocation === 'object' && !Array.isArray(payload.manualLocation)) {
+    patch.manualLocation = {
+      lat: normalizeCoordinate(payload.manualLocation.lat, 45.45),
+      lon: normalizeCoordinate(payload.manualLocation.lon, -73.56),
+      city: trimString(payload.manualLocation.city) || 'Verdun',
+      regionName: trimString(payload.manualLocation.regionName) || 'Quebec',
+      country: trimString(payload.manualLocation.country) || 'Canada'
+    };
+  }
+
+  if (payload.widgets && typeof payload.widgets === 'object' && !Array.isArray(payload.widgets)) {
+    patch.widgets = { ...payload.widgets };
+  }
+
+  return {
+    type: 'patch-state',
+    payload: patch
+  };
+}
+
+function decodeScreensaverActiveCommand(payload) {
+  if (!payload || typeof payload.active !== 'boolean') {
+    return null;
+  }
+
+  return {
+    type: 'set-screensaver-active',
+    payload: {
+      active: payload.active
+    }
+  };
+}
+
 function decodeSplitPortraitCommand(enabled) {
   return {
     type: 'set-split-portrait',
@@ -266,8 +352,10 @@ module.exports = {
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
   decodePhotoCropCommand,
+  decodeScreensaverActiveCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
+  decodeStatePatchCommand,
   decodeSplitCropCommand,
   decodeSplitPortraitCommand
 };

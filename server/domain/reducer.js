@@ -170,6 +170,15 @@ function mergePoolFeedConfig(existingConfig, source, patch) {
   };
 }
 
+function assignIfChanged(target, key, value) {
+  if (value === undefined || target[key] === value) {
+    return false;
+  }
+
+  target[key] = value;
+  return true;
+}
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
@@ -205,6 +214,97 @@ function reduceDomainCommand(state, command, env = {}) {
         ensured.state,
         ensured.photoChanged ? emitPhotoUpdate() : emitStateSync(),
         [{ type: 'persist' }]
+      );
+    }
+
+    case 'patch-state': {
+      const patch = command.payload && typeof command.payload === 'object' ? command.payload : {};
+      const nextState = cloneState(state);
+      let changed = false;
+      let refreshWeather = false;
+      let recomputePhotos = false;
+
+      [
+        'theme',
+        'inactivityTimeout',
+        'slideshowInterval',
+        'scaleMode',
+        'splitPortrait',
+        'splitCropPercent',
+        'alignTimeOfDay',
+        'alignWeather',
+        'nightPercentage',
+        'allowOpenAiFallback'
+      ].forEach((field) => {
+        changed = assignIfChanged(nextState.config, field, patch[field]) || changed;
+      });
+
+      if (Array.isArray(patch.excludedKeywords)) {
+        const keywords = trimKeywords(patch.excludedKeywords);
+        if (JSON.stringify(keywords) !== JSON.stringify(nextState.config.excludedKeywords)) {
+          nextState.config.excludedKeywords = keywords;
+          changed = true;
+          recomputePhotos = true;
+        }
+      }
+
+      if (patch.widgets && typeof patch.widgets === 'object' && !Array.isArray(patch.widgets)) {
+        Object.keys(patch.widgets).forEach((widgetName) => {
+          if (!Object.prototype.hasOwnProperty.call(nextState.config.widgets, widgetName)) {
+            return;
+          }
+
+          const visible = Boolean(patch.widgets[widgetName]);
+          if (nextState.config.widgets[widgetName] !== visible) {
+            nextState.config.widgets[widgetName] = visible;
+            changed = true;
+          }
+        });
+      }
+
+      if (patch.visionConfig && typeof patch.visionConfig === 'object' && !Array.isArray(patch.visionConfig)) {
+        nextState.config.visionConfig = {
+          apiUrl: String(patch.visionConfig.apiUrl || '').trim(),
+          apiKey: String(patch.visionConfig.apiKey || '').trim(),
+          model: String(patch.visionConfig.model || '').trim(),
+          fallbackUrl: String(patch.visionConfig.fallbackUrl || '').trim(),
+          fallbackApiKey: String(patch.visionConfig.fallbackApiKey || '').trim(),
+          fallbackModel: String(patch.visionConfig.fallbackModel || '').trim()
+        };
+        changed = true;
+      }
+
+      if (patch.autoLocation !== undefined) {
+        const autoLocation = Boolean(patch.autoLocation);
+        if (nextState.config.autoLocation !== autoLocation) {
+          nextState.config.autoLocation = autoLocation;
+          changed = true;
+          refreshWeather = true;
+        }
+      }
+
+      if (patch.manualLocation && typeof patch.manualLocation === 'object' && !Array.isArray(patch.manualLocation)) {
+        nextState.config.manualLocation = { ...patch.manualLocation };
+        changed = true;
+        refreshWeather = true;
+      }
+
+      if (!changed) {
+        return createResult(state, [], []);
+      }
+
+      const recomputed = recomputePhotos ? recomputeFeed(nextState, rng) : nextState;
+      const ensured = recomputePhotos
+        ? ensureActivePhoto(recomputed, { now, rng, direction: 'next' })
+        : { state: recomputed, photoChanged: false };
+
+      return createResult(
+        ensured.state,
+        ensured.photoChanged ? emitPhotoUpdate() : emitStateSync(),
+        [
+          { type: 'persist' },
+          ...(refreshWeather ? [{ type: 'refresh-weather' }] : [])
+        ]
       );
     }
 

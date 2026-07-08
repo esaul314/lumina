@@ -12,7 +12,8 @@ function createDomainDispatcher({
   launchKioskBrowser,
   killKioskBrowser,
   setManualOverride,
-  runCrawler
+  runCrawler,
+  triggerWeatherUpdate
 }) {
   function refreshSnapshot() {
     return syncLegacySnapshot(state, collections, getRuntimeContext());
@@ -51,6 +52,15 @@ function createDomainDispatcher({
 
     if (effect.type === 'run-crawler' && typeof runCrawler === 'function' && process.env.NODE_ENV !== 'test') {
       await runCrawler(effect.payload || {});
+      return;
+    }
+
+    if (effect.type === 'refresh-weather' && typeof triggerWeatherUpdate === 'function') {
+      try {
+        await triggerWeatherUpdate();
+      } catch (error) {
+        console.warn('[Domain Dispatch] Weather refresh failed after state update:', error.message);
+      }
     }
   }
 
