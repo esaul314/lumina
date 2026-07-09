@@ -321,6 +321,32 @@ function decodePoolFeedConfigCommand(payload) {
   };
 }
 
+function decodeRecrawlCommand(payload) {
+  if (payload === undefined || payload === null) {
+    return {
+      type: 'trigger-recrawl',
+      payload: {}
+    };
+  }
+
+  if (typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const categories = Array.isArray(payload.categories)
+    ? payload.categories.map(trimString).filter(Boolean)
+    : [trimString(payload.categories)].filter(Boolean);
+
+  if (payload.categories !== undefined && categories.length === 0) {
+    return null;
+  }
+
+  return {
+    type: 'trigger-recrawl',
+    payload: categories.length > 0 ? { categories } : {}
+  };
+}
+
 function decodePhotoMetadataCommand(payload) {
   if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
     return null;
@@ -352,6 +378,7 @@ module.exports = {
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
   decodePhotoCropCommand,
+  decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,

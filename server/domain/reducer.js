@@ -552,6 +552,14 @@ function reduceDomainCommand(state, command, env = {}) {
       );
     }
 
+    case 'trigger-recrawl':
+      return createResult(state, [], [{
+        type: 'start-recrawl-job',
+        payload: {
+          categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
+        }
+      }]);
+
     default:
       return createResult(state, [], []);
   }

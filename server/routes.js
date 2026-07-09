@@ -13,6 +13,7 @@ const {
   decodePoolKeywordsCommand,
   decodePhotoCropCommand,
   decodePhotoRatingCommand,
+  decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand
 } = require('./domain/commands.js');
@@ -33,7 +34,8 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
  *   reducerResult?: {
  *     events?: Array<{ type: string }>,
  *     effects?: Array<{ type: string }>
- *   }
+ *   },
+ *   effectResults?: Array<{ effect?: { type?: string }, value?: any }>
  * }} DispatchResult
  */
 
@@ -165,6 +167,7 @@ module.exports = function configureRoutes({
 
     return { results, changed };
   };
+  const getEffectValue = (result, effectType) => result?.effectResults?.find((entry) => entry.effect?.type === effectType)?.value;
   const createAsyncRoute = (handler) => async (req, res) => {
     try {
       await handler(req, res);
@@ -651,6 +654,30 @@ module.exports = function configureRoutes({
     })
   }));
 
+  app.post('/api/jobs/recrawl', createAsyncRoute(async (req, res) => {
+    if (!requireDispatcher(res, 'Recrawl dispatcher unavailable.')) {
+      return;
+    }
+
+    const command = decodeRecrawlCommand(req.body);
+    if (!command) {
+      sendError(res, 400, 'Invalid recrawl payload.');
+      return;
+    }
+
+    const result = await dispatchCommand(command);
+    const submission = getEffectValue(result, 'start-recrawl-job');
+    if (!submission?.job) {
+      sendError(res, 503, 'Recrawl job service unavailable.');
+      return;
+    }
+
+    sendSuccess(res, 202, {
+      job: submission.job,
+      reused: Boolean(submission.reused)
+    });
+  }));
+
   app.get('/api/pools', (_req, res) => {
     res.json(Object.keys(collections).map(buildPoolResponse));
   });
@@ -771,28 +798,27 @@ module.exports = function configureRoutes({
       return;
     }
 
-    const { crawlAllCollections } = require('./services/crawler.js');
-    const { saveCuratedCollections } = require('./config/collections.js');
-    const { updatedCollections, updatedAny } = await crawlAllCollections(
-      collections,
-      state.feedConfigs,
-      state.searchKeywords
-    );
-
-    if (updatedAny) {
-      Object.entries(updatedCollections).forEach(([category, photos]) => {
-        collections[category] = photos.map((photo) => ({ ...photo, category }));
-      });
-      saveCuratedCollections(collections, state);
+    if (!requireDispatcher(res, 'Recrawl dispatcher unavailable.')) {
+      return;
     }
 
-    refreshActiveFeed();
-    broadcast();
+    const result = await dispatchCommand({
+      type: 'trigger-recrawl',
+      payload: {
+        categories: [name]
+      }
+    });
+    const submission = getEffectValue(result, 'start-recrawl-job');
+    if (!submission?.job) {
+      sendError(res, 503, 'Recrawl job service unavailable.');
+      return;
+    }
 
-    const { triggerImageAnalysisBackground } = require('./app.js');
-    triggerImageAnalysisBackground().catch((error) => console.error('Error in background image analysis:', error));
-
-    sendSuccess(res, 200, { count: collections[name].length });
+    sendSuccess(res, 202, {
+      pool: buildPoolResponse(name),
+      job: submission.job,
+      reused: Boolean(submission.reused)
+    });
   }));
 
   app.get('/api/pools/:name/photos', (req, res) => {

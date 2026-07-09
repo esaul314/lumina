@@ -25,9 +25,11 @@ function SystemSettingsTab({
   setTumblrApiKey,
   recrawlStatus,
   setRecrawlStatus,
+  recrawlMessage,
   useapiStatus,
   tumblrApiStatus,
-  recrawlCount
+  recrawlCount,
+  handleRecrawl
 }) {
   return (
     <>
@@ -683,7 +685,9 @@ function SystemSettingsTab({
         {recrawlStatus === 'loading' ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
             <RefreshCw size={18} className="animate-spin" style={{ color: 'var(--accent-color)' }} />
-            <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>Crawling web feeds & self-healing links...</span>
+            <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+              {recrawlMessage || 'Crawling web feeds & self-healing links...'}
+            </span>
           </div>
         ) : recrawlStatus === 'success' ? (
           <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid #10b981', padding: '12px', borderRadius: '12px', color: '#10b981', textAlign: 'center', fontSize: '0.85rem', fontWeight: 500 }}>
@@ -691,13 +695,13 @@ function SystemSettingsTab({
           </div>
         ) : recrawlStatus === 'error' ? (
           <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid #ef4444', padding: '12px', borderRadius: '12px', color: '#ef4444', textAlign: 'center', fontSize: '0.85rem', fontWeight: 500 }}>
-            ✗ Recrawl failed. Check server logs for API boundaries.
+            ✗ {recrawlMessage || 'Recrawl failed. Check server logs for API boundaries.'}
           </div>
         ) : (
           <button 
-            onClick={() => {
+            onClick={async () => {
               setRecrawlStatus('loading');
-              socket.emit('trigger-recrawl');
+              await handleRecrawl();
             }}
             className="remote-btn" 
             style={{ background: 'var(--accent-color)', borderColor: 'var(--accent-color)', fontWeight: 600 }}

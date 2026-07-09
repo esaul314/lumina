@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const config = require('./config/configLoader.js');
 const { readEnvVar } = require('./config/env.js');
+const { createRecrawlJobService, executeRecrawlPass } = require('./jobs/recrawl.js');
 
 // Modular config and service imports
 const { sendEmailAlert } = require('./services/notifier.js');
@@ -499,42 +500,23 @@ const triggerWeatherUpdate = async () => {
 };
 
 const runCrawler = async ({ categories = [] } = {}) => {
-  const { updatedCollections, updatedAny } = await crawlAllCollections(
-    curatedCollections,
-    screensaverState.feedConfigs,
-    screensaverState.searchKeywords,
-    screensaverState.excludedKeywords
-  );
-
-  if (!updatedAny) {
-    return;
-  }
-
-  Object.entries(updatedCollections).forEach(([category, photos]) => {
-    curatedCollections[category] = photos.map((photo) => ({ ...photo, category }));
-  });
-
-  saveCuratedCollections(curatedCollections, screensaverState);
-
-  const activeCategories = (screensaverState.currentCategory || '')
-    .split(',')
-    .map((category) => category.trim())
-    .filter(Boolean);
-  const affectsActiveFeed = activeCategories.some((category) => categories.includes(category));
-
-  if (affectsActiveFeed) {
-    const combinedPhotos = combineFeedsBalanced(activeCategories, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0
-      ? combinedPhotos
-      : (curatedCollections['Scenic Nature'] ?? [])
-        .filter((photo) => photo.rating !== 1 && !photo.isBroken)
-        .map((photo) => ({ ...photo, category: 'Scenic Nature' }));
-  }
-
-  triggerImageAnalysisBackground().catch((error) => {
-    console.error('Error in background image analysis:', error);
+  await executeRecrawlPass({
+    state: screensaverState,
+    collections: curatedCollections,
+    crawlCollections: crawlAllCollections,
+    persistCollections: saveCuratedCollections,
+    buildActiveFeed: combineFeedsBalanced,
+    getActiveCategories: () => (screensaverState.currentCategory || '')
+      .split(',')
+      .map((category) => category.trim())
+      .filter(Boolean),
+    broadcastStateSync: emitStateSync,
+    triggerImageAnalysisBackground,
+    categories,
+    broadcast: false
   });
 };
+let recrawlJobService = null;
 
 const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
   state: screensaverState,
@@ -545,7 +527,23 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   killKioskBrowser,
   setManualOverride,
   runCrawler,
+  startRecrawlJob: (payload) => recrawlJobService?.submit(payload),
   triggerWeatherUpdate
+});
+
+recrawlJobService = createRecrawlJobService({
+  state: screensaverState,
+  collections: curatedCollections,
+  io,
+  crawlCollections: crawlAllCollections,
+  persistCollections: saveCuratedCollections,
+  buildActiveFeed: combineFeedsBalanced,
+  getActiveCategories: () => (screensaverState.currentCategory || '')
+    .split(',')
+    .map((category) => category.trim())
+    .filter(Boolean),
+  broadcastStateSync,
+  triggerImageAnalysisBackground
 });
 
 refreshSnapshot();
@@ -561,7 +559,7 @@ require('./routes.js')({
   dispatchCommand,
   broadcastStateSync
 });
-require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync);
+require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, recrawlJobService.getLatestJob);
 
 /**
  * 🧠 getNextScreensaverState

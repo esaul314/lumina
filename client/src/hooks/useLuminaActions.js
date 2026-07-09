@@ -5,14 +5,15 @@ import {
   getStateSnapshot,
   nextPhoto,
   patchPool,
-  patchPoolFeedSource,
-  patchState,
-  patchPhoto,
-  previewPhoto,
-  prevPhoto,
-  selectCategories,
-  setScreensaverActive
-} from '../api/luminaClient';
+    patchPoolFeedSource,
+    patchState,
+    patchPhoto,
+    previewPhoto,
+    prevPhoto,
+    selectCategories,
+    startRecrawlJob,
+    setScreensaverActive
+  } from '../api/luminaClient';
 import { normalizeSnapshot, patchPhotoInSnapshot } from '../state/frameSelectors';
 import {
   applyCategorySelection,
@@ -42,12 +43,13 @@ export function useLuminaActions(socket, setState) {
 
   const runAction = async (action, fallback = null) => {
     try {
-      await action();
+      return await action();
     } catch (error) {
       console.error('[LuminaActions] Action failed:', error);
       if (typeof fallback === 'function') {
-        fallback();
+        return fallback();
       }
+      return null;
     }
   };
 
@@ -236,9 +238,7 @@ export function useLuminaActions(socket, setState) {
         applyStateResponse(nextState);
       });
     },
-    triggerRecrawl: () => {
-      socket.emit('trigger-recrawl');
-    },
+    triggerRecrawl: () => runAction(() => startRecrawlJob({}, { socket })),
     saveUseapiToken: (token) => {
       socket.emit('save-useapi-token', { token });
     }

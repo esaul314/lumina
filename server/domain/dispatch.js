@@ -13,6 +13,7 @@ function createDomainDispatcher({
   killKioskBrowser,
   setManualOverride,
   runCrawler,
+  startRecrawlJob,
   triggerWeatherUpdate
 }) {
   function refreshSnapshot() {
@@ -55,6 +56,10 @@ function createDomainDispatcher({
       return;
     }
 
+    if (effect.type === 'start-recrawl-job' && typeof startRecrawlJob === 'function') {
+      return startRecrawlJob(effect.payload || {});
+    }
+
     if (effect.type === 'refresh-weather' && typeof triggerWeatherUpdate === 'function') {
       try {
         await triggerWeatherUpdate();
@@ -72,9 +77,13 @@ function createDomainDispatcher({
     const currentState = buildDomainState(state, collections, getRuntimeContext());
     const reducerResult = reduceDomainCommand(currentState, command, env);
     const snapshot = applyDomainState(state, collections, reducerResult.nextState);
+    const effectResults = [];
 
     for (const effect of reducerResult.effects) {
-      await interpretEffect(effect);
+      effectResults.push({
+        effect,
+        value: await interpretEffect(effect)
+      });
     }
 
     reducerResult.events.forEach((event) => {
@@ -87,7 +96,7 @@ function createDomainDispatcher({
       }
     });
 
-    return { reducerResult, snapshot };
+    return { reducerResult, snapshot, effectResults };
   }
 
   return {

@@ -217,6 +217,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
   const [useapiStatus, setUseapiStatus] = useState('idle'); // idle, success, error
   const [tumblrApiStatus, setTumblrApiStatus] = useState('idle'); // idle, success, error
   const [recrawlCount, setRecrawlCount] = useState(0);
+  const [recrawlMessage, setRecrawlMessage] = useState('');
 
   useEffect(() => {
     if (state.manualLocation) {
@@ -231,14 +232,49 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
   useEffect(() => {
     if (!socket) return;
 
+    const resetRecrawlStatus = () => {
+      setTimeout(() => {
+        setRecrawlStatus('idle');
+        setRecrawlMessage('');
+      }, 4000);
+    };
+
+    const handleRecrawlJobStatus = (job) => {
+      if (!job || job.type !== 'recrawl') {
+        return;
+      }
+
+      if (job.status === 'queued' || job.status === 'running') {
+        setRecrawlStatus('loading');
+        setRecrawlMessage(job.progress?.message || 'Crawling web feeds & self-healing links...');
+        return;
+      }
+
+      if (job.status === 'succeeded') {
+        setRecrawlStatus('success');
+        setRecrawlCount(job.result?.visibleCount || 0);
+        setRecrawlMessage(job.progress?.message || 'Feed recrawl completed successfully.');
+        resetRecrawlStatus();
+        return;
+      }
+
+      if (job.status === 'failed') {
+        setRecrawlStatus('error');
+        setRecrawlMessage(job.error || 'Recrawl failed.');
+        resetRecrawlStatus();
+      }
+    };
+
     const handleRecrawlComplete = (data) => {
       if (data.success) {
         setRecrawlStatus('success');
         setRecrawlCount(data.count);
+        setRecrawlMessage('Feed recrawl completed successfully.');
       } else {
         setRecrawlStatus('error');
+        setRecrawlMessage(data.error || 'Recrawl failed.');
       }
-      setTimeout(() => setRecrawlStatus('idle'), 4000);
+      resetRecrawlStatus();
     };
 
     const handleUseApiSaved = (data) => {
@@ -261,16 +297,33 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       setTimeout(() => setTumblrApiStatus('idle'), 4000);
     };
 
+    socket.on('job-status', handleRecrawlJobStatus);
     socket.on('recrawl-complete', handleRecrawlComplete);
     socket.on('useapi-token-saved', handleUseApiSaved);
     socket.on('tumblr-api-key-saved', handleTumblrApiSaved);
 
     return () => {
+      socket.off('job-status', handleRecrawlJobStatus);
       socket.off('recrawl-complete', handleRecrawlComplete);
       socket.off('useapi-token-saved', handleUseApiSaved);
       socket.off('tumblr-api-key-saved', handleTumblrApiSaved);
     };
   }, [socket]);
+
+  const handleRecrawl = async () => {
+    setRecrawlStatus('loading');
+    setRecrawlMessage('Queueing feed recrawl...');
+    const response = await actions.triggerRecrawl();
+    if (response?.job?.status === 'succeeded') {
+      setRecrawlStatus('success');
+      setRecrawlCount(response.job.result?.visibleCount || 0);
+      setRecrawlMessage(response.job.progress?.message || 'Feed recrawl completed successfully.');
+      setTimeout(() => {
+        setRecrawlStatus('idle');
+        setRecrawlMessage('');
+      }, 4000);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -636,9 +689,11 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
           setTumblrApiKey={setTumblrApiKey}
           recrawlStatus={recrawlStatus}
           setRecrawlStatus={setRecrawlStatus}
+          recrawlMessage={recrawlMessage}
           useapiStatus={useapiStatus}
           tumblrApiStatus={tumblrApiStatus}
           recrawlCount={recrawlCount}
+          handleRecrawl={handleRecrawl}
         />
       )}
 

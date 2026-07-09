@@ -125,3 +125,18 @@ export function patchPoolFeedSource(name, source, config) {
     body: config
   });
 }
+
+export async function startRecrawlJob(body = {}, { socket } = {}) {
+  try {
+    return await requestJson('/api/jobs/recrawl', {
+      method: 'POST',
+      body
+    });
+  } catch (error) {
+    if (error?.status === 404 && socket?.emit) {
+      socket.emit('trigger-recrawl', body);
+      return null;
+    }
+    throw error;
+  }
+}

@@ -21,6 +21,7 @@ const {
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
   decodePhotoRatingCommand,
+  decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand
 } = require('./commands.js');
@@ -442,6 +443,21 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(deleted.nextState.library.collections['Moody Rooms'], undefined);
   });
 
+  assertTest('reducer manual recrawl requests stay effect-only and keep state pure', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'trigger-recrawl',
+      payload: { categories: ['Scenic Nature'] }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'start-recrawl-job',
+      payload: { categories: ['Scenic Nature'] }
+    }]);
+  });
+
   assertTest('reducer pool keyword updates persist without mutating collections', () => {
     const result = reduceDomainCommand(createState(), {
       type: 'set-pool-keywords',
@@ -529,6 +545,20 @@ function runDomainTests({ logSuite, assertTest }) {
         }
       }
     );
+  });
+
+  assertTest('recrawl command decoding accepts empty global requests and scoped category arrays', () => {
+    assert.deepStrictEqual(decodeRecrawlCommand(undefined), {
+      type: 'trigger-recrawl',
+      payload: {}
+    });
+    assert.deepStrictEqual(decodeRecrawlCommand({ categories: ['Scenic Nature', ' Liminal Spaces '] }), {
+      type: 'trigger-recrawl',
+      payload: {
+        categories: ['Scenic Nature', 'Liminal Spaces']
+      }
+    });
+    assert.strictEqual(decodeRecrawlCommand({ categories: ['   '] }), null);
   });
 
   assertTest('category selection keeps Google Photos active pools populated from external cache state', () => {

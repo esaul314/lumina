@@ -15,6 +15,7 @@ const {
   decodePhotoCropCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
+  decodeRecrawlCommand,
   decodeSplitCropCommand,
   decodeSplitPortraitCommand
 } = require('./domain/commands.js');
@@ -38,7 +39,7 @@ function persistLocationSettings(state, collections) {
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
  */
-module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync) {
+module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, getLatestRecrawlJob = null) {
   const broadcast = () => {
     if (typeof broadcastStateSync === 'function') {
       broadcastStateSync();
@@ -67,6 +68,11 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       localIps: getLocalIpAddresses(),
       port: PORT
     });
+
+    const latestRecrawlJob = typeof getLatestRecrawlJob === 'function' ? getLatestRecrawlJob() : null;
+    if (latestRecrawlJob) {
+      socket.emit('job-status', latestRecrawlJob);
+    }
     
     // Toggle Widget event
     socket.on('toggle-widget', ({ widgetName, visible }) => {
@@ -765,36 +771,15 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     });
 
     // 🔄 Force background crawler recrawl immediately
-    socket.on('trigger-recrawl', async () => {
+    socket.on('trigger-recrawl', async (payload) => {
       console.log('[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...');
-      try {
-        const { crawlAllCollections } = require('./services/crawler.js');
-
-        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
-        
-        if (updatedAny) {
-          for (const key of Object.keys(updatedCollections)) {
-            collections[key] = updatedCollections[key].map(p => ({ ...p, category: key }));
-          }
-
-          saveCuratedCollections(collections, state);
-          console.log('[SOCKET EVENT] Successfully saved manual crawl results to curated_collections.json');
-        }
-
-        const activeCategory = state.currentCategory;
-        const currentCats = activeCategory ? activeCategory.split(',') : [];
-        state.photosList = combineFeedsBalanced(currentCats, collections);
-        
-        broadcast();
-        socket.emit('recrawl-complete', { success: true, count: state.photosList.length });
-        
-        // Trigger background content-aware vision analysis for any newly crawled photos
-        const { triggerImageAnalysisBackground } = require('./app.js');
-        triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
-      } catch (err) {
-        console.error('[SOCKET EVENT] Manual recrawl failed:', err.message);
-        socket.emit('recrawl-complete', { success: false, error: err.message });
+      const command = decodeRecrawlCommand(payload);
+      if (!dispatchCommand || !command) {
+        socket.emit('recrawl-complete', { success: false, error: 'Recrawl dispatcher unavailable.' });
+        return;
       }
+
+      await dispatchCommand(command);
     });
 
     socket.on('save-useapi-token', ({ token }) => {

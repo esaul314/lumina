@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-09: Manual Recrawls Now Use a REST-First Async Job Boundary
+- **Goal**: Complete the next Phase 1 roadmap step by moving manual recrawls off the socket-owned mutation path and onto an explicit REST-first async job flow with live progress updates.
+- **Implementation**:
+  - Added `server/jobs/recrawl.js` as a small shell module that composes scope normalization, crawl execution, collection merge/persist, active-feed refresh, state broadcast, and background-analysis scheduling behind one observable job service.
+  - Extended the shared domain path with a `trigger-recrawl` command plus `start-recrawl-job` effect so REST and legacy socket triggers now dispatch the same async intent instead of carrying duplicate crawl orchestration.
+  - Rewired `server/routes.js` so `POST /api/jobs/recrawl` and `POST /api/pools/:name/crawl` enqueue recrawl jobs and return `202 Accepted` job snapshots, while `server/sockets.js` now acts as a backward-compatible shim that only dispatches the same command and relays job status.
+  - Updated the remote UI to submit recrawls through the shared REST client and render live progress text from socket-pushed job updates instead of directly emitting `trigger-recrawl`.
+  - Added reducer, job-service, and route coverage for the new async boundary in `server/domain/tests.js`, `server/jobs/tests.js`, and `run-tests.js`.
+- **Learning**: Async operator actions should not bypass the shared command/effect language just because they are long-running. A small job shell lets REST own the durable intent while Socket.IO stays in its proper role as the observable status transport.
+- **Verification**: `npm run lint`, `npm test`, and `npm --prefix client run build` passed. The network-bound live server smoke section was skipped in this sandbox because all listen attempts returned `EPERM`, but the new route contract is covered by direct handler invocation tests.
+
 ### 2026-07-09: Realigned the Product Roadmap and Functional Companion Wording
 - **Goal**: Resolve the stale roadmap checkpoint and make the relationship between `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` unambiguous across the repo docs.
 - **Implementation**:
