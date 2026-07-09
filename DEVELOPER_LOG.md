@@ -483,6 +483,12 @@ The screensaver automatically maps live conditions and global sentiment to activ
 - **Learning**:
   - The roadmap needed its own artifact instead of being merged into the product roadmap because the product roadmap answers "what Lumina should become," while this artifact answers "how the code should be reshaped to get there cleanly."
 
+### 2026-07-09 (Phase 19): Cross-linked the Global Roadmap to the Functional Refactor Roadmap
+- **Goal**: Make the engineering cleanup track discoverable from the main roadmap without collapsing product planning and refactor planning into one document.
+- **Changes**:
+  - Updated `ROADMAP.md` near the top with an `Implementation Companion` section linking to `FUNCTIONAL_REFACTOR_ROADMAP.md`.
+  - Clarified that `ROADMAP.md` remains the product/platform direction document, while the functional roadmap carries the ordered refactor sequence and coding philosophy for the architecture cleanup program.
+
 ---
 
 ## 🧪 Verification & Diagnostics

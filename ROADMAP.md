@@ -1,6 +1,13 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-07-06
+Last updated: 2026-07-09
+
+## Implementation Companion
+
+For the code-shaping program that supports this roadmap, see [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md).
+
+- Use this product roadmap for platform direction, phase goals, and acceptance criteria.
+- Use the functional refactor roadmap for the ordered engineering cleanup sequence, coding philosophy, and transport/domain refactor plan.
 
 ## Execution Status
 
