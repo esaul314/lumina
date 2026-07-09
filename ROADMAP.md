@@ -8,6 +8,7 @@ For the code-shaping program that supports this roadmap, see [FUNCTIONAL_REFACTO
 
 - Use this product roadmap for platform direction, phase goals, and acceptance criteria.
 - Use the functional refactor roadmap for the ordered engineering cleanup sequence, coding philosophy, and transport/domain refactor plan.
+- Treat the functional refactor roadmap as a supporting Phase 1 implementation track inside this roadmap, not as a separate product roadmap with its own platform phases.
 
 ## Execution Status
 
@@ -15,7 +16,9 @@ Phase 1 is in progress. The current checkpoint is:
 
 - Done: Step 1. Remote photo-control mutations are REST-first by default.
 - Done: Step 2. Remote durable state/settings mutations are REST-first by default.
-- Next: Step 3. Migrate category, pool, and feed-configuration mutations to REST, then remove the remaining socket-only mutation overlap from the remote and dashboard admin surfaces.
+- Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
+- Next: migrate the remaining asynchronous operator-triggered jobs that belong on the REST command path with live progress events, starting with recrawl flows.
+- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), which currently starts with refactoring `server/sockets.js` into a thinner transport adapter.
 
 ## Architectural Rule
 
@@ -31,8 +34,8 @@ The codebase already contains part of this direction, but Phase 1 is not complet
 
 - `server/routes.js` exposes REST endpoints for state, photos, pools, weather, and screensaver control.
 - `server/domain/` already holds shared command decoding, reducers, selectors, and snapshot logic used by both REST and Socket.IO for part of the mutation surface.
-- `client/src/hooks/useLuminaActions.js` is now REST-first for remote photo controls plus durable state/settings controls, but category, pool, and feed-config mutations are still socket-driven.
-- `server/sockets.js` still carries those remaining durable mutation paths alongside live-sync and server-push responsibilities.
+- `client/src/hooks/useLuminaActions.js` is now REST-first for remote photo controls, durable state/settings controls, and category/pool/feed-config operator actions.
+- `server/sockets.js` still carries live-sync, server-push, backward-compatibility shims, and async orchestration overlap that should continue shrinking during Phase 1.
 - Source-specific metadata persistence now exists for Google Photos, which reinforces the broader rule that metadata should live at the correct source boundary and then be projected back into the live snapshot.
 
 ## Phase 1
@@ -48,13 +51,15 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
 - Current checkpoint:
   - Step 1 complete: remote photo-control mutations use REST by default.
   - Step 2 complete: remote durable state/settings mutations use REST by default.
-  - Step 3 next: categories, pools, and feed-config mutations still need REST endpoints and client migration.
+  - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
+  - Next focus: move the remaining asynchronous operator-triggered jobs that fit the REST command boundary, starting with recrawl flows and live progress reporting.
 
 ### Shared domain flow
 
 - Route every user-visible mutation through shared command decoding plus reducer/dispatcher logic.
 - Remove legacy route/socket branches that still mutate state directly, except for host-IO-specific plumbing.
 - Keep transport-parity tests so REST and Socket.IO adapters continue to produce the same command semantics during the migration window.
+- The ordered cleanup sequence for this Phase 1 implementation workstream lives in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md); its step numbering is local to that companion artifact.
 
 ### Metadata foundation
 

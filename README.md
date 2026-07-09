@@ -56,6 +56,13 @@ Lumina uses a decoupled client-server architecture:
 * **Server (Node.js/Express)**: Spawns the GNOME Mutter idle state DBus monitor (running every 2s, dynamically querying `uid` and `homedir`), manages local network discovery, processes news sentiment and weather geolocated coordinates, orchestrates CPU governors, and serves API endpoints.
 * **Client (React/Vite/Vanilla CSS)**: Auto-detects device type (loading Mobile Remote Control or TV Dashboard Kiosk) and renders layouts with glassmorphic styles, bokeh particle canvas systems, and customized weather overlays.
 
+## 🗺️ Roadmap
+
+The source of truth for Lumina's product and platform direction is [ROADMAP.md](./ROADMAP.md).
+
+- `ROADMAP.md` tracks the real delivery phases, checkpoints, and acceptance criteria.
+- `FUNCTIONAL_REFACTOR_ROADMAP.md` is a supporting Phase 1 implementation companion for the engineering cleanup sequence behind that roadmap. Its step numbering is local to that refactor track.
+
 ---
 
 ## 🚀 Quick Start

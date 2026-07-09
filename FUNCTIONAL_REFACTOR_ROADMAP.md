@@ -1,10 +1,12 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-07
+Last updated: 2026-07-09
 
 ## Purpose
 
-This artifact defines the next refactoring sequence for Lumina's backend and shared client control surfaces. The goal is not cosmetic cleanup. The goal is to make Lumina a codebase that teaches expert functional programming by example while staying practical, testable, and operationally safe on the live daemon host.
+This artifact defines the refactoring sequence for Lumina's backend and shared client control surfaces. It is not a separate product roadmap. It is the Phase 1 implementation companion referenced by [ROADMAP.md](./ROADMAP.md), supporting the REST-first core and shared-domain goals in that main roadmap.
+
+The goal is not cosmetic cleanup. The goal is to make Lumina a codebase that teaches expert functional programming by example while staying practical, testable, and operationally safe on the live daemon host.
 
 The target end state is:
 
@@ -57,6 +59,8 @@ The target end state is:
 - Make effect names concrete and finite: `persist`, `refresh-weather`, `run-crawler`, `launch-kiosk`, `kill-kiosk`.
 
 ## Sequential Refactoring Steps
+
+These step numbers are local to this implementation companion. They are not replacements for the Phase/Step numbering in [ROADMAP.md](./ROADMAP.md).
 
 ### Step 1: Refactor `server/sockets.js` into a functional transport adapter
 

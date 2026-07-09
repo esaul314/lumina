@@ -5,6 +5,14 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-09: Realigned the Product Roadmap and Functional Companion Wording
+- **Goal**: Resolve the stale roadmap checkpoint and make the relationship between `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` unambiguous across the repo docs.
+- **Implementation**:
+  - Updated `ROADMAP.md` so Phase 1 Step 3 is marked complete instead of still listed as next.
+  - Set the next product checkpoint to the remaining asynchronous operator-triggered REST migration work, starting with recrawl flows and live progress events.
+  - Clarified in `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, `AGENTS.md`, and `README.md` that the functional refactor document is a supporting Phase 1 implementation track with its own local step numbering, not a separate product roadmap.
+- **Learning**: Once a repo carries both a product roadmap and an implementation-companion roadmap, both documents need explicit scope labels. Otherwise, old step numbers are easy to misread as conflicting priorities instead of different layers of the same plan.
+
 ### 2026-07-06: Integrated TypeScript Migration Strategy into the Product Roadmap
 - **Goal**: Update the Lumina product roadmap to include a detailed TypeScript migration plan and determine the most appropriate timing and scope for execution.
 - **Implementation**:
