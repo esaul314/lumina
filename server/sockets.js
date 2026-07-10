@@ -70,11 +70,39 @@ const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCom
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const splitCategories = (categories = '') => categories.split(',').map((category) => category.trim()).filter(Boolean);
 const normalizeSocketCategories = (category) => splitCategories(category).map((name) => CATEGORY_ALIASES[name] ?? name);
+const normalizeKeywordList = (keywords = []) => keywords.map((keyword) => String(keyword).trim()).filter(Boolean);
 const pickRandomPhoto = (photos) => photos[Math.floor(Math.random() * photos.length)] ?? null;
 const syncActivePhoto = (io, state, photo) => {
   state.activePhoto = photo;
   io.emit('photo-update', state.activePhoto);
 };
+const buildSocketErrorLogger = (label) => (error) => {
+  console.error(`Socket Event: ${label} failed:`, error.message);
+};
+const toViewportDimensions = (payload) => ({
+  width: Number(payload?.width),
+  height: Number(payload?.height)
+});
+const hasValidViewport = ({ width, height }) => width > 0 && height > 0;
+const buildViewportSnapshot = ({ width, height }) => ({
+  width,
+  height,
+  aspectRatio: width / height,
+  updatedAt: Date.now()
+});
+const normalizeFailedUrls = (failedUrls) => Array.isArray(failedUrls) ? failedUrls : [];
+const buildMediaFailureAlertBody = ({ category, failedUrls, message }) => (
+  `Lumina screensaver client has reported a media loading failure on your smart display.
+
+Category: ${category}
+
+Problem: ${message}
+
+Failed Wallpaper URLs:
+${failedUrls.join('\n')}
+
+Action: The client is rate-limiting skips and holding an offline visual boundary. Please check your network connection.`
+);
 
 /**
  * @param {{
@@ -117,6 +145,44 @@ function createCommandListener({ dispatchCommand, decode, fallback, intercept, a
 }
 
 /**
+ * @param {{
+ *   handler: (payload: any) => Promise<void> | void,
+ *   onError?: (error: Error, payload: any) => Promise<void> | void
+ * }} options
+ */
+function createAsyncListener({ handler, onError }) {
+  return async (payload) => {
+    try {
+      await handler(payload);
+    } catch (error) {
+      if (typeof onError === 'function') {
+        await onError(error, payload);
+        return;
+      }
+
+      throw error;
+    }
+  };
+}
+
+/**
+ * @param {{
+ *   label: string,
+ *   handler: (payload: any) => Promise<void> | void
+ * }} options
+ */
+function createTelemetryListener({ label, handler }) {
+  return createAsyncListener({
+    handler,
+    onError: buildSocketErrorLogger(label)
+  });
+}
+
+const registerSocketListeners = (socket, listeners) => listeners.forEach(({ event, handler }) => {
+  socket.on(event, handler);
+});
+
+/**
  * 🛰️ configureSockets
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
@@ -135,7 +201,10 @@ module.exports = function configureSockets({
   triggerWeatherUpdate,
   dispatchCommand,
   broadcastStateSync,
-  getLatestJobs = null
+  getLatestJobs = null,
+  notifyMediaFailure = sendEmailAlert,
+  resolveTvDisplayInfo = getHostDisplayInfo,
+  refreshGooglePhotoUrl = googlePhotos.refreshMediaItemUrl
 }) {
   const broadcast = () => {
     if (typeof broadcastStateSync === 'function') {
@@ -448,6 +517,28 @@ module.exports = function configureSockets({
     broadcast();
   };
 
+  const applyLegacyExcludedKeywords = (command) => {
+    const keywords = normalizeKeywordList(command.payload?.keywords);
+    state.excludedKeywords = keywords;
+    saveCuratedCollections(collections, state);
+
+    const currentCats = splitCategories(state.currentCategory);
+    state.photosList = combineFeedsBalanced(currentCats, collections);
+
+    if (state.photosList.length > 0) {
+      const matchesExcludedKeyword = (photo) => keywords.some((keyword) => (
+        photo?.title?.toLowerCase().includes(keyword.toLowerCase())
+      ));
+
+      if (matchesExcludedKeyword(state.activePhoto)) {
+        state.activePhoto = pickRandomPhoto(state.photosList);
+      }
+    }
+
+    broadcast();
+    console.log('[SOCKET EVENT] update-excluded-keywords saved and broadcasted:', state.excludedKeywords);
+  };
+
   const applyLegacyBrokenPhoto = (command) => {
     const { markPhotoBroken } = require('./config/collections.js');
     const updated = markPhotoBroken(collections, state, command.payload.url);
@@ -479,6 +570,10 @@ module.exports = function configureSockets({
       socket.emit('job-status', job);
     });
 
+    const emitGooglePhotoRefreshResponse = (mediaItemId, payload) => {
+      socket.emit('active-google-photo-response', { mediaItemId, ...payload });
+    };
+
     const listenForCommand = (eventName, decode, fallback, intercept, afterDispatch, onError) => {
       socket.on(eventName, createCommandListener({
         dispatchCommand,
@@ -494,6 +589,76 @@ module.exports = function configureSockets({
       listenForCommand(eventName, decode, applyLegacyStatePatchCommand);
     };
 
+    registerSocketListeners(socket, [
+      {
+        event: 'report-media-failure',
+        handler: createTelemetryListener({
+          label: 'report-media-failure',
+          handler: ({ category, failedUrls, message }) => {
+            const normalizedFailedUrls = normalizeFailedUrls(failedUrls);
+            console.error(`CLIENT ERROR REPORT: Media loading failed in category "${category}":`, message);
+            notifyMediaFailure(
+              '🚨 LUMINA CRITICAL ALERT: Display Feed Failure Detected',
+              buildMediaFailureAlertBody({
+                category,
+                failedUrls: normalizedFailedUrls,
+                message
+              })
+            );
+          }
+        })
+      },
+      {
+        event: 'set-active-second-photo',
+        handler: (photo) => {
+          state.activeSecondPhoto = photo;
+          io.emit('second-photo-update', photo);
+        }
+      },
+      {
+        event: 'report-tv-viewport',
+        handler: createTelemetryListener({
+          label: 'report-tv-viewport',
+          handler: async (payload) => {
+            const viewport = toViewportDimensions(payload);
+            if (!hasValidViewport(viewport)) {
+              return;
+            }
+
+            state.tvViewport = buildViewportSnapshot(viewport);
+
+            if (!state.tvDisplayInfo) {
+              const tvDisplayInfo = await resolveTvDisplayInfo();
+              if (tvDisplayInfo) {
+                state.tvDisplayInfo = tvDisplayInfo;
+              }
+            }
+
+            broadcast();
+          }
+        })
+      },
+      {
+        event: 'get-active-google-photo',
+        handler: createAsyncListener({
+          handler: async ({ mediaItemId } = {}) => {
+            const freshUrl = await refreshGooglePhotoUrl(mediaItemId);
+            emitGooglePhotoRefreshResponse(mediaItemId, { url: freshUrl });
+          },
+          onError: (error, { mediaItemId } = {}) => {
+            console.error(`Socket Event: Failed to refresh Google Photo URL for item ${mediaItemId}:`, error.message);
+            emitGooglePhotoRefreshResponse(mediaItemId, { error: error.message });
+          }
+        })
+      },
+      {
+        event: 'disconnect',
+        handler: () => {
+          console.log('Device disconnected:', socket.id);
+        }
+      }
+    ]);
+
     listenForStatePatch('toggle-widget', decodeWidgetCommand);
     listenForStatePatch('toggle-align-time', decodeAlignTimeCommand);
     listenForStatePatch('toggle-align-weather', decodeAlignWeatherCommand);
@@ -508,15 +673,6 @@ module.exports = function configureSockets({
     listenForStatePatch('toggle-auto-location', decodeAutoLocationCommand);
     listenForStatePatch('update-manual-location', decodeManualLocationCommand);
 
-    // Client media loading failure notifier
-    socket.on('report-media-failure', ({ category, failedUrls, message }) => {
-      console.error(`CLIENT ERROR REPORT: Media loading failed in category "${category}":`, message);
-      sendEmailAlert(
-        '🚨 LUMINA CRITICAL ALERT: Display Feed Failure Detected',
-        `Lumina screensaver client has reported a media loading failure on your smart display.\n\nCategory: ${category}\n\nProblem: ${message}\n\nFailed Wallpaper URLs:\n${failedUrls.join('\n')}\n\nAction: The client is rate-limiting skips and holding an offline visual boundary. Please check your network connection.`
-      );
-    });
-    
     // Change Wallpaper category
     listenForCommand('change-category', (category) => {
       console.log(`[SOCKET EVENT] change-category received: "${category}"`);
@@ -525,12 +681,6 @@ module.exports = function configureSockets({
 
     // Change individual active photo
     listenForCommand('set-active-photo', decodeActivePhotoCommand, applyLegacyActivePhoto);
-
-    // Set individual active second photo (sent by TV client to synchronize display control preview)
-    socket.on('set-active-second-photo', (photo) => {
-      state.activeSecondPhoto = photo;
-      io.emit('second-photo-update', photo);
-    });
 
     listenForCommand(
       'report-photo-metadata',
@@ -544,30 +694,6 @@ module.exports = function configureSockets({
         })
       })
     );
-
-    socket.on('report-tv-viewport', async (payload) => {
-      const width = Number(payload?.width);
-      const height = Number(payload?.height);
-
-      if (!(width > 0) || !(height > 0)) {
-        return;
-      }
-
-      state.tvViewport = {
-        width,
-        height,
-        aspectRatio: width / height,
-        updatedAt: Date.now()
-      };
-
-      if (!state.tvDisplayInfo) {
-        const tvDisplayInfo = await getHostDisplayInfo();
-        if (tvDisplayInfo) {
-          state.tvDisplayInfo = tvDisplayInfo;
-        }
-      }
-      broadcast();
-    });
 
     // Rate photo socket event
     listenForCommand(
@@ -622,39 +748,7 @@ module.exports = function configureSockets({
     // Update feed config socket event
     listenForCommand('update-feed-config', decodePoolFeedConfigCommand, applyLegacyPoolFeedConfig);
 
-    // Save and sync excluded keywords
-    socket.on('update-excluded-keywords', (keywords) => {
-      if (dispatchCommand) {
-        const command = decodeExcludedKeywordsCommand(keywords);
-        if (command) {
-          dispatchCommand(command);
-          console.log('[SOCKET EVENT] update-excluded-keywords saved and broadcasted:', keywords);
-        }
-        return;
-      }
-
-      if (Array.isArray(keywords)) {
-        state.excludedKeywords = keywords.map(kw => String(kw).trim()).filter(Boolean);
-        saveCuratedCollections(collections, state);
-
-        // Instantly refresh photos list in state to apply new exclusions
-        const currentCats = splitCategories(state.currentCategory);
-        state.photosList = combineFeedsBalanced(currentCats, collections);
-
-        if (state.photosList.length > 0) {
-          const matchesExclusionLocally = (photo) => state.excludedKeywords.some(
-            (keyword) => photo?.title?.toLowerCase().includes(keyword.toLowerCase())
-          );
-
-          if (matchesExclusionLocally(state.activePhoto)) {
-            state.activePhoto = pickRandomPhoto(state.photosList);
-          }
-        }
-
-        broadcast();
-        console.log('[SOCKET EVENT] update-excluded-keywords saved and broadcasted:', state.excludedKeywords);
-      }
-    });
+    listenForCommand('update-excluded-keywords', decodeExcludedKeywordsCommand, applyLegacyExcludedKeywords);
 
     // Add custom category / scenic pool
     listenForCommand('add-category', decodeAddPoolCommand, applyLegacyAddPool);
@@ -679,17 +773,6 @@ module.exports = function configureSockets({
         killKioskBrowser();
       }
       broadcast();
-    });
-
-    // Dynamic signed URL refresh for Google Photos casting on demand
-    socket.on('get-active-google-photo', async ({ mediaItemId }) => {
-      try {
-        const freshUrl = await googlePhotos.refreshMediaItemUrl(mediaItemId);
-        socket.emit('active-google-photo-response', { mediaItemId, url: freshUrl });
-      } catch (err) {
-        console.error(`Socket Event: Failed to refresh Google Photo URL for item ${mediaItemId}:`, err.message);
-        socket.emit('active-google-photo-response', { mediaItemId, error: err.message });
-      }
     });
 
     listenForCommand(
@@ -755,9 +838,5 @@ module.exports = function configureSockets({
         emitSecretSaveResult('tumblr-api-key-saved', false, error.message);
       }
     );
-
-    socket.on('disconnect', () => {
-      console.log('Device disconnected:', socket.id);
-    });
   });
 };

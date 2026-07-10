@@ -1137,9 +1137,10 @@ async function runClientStateTests() {
     cropPercent: 62
   });
   await dispatchHarness.socketHandlers['update-keywords']({ category: 'Scenic Nature', keywords: ['forest', 'mist'] });
+  await dispatchHarness.socketHandlers['update-excluded-keywords'](['forest', ' mist ']);
   await dispatchHarness.socketHandlers['save-useapi-token']({ token: 'secret-123' });
 
-  assertTest('socket category, pool, photo, Google Photos, and admin compatibility events dispatch shared domain commands when available', () => {
+  assertTest('socket category, pool, photo, excluded-keyword, Google Photos, and admin compatibility events dispatch shared domain commands when available', () => {
     assert.deepStrictEqual(dispatchedCommands, [
       {
         type: 'select-categories',
@@ -1175,6 +1176,12 @@ async function runClientStateTests() {
         }
       },
       {
+        type: 'update-excluded-keywords',
+        payload: {
+          keywords: ['forest', ' mist ']
+        }
+      },
+      {
         type: 'save-env-secret',
         payload: {
           envKey: 'USEAPI_TOKEN',
@@ -1200,6 +1207,63 @@ async function runClientStateTests() {
     assert.deepStrictEqual(
       fallbackHarness.ioEmits.find(([event]) => event === 'photo-update'),
       ['photo-update', { url: 'next-smart', title: 'next smart' }]
+    );
+  });
+
+  const excludedKeywordsFallbackHarness = createSocketHarness({
+    combineFeedsBalanced: () => [{ url: 'replacement', title: 'Fresh Skyline' }]
+  });
+  await excludedKeywordsFallbackHarness.socketHandlers['update-excluded-keywords'](['  forest  ', '', 'mist']);
+
+  assertTest('socket excluded-keywords fallback still normalizes the list and reselects away from excluded active photos', () => {
+    assert.deepStrictEqual(excludedKeywordsFallbackHarness.state.excludedKeywords, ['forest', 'mist']);
+    assert.deepStrictEqual(excludedKeywordsFallbackHarness.state.photosList, [{
+      url: 'replacement',
+      title: 'Fresh Skyline'
+    }]);
+    assert.deepStrictEqual(excludedKeywordsFallbackHarness.state.activePhoto, {
+      url: 'replacement',
+      title: 'Fresh Skyline'
+    });
+    assert.deepStrictEqual(
+      excludedKeywordsFallbackHarness.ioEmits.findLast(([event]) => event === 'state-sync'),
+      ['state-sync', excludedKeywordsFallbackHarness.state]
+    );
+  });
+
+  const telemetryHarness = createSocketHarness({
+    resolveTvDisplayInfo: async () => ({ name: 'HDMI-1', width: 3840, height: 2160 }),
+    refreshGooglePhotoUrl: async (mediaItemId) => `https://photos.example/${mediaItemId}`
+  });
+  await telemetryHarness.socketHandlers['report-tv-viewport']({ width: 1920, height: 1080 });
+  await telemetryHarness.socketHandlers['get-active-google-photo']({ mediaItemId: 'picker-123' });
+
+  assertTest('socket telemetry listeners keep viewport reporting explicit and lazy-load display info once', () => {
+    assert.deepStrictEqual(telemetryHarness.state.tvViewport, {
+      width: 1920,
+      height: 1080,
+      aspectRatio: 1920 / 1080,
+      updatedAt: telemetryHarness.state.tvViewport.updatedAt
+    });
+    assert.deepStrictEqual(telemetryHarness.state.tvDisplayInfo, {
+      name: 'HDMI-1',
+      width: 3840,
+      height: 2160
+    });
+    assert.strictEqual(typeof telemetryHarness.state.tvViewport.updatedAt, 'number');
+    assert.deepStrictEqual(
+      telemetryHarness.ioEmits.findLast(([event]) => event === 'state-sync'),
+      ['state-sync', telemetryHarness.state]
+    );
+  });
+
+  assertTest('socket Google Photos refresh listener responds through the dedicated async adapter', () => {
+    assert.deepStrictEqual(
+      telemetryHarness.socketEmits.findLast(([event]) => event === 'active-google-photo-response'),
+      ['active-google-photo-response', {
+        mediaItemId: 'picker-123',
+        url: 'https://photos.example/picker-123'
+      }]
     );
   });
 

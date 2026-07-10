@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Excluded-Keyword Socket Commands and Ephemeral Socket Tail Now Use Explicit Listener Boundaries
+- **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the last durable socket outlier and making the remaining socket-only handlers explicit, injectable, and testable.
+- **Implementation**:
+  - Moved `update-excluded-keywords` onto the shared `createCommandListener(...)` path, so the socket adapter now decodes and dispatches that durable mutation the same way it already handles category, pool, photo, and admin compatibility events.
+  - Added small `createAsyncListener(...)` and `createTelemetryListener(...)` factories plus a declarative listener-registration helper, then used them to isolate `report-tv-viewport`, `report-media-failure`, `set-active-second-photo`, `get-active-google-photo`, and disconnect wiring from the durable command section.
+  - Extended the socket environment with injected host-IO dependencies for media-failure alerts, TV display-info reads, and Google Photos signed-URL refreshes, keeping those effects at the shell boundary instead of hard-wiring them into the middle of transport logic.
+  - Expanded `run-tests.js` to cover shared dispatch of excluded-keyword socket commands, the legacy excluded-keyword fallback path, viewport telemetry state updates, and the dedicated Google Photos refresh response handler.
+- **Learning**: The right endgame for a transport adapter is not “remove every non-command event,” but “make the non-command events obviously non-command events.” Once the durable mutation outlier moved onto the shared listener and the remaining host-IO handlers were wrapped behind explicit factories, `server/sockets.js` read much more like a shell than a second business-rules module.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. The known sandbox-only live smoke skip still reported `listen EPERM` as expected.
+
 ### 2026-07-10: Google Photos Photo Mutations Now Share the Reducer/Dispatcher Path
 - **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the last Google Photos photo-metadata interceptors from the REST and Socket.IO adapters.
 - **Implementation**:
