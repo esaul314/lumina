@@ -635,6 +635,14 @@ The screensaver automatically maps live conditions and global sentiment to activ
   - Updated `ROADMAP.md` near the top with an `Implementation Companion` section linking to `FUNCTIONAL_REFACTOR_ROADMAP.md`.
   - Clarified that `ROADMAP.md` remains the product/platform direction document, while the functional roadmap carries the ordered refactor sequence and coding philosophy for the architecture cleanup program.
 
+### 2026-07-10 (Phase 20): Collapsed TV Mood Aesthetics Panel
+- **Goal**: Minimize the "TV Mood Aesthetics" panel on the Remote Control interface since the user doesn't change it frequently.
+- **Changes**:
+  - Wrapped the TV Mood Aesthetics section in a native HTML `<details>` element with a `<summary>` header showing the currently selected theme.
+  - Added custom CSS to `client/src/index.css` to remove the default browser details marker and style the summary tag inline.
+- **Learning**:
+  - Using native HTML `<details>` and `<summary>` elements allows clean, state-free collapsible layout adjustments without introducing extra React state variables.
+
 ---
 
 ## 🧪 Verification & Diagnostics
