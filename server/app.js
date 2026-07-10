@@ -3,7 +3,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const os = require('os');
 const config = require('./config/configLoader.js');
 const { readEnvVar } = require('./config/env.js');
@@ -26,6 +25,7 @@ const {
 } = require('./domain/selectors.js');
 const { syncLegacySnapshot } = require('./domain/snapshot.js');
 const { createActiveFeedRuntime } = require('./runtime/activeFeed.js');
+const { createEnvironmentRefreshRuntime } = require('./runtime/environmentRefresh.js');
 const {
   setCpuGovernor,
   getGnomeIdleTime,
@@ -257,58 +257,6 @@ function getSmartPhoto(_direction = 'next') {
   return selectWeightedRandomPhoto(candidates, currentPhotoUrl);
 }
 
-/**
- * 📰 updateNewsSentiment
- * Scrapes headlines, performs functional sentiment parsing, and syncs remote state.
- */
-async function updateNewsSentiment() {
-  try {
-    console.log('News Sentiment: Fetching headlines from Google News RSS...');
-    const res = await fetch('https://news.google.com/rss?hl=en-CA&gl=CA&ceid=CA:en');
-    if (!res.ok) {
-      console.warn('News Sentiment: Failed to fetch Google News RSS');
-      return;
-    }
-    const text = await res.text();
-    screensaverState.newsSentiment = analyzeSentiment(text);
-    console.log(`News Sentiment: Success! Score=${screensaverState.newsSentiment.score.toFixed(3)} (${screensaverState.newsSentiment.label}) -> Correlated weather mood: ${screensaverState.newsSentiment.weatherMatch}`);
-    emitStateSync();
-  } catch (err) {
-    console.error('Failed to update news sentiment:', err.message);
-  }
-}
-
-/**
- * 🌦️ updateServerWeather
- * Resolves geolocation, queries live forecasts, and classifies weather profile status.
- */
-async function updateServerWeather() {
-  try {
-    const loc = await resolveActiveLocation(screensaverState);
-    const data = await fetchWeatherForecast(loc.lat, loc.lon);
-    if (data && !data.error) {
-      serverWeatherData = {
-        location: loc,
-        current: data.current,
-        daily: data.daily
-      };
-      
-      if (data.current) {
-        const { physicalMatch, physicalCond } = classifyWeatherCode(data.current.weather_code);
-        screensaverState.physicalWeather = {
-          temp: Math.round(data.current.temperature_2m),
-          condition: physicalCond,
-          weatherMatch: physicalMatch
-        };
-      }
-      console.log('Server weather cache updated successfully.');
-      emitStateSync();
-    }
-  } catch (err) {
-    console.error('Failed to update server weather cache:', err.message);
-  }
-}
-
 const { analyzeImageContent } = require('./services/vision.js');
 
 function applyVisionTags(photo, analysis) {
@@ -438,51 +386,46 @@ async function triggerImageAnalysisBackground({
   };
 }
 
-/**
- * 🗓️ updateFeedsDaily
- * Background cron-like daily scraper update check.
- */
-async function updateFeedsDaily() {
-  console.log('Checking for daily dynamic feed updates...');
-  let lastUpdated = 0;
-  let fileData = {};
-  if (fs.existsSync(jsonPath)) {
-    try {
-      fileData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-      lastUpdated = fileData.lastUpdated ?? 0;
-    } catch (e) {
-      console.warn('Could not parse persisted curated collections for last update check:', e.message);
-    }
-  }
+// Subprocess State Management helpers for Sockets
+let isBrowserRunning = false;
+let manualOverride = false;
+let PORT = config.port ?? 5000;
 
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  
-  if (now - lastUpdated < ONE_DAY && lastUpdated > 0) {
-    console.log('Feeds were updated less than 24 hours ago. Skipping daily update.');
-    return;
-  }
-
-  const { updatedCollections, updatedAny } = await crawlAllCollections(
-    curatedCollections,
-    screensaverState.feedConfigs,
-    screensaverState.searchKeywords,
-    screensaverState.excludedKeywords
-  );
-  
-  if (updatedAny) {
-    for (const key of Object.keys(updatedCollections)) {
-      curatedCollections[key] = updatedCollections[key].map(p => ({ ...p, category: key }));
-    }
-
-    saveCuratedCollections(curatedCollections, screensaverState);
-    activeFeedRuntime.refreshActiveFeed();
-    emitStateSync();
-    
-    // Trigger vision analysis for any new crawl results
-    triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
-  }
+function getRuntimeContext() {
+  return {
+    weather: serverWeatherData,
+    browserRunning: isBrowserRunning,
+    manualOverride,
+    externalCollections: getExternalCollections()
+  };
 }
+
+function emitStateSync() {
+  syncLegacySnapshot(screensaverState, curatedCollections, getRuntimeContext());
+  io.emit('state-sync', screensaverState);
+}
+
+const environmentRefreshRuntime = createEnvironmentRefreshRuntime({
+  state: screensaverState,
+  collections: curatedCollections,
+  activeFeedRuntime,
+  jsonPath,
+  setWeatherData,
+  resolveActiveLocation,
+  fetchWeatherForecast,
+  classifyWeatherCode,
+  analyzeSentiment,
+  crawlCollections: crawlAllCollections,
+  persistCollections: saveCuratedCollections,
+  broadcastStateSync: emitStateSync,
+  triggerImageAnalysisBackground
+});
+
+const {
+  updateFeedsDaily,
+  updateNewsSentiment,
+  updateServerWeather
+} = environmentRefreshRuntime;
 
 // Daemon-specific interval bindings (disabled under test suites)
 if (process.env.NODE_ENV !== 'test') {
@@ -502,25 +445,6 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => {
     updateFeedsDaily().catch(err => console.error('Error in scheduled feed update:', err));
   }, 4 * 60 * 60 * 1000);
-}
-
-// Subprocess State Management helpers for Sockets
-let isBrowserRunning = false;
-let manualOverride = false;
-let PORT = config.port ?? 5000;
-
-function getRuntimeContext() {
-  return {
-    weather: serverWeatherData,
-    browserRunning: isBrowserRunning,
-    manualOverride,
-    externalCollections: getExternalCollections()
-  };
-}
-
-function emitStateSync() {
-  syncLegacySnapshot(screensaverState, curatedCollections, getRuntimeContext());
-  io.emit('state-sync', screensaverState);
 }
 
 function launchKioskBrowser(forceManual = false) {

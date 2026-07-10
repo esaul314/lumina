@@ -976,6 +976,207 @@ assertTest('createActiveFeedRuntime falls back to the default visible feed when 
 });
 
 // ============================================================================
+// 4d. UNIT TEST SUITE: Environment Refresh Runtime
+// ============================================================================
+logSuite('Environment Refresh Runtime');
+
+assertTest('shouldSkipDailyFeedUpdate only skips when the last refresh is still within the interval', () => {
+  const { shouldSkipDailyFeedUpdate } = require('./server/runtime/environmentRefresh.js');
+
+  assert.strictEqual(
+    shouldSkipDailyFeedUpdate({ now: 2_000, lastUpdated: 1_500, refreshIntervalMs: 1_000 }),
+    true
+  );
+  assert.strictEqual(
+    shouldSkipDailyFeedUpdate({ now: 2_000, lastUpdated: 500, refreshIntervalMs: 1_000 }),
+    false
+  );
+  assert.strictEqual(
+    shouldSkipDailyFeedUpdate({ now: 2_000, lastUpdated: 0, refreshIntervalMs: 1_000 }),
+    false
+  );
+});
+
+assertAsyncTest('createEnvironmentRefreshRuntime updates news sentiment and broadcasts the refreshed snapshot', async () => {
+  const { createEnvironmentRefreshRuntime } = require('./server/runtime/environmentRefresh.js');
+  const state = {};
+  let broadcastCount = 0;
+
+  const runtime = createEnvironmentRefreshRuntime({
+    state,
+    collections: {},
+    activeFeedRuntime: { refreshActiveFeed: () => [] },
+    jsonPath: '/tmp/not-used.json',
+    setWeatherData: () => {},
+    resolveActiveLocation: async () => ({ lat: 0, lon: 0 }),
+    fetchWeatherForecast: async () => ({ current: null, daily: [] }),
+    classifyWeatherCode: () => ({ physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' }),
+    analyzeSentiment: () => ({
+      score: 0.25,
+      label: 'Sunny / Hopeful',
+      weatherMatch: 'Sunny',
+      headlinesCount: 2
+    }),
+    crawlCollections: async () => ({ updatedCollections: {}, updatedAny: false }),
+    persistCollections: () => {},
+    broadcastStateSync: () => { broadcastCount += 1; },
+    triggerImageAnalysisBackground: async () => {},
+    readNewsRss: async () => '<rss><channel><title>good news</title></channel></rss>',
+    log: { log() {}, warn() {}, error() {} }
+  });
+
+  const sentiment = await runtime.updateNewsSentiment();
+
+  assert.deepStrictEqual(sentiment, state.newsSentiment);
+  assert.strictEqual(state.newsSentiment.weatherMatch, 'Sunny');
+  assert.strictEqual(broadcastCount, 1);
+});
+
+assertAsyncTest('createEnvironmentRefreshRuntime updates weather cache and derived physical weather state', async () => {
+  const { createEnvironmentRefreshRuntime } = require('./server/runtime/environmentRefresh.js');
+  const state = {};
+  let cachedWeather = null;
+  let broadcastCount = 0;
+
+  const runtime = createEnvironmentRefreshRuntime({
+    state,
+    collections: {},
+    activeFeedRuntime: { refreshActiveFeed: () => [] },
+    jsonPath: '/tmp/not-used.json',
+    setWeatherData: (data) => { cachedWeather = data; },
+    resolveActiveLocation: async () => ({ lat: 45.5, lon: -73.5, city: 'Montreal' }),
+    fetchWeatherForecast: async () => ({
+      current: {
+        temperature_2m: 22.4,
+        weather_code: 61
+      },
+      daily: [{ weather_code: 61 }]
+    }),
+    classifyWeatherCode: () => ({ physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' }),
+    analyzeSentiment: () => ({ score: 0, label: 'Overcast / Calm', weatherMatch: 'Cloudy' }),
+    crawlCollections: async () => ({ updatedCollections: {}, updatedAny: false }),
+    persistCollections: () => {},
+    broadcastStateSync: () => { broadcastCount += 1; },
+    triggerImageAnalysisBackground: async () => {},
+    readNewsRss: async () => null,
+    log: { log() {}, warn() {}, error() {} }
+  });
+
+  const weatherData = await runtime.updateServerWeather();
+
+  assert.deepStrictEqual(weatherData, cachedWeather);
+  assert.deepStrictEqual(state.physicalWeather, {
+    temp: 22,
+    condition: 'Rainy / Stormy',
+    weatherMatch: 'Rainy'
+  });
+  assert.strictEqual(broadcastCount, 1);
+});
+
+assertAsyncTest('createEnvironmentRefreshRuntime skips the daily feed refresh when collections were updated recently', async () => {
+  const { createEnvironmentRefreshRuntime } = require('./server/runtime/environmentRefresh.js');
+  let crawlCount = 0;
+
+  const runtime = createEnvironmentRefreshRuntime({
+    state: {
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: []
+    },
+    collections: {},
+    activeFeedRuntime: { refreshActiveFeed: () => [] },
+    jsonPath: '/tmp/curated.json',
+    setWeatherData: () => {},
+    resolveActiveLocation: async () => ({ lat: 0, lon: 0 }),
+    fetchWeatherForecast: async () => ({ current: null, daily: [] }),
+    classifyWeatherCode: () => ({ physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' }),
+    analyzeSentiment: () => ({ score: 0, label: 'Overcast / Calm', weatherMatch: 'Cloudy' }),
+    crawlCollections: async () => {
+      crawlCount += 1;
+      return { updatedCollections: {}, updatedAny: false };
+    },
+    persistCollections: () => {},
+    broadcastStateSync: () => {},
+    triggerImageAnalysisBackground: async () => {},
+    fsImpl: {
+      existsSync: () => true,
+      readFileSync: () => JSON.stringify({ lastUpdated: 9_500 })
+    },
+    now: () => 10_000,
+    refreshIntervalMs: 1_000,
+    readNewsRss: async () => null,
+    log: { log() {}, warn() {}, error() {} }
+  });
+
+  const result = await runtime.updateFeedsDaily();
+
+  assert.strictEqual(result.skipped, true);
+  assert.strictEqual(crawlCount, 0);
+});
+
+assertAsyncTest('createEnvironmentRefreshRuntime persists refreshed collections, refreshes the active feed, and schedules vision analysis', async () => {
+  const { createEnvironmentRefreshRuntime } = require('./server/runtime/environmentRefresh.js');
+  const state = {
+    feedConfigs: { 'Scenic Nature': { featured: true } },
+    searchKeywords: { 'Scenic Nature': ['forest'] },
+    excludedKeywords: []
+  };
+  const collections = {
+    'Scenic Nature': [{ url: 'old-1', title: 'Old Forest', category: 'Scenic Nature' }]
+  };
+  let persistedCount = 0;
+  let refreshedCount = 0;
+  let broadcastCount = 0;
+  let analysisCount = 0;
+
+  const runtime = createEnvironmentRefreshRuntime({
+    state,
+    collections,
+    activeFeedRuntime: {
+      refreshActiveFeed: () => {
+        refreshedCount += 1;
+        return collections['Scenic Nature'];
+      }
+    },
+    jsonPath: '/tmp/curated.json',
+    setWeatherData: () => {},
+    resolveActiveLocation: async () => ({ lat: 0, lon: 0 }),
+    fetchWeatherForecast: async () => ({ current: null, daily: [] }),
+    classifyWeatherCode: () => ({ physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' }),
+    analyzeSentiment: () => ({ score: 0, label: 'Overcast / Calm', weatherMatch: 'Cloudy' }),
+    crawlCollections: async () => ({
+      updatedCollections: {
+        'Scenic Nature': [{ url: 'new-1', title: 'New Forest' }]
+      },
+      updatedAny: true
+    }),
+    persistCollections: () => { persistedCount += 1; },
+    broadcastStateSync: () => { broadcastCount += 1; },
+    triggerImageAnalysisBackground: async () => { analysisCount += 1; },
+    fsImpl: {
+      existsSync: () => true,
+      readFileSync: () => JSON.stringify({ lastUpdated: 0 })
+    },
+    now: () => 10_000,
+    refreshIntervalMs: 1_000,
+    readNewsRss: async () => null,
+    log: { log() {}, warn() {}, error() {} }
+  });
+
+  const result = await runtime.updateFeedsDaily();
+
+  assert.strictEqual(result.updatedAny, true);
+  assert.strictEqual(result.skipped, false);
+  assert.strictEqual(persistedCount, 1);
+  assert.strictEqual(refreshedCount, 1);
+  assert.strictEqual(broadcastCount, 1);
+  assert.strictEqual(analysisCount, 1);
+  assert.deepStrictEqual(collections['Scenic Nature'], [
+    { url: 'new-1', title: 'New Forest', category: 'Scenic Nature' }
+  ]);
+});
+
+// ============================================================================
 // 5. UNIT TEST SUITE: Customizable Keyword Search Manager
 // ============================================================================
 logSuite('Customizable Keyword Search Manager');

@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Extracted the Environment Refresh Runtime as the Next `server/app.js` Step 3 Slice
+- **Goal**: Continue the `server/app.js` shell-composition refactor by removing the weather, news-sentiment, and daily-feed refresh orchestration cluster from the app bootstrap file.
+- **Implementation**:
+  - Added `server/runtime/environmentRefresh.js` as an explicit shell module that owns the weather refresh pipeline, news-sentiment refresh pipeline, and daily feed-update policy using injected effects and small pure helpers (`shouldSkipDailyFeedUpdate`, weather snapshot builders, and collection merge projection).
+  - Rewired `server/app.js` to assemble that runtime and keep only scheduling plus host wiring locally, matching the same object-shaped factory style already used by `server/runtime/activeFeed.js` and the async job services.
+  - Added regression coverage in `run-tests.js` for refresh-interval skipping, successful news-sentiment refresh, successful weather-cache refresh, and the daily feed-update side-effect bundle (persist -> refresh active feed -> broadcast -> schedule analysis).
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `.agents/MEMORY.md` so the Step 3 checkpoint now explicitly records that the active-feed and environment-refresh slices are complete and that kiosk/browser plus idle-daemon composition is the next seam.
+- **Learning**: `server/app.js` gets smaller fastest when whole orchestration clusters move behind named runtimes rather than when individual helper functions are merely relocated. Once weather, sentiment, and daily refresh shared the same injected shell boundary, the remaining app-level work became much easier to see as "scheduling and host runtime" instead of a vague tangle of mixed concerns.
+- **Verification**: `npm test` and `npm run lint` passed. No client build was needed because this slice only changed server/runtime code and tracked docs.
+
 ### 2026-07-10: Closed the Step 2 Socket Audit and Started Step 3 by Extracting Active-Feed Runtime Composition
 - **Goal**: Confirm whether any durable socket behavior still required new domain commands/effects, then begin the next `server/app.js` shell-composition slice instead of leaving the checkpoint implicit.
 - **Implementation**:
