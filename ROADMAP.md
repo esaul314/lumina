@@ -19,8 +19,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
 - Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
-- Next: continue the Phase 1 implementation companion after completing the `server/sockets.js` transport-adapter pass. The live socket layer is now limited to shared `decode -> dispatch` wiring plus the on-demand Google Photos signed-URL refresh helper and intentionally ephemeral telemetry/update handlers; the next companion checkpoint is to confirm whether any further domain command/effect expansion is still needed before shifting the cleanup emphasis to `server/app.js`.
-- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Step 1 is now complete and Step 2 is the next explicit checkpoint.
+- Next: continue the Phase 1 implementation companion inside `server/app.js`. The durable socket audit is complete, the live socket layer is intentionally limited to shared `decode -> dispatch` wiring plus the on-demand Google Photos signed-URL refresh helper and ephemeral telemetry/update handlers, and the cleanup emphasis has now shifted to `server/app.js` shell composition.
+- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 and 2 are complete and Step 3 is the active refactor checkpoint.
 
 ## Architectural Rule
 
@@ -57,7 +57,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: Step 1 of the implementation companion is complete; the next companion checkpoint is Step 2's audit of whether any further domain command/effect expansion is still needed before the main cleanup emphasis moves to `server/app.js`.
+  - Next focus: Steps 1 and 2 of the implementation companion are complete; the active companion work is now Step 3's `server/app.js` shell-composition refactor, starting with extracted active-feed runtime orchestration.
 
 ### Shared domain flow
 

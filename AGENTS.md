@@ -23,7 +23,7 @@ Current migration checkpoint:
 - Phase 1 Step 3 complete: category selection, pool lifecycle, and feed-configuration mutations now use REST by default in operator UIs, with Socket.IO retained as the live sync/event transport.
 - Phase 1 Step 4 complete: manual recrawl flows now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
 - Phase 1 Step 5 complete: manual vision-analysis runs now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
-- Next focus: the `server/sockets.js` transport-adapter pass is complete; the next companion checkpoint is to confirm whether any further domain command/effect expansion is still needed before the main cleanup emphasis moves to `server/app.js`. The live socket-only tail is now intentionally limited to the on-demand signed-URL refresh helper plus truly ephemeral telemetry/update handlers.
+- Next focus: the `server/sockets.js` transport-adapter pass and its follow-up durable-mutation audit are complete; the main cleanup emphasis has now moved to `server/app.js`. The live socket-only tail is intentionally limited to the on-demand signed-URL refresh helper plus truly ephemeral telemetry/update handlers, while the first Step 3 shell-composition slice extracts active-feed orchestration into dedicated runtime helpers.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

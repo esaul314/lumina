@@ -25,6 +25,7 @@ const {
   isTimeInSchedule
 } = require('./domain/selectors.js');
 const { syncLegacySnapshot } = require('./domain/snapshot.js');
+const { createActiveFeedRuntime } = require('./runtime/activeFeed.js');
 const {
   setCpuGovernor,
   getGnomeIdleTime,
@@ -201,6 +202,14 @@ function getExternalCollections() {
     'Google Photos': googlePhotos.getCachedMediaItems().map((photo) => ({ ...photo, category: 'Google Photos' }))
   };
 }
+
+const activeFeedRuntime = createActiveFeedRuntime({
+  state: screensaverState,
+  collections: curatedCollections,
+  getExternalCollections
+});
+
+const getActiveCategories = activeFeedRuntime.getActiveCategories;
 
 /**
  * 🎯 selectWeightedRandomPhoto
@@ -409,16 +418,7 @@ async function triggerImageAnalysisBackground({
   if (taggedCount > 0) {
     console.log(`[Vision Service] Finished background image analysis. Tagged ${taggedCount} images across ${scopedCategories.length} categories.`);
     saveCuratedCollections(curatedCollections, screensaverState);
-
-    const activeCategory = screensaverState.currentCategory;
-    const currentCats = activeCategory?.split(',') ?? [];
-    const touchesActiveFeed = currentCats.some((category) => scopedCategories.includes(category.trim()));
-    if (touchesActiveFeed) {
-      const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-      screensaverState.photosList = combinedPhotos.length > 0
-        ? combinedPhotos
-        : (curatedCollections['Scenic Nature'] ?? []).filter((photo) => photo.rating !== 1 && !photo.isBroken);
-    }
+    activeFeedRuntime.refreshActiveFeedIfIncluded(scopedCategories);
 
     emitProgress({
       phase: 'persisting',
@@ -476,11 +476,7 @@ async function updateFeedsDaily() {
     }
 
     saveCuratedCollections(curatedCollections, screensaverState);
-
-    const activeCategory = screensaverState.currentCategory;
-    const currentCats = activeCategory?.split(',') ?? [];
-    const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] ?? []).filter(p => p.rating !== 1 && !p.isBroken).map(p => ({ ...p, category: 'Scenic Nature' }));
+    activeFeedRuntime.refreshActiveFeed();
     emitStateSync();
     
     // Trigger vision analysis for any new crawl results
@@ -591,10 +587,7 @@ const runCrawler = async ({ categories = [] } = {}) => {
     crawlCollections: crawlAllCollections,
     persistCollections: saveCuratedCollections,
     buildActiveFeed: combineFeedsBalanced,
-    getActiveCategories: () => (screensaverState.currentCategory || '')
-      .split(',')
-      .map((category) => category.trim())
-      .filter(Boolean),
+    getActiveCategories,
     broadcastStateSync: emitStateSync,
     triggerImageAnalysisBackground,
     categories,
@@ -633,10 +626,7 @@ recrawlJobService = createRecrawlJobService({
   crawlCollections: crawlAllCollections,
   persistCollections: saveCuratedCollections,
   buildActiveFeed: combineFeedsBalanced,
-  getActiveCategories: () => (screensaverState.currentCategory || '')
-    .split(',')
-    .map((category) => category.trim())
-    .filter(Boolean),
+  getActiveCategories,
   broadcastStateSync,
   triggerImageAnalysisBackground
 });
@@ -645,10 +635,7 @@ visionAnalysisJobService = createVisionAnalysisJobService({
   state: screensaverState,
   collections: curatedCollections,
   io,
-  getActiveCategories: () => (screensaverState.currentCategory || '')
-    .split(',')
-    .map((category) => category.trim())
-    .filter(Boolean),
+  getActiveCategories,
   triggerImageAnalysisBackground
 });
 

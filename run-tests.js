@@ -889,8 +889,90 @@ assertTest('correctly filters photos containing excluded keywords in selectWeigh
   
   const picked = selectWeightedRandomPhoto(photos);
   assert.strictEqual(picked.url, 'url2', 'Should pick the non-excluded photo');
-  
+
   screensaverState.excludedKeywords = originalExclusions;
+});
+
+// ============================================================================
+// 4c. UNIT TEST SUITE: Active Feed Runtime
+// ============================================================================
+logSuite('Active Feed Runtime');
+
+assertTest('normalizeActiveCategories canonicalizes aliases against available feeds', () => {
+  const { normalizeActiveCategories } = require('./server/runtime/activeFeed.js');
+
+  assert.deepStrictEqual(
+    normalizeActiveCategories({
+      currentCategory: 'Liminal Space, Google Photos, Missing',
+      collections: {
+        'Scenic Nature': [],
+        'Liminal Spaces': []
+      },
+      externalCollections: {
+        'Google Photos': []
+      }
+    }),
+    ['Liminal Spaces', 'Google Photos']
+  );
+});
+
+assertTest('createActiveFeedRuntime refreshes the active selection into photosList', () => {
+  const { createActiveFeedRuntime } = require('./server/runtime/activeFeed.js');
+  const state = {
+    currentCategory: 'Liminal Space',
+    excludedKeywords: [],
+    photosList: []
+  };
+  const collections = {
+    'Scenic Nature': [{ url: 'scenic-1', title: 'Forest Vista', rating: 10 }],
+    'Liminal Spaces': [{ url: 'liminal-1', title: 'Empty Hallway', rating: 10 }]
+  };
+
+  const runtime = createActiveFeedRuntime({ state, collections });
+  const nextPhotos = runtime.refreshActiveFeed();
+
+  assert.deepStrictEqual(nextPhotos.map((photo) => photo.url), ['liminal-1']);
+  assert.deepStrictEqual(state.photosList, nextPhotos);
+  assert.deepStrictEqual(runtime.getActiveCategories(), ['Liminal Spaces']);
+});
+
+assertTest('createActiveFeedRuntime leaves photosList untouched when a scoped refresh misses the active feed', () => {
+  const { createActiveFeedRuntime } = require('./server/runtime/activeFeed.js');
+  const existingPhotos = [{ url: 'keep-me', title: 'Existing Photo', category: 'Scenic Nature' }];
+  const state = {
+    currentCategory: 'Scenic Nature',
+    excludedKeywords: [],
+    photosList: existingPhotos
+  };
+  const collections = {
+    'Scenic Nature': [{ url: 'scenic-1', title: 'Forest Vista', rating: 10 }],
+    'Liminal Spaces': [{ url: 'liminal-1', title: 'Empty Hallway', rating: 10 }]
+  };
+
+  const runtime = createActiveFeedRuntime({ state, collections });
+  const nextPhotos = runtime.refreshActiveFeedIfIncluded(['Liminal Spaces']);
+
+  assert.strictEqual(nextPhotos, existingPhotos);
+  assert.strictEqual(state.photosList, existingPhotos);
+});
+
+assertTest('createActiveFeedRuntime falls back to the default visible feed when the active selection is empty', () => {
+  const { createActiveFeedRuntime } = require('./server/runtime/activeFeed.js');
+  const state = {
+    currentCategory: 'Liminal Spaces',
+    excludedKeywords: ['hallway'],
+    photosList: []
+  };
+  const collections = {
+    'Scenic Nature': [{ url: 'scenic-1', title: 'Forest Vista', rating: 10 }],
+    'Liminal Spaces': [{ url: 'liminal-1', title: 'Empty Hallway', rating: 10 }]
+  };
+
+  const runtime = createActiveFeedRuntime({ state, collections });
+  const nextPhotos = runtime.refreshActiveFeed();
+
+  assert.deepStrictEqual(nextPhotos.map((photo) => photo.url), ['scenic-1']);
+  assert.deepStrictEqual(nextPhotos.map((photo) => photo.category), ['Scenic Nature']);
 });
 
 // ============================================================================

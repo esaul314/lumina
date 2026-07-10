@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Closed the Step 2 Socket Audit and Started Step 3 by Extracting Active-Feed Runtime Composition
+- **Goal**: Confirm whether any durable socket behavior still required new domain commands/effects, then begin the next `server/app.js` shell-composition slice instead of leaving the checkpoint implicit.
+- **Implementation**:
+  - Audited the remaining `server/sockets.js` handlers and confirmed the only non-dispatch tail is intentionally ephemeral or source-local (`report-tv-viewport`, media-failure alerts, second-photo sync, disconnect lifecycle, and the signed-URL refresh helper), so no further Step 2 command/effect expansion was needed.
+  - Added `server/runtime/activeFeed.js` as a small runtime boundary for active-category normalization, balanced-feed rebuilding, fallback-feed selection, and scoped refresh checks.
+  - Rewired `server/app.js` to consume that runtime module for active-feed refreshes after daily crawls and vision-analysis persistence, and to share one `getActiveCategories` function across recrawl and vision-analysis job wiring instead of re-splitting `currentCategory` inline.
+  - Added regression coverage in `run-tests.js` for alias-aware active-category normalization, scoped refresh no-ops, direct active-feed refreshes, and the Scenic Nature fallback path when a selected feed becomes empty after filtering.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repo now states explicitly that the implementation-companion audit step is complete and Step 3 is the active checkpoint.
+- **Learning**: The right way to close an audit checkpoint is to codify its conclusion. Once the socket audit showed no missing durable commands, leaving that fact undocumented would have created artificial ambiguity. Extracting a small runtime shell immediately afterward makes the roadmap transition concrete in both code and docs.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. The known sandbox-only live smoke skip still reports `listen EPERM` when a real bind is attempted.
+
 ### 2026-07-10: Completed the `server/sockets.js` Transport-Adapter Step by Isolating Legacy Compatibility
 - **Goal**: Finish Step 1 of the functional refactor companion by removing the last inline legacy mutation branches from `server/sockets.js` without dropping mixed-version compatibility behavior.
 - **Implementation**:

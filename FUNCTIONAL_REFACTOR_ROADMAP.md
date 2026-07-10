@@ -22,7 +22,8 @@ Current checkpoint:
 - Step 1 is now complete: `server/sockets.js` is a transport adapter over shared command listeners, shared patch-state decoders, and explicit async/telemetry listener helpers.
 - Optional mixed-version fallback business logic no longer lives inline in `server/sockets.js`; it now sits in `server/socketLegacyCompatibility.js` and is only used when a shared dispatcher is unavailable.
 - The intentionally socket-specific tail is now explicit: connection lifecycle, viewport/reporting telemetry, transient pushes, and the on-demand Google Photos signed-URL refresh helper remain transport-owned by design.
-- The next explicit checkpoint is Step 2: confirm whether any further domain command/effect expansion is still needed, or whether the next substantive cleanup move is Step 3's `server/app.js` shell-composition refactor.
+- Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
+- The active work has moved into Step 3: the first `server/app.js` shell-composition slice now extracts active-feed selection and refresh orchestration into a dedicated runtime module so app wiring stops re-encoding category parsing and feed rebuild rules.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -131,6 +132,11 @@ Acceptance criteria:
 - The reducer owns all durable settings mutations.
 - New commands have direct domain tests.
 - No transport layer performs persistence or recomputes durable playback state inline.
+
+Progress note:
+
+- The post-Step-1 audit found no additional durable socket mutations that still needed new domain commands or explicit effects.
+- Step 2 is therefore complete as an audit checkpoint rather than a command-surface expansion slice; the remaining socket tail is intentionally ephemeral or source-local by design.
 
 ### Step 3: Refactor `server/app.js` from mixed orchestrator to explicit shell composition
 
