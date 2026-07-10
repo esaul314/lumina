@@ -95,6 +95,10 @@ async function assertAsyncTest(name, fn) {
   }
 }
 
+function flushPromises() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 async function importClientModule(relativePath) {
   return import(pathToFileURL(path.join(__dirname, relativePath)).href);
 }
@@ -491,7 +495,7 @@ assertTest('correctly classifies meteorological WMO weather codes', () => {
 logSuite('System Screensaver State Reducer & Validators');
 
 assertTest('getNextScreensaverState transitions state and schedules actions correctly', () => {
-  const { getNextScreensaverState } = require('./server/app.js');
+  const { getNextScreensaverState } = require('./server/runtime/idleDaemon.js');
   const { validateRating, validatePercent } = require('./server/utils/validation.js');
 
   // Test validators
@@ -541,6 +545,164 @@ assertTest('getNextScreensaverState transitions state and schedules actions corr
   transition = getNextScreensaverState(state, inputs);
   assert.strictEqual(transition.action, 'kill');
   assert.strictEqual(transition.nextState.isBrowserRunning, false);
+});
+
+logSuite('Runtime Shell Composition');
+
+assertAsyncTest('createKioskControlRuntime defers launch until the server is listening and clears manual override after an unexpected exit', async () => {
+  const { createKioskControlRuntime } = require('./server/runtime/kioskControl.js');
+  const state = { screensaverActive: true };
+  let serverListening = false;
+  let broadcastCount = 0;
+  let exitHandler = null;
+  const deferredLaunches = [];
+  const killedTimers = [];
+  const governorProfiles = [];
+  const kioskLaunches = [];
+  let kioskKillCount = 0;
+
+  const runtime = createKioskControlRuntime({
+    state,
+    emitStateSync: () => { broadcastCount += 1; },
+    getPort: () => 5050,
+    isServerListening: () => serverListening,
+    setTimeoutImpl: (fn, delay) => {
+      deferredLaunches.push({ fn, delay });
+      return deferredLaunches.length;
+    },
+    clearTimeoutImpl: (timerId) => {
+      killedTimers.push(timerId);
+    },
+    setCpuGovernor: async (profile) => {
+      governorProfiles.push(profile);
+      return true;
+    },
+    launchChromiumKiosk: (port, mode, onUnexpectedExit) => {
+      kioskLaunches.push({ port, mode });
+      exitHandler = onUnexpectedExit;
+    },
+    killChromiumKiosk: async () => {
+      kioskKillCount += 1;
+      return true;
+    },
+    log: { log() {}, warn() {} }
+  });
+
+  assert.strictEqual(runtime.launchKioskBrowser(true), false);
+  assert.strictEqual(runtime.isManualOverride(), true);
+  assert.strictEqual(deferredLaunches.length, 1);
+
+  runtime.launchKioskBrowser(true);
+  assert.strictEqual(deferredLaunches.length, 1, 'launch retries should be deduplicated while one is already pending');
+
+  serverListening = true;
+  deferredLaunches[0].fn();
+  await flushPromises();
+
+  assert.strictEqual(runtime.isBrowserRunning(), true);
+  assert.deepStrictEqual(governorProfiles, ['performance']);
+  assert.strictEqual(kioskKillCount, 1);
+  assert.deepStrictEqual(kioskLaunches, [{ port: 5050, mode: 'tv' }]);
+
+  exitHandler?.();
+  assert.strictEqual(runtime.isBrowserRunning(), false);
+  assert.strictEqual(runtime.isManualOverride(), false);
+  assert.strictEqual(state.screensaverActive, false);
+  assert.strictEqual(broadcastCount, 1);
+  assert.deepStrictEqual(killedTimers, []);
+});
+
+assertAsyncTest('createIdleDaemonRuntime launches after three idle ticks and broadcasts the active-state transition once', async () => {
+  const { createIdleDaemonRuntime } = require('./server/runtime/idleDaemon.js');
+  const state = {
+    inactivityTimeout: 500,
+    screensaverActive: false
+  };
+  const runtimeState = {
+    browserRunning: false,
+    manualOverride: false
+  };
+  let broadcastCount = 0;
+  let inhibitionChecks = 0;
+  let launchCount = 0;
+
+  const runtime = createIdleDaemonRuntime({
+    state,
+    getRuntimeContext: () => runtimeState,
+    getIdleTime: async () => 800,
+    isAudioPlaying: async () => false,
+    isSessionInhibited: async () => {
+      inhibitionChecks += 1;
+      return false;
+    },
+    launchKioskBrowser: () => {
+      launchCount += 1;
+      runtimeState.browserRunning = true;
+    },
+    killKioskBrowser: () => {
+      runtimeState.browserRunning = false;
+    },
+    broadcastStateSync: () => {
+      broadcastCount += 1;
+    },
+    log: { warn() {} }
+  });
+
+  const firstTick = await runtime.tick();
+  const secondTick = await runtime.tick();
+  const thirdTick = await runtime.tick();
+
+  assert.strictEqual(firstTick?.action, null);
+  assert.strictEqual(secondTick?.action, null);
+  assert.strictEqual(thirdTick?.action, 'launch');
+  assert.strictEqual(runtime.getIdleCounter(), 3);
+  assert.strictEqual(launchCount, 1);
+  assert.strictEqual(state.screensaverActive, true);
+  assert.strictEqual(broadcastCount, 1);
+  assert.strictEqual(inhibitionChecks, 3);
+});
+
+assertAsyncTest('createIdleDaemonRuntime ignores session inhibition checks once the kiosk is already running and dismisses on activity', async () => {
+  const { createIdleDaemonRuntime } = require('./server/runtime/idleDaemon.js');
+  const state = {
+    inactivityTimeout: 500,
+    screensaverActive: true
+  };
+  const runtimeState = {
+    browserRunning: true,
+    manualOverride: false
+  };
+  let inhibitionChecks = 0;
+  let killCount = 0;
+  let broadcastCount = 0;
+
+  const runtime = createIdleDaemonRuntime({
+    state,
+    getRuntimeContext: () => runtimeState,
+    getIdleTime: async () => 0,
+    isAudioPlaying: async () => false,
+    isSessionInhibited: async () => {
+      inhibitionChecks += 1;
+      return true;
+    },
+    launchKioskBrowser: () => {},
+    killKioskBrowser: () => {
+      killCount += 1;
+      runtimeState.browserRunning = false;
+    },
+    broadcastStateSync: () => {
+      broadcastCount += 1;
+    },
+    log: { warn() {} }
+  });
+
+  const result = await runtime.tick();
+
+  assert.strictEqual(result?.action, 'kill');
+  assert.strictEqual(killCount, 1);
+  assert.strictEqual(inhibitionChecks, 0);
+  assert.strictEqual(state.screensaverActive, false);
+  assert.strictEqual(broadcastCount, 1);
 });
 
 logSuite('Env Secret Store');

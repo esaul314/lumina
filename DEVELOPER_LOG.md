@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Completed the `server/app.js` Step 3 Shell Refactor with Kiosk and Idle-Daemon Runtimes
+- **Goal**: Finish the remaining `server/app.js` Step 3 shell-composition seam by extracting the kiosk/browser lifecycle and the 2-second idle-daemon orchestration loop out of the bootstrap file.
+- **Implementation**:
+  - Added `server/runtime/kioskControl.js` as a dedicated browser lifecycle shell that owns manual override state, deferred launch retries, CPU-governor transitions, kiosk relaunch sequencing, and unexpected-exit recovery behind one object-shaped runtime API.
+  - Added `server/runtime/idleDaemon.js` as the explicit Mutter/audio/inhibition polling shell, keeping the pure `getNextScreensaverState(...)` reducer local to that runtime and exposing a small `tick()` / `start()` boundary for the app bootstrap.
+  - Rewired `server/app.js` to assemble those runtimes and inject their methods into the shared dispatcher and socket layers, leaving the app file focused on state/bootstrap assembly instead of long-lived host orchestration.
+  - Added regression coverage in `run-tests.js` for deferred kiosk launches, manual-override reset after unexpected Chromium exits, idle-daemon launch after three idle ticks, and the rule that GNOME session inhibition is ignored once Lumina's own kiosk is already running.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repo now records Step 3 as complete and moves the active implementation-companion checkpoint to Step 4.
+- **Learning**: This refactor worked best when the shell was split by host responsibility, not by arbitrary helper grouping. `server/app.js` became meaningfully easier to read only once browser lifecycle state and daemon polling cadence each had a named runtime boundary with injected effects and a tiny public surface.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when a real socket bind is attempted.
+
 ### 2026-07-10: Extracted the Environment Refresh Runtime as the Next `server/app.js` Step 3 Slice
 - **Goal**: Continue the `server/app.js` shell-composition refactor by removing the weather, news-sentiment, and daily-feed refresh orchestration cluster from the app bootstrap file.
 - **Implementation**:

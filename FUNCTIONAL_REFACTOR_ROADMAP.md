@@ -23,7 +23,8 @@ Current checkpoint:
 - Optional mixed-version fallback business logic no longer lives inline in `server/sockets.js`; it now sits in `server/socketLegacyCompatibility.js` and is only used when a shared dispatcher is unavailable.
 - The intentionally socket-specific tail is now explicit: connection lifecycle, viewport/reporting telemetry, transient pushes, and the on-demand Google Photos signed-URL refresh helper remain transport-owned by design.
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
-- The active work has moved into Step 3: `server/app.js` now delegates active-feed selection/refresh orchestration and environment refresh pipelines to dedicated runtime modules, so the next shell-composition seam is kiosk/browser runtime control plus idle-daemon orchestration.
+- Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
+- The active work has moved into Step 4: make the shared command/effect pipeline more composable and legible without hiding straightforward reducer updates.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -166,7 +167,9 @@ Progress note:
 
 - Active-feed selection and scoped refresh orchestration now live in `server/runtime/activeFeed.js`.
 - Weather refresh, news-sentiment refresh, and daily feed update shell composition now live in `server/runtime/environmentRefresh.js`.
-- The next Step 3 slice is the remaining kiosk/browser runtime control and idle-daemon scheduling/orchestration path in `server/app.js`.
+- Kiosk/browser runtime control now lives in `server/runtime/kioskControl.js`.
+- Idle-daemon polling, transition reduction, and scheduling now live in `server/runtime/idleDaemon.js`.
+- Step 3 is complete; `server/app.js` now reads primarily as bootstrap assembly plus a small set of remaining service boundaries.
 
 ### Step 4: Make the command/effect pipeline more composable and legible
 

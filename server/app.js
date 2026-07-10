@@ -26,13 +26,15 @@ const {
 const { syncLegacySnapshot } = require('./domain/snapshot.js');
 const { createActiveFeedRuntime } = require('./runtime/activeFeed.js');
 const { createEnvironmentRefreshRuntime } = require('./runtime/environmentRefresh.js');
+const { createIdleDaemonRuntime, getNextScreensaverState } = require('./runtime/idleDaemon.js');
+const { createKioskControlRuntime } = require('./runtime/kioskControl.js');
 const {
-  setCpuGovernor,
   getGnomeIdleTime,
   isAudioPlaying,
   isSessionInhibited,
   launchChromiumKiosk,
-  killChromiumKiosk
+  killChromiumKiosk,
+  setCpuGovernor
 } = require('./services/system.js');
 const {
   resolveActiveLocation,
@@ -387,18 +389,7 @@ async function triggerImageAnalysisBackground({
 }
 
 // Subprocess State Management helpers for Sockets
-let isBrowserRunning = false;
-let manualOverride = false;
 let PORT = config.port ?? 5000;
-
-function getRuntimeContext() {
-  return {
-    weather: serverWeatherData,
-    browserRunning: isBrowserRunning,
-    manualOverride,
-    externalCollections: getExternalCollections()
-  };
-}
 
 function emitStateSync() {
   syncLegacySnapshot(screensaverState, curatedCollections, getRuntimeContext());
@@ -427,6 +418,35 @@ const {
   updateServerWeather
 } = environmentRefreshRuntime;
 
+const kioskControlRuntime = createKioskControlRuntime({
+  state: screensaverState,
+  emitStateSync,
+  getPort: () => PORT,
+  isServerListening: () => server.listening,
+  setCpuGovernor,
+  launchChromiumKiosk,
+  killChromiumKiosk
+});
+
+function getRuntimeContext() {
+  return {
+    weather: serverWeatherData,
+    ...kioskControlRuntime.getRuntimeContext(),
+    externalCollections: getExternalCollections()
+  };
+}
+
+const idleDaemonRuntime = createIdleDaemonRuntime({
+  state: screensaverState,
+  getRuntimeContext: kioskControlRuntime.getRuntimeContext,
+  getIdleTime: getGnomeIdleTime,
+  isAudioPlaying,
+  isSessionInhibited,
+  launchKioskBrowser: kioskControlRuntime.launchKioskBrowser,
+  killKioskBrowser: kioskControlRuntime.killKioskBrowser,
+  broadcastStateSync: emitStateSync
+});
+
 // Daemon-specific interval bindings (disabled under test suites)
 if (process.env.NODE_ENV !== 'test') {
   setInterval(updateServerWeather, 15 * 60 * 1000);
@@ -445,50 +465,7 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => {
     updateFeedsDaily().catch(err => console.error('Error in scheduled feed update:', err));
   }, 4 * 60 * 60 * 1000);
-}
-
-function launchKioskBrowser(forceManual = false) {
-  if (forceManual) manualOverride = true;
-  if (isBrowserRunning) return;
-
-  // Defer launching if the server isn't ready/listening yet (e.g. during port collision fallback timeout)
-  if (!server.listening) {
-    console.warn(`System Service: Deferring kiosk browser launch because server is not listening on port ${PORT} yet.`);
-    setTimeout(() => launchKioskBrowser(forceManual), 1000);
-    return;
-  }
-
-  console.log('Lumina System Idle: Spawning Fullscreen Kiosk Screensaver...');
-  isBrowserRunning = true;
-
-  setCpuGovernor('performance');
-  killChromiumKiosk().then(() => {
-    launchChromiumKiosk(PORT, 'tv', () => {
-      isBrowserRunning = false;
-      // If the browser died unexpectedly and manualOverride is still set, clear it
-      // so the idle daemon can take over cleanly
-      if (manualOverride) {
-        manualOverride = false;
-        screensaverState.screensaverActive = false;
-        emitStateSync();
-      }
-    });
-  });
-}
-
-function killKioskBrowser(forceManual = false) {
-  if (forceManual) manualOverride = false;
-  if (!isBrowserRunning) return;
-  console.log('Lumina System Active: Dismissing Kiosk Browser...');
-  isBrowserRunning = false;
-
-  setCpuGovernor('schedutil');
-  killChromiumKiosk();
-}
-
-/** setManualOverride — lets socket handlers arm/disarm the manual override flag */
-function setManualOverride(value) {
-  manualOverride = !!value;
+  idleDaemonRuntime.start();
 }
 
 function getLocalIpAddresses() {
@@ -533,9 +510,9 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   collections: curatedCollections,
   io,
   getRuntimeContext,
-  launchKioskBrowser,
-  killKioskBrowser,
-  setManualOverride,
+  launchKioskBrowser: kioskControlRuntime.launchKioskBrowser,
+  killKioskBrowser: kioskControlRuntime.killKioskBrowser,
+  setManualOverride: kioskControlRuntime.setManualOverride,
   persistExternalPhotoMetadata,
   runCrawler,
   startRecrawlJob: (payload) => recrawlJobService?.submit(payload),
@@ -582,9 +559,9 @@ require('./sockets.js')({
   collections: curatedCollections,
   combineFeedsBalanced,
   getSmartPhoto,
-  launchKioskBrowser,
-  killKioskBrowser,
-  setManualOverride,
+  launchKioskBrowser: kioskControlRuntime.launchKioskBrowser,
+  killKioskBrowser: kioskControlRuntime.killKioskBrowser,
+  setManualOverride: kioskControlRuntime.setManualOverride,
   getLocalIpAddresses,
   port: PORT,
   triggerWeatherUpdate,
@@ -595,79 +572,6 @@ require('./sockets.js')({
   visionAnalysisJobService.getLatestJob()
   ]
 });
-
-/**
- * 🧠 getNextScreensaverState
- * Pure state transition reducer for the system screensaver daemon.
- * Decouples environmental queries from browser-launching side-effects.
- */
-function getNextScreensaverState(currentState, inputs) {
-  const { idleCounter, isBrowserRunning } = currentState;
-  const { isIdle, isMoviePlaying, manualOverride } = inputs;
-
-  const isActuallyIdle = isIdle && !isMoviePlaying;
-  const nextIdleCounter = isActuallyIdle ? idleCounter + 1 : 0;
-  const shouldBeActive = (nextIdleCounter >= 3) || manualOverride;
-
-  let action = null;
-  if (shouldBeActive && !isBrowserRunning) {
-    action = 'launch';
-  } else if (!shouldBeActive && isBrowserRunning) {
-    action = 'kill';
-  }
-
-  return {
-    nextState: {
-      idleCounter: nextIdleCounter,
-      isBrowserRunning: shouldBeActive,
-      screensaverActive: shouldBeActive
-    },
-    action
-  };
-}
-
-// Mutter DBus Idle polling every 2 seconds with audio/inhibition checks and a 6-second debounce buffer
-if (process.env.NODE_ENV !== 'test') {
-  let daemonState = {
-    idleCounter: 0
-  };
-
-  setInterval(async () => {
-    try {
-      const idleMs = await getGnomeIdleTime();
-      const audioPlaying = await isAudioPlaying();
-      // Once Lumina has launched its own kiosk, ignore generic session inhibition
-      // so Chromium does not immediately veto the screensaver on the next poll.
-      const sessionInhibited = isBrowserRunning ? false : await isSessionInhibited();
-      
-      const inputs = {
-        isIdle: idleMs >= screensaverState.inactivityTimeout,
-        isMoviePlaying: audioPlaying || sessionInhibited,
-        manualOverride
-      };
-
-      const { nextState, action } = getNextScreensaverState(
-        { idleCounter: daemonState.idleCounter, isBrowserRunning },
-        inputs
-      );
-
-      daemonState.idleCounter = nextState.idleCounter;
-
-      if (action === 'launch') {
-        launchKioskBrowser();
-      } else if (action === 'kill') {
-        killKioskBrowser();
-      }
-
-      if (screensaverState.screensaverActive !== nextState.screensaverActive) {
-        screensaverState.screensaverActive = nextState.screensaverActive;
-        emitStateSync();
-      }
-    } catch (err) {
-      // Fallback
-    }
-  }, 2000);
-}
 
 // Self-healing EADDRINUSE conflict recovery boundary
 server.on('error', (err) => {
