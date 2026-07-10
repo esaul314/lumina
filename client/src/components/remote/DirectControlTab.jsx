@@ -342,27 +342,37 @@ function DirectControlTab({
       </div>
 
       <div className="remote-card">
-        <span className="remote-section-title">TV Mood Aesthetics</span>
-        <div className="theme-selector-grid">
-          {themes.map((t, idx) => {
-            const isActive = state.theme === t;
-            return (
-              <div 
-                key={idx} 
-                className={`mood-chip ${isActive ? 'active' : ''}`}
-                onClick={() => handleThemeChange(t)}
-              >
-                <div className="mood-icon">
-                  {t === 'Zen Retreat' && '🌿'}
-                  {t === 'Cosmic Night' && '🪐'}
-                  {t === 'Art Museum' && '🏛️'}
-                  {t === 'Cyberpunk Rain' && '🌧️'}
+        <details style={{ width: '100%' }}>
+          <summary 
+            className="remote-section-title"
+            style={{ margin: 0 }}
+          >
+            <span>TV Mood Aesthetics</span>
+            <span style={{ fontSize: '0.82rem', opacity: 0.5, fontWeight: 'normal', textTransform: 'none', letterSpacing: 'normal' }}>
+              ({state.theme || 'Zen Retreat'}) ▾
+            </span>
+          </summary>
+          <div className="theme-selector-grid" style={{ marginTop: '16px' }}>
+            {themes.map((t, idx) => {
+              const isActive = state.theme === t;
+              return (
+                <div 
+                  key={idx} 
+                  className={`mood-chip ${isActive ? 'active' : ''}`}
+                  onClick={() => handleThemeChange(t)}
+                >
+                  <div className="mood-icon">
+                    {t === 'Zen Retreat' && '🌿'}
+                    {t === 'Cosmic Night' && '🪐'}
+                    {t === 'Art Museum' && '🏛️'}
+                    {t === 'Cyberpunk Rain' && '🌧️'}
+                  </div>
+                  <span>{t}</span>
                 </div>
-                <span>{t}</span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </details>
       </div>
     </>
   );

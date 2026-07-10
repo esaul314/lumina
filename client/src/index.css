@@ -1136,3 +1136,18 @@ body.mode-remote {
 .hide-cursor * {
   cursor: none !important;
 }
+
+/* --- COLLAPSIBLE DETAILS STYLING --- */
+summary.remote-section-title {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+summary.remote-section-title::-webkit-details-marker {
+  display: none;
+}
+
