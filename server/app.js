@@ -8,6 +8,7 @@ const os = require('os');
 const config = require('./config/configLoader.js');
 const { readEnvVar } = require('./config/env.js');
 const { createRecrawlJobService, executeRecrawlPass } = require('./jobs/recrawl.js');
+const { createVisionAnalysisJobService } = require('./jobs/visionAnalysis.js');
 
 // Modular config and service imports
 const { sendEmailAlert } = require('./services/notifier.js');
@@ -53,6 +54,7 @@ const {
 let serverWeatherData = null;
 const getWeatherData = () => serverWeatherData;
 const setWeatherData = (data) => { serverWeatherData = data; };
+const ANALYSIS_PROGRESS_INTERVAL = 25;
 
 const app = express();
 const server = http.createServer(app);
@@ -300,57 +302,140 @@ async function updateServerWeather() {
 
 const { analyzeImageContent } = require('./services/vision.js');
 
-async function triggerImageAnalysisBackground() {
+function applyVisionTags(photo, analysis) {
+  const nextPatch = {
+    isNight: analysis.isNight,
+    isRain: analysis.isRain,
+    isSunny: analysis.isSunny,
+    isCloudy: analysis.isCloudy,
+    isSnowy: analysis.isSnowy
+  };
+  const changed = Object.entries(nextPatch).some(([key, value]) => photo[key] !== value);
+  Object.assign(photo, nextPatch);
+  return changed;
+}
+
+async function triggerImageAnalysisBackground({
+  categories = [],
+  emitProgress = () => {},
+  requireConfigured = false
+} = {}) {
   if (process.env.NODE_ENV === 'test') return;
   console.log('[Vision Service] Starting background content analysis for curated collections...');
-  
-  let totalAnalyzed = 0;
+
+  const scopedCategories = Array.isArray(categories) && categories.length > 0
+    ? categories.filter((category) => Array.isArray(curatedCollections[category]))
+    : Object.keys(curatedCollections);
   let consecutiveFailures = 0;
   const isConfigured = Boolean(screensaverState.visionConfig?.apiUrl);
-  
-  // Scrape through all categories
-  for (const key of Object.keys(curatedCollections)) {
-    const photos = curatedCollections[key];
+  if (!isConfigured) {
+    const message = 'Vision API is not configured.';
+    if (requireConfigured) {
+      throw new Error(message);
+    }
+    console.warn(`[Vision Service] ${message} Skipping background content analysis.`);
+    return {
+      categories: scopedCategories,
+      processedCount: 0,
+      taggedCount: 0,
+      changedCount: 0,
+      categoryCounts: []
+    };
+  }
+
+  const categoryCounts = scopedCategories.map((category) => ({
+    name: category,
+    photoCount: Array.isArray(curatedCollections[category]) ? curatedCollections[category].length : 0
+  }));
+  const candidatePhotos = scopedCategories.flatMap((category) =>
+    (Array.isArray(curatedCollections[category]) ? curatedCollections[category] : [])
+      .filter((photo) => photo.rating !== 1 && !photo.isBroken)
+  );
+  const totalCandidates = candidatePhotos.length;
+  let processedCount = 0;
+  let taggedCount = 0;
+  let changedCount = 0;
+
+  emitProgress({
+    phase: 'scanning',
+    message: totalCandidates > 0
+      ? `Scanning ${totalCandidates} photo${totalCandidates === 1 ? '' : 's'} for vision analysis...`
+      : 'No eligible photos found for vision analysis.',
+    processedCount,
+    totalCount: totalCandidates
+  });
+
+  for (const category of scopedCategories) {
+    const photos = curatedCollections[category];
     if (!Array.isArray(photos)) continue;
-    
+
     for (const photo of photos) {
       if (photo.rating === 1 || photo.isBroken) continue;
-      
-      // Analyze actual image content
+
       const analysis = await analyzeImageContent(photo.url, photo.title);
+      processedCount += 1;
       if (analysis) {
-        // Update tags in collections database
-        photo.isNight = analysis.isNight;
-        photo.isRain = analysis.isRain;
-        photo.isSunny = analysis.isSunny;
-        photo.isCloudy = analysis.isCloudy;
-        photo.isSnowy = analysis.isSnowy;
-        totalAnalyzed++;
+        if (applyVisionTags(photo, analysis)) {
+          changedCount += 1;
+        }
+        taggedCount += 1;
         consecutiveFailures = 0;
       } else if (isConfigured) {
         consecutiveFailures++;
         if (consecutiveFailures >= 3) {
-          console.warn('[Vision Service] Aborting background analysis: 3 consecutive API failures encountered. The Vision API server is likely offline or misconfigured.');
-          return;
+          const message = 'Aborting background analysis after 3 consecutive API failures. The Vision API server is likely offline or misconfigured.';
+          console.warn(`[Vision Service] ${message}`);
+          throw new Error(message);
         }
+      }
+
+      if (
+        processedCount === totalCandidates
+        || processedCount === 1
+        || processedCount % ANALYSIS_PROGRESS_INTERVAL === 0
+      ) {
+        emitProgress({
+          phase: 'analyzing',
+          message: `Processed ${processedCount} of ${totalCandidates} photo${totalCandidates === 1 ? '' : 's'}...`,
+          processedCount,
+          totalCount: totalCandidates,
+          taggedCount,
+          changedCount
+        });
       }
     }
   }
-  
-  if (totalAnalyzed > 0) {
-    console.log(`[Vision Service] Finished background image analysis. Analyzed ${totalAnalyzed} images.`);
-    // Persist to curated_collections.json
+
+  if (taggedCount > 0) {
+    console.log(`[Vision Service] Finished background image analysis. Tagged ${taggedCount} images across ${scopedCategories.length} categories.`);
     saveCuratedCollections(curatedCollections, screensaverState);
-    
-    // Recalculate photos list & broadcast state sync so connected TVs get aligned photos immediately!
+
     const activeCategory = screensaverState.currentCategory;
     const currentCats = activeCategory?.split(',') ?? [];
-    const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
-    screensaverState.photosList = combinedPhotos.length > 0 ? combinedPhotos : (curatedCollections['Scenic Nature'] ?? []).filter(p => p.rating !== 1 && !p.isBroken);
+    const touchesActiveFeed = currentCats.some((category) => scopedCategories.includes(category.trim()));
+    if (touchesActiveFeed) {
+      const combinedPhotos = combineFeedsBalanced(currentCats, curatedCollections);
+      screensaverState.photosList = combinedPhotos.length > 0
+        ? combinedPhotos
+        : (curatedCollections['Scenic Nature'] ?? []).filter((photo) => photo.rating !== 1 && !photo.isBroken);
+    }
+
+    emitProgress({
+      phase: 'persisting',
+      message: 'Persisting refreshed vision metadata...'
+    });
     emitStateSync();
   } else {
     console.log('[Vision Service] All active images are already precisely analyzed.');
   }
+
+  return {
+    categories: scopedCategories,
+    processedCount,
+    taggedCount,
+    changedCount,
+    categoryCounts
+  };
 }
 
 /**
@@ -517,6 +602,7 @@ const runCrawler = async ({ categories = [] } = {}) => {
   });
 };
 let recrawlJobService = null;
+let visionAnalysisJobService = null;
 
 const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
   state: screensaverState,
@@ -528,6 +614,7 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   setManualOverride,
   runCrawler,
   startRecrawlJob: (payload) => recrawlJobService?.submit(payload),
+  startVisionAnalysisJob: (payload) => visionAnalysisJobService?.submit(payload),
   triggerWeatherUpdate
 });
 
@@ -546,6 +633,17 @@ recrawlJobService = createRecrawlJobService({
   triggerImageAnalysisBackground
 });
 
+visionAnalysisJobService = createVisionAnalysisJobService({
+  state: screensaverState,
+  collections: curatedCollections,
+  io,
+  getActiveCategories: () => (screensaverState.currentCategory || '')
+    .split(',')
+    .map((category) => category.trim())
+    .filter(Boolean),
+  triggerImageAnalysisBackground
+});
+
 refreshSnapshot();
 
 require('./routes.js')({
@@ -559,7 +657,10 @@ require('./routes.js')({
   dispatchCommand,
   broadcastStateSync
 });
-require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, recrawlJobService.getLatestJob);
+require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, () => [
+  recrawlJobService.getLatestJob(),
+  visionAnalysisJobService.getLatestJob()
+]);
 
 /**
  * 🧠 getNextScreensaverState

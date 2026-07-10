@@ -26,10 +26,15 @@ function SystemSettingsTab({
   recrawlStatus,
   setRecrawlStatus,
   recrawlMessage,
+  visionAnalysisStatus,
+  setVisionAnalysisStatus,
+  visionAnalysisMessage,
   useapiStatus,
   tumblrApiStatus,
   recrawlCount,
-  handleRecrawl
+  visionAnalysisCount,
+  handleRecrawl,
+  handleVisionAnalysis
 }) {
   return (
     <>
@@ -675,6 +680,40 @@ function SystemSettingsTab({
             Add
           </button>
         </form>
+      </div>
+
+      <div className="remote-card">
+        <span className="remote-section-title">Vision Metadata Analysis</span>
+        <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', marginTop: '-8px', lineHeight: 1.3 }}>
+          Re-run the background vision tagger across the curated library to refresh night, rain, sunny, cloudy, and snowy metadata through the REST job queue.
+        </p>
+        {visionAnalysisStatus === 'loading' ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <RefreshCw size={18} className="animate-spin" style={{ color: 'var(--accent-color)' }} />
+            <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)' }}>
+              {visionAnalysisMessage || 'Analyzing photo metadata...'}
+            </span>
+          </div>
+        ) : visionAnalysisStatus === 'success' ? (
+          <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid #10b981', padding: '12px', borderRadius: '12px', color: '#10b981', textAlign: 'center', fontSize: '0.85rem', fontWeight: 500 }}>
+            ✓ Vision Analysis Completed! Tagged {visionAnalysisCount} photos.
+          </div>
+        ) : visionAnalysisStatus === 'error' ? (
+          <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid #ef4444', padding: '12px', borderRadius: '12px', color: '#ef4444', textAlign: 'center', fontSize: '0.85rem', fontWeight: 500 }}>
+            ✗ {visionAnalysisMessage || 'Vision analysis failed. Check the configured API endpoint.'}
+          </div>
+        ) : (
+          <button
+            onClick={async () => {
+              setVisionAnalysisStatus('loading');
+              await handleVisionAnalysis();
+            }}
+            className="remote-btn"
+            style={{ background: 'rgba(34, 211, 238, 0.18)', borderColor: 'rgba(34, 211, 238, 0.35)', color: '#67e8f9', fontWeight: 600 }}
+          >
+            <RefreshCw size={16} /> Run Vision Analysis
+          </button>
+        )}
       </div>
 
       <div className="remote-card">

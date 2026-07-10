@@ -16,6 +16,7 @@ const {
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
+  decodeVisionAnalysisCommand,
   decodeSplitCropCommand,
   decodeSplitPortraitCommand
 } = require('./domain/commands.js');
@@ -39,7 +40,7 @@ function persistLocationSettings(state, collections) {
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
  */
-module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, getLatestRecrawlJob = null) {
+module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, getLatestJobs = null) {
   const broadcast = () => {
     if (typeof broadcastStateSync === 'function') {
       broadcastStateSync();
@@ -69,10 +70,10 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       port: PORT
     });
 
-    const latestRecrawlJob = typeof getLatestRecrawlJob === 'function' ? getLatestRecrawlJob() : null;
-    if (latestRecrawlJob) {
-      socket.emit('job-status', latestRecrawlJob);
-    }
+    const latestJobs = typeof getLatestJobs === 'function' ? getLatestJobs() : [];
+    latestJobs.filter(Boolean).forEach((job) => {
+      socket.emit('job-status', job);
+    });
     
     // Toggle Widget event
     socket.on('toggle-widget', ({ widgetName, visible }) => {
@@ -776,6 +777,21 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       const command = decodeRecrawlCommand(payload);
       if (!dispatchCommand || !command) {
         socket.emit('recrawl-complete', { success: false, error: 'Recrawl dispatcher unavailable.' });
+        return;
+      }
+
+      await dispatchCommand(command);
+    });
+
+    socket.on('trigger-vision-analysis', async (payload) => {
+      console.log('[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...');
+      const command = decodeVisionAnalysisCommand(payload);
+      if (!dispatchCommand || !command) {
+        socket.emit('job-status', {
+          type: 'vision-analysis',
+          status: 'failed',
+          error: 'Vision-analysis dispatcher unavailable.'
+        });
         return;
       }
 

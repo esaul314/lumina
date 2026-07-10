@@ -22,7 +22,8 @@ Current migration checkpoint:
 - Phase 1 Step 2 complete: remote durable state/settings mutations are REST-first by default.
 - Phase 1 Step 3 complete: category selection, pool lifecycle, and feed-configuration mutations now use REST by default in operator UIs, with Socket.IO retained as the live sync/event transport.
 - Phase 1 Step 4 complete: manual recrawl flows now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
-- Next focus: migrate the remaining operator-triggered async work that fits the same REST command boundary, starting with manual vision-analysis runs and similar observable background jobs.
+- Phase 1 Step 5 complete: manual vision-analysis runs now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
+- Next focus: migrate any remaining operator-triggered async work that fits the same REST command boundary, then keep shrinking socket-only compatibility shims.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

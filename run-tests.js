@@ -1248,6 +1248,43 @@ async function runIntegrationTests() {
     }]);
   });
 
+  await assertAsyncTest('POST /api/jobs/vision-analysis returns an accepted job from the shared dispatcher effect', async () => {
+    const dispatched = [];
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        return {
+          reducerResult: {
+            events: [],
+            effects: [{ type: 'start-vision-analysis-job' }]
+          },
+          effectResults: [{
+            effect: { type: 'start-vision-analysis-job' },
+            value: {
+              job: {
+                id: 'vision-rest-1',
+                type: 'vision-analysis',
+                status: 'queued',
+                scope: { categories: ['Scenic Nature'] }
+              },
+              reused: false
+            }
+          }]
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/jobs/vision-analysis', {
+      body: {}
+    });
+    assert.strictEqual(response.status, 202);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.job.id, 'vision-rest-1');
+    assert.deepStrictEqual(dispatched, [{
+      type: 'trigger-vision-analysis',
+      payload: {}
+    }]);
+  });
+
   logSuite('Live Server Endpoint Smoke Tests');
   const socketPath = path.join('/tmp', `lumina-live-${process.pid}-${Date.now()}.sock`);
   if (fs.existsSync(socketPath)) {

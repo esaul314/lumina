@@ -14,6 +14,7 @@ function createDomainDispatcher({
   setManualOverride,
   runCrawler,
   startRecrawlJob,
+  startVisionAnalysisJob,
   triggerWeatherUpdate
 }) {
   function refreshSnapshot() {
@@ -58,6 +59,10 @@ function createDomainDispatcher({
 
     if (effect.type === 'start-recrawl-job' && typeof startRecrawlJob === 'function') {
       return startRecrawlJob(effect.payload || {});
+    }
+
+    if (effect.type === 'start-vision-analysis-job' && typeof startVisionAnalysisJob === 'function') {
+      return startVisionAnalysisJob(effect.payload || {});
     }
 
     if (effect.type === 'refresh-weather' && typeof triggerWeatherUpdate === 'function') {

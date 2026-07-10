@@ -14,6 +14,7 @@ const {
   decodePhotoCropCommand,
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
+  decodeVisionAnalysisCommand,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand
 } = require('./domain/commands.js');
@@ -669,6 +670,30 @@ module.exports = function configureRoutes({
     const submission = getEffectValue(result, 'start-recrawl-job');
     if (!submission?.job) {
       sendError(res, 503, 'Recrawl job service unavailable.');
+      return;
+    }
+
+    sendSuccess(res, 202, {
+      job: submission.job,
+      reused: Boolean(submission.reused)
+    });
+  }));
+
+  app.post('/api/jobs/vision-analysis', createAsyncRoute(async (req, res) => {
+    if (!requireDispatcher(res, 'Vision-analysis dispatcher unavailable.')) {
+      return;
+    }
+
+    const command = decodeVisionAnalysisCommand(req.body);
+    if (!command) {
+      sendError(res, 400, 'Invalid vision-analysis payload.');
+      return;
+    }
+
+    const result = await dispatchCommand(command);
+    const submission = getEffectValue(result, 'start-vision-analysis-job');
+    if (!submission?.job) {
+      sendError(res, 503, 'Vision-analysis job service unavailable.');
       return;
     }
 

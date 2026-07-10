@@ -114,7 +114,7 @@ async function executeRecrawlPass({
     phase: 'analyzing',
     message: 'Scheduling background image analysis for new photos...'
   });
-  triggerImageAnalysisBackground().catch((error) => {
+  triggerImageAnalysisBackground({ categories: scopedCategories }).catch((error) => {
     console.error('Error in background image analysis:', error);
   });
 

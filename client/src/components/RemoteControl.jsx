@@ -214,10 +214,13 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
   const [useapiToken, setUseapiToken] = useState('');
   const [tumblrApiKey, setTumblrApiKey] = useState('');
   const [recrawlStatus, setRecrawlStatus] = useState('idle'); // idle, loading, success, error
+  const [visionAnalysisStatus, setVisionAnalysisStatus] = useState('idle'); // idle, loading, success, error
   const [useapiStatus, setUseapiStatus] = useState('idle'); // idle, success, error
   const [tumblrApiStatus, setTumblrApiStatus] = useState('idle'); // idle, success, error
   const [recrawlCount, setRecrawlCount] = useState(0);
   const [recrawlMessage, setRecrawlMessage] = useState('');
+  const [visionAnalysisCount, setVisionAnalysisCount] = useState(0);
+  const [visionAnalysisMessage, setVisionAnalysisMessage] = useState('');
 
   useEffect(() => {
     if (state.manualLocation) {
@@ -232,10 +235,10 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
   useEffect(() => {
     if (!socket) return;
 
-    const resetRecrawlStatus = () => {
+    const scheduleStatusReset = (setStatus, setMessage) => {
       setTimeout(() => {
-        setRecrawlStatus('idle');
-        setRecrawlMessage('');
+        setStatus('idle');
+        setMessage('');
       }, 4000);
     };
 
@@ -254,14 +257,40 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
         setRecrawlStatus('success');
         setRecrawlCount(job.result?.visibleCount || 0);
         setRecrawlMessage(job.progress?.message || 'Feed recrawl completed successfully.');
-        resetRecrawlStatus();
+        scheduleStatusReset(setRecrawlStatus, setRecrawlMessage);
         return;
       }
 
       if (job.status === 'failed') {
         setRecrawlStatus('error');
         setRecrawlMessage(job.error || 'Recrawl failed.');
-        resetRecrawlStatus();
+        scheduleStatusReset(setRecrawlStatus, setRecrawlMessage);
+      }
+    };
+
+    const handleVisionAnalysisJobStatus = (job) => {
+      if (!job || job.type !== 'vision-analysis') {
+        return;
+      }
+
+      if (job.status === 'queued' || job.status === 'running') {
+        setVisionAnalysisStatus('loading');
+        setVisionAnalysisMessage(job.progress?.message || 'Analyzing photo metadata...');
+        return;
+      }
+
+      if (job.status === 'succeeded') {
+        setVisionAnalysisStatus('success');
+        setVisionAnalysisCount(job.result?.taggedCount || 0);
+        setVisionAnalysisMessage(job.progress?.message || 'Vision analysis completed successfully.');
+        scheduleStatusReset(setVisionAnalysisStatus, setVisionAnalysisMessage);
+        return;
+      }
+
+      if (job.status === 'failed') {
+        setVisionAnalysisStatus('error');
+        setVisionAnalysisMessage(job.error || 'Vision analysis failed.');
+        scheduleStatusReset(setVisionAnalysisStatus, setVisionAnalysisMessage);
       }
     };
 
@@ -274,7 +303,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
         setRecrawlStatus('error');
         setRecrawlMessage(data.error || 'Recrawl failed.');
       }
-      resetRecrawlStatus();
+      scheduleStatusReset(setRecrawlStatus, setRecrawlMessage);
     };
 
     const handleUseApiSaved = (data) => {
@@ -298,12 +327,14 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     };
 
     socket.on('job-status', handleRecrawlJobStatus);
+    socket.on('job-status', handleVisionAnalysisJobStatus);
     socket.on('recrawl-complete', handleRecrawlComplete);
     socket.on('useapi-token-saved', handleUseApiSaved);
     socket.on('tumblr-api-key-saved', handleTumblrApiSaved);
 
     return () => {
       socket.off('job-status', handleRecrawlJobStatus);
+      socket.off('job-status', handleVisionAnalysisJobStatus);
       socket.off('recrawl-complete', handleRecrawlComplete);
       socket.off('useapi-token-saved', handleUseApiSaved);
       socket.off('tumblr-api-key-saved', handleTumblrApiSaved);
@@ -321,6 +352,21 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       setTimeout(() => {
         setRecrawlStatus('idle');
         setRecrawlMessage('');
+      }, 4000);
+    }
+  };
+
+  const handleVisionAnalysis = async () => {
+    setVisionAnalysisStatus('loading');
+    setVisionAnalysisMessage('Queueing vision analysis...');
+    const response = await actions.triggerVisionAnalysis();
+    if (response?.job?.status === 'succeeded') {
+      setVisionAnalysisStatus('success');
+      setVisionAnalysisCount(response.job.result?.taggedCount || 0);
+      setVisionAnalysisMessage(response.job.progress?.message || 'Vision analysis completed successfully.');
+      setTimeout(() => {
+        setVisionAnalysisStatus('idle');
+        setVisionAnalysisMessage('');
       }, 4000);
     }
   };
@@ -690,10 +736,15 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
           recrawlStatus={recrawlStatus}
           setRecrawlStatus={setRecrawlStatus}
           recrawlMessage={recrawlMessage}
+          visionAnalysisStatus={visionAnalysisStatus}
+          setVisionAnalysisStatus={setVisionAnalysisStatus}
+          visionAnalysisMessage={visionAnalysisMessage}
           useapiStatus={useapiStatus}
           tumblrApiStatus={tumblrApiStatus}
           recrawlCount={recrawlCount}
+          visionAnalysisCount={visionAnalysisCount}
           handleRecrawl={handleRecrawl}
+          handleVisionAnalysis={handleVisionAnalysis}
         />
       )}
 

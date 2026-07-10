@@ -23,7 +23,8 @@ const {
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
-  decodeStatePatchCommand
+  decodeStatePatchCommand,
+  decodeVisionAnalysisCommand
 } = require('./commands.js');
 const {
   buildPersistedSnapshot,
@@ -458,6 +459,21 @@ function runDomainTests({ logSuite, assertTest }) {
     }]);
   });
 
+  assertTest('reducer manual vision-analysis requests stay effect-only and keep state pure', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'trigger-vision-analysis',
+      payload: { categories: ['Scenic Nature'] }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'start-vision-analysis-job',
+      payload: { categories: ['Scenic Nature'] }
+    }]);
+  });
+
   assertTest('reducer pool keyword updates persist without mutating collections', () => {
     const result = reduceDomainCommand(createState(), {
       type: 'set-pool-keywords',
@@ -559,6 +575,20 @@ function runDomainTests({ logSuite, assertTest }) {
       }
     });
     assert.strictEqual(decodeRecrawlCommand({ categories: ['   '] }), null);
+  });
+
+  assertTest('vision-analysis command decoding accepts empty global requests and scoped category arrays', () => {
+    assert.deepStrictEqual(decodeVisionAnalysisCommand(undefined), {
+      type: 'trigger-vision-analysis',
+      payload: {}
+    });
+    assert.deepStrictEqual(decodeVisionAnalysisCommand({ categories: ['Scenic Nature', ' Liminal Spaces '] }), {
+      type: 'trigger-vision-analysis',
+      payload: {
+        categories: ['Scenic Nature', 'Liminal Spaces']
+      }
+    });
+    assert.strictEqual(decodeVisionAnalysisCommand({ categories: ['   '] }), null);
   });
 
   assertTest('category selection keeps Google Photos active pools populated from external cache state', () => {

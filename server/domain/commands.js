@@ -322,9 +322,17 @@ function decodePoolFeedConfigCommand(payload) {
 }
 
 function decodeRecrawlCommand(payload) {
+  return decodeScopedJobCommand(payload, 'trigger-recrawl');
+}
+
+function decodeVisionAnalysisCommand(payload) {
+  return decodeScopedJobCommand(payload, 'trigger-vision-analysis');
+}
+
+function decodeScopedJobCommand(payload, type) {
   if (payload === undefined || payload === null) {
     return {
-      type: 'trigger-recrawl',
+      type,
       payload: {}
     };
   }
@@ -342,7 +350,7 @@ function decodeRecrawlCommand(payload) {
   }
 
   return {
-    type: 'trigger-recrawl',
+    type,
     payload: categories.length > 0 ? { categories } : {}
   };
 }
@@ -380,6 +388,7 @@ module.exports = {
   decodePhotoCropCommand,
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
+  decodeVisionAnalysisCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodeStatePatchCommand,

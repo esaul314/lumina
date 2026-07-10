@@ -5,15 +5,16 @@ import {
   getStateSnapshot,
   nextPhoto,
   patchPool,
-    patchPoolFeedSource,
-    patchState,
-    patchPhoto,
-    previewPhoto,
-    prevPhoto,
-    selectCategories,
-    startRecrawlJob,
-    setScreensaverActive
-  } from '../api/luminaClient';
+  patchPoolFeedSource,
+  patchPhoto,
+  patchState,
+  previewPhoto,
+  prevPhoto,
+  selectCategories,
+  setScreensaverActive,
+  startRecrawlJob,
+  startVisionAnalysisJob
+} from '../api/luminaClient';
 import { normalizeSnapshot, patchPhotoInSnapshot } from '../state/frameSelectors';
 import {
   applyCategorySelection,
@@ -239,6 +240,7 @@ export function useLuminaActions(socket, setState) {
       });
     },
     triggerRecrawl: () => runAction(() => startRecrawlJob({}, { socket })),
+    triggerVisionAnalysis: () => runAction(() => startVisionAnalysisJob({}, { socket })),
     saveUseapiToken: (token) => {
       socket.emit('save-useapi-token', { token });
     }

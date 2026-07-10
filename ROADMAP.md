@@ -18,7 +18,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 2. Remote durable state/settings mutations are REST-first by default.
 - Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
-- Next: move the remaining operator-triggered async work that fits the same job boundary onto REST-first commands, starting with manual vision-analysis runs and similar observable background jobs.
+- Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
+- Next: keep migrating any remaining operator-triggered async work that fits the same REST job boundary, while continuing to shrink socket-only compatibility shims.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), which currently starts with refactoring `server/sockets.js` into a thinner transport adapter.
 
 ## Architectural Rule
@@ -54,7 +55,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 2 complete: remote durable state/settings mutations use REST by default.
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: move the remaining operator-triggered async work that fits the same boundary, starting with manual vision-analysis runs.
+  - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
+  - Next focus: keep moving any remaining operator-triggered async work that fits the same boundary onto shared REST-first jobs.
 
 ### Shared domain flow
 

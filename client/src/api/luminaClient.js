@@ -140,3 +140,18 @@ export async function startRecrawlJob(body = {}, { socket } = {}) {
     throw error;
   }
 }
+
+export async function startVisionAnalysisJob(body = {}, { socket } = {}) {
+  try {
+    return await requestJson('/api/jobs/vision-analysis', {
+      method: 'POST',
+      body
+    });
+  } catch (error) {
+    if (error?.status === 404 && socket?.emit) {
+      socket.emit('trigger-vision-analysis', body);
+      return null;
+    }
+    throw error;
+  }
+}

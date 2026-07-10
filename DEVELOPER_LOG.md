@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-09: Manual Vision Analysis Now Uses a REST-First Async Job Boundary
+- **Goal**: Complete the next Phase 1 roadmap step by moving manual vision-analysis runs onto the same explicit REST-first async job flow already used for recrawls.
+- **Implementation**:
+  - Added `server/jobs/visionAnalysis.js` as a dedicated observable job shell for scoped manual vision-analysis runs, reusing the shared `job-status` transport with typed `vision-analysis` payloads.
+  - Extended the domain command/effect surface with `trigger-vision-analysis` plus `start-vision-analysis-job`, so REST and the legacy socket shim dispatch the same async intent instead of owning separate background-analysis orchestration.
+  - Upgraded `triggerImageAnalysisBackground(...)` in `server/app.js` to accept scoped categories, emit progress snapshots, fail fast when the Vision API is manually requested but not configured, and only refresh the active live feed when the analyzed categories actually affect it.
+  - Added `POST /api/jobs/vision-analysis`, client REST helpers, and a new remote-control operator button/status panel so manual analysis is now queued through the REST job path and observed through Socket.IO progress updates.
+  - Added coverage for the new decoder/reducer effect, the vision-analysis job service, and the REST route contract in `server/domain/tests.js`, `server/jobs/tests.js`, and `run-tests.js`.
+- **Learning**: Once one operator-triggered background workflow has a clean REST job boundary, follow-up workflows should reuse that same command/effect language instead of treating “background work” as a special socket-only case. The transport stays simple when long-running work is modeled as a first-class job and Socket.IO is only the status stream.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. The live server smoke section still hit the sandbox-only `listen EPERM` guard and was skipped as expected.
+
 ### 2026-07-09: Manual Recrawls Now Use a REST-First Async Job Boundary
 - **Goal**: Complete the next Phase 1 roadmap step by moving manual recrawls off the socket-owned mutation path and onto an explicit REST-first async job flow with live progress updates.
 - **Implementation**:

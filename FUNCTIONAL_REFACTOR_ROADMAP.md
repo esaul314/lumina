@@ -18,7 +18,7 @@ The target end state is:
 
 Current checkpoint:
 
-- Manual recrawl now runs through a shared `trigger-recrawl -> start-recrawl-job` effect path, with REST owning job submission and Socket.IO reduced to live status pushes plus backward-compatible completion events.
+- Manual recrawl and manual vision-analysis now run through shared `trigger-* -> start-*-job` effect paths, with REST owning job submission and Socket.IO reduced to live status pushes plus backward-compatible shims.
 - The next structural cleanup is still to thin `server/sockets.js` further by replacing its remaining positional wiring and ad hoc handlers with smaller transport factories.
 
 ## Coding Philosophy, Conventions, Style, and Objectives

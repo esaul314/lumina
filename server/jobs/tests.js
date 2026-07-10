@@ -2,6 +2,7 @@
 
 const assert = require('assert');
 const { createRecrawlJobService } = require('./recrawl.js');
+const { createVisionAnalysisJobService } = require('./visionAnalysis.js');
 
 function createState() {
   return {
@@ -46,6 +47,7 @@ async function runRecrawlJobTests(assertAsyncTest) {
     let persisted = 0;
     let broadcasts = 0;
     let analyses = 0;
+    let analysisPayload = null;
 
     const service = createRecrawlJobService({
       state,
@@ -69,8 +71,9 @@ async function runRecrawlJobTests(assertAsyncTest) {
       broadcastStateSync: () => {
         broadcasts += 1;
       },
-      triggerImageAnalysisBackground: async () => {
+      triggerImageAnalysisBackground: async (payload) => {
         analyses += 1;
+        analysisPayload = payload;
       },
       now: (() => {
         let tick = 0;
@@ -87,6 +90,9 @@ async function runRecrawlJobTests(assertAsyncTest) {
     assert.strictEqual(persisted, 1);
     assert.strictEqual(broadcasts, 1);
     assert.strictEqual(analyses, 1);
+    assert.deepStrictEqual(analysisPayload, {
+      categories: ['Scenic Nature', 'Liminal Spaces']
+    });
     assert.deepStrictEqual(collections['Scenic Nature'], [
       { url: 'fresh-1', category: 'Scenic Nature' },
       { url: 'fresh-2', category: 'Scenic Nature' }
@@ -183,6 +189,88 @@ async function runRecrawlJobTests(assertAsyncTest) {
       success: false,
       error: 'crawler offline'
     });
+  });
+
+  await assertAsyncTest('vision-analysis job service emits progress and terminal results for scoped categories', async () => {
+    const emitted = [];
+    let receivedPayload = null;
+
+    const service = createVisionAnalysisJobService({
+      state: createState(),
+      collections: createCollections(),
+      io: {
+        emit: (event, payload) => emitted.push({ event, payload })
+      },
+      getActiveCategories: () => ['Scenic Nature'],
+      triggerImageAnalysisBackground: async (payload) => {
+        receivedPayload = payload;
+        payload.emitProgress({
+          phase: 'analyzing',
+          message: 'Processed 1 of 2 photos...'
+        });
+        return {
+          categories: payload.categories,
+          processedCount: 2,
+          taggedCount: 2,
+          changedCount: 1,
+          categoryCounts: [
+            { name: 'Scenic Nature', photoCount: 1 },
+            { name: 'Liminal Spaces', photoCount: 1 }
+          ]
+        };
+      },
+      now: (() => {
+        let tick = 0;
+        return () => new Date(`2026-07-09T13:00:0${tick++}Z`);
+      })(),
+      createJobId: () => 'vision-job-1'
+    });
+
+    const submission = await service.submit({});
+    await service.waitForIdle();
+
+    assert.strictEqual(submission.reused, false);
+    assert.strictEqual(submission.job.id, 'vision-job-1');
+    assert.strictEqual(receivedPayload.requireConfigured, true);
+    assert.deepStrictEqual(receivedPayload.categories, ['Scenic Nature', 'Liminal Spaces']);
+
+    const statusEvents = emitted.filter(({ event }) => event === 'job-status');
+    assert.ok(statusEvents.length >= 3, 'expected queued, running, progress, and terminal job-status events');
+    assert.strictEqual(statusEvents.at(-1)?.payload.type, 'vision-analysis');
+    assert.strictEqual(statusEvents.at(-1)?.payload.status, 'succeeded');
+    assert.deepStrictEqual(statusEvents.at(-1)?.payload.result, {
+      categories: ['Scenic Nature', 'Liminal Spaces'],
+      processedCount: 2,
+      taggedCount: 2,
+      changedCount: 1,
+      categoryCounts: [
+        { name: 'Scenic Nature', photoCount: 1 },
+        { name: 'Liminal Spaces', photoCount: 1 }
+      ]
+    });
+  });
+
+  await assertAsyncTest('vision-analysis job service surfaces analyzer failures as terminal job errors', async () => {
+    const emitted = [];
+    const service = createVisionAnalysisJobService({
+      state: createState(),
+      collections: createCollections(),
+      io: {
+        emit: (event, payload) => emitted.push({ event, payload })
+      },
+      getActiveCategories: () => ['Scenic Nature'],
+      triggerImageAnalysisBackground: async () => {
+        throw new Error('Vision API is not configured.');
+      }
+    });
+
+    await service.submit({});
+    await service.waitForIdle();
+
+    const latestStatus = emitted.filter(({ event }) => event === 'job-status').at(-1)?.payload;
+    assert.strictEqual(latestStatus?.type, 'vision-analysis');
+    assert.strictEqual(latestStatus?.status, 'failed');
+    assert.strictEqual(latestStatus?.error, 'Vision API is not configured.');
   });
 }
 

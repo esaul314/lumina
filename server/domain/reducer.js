@@ -560,6 +560,14 @@ function reduceDomainCommand(state, command, env = {}) {
         }
       }]);
 
+    case 'trigger-vision-analysis':
+      return createResult(state, [], [{
+        type: 'start-vision-analysis-job',
+        payload: {
+          categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
+        }
+      }]);
+
     default:
       return createResult(state, [], []);
   }

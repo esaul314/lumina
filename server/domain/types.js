@@ -136,6 +136,7 @@
  *     | 'merge-pool-feed-config'
  *     | 'delete-pool'
  *     | 'trigger-recrawl'
+ *     | 'trigger-vision-analysis'
  *   payload?: Record<string, unknown> & { direction?: 'next' | 'prev', strategy?: AdvanceStrategy }
  * }} Command
  */
@@ -154,6 +155,7 @@
  *     | 'kill-kiosk'
  *     | 'run-crawler'
  *     | 'start-recrawl-job'
+ *     | 'start-vision-analysis-job'
  *   payload?: Record<string, unknown>
  * }} Effect
  */
