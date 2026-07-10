@@ -63,6 +63,30 @@ function createResult(nextState, events = [], effects = []) {
   return { nextState, events, effects };
 }
 
+function unchangedResult(state) {
+  return createResult(state, [], []);
+}
+
+function stateSyncResult(nextState, effects = []) {
+  return createResult(nextState, emitStateSync(), effects);
+}
+
+function photoUpdateResult(nextState, effects = []) {
+  return createResult(nextState, emitPhotoUpdate(), effects);
+}
+
+function effectOnlyResult(state, effects = []) {
+  return createResult(state, [], effects);
+}
+
+function stateSyncEventsFor(photoChanged) {
+  return photoChanged ? emitPhotoUpdate() : emitStateSync();
+}
+
+function withPersist(effects = []) {
+  return [{ type: 'persist' }, ...effects];
+}
+
 function emitStateSync(events = []) {
   return [...events, { type: 'state-sync' }];
 }
@@ -173,6 +197,60 @@ function buildPhotoPersistenceEffects({ url, metadata, updateResult }) {
   ];
 }
 
+function keepUpdatedPhotoState(state) {
+  return { state, photoChanged: false };
+}
+
+function recomputeUpdatedPhotoState(state, { now, rng, direction = 'next', forceReselect = false }) {
+  return ensureActivePhoto(recomputeFeed(state, rng), { now, rng, direction, forceReselect });
+}
+
+function preserveUpdatedPhotoState(state, { url }) {
+  const focusedPhoto = findPhotoInFeed(state.library.photosList, url)
+    || getPhotoByUrl(state.library.collections, url, state.library.externalCollections);
+
+  if (!focusedPhoto) {
+    return keepUpdatedPhotoState(state);
+  }
+
+  const preserved = updateActivePhotoUrl(state, focusedPhoto, state.playback.lastDirection);
+  return {
+    state: preserved.state,
+    photoChanged: preserved.changed
+  };
+}
+
+function reducePhotoLibraryCommand(state, {
+  url,
+  updater,
+  metadata,
+  afterUpdate = keepUpdatedPhotoState,
+  eventsFor = ({ photoChanged }) => stateSyncEventsFor(photoChanged),
+  env = {}
+}) {
+  const updated = withUpdatedPhoto(cloneState(state), url, updater);
+
+  if (!updated.changed) {
+    return unchangedResult(state);
+  }
+
+  const finalized = afterUpdate(updated.state, {
+    ...env,
+    url,
+    updateResult: updated
+  });
+
+  return createResult(
+    finalized.state,
+    eventsFor(finalized),
+    buildPhotoPersistenceEffects({
+      url,
+      metadata,
+      updateResult: updated
+    })
+  );
+}
+
 function trimKeywords(keywords) {
   return (Array.isArray(keywords) ? keywords : [])
     .map((keyword) => String(keyword).trim())
@@ -230,7 +308,7 @@ function reduceDomainCommand(state, command, env = {}) {
         }
       }, rng);
       const nextState = ensureActivePhoto(withCategories, { now, rng, direction: 'next', forceReselect: true });
-      return createResult(nextState.state, emitPhotoUpdate(), []);
+      return photoUpdateResult(nextState.state);
     }
 
     case 'update-excluded-keywords': {
@@ -244,8 +322,8 @@ function reduceDomainCommand(state, command, env = {}) {
       const ensured = ensureActivePhoto(nextState, { now, rng, direction: 'next' });
       return createResult(
         ensured.state,
-        ensured.photoChanged ? emitPhotoUpdate() : emitStateSync(),
-        [{ type: 'persist' }]
+        stateSyncEventsFor(ensured.photoChanged),
+        withPersist()
       );
     }
 
@@ -322,7 +400,7 @@ function reduceDomainCommand(state, command, env = {}) {
       }
 
       if (!changed) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
 
       const recomputed = recomputePhotos ? recomputeFeed(nextState, rng) : nextState;
@@ -332,11 +410,8 @@ function reduceDomainCommand(state, command, env = {}) {
 
       return createResult(
         ensured.state,
-        ensured.photoChanged ? emitPhotoUpdate() : emitStateSync(),
-        [
-          { type: 'persist' },
-          ...(refreshWeather ? [{ type: 'refresh-weather' }] : [])
-        ]
+        stateSyncEventsFor(ensured.photoChanged),
+        withPersist(refreshWeather ? [{ type: 'refresh-weather' }] : [])
       );
     }
 
@@ -349,7 +424,7 @@ function reduceDomainCommand(state, command, env = {}) {
         || getPhotoByUrl(state.library.collections, url, state.library.externalCollections)
         || payloadPhoto;
       if (!selectedPhoto) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
       const nextState = cloneState(state);
       if (!findPhotoInFeed(nextState.library.photosList, url)) {
@@ -360,7 +435,7 @@ function reduceDomainCommand(state, command, env = {}) {
         ];
       }
       const updatedState = updateActivePhotoUrl(nextState, selectedPhoto, state.playback.lastDirection);
-      return createResult(updatedState.state, emitPhotoUpdate(), []);
+      return photoUpdateResult(updatedState.state);
     }
 
     case 'advance-photo': {
@@ -370,127 +445,73 @@ function reduceDomainCommand(state, command, env = {}) {
         ? selectSequentialPhoto({ state, direction })
         : selectSmartPhoto({ state, direction, now, rng });
       if (!nextPhoto) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
       const nextState = updateActivePhotoUrl(cloneState(state), nextPhoto, direction);
-      return createResult(nextState.state, emitPhotoUpdate(), []);
+      return photoUpdateResult(nextState.state);
     }
 
     case 'rate-photo': {
       const url = String(command.payload?.url || '');
       const rating = Number(command.payload?.rating);
-      const updated = withUpdatedPhoto(cloneState(state), url, (photo) => ({
-        ...photo,
-        rating
-      }));
-      if (!updated.changed) {
-        return createResult(state, [], []);
-      }
-
-      const recomputed = rating === 1 ? recomputeFeed(updated.state, rng) : updated.state;
-      const ensured = rating === 1
-        ? ensureActivePhoto(recomputed, { now, rng, direction: 'next' })
-        : { state: recomputed, photoChanged: false };
-
-      return createResult(
-        ensured.state,
-        rating === 1 && ensured.photoChanged ? emitPhotoUpdate() : emitStateSync(),
-        buildPhotoPersistenceEffects({
-          url,
-          metadata: { rating },
-          updateResult: updated
-        })
-      );
+      return reducePhotoLibraryCommand(state, {
+        url,
+        updater: (photo) => ({
+          ...photo,
+          rating
+        }),
+        metadata: { rating },
+        afterUpdate: rating === 1
+          ? (nextState) => recomputeUpdatedPhotoState(nextState, { now, rng, direction: 'next' })
+          : keepUpdatedPhotoState
+      });
     }
 
     case 'mark-photo-broken': {
       const url = String(command.payload?.url || '');
-      const updated = withUpdatedPhoto(cloneState(state), url, (photo) => ({
-        ...photo,
-        rating: 1,
-        isBroken: true
-      }));
-      if (!updated.changed) {
-        return createResult(state, [], []);
-      }
-
-      const recomputed = recomputeFeed(updated.state, rng);
-      const ensured = ensureActivePhoto(recomputed, { now, rng, direction: 'next' });
-      return createResult(
-        ensured.state,
-        ensured.photoChanged ? emitPhotoUpdate() : emitStateSync(),
-        buildPhotoPersistenceEffects({
-          url,
-          metadata: { rating: 1, isBroken: true },
-          updateResult: updated
-        })
-      );
+      return reducePhotoLibraryCommand(state, {
+        url,
+        updater: (photo) => ({
+          ...photo,
+          rating: 1,
+          isBroken: true
+        }),
+        metadata: { rating: 1, isBroken: true },
+        afterUpdate: (nextState) => recomputeUpdatedPhotoState(nextState, { now, rng, direction: 'next' })
+      });
     }
 
     case 'set-photo-crop': {
       const url = String(command.payload?.url || '');
       const cropPercent = command.payload?.cropPercent;
       const cropPositionY = command.payload?.cropPositionY;
-      const updated = withUpdatedPhoto(cloneState(state), url, (photo) => ({
-        ...photo,
-        ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
-        ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
-      }));
-      return updated.changed
-        ? createResult(
-            updated.state,
-            emitStateSync(),
-            buildPhotoPersistenceEffects({
-              url,
-              metadata: {
-                ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
-                ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
-              },
-              updateResult: updated
-            })
-          )
-        : createResult(state, [], []);
+      return reducePhotoLibraryCommand(state, {
+        url,
+        updater: (photo) => ({
+          ...photo,
+          ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
+          ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
+        }),
+        metadata: {
+          ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
+          ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
+        }
+      });
     }
 
     case 'set-photo-prevent-pairing': {
       const url = String(command.payload?.url || '');
       const preventPairing = Boolean(command.payload?.preventPairing);
-      const updated = withUpdatedPhoto(cloneState(state), String(command.payload?.url || ''), (photo) => ({
-        ...photo,
-        preventPairing
-      }));
-      if (!updated.changed) {
-        return createResult(state, [], []);
-      }
-
       const shouldPreserveActive = preventPairing && Boolean(command.payload?.preserveActive);
-      if (!shouldPreserveActive) {
-        return createResult(
-          updated.state,
-          emitStateSync(),
-          buildPhotoPersistenceEffects({
-            url,
-            metadata: { preventPairing },
-            updateResult: updated
-          })
-        );
-      }
-
-      const focusedPhoto = findPhotoInFeed(updated.state.library.photosList, url)
-        || getPhotoByUrl(updated.state.library.collections, url, updated.state.library.externalCollections);
-      const preserved = focusedPhoto
-        ? updateActivePhotoUrl(updated.state, focusedPhoto, updated.state.playback.lastDirection)
-        : { state: updated.state, changed: false };
-
-      return createResult(
-        preserved.state,
-        preserved.changed ? emitPhotoUpdate() : emitStateSync(),
-        buildPhotoPersistenceEffects({
-          url,
-          metadata: { preventPairing },
-          updateResult: updated
-        })
-      );
+      return reducePhotoLibraryCommand(state, {
+        url,
+        updater: (photo) => ({
+          ...photo,
+          preventPairing
+        }),
+        metadata: { preventPairing },
+        afterUpdate: shouldPreserveActive ? preserveUpdatedPhotoState : keepUpdatedPhotoState
+      });
     }
 
     case 'report-photo-metadata': {
@@ -498,53 +519,46 @@ function reduceDomainCommand(state, command, env = {}) {
       const orientation = /** @type {'portrait' | 'landscape'} */ (command.payload?.orientation);
       const width = command.payload?.width !== undefined ? Number(command.payload.width) : undefined;
       const height = command.payload?.height !== undefined ? Number(command.payload.height) : undefined;
-      const updated = withUpdatedPhoto(cloneState(state), url, (photo) => ({
-        ...photo,
-        orientation,
-        ...(width !== undefined ? { width } : {}),
-        ...(height !== undefined ? { height } : {})
-      }));
-      return updated.changed
-        ? createResult(
-            updated.state,
-            emitStateSync(),
-            buildPhotoPersistenceEffects({
-              url,
-              metadata: { orientation, width, height },
-              updateResult: updated
-            })
-          )
-        : createResult(state, [], []);
+      return reducePhotoLibraryCommand(state, {
+        url,
+        updater: (photo) => ({
+          ...photo,
+          orientation,
+          ...(width !== undefined ? { width } : {}),
+          ...(height !== undefined ? { height } : {})
+        }),
+        metadata: { orientation, width, height }
+      });
     }
 
     case 'set-split-portrait': {
       const nextState = cloneState(state);
       nextState.config.splitPortrait = Boolean(command.payload?.enabled);
-      return createResult(nextState, emitStateSync(), [{ type: 'persist' }]);
+      return stateSyncResult(nextState, withPersist());
     }
 
     case 'set-split-crop': {
       const nextState = cloneState(state);
       nextState.config.splitCropPercent = Number(command.payload?.percent);
-      return createResult(nextState, emitStateSync(), [{ type: 'persist' }]);
+      return stateSyncResult(nextState, withPersist());
     }
 
     case 'set-scale-mode': {
       const nextState = cloneState(state);
       nextState.config.scaleMode = /** @type {'cover' | 'contain'} */ (command.payload?.mode);
-      return createResult(nextState, emitStateSync(), [{ type: 'persist' }]);
+      return stateSyncResult(nextState, withPersist());
     }
 
     case 'change-theme': {
       const nextState = cloneState(state);
       nextState.config.theme = String(command.payload?.theme || state.config.theme);
-      return createResult(nextState, emitStateSync(), []);
+      return stateSyncResult(nextState);
     }
 
     case 'change-interval': {
       const nextState = cloneState(state);
       nextState.config.slideshowInterval = Number(command.payload?.intervalMs);
-      return createResult(nextState, emitStateSync(), []);
+      return stateSyncResult(nextState);
     }
 
     case 'set-screensaver-active': {
@@ -552,9 +566,8 @@ function reduceDomainCommand(state, command, env = {}) {
       nextState.runtime.screensaverActive = Boolean(command.payload?.active);
       nextState.runtime.manualOverride = Boolean(command.payload?.active);
       nextState.runtime.browserRunning = Boolean(command.payload?.active);
-      return createResult(
+      return stateSyncResult(
         nextState,
-        emitStateSync(),
         [{ type: command.payload?.active ? 'launch-kiosk' : 'kill-kiosk' }]
       );
     }
@@ -563,17 +576,16 @@ function reduceDomainCommand(state, command, env = {}) {
       const name = String(command.payload?.name || '').trim();
       const keywords = trimKeywords(command.payload?.keywords);
       if (!name || keywords.length === 0 || hasPool(state, name)) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
 
       const nextState = cloneState(state);
       nextState.library.collections[name] = [];
       nextState.config.searchKeywords[name] = keywords;
       nextState.config.feedConfigs[name] = normalizeFeedConfigKeywords(keywords);
-      return createResult(
+      return stateSyncResult(
         nextState,
-        emitStateSync(),
-        [{ type: 'persist' }, { type: 'run-crawler', payload: { categories: [name] } }]
+        withPersist([{ type: 'run-crawler', payload: { categories: [name] } }])
       );
     }
 
@@ -581,12 +593,12 @@ function reduceDomainCommand(state, command, env = {}) {
       const name = String(command.payload?.name || '').trim();
       const keywords = trimKeywords(command.payload?.keywords);
       if (!hasPool(state, name) || keywords.length === 0) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
 
       const nextState = cloneState(state);
       nextState.config.searchKeywords[name] = keywords;
-      return createResult(nextState, emitStateSync(), [{ type: 'persist' }]);
+      return stateSyncResult(nextState, withPersist());
     }
 
     case 'merge-pool-feed-config': {
@@ -594,7 +606,7 @@ function reduceDomainCommand(state, command, env = {}) {
       const source = String(command.payload?.source || '').trim();
       const configPatch = command.payload?.config;
       if (!hasPool(state, name) || !source || !configPatch || typeof configPatch !== 'object' || Array.isArray(configPatch)) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
 
       const nextState = cloneState(state);
@@ -603,13 +615,13 @@ function reduceDomainCommand(state, command, env = {}) {
         source,
         configPatch
       );
-      return createResult(nextState, emitStateSync(), [{ type: 'persist' }]);
+      return stateSyncResult(nextState, withPersist());
     }
 
     case 'delete-pool': {
       const name = String(command.payload?.name || '').trim();
       if (!hasPool(state, name)) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
 
       const nextState = cloneState(state);
@@ -623,10 +635,9 @@ function reduceDomainCommand(state, command, env = {}) {
       );
       const recomputed = recomputeFeed(nextState, rng);
       const ensured = ensureActivePhoto(recomputed, { now, rng, direction: 'next', forceReselect: true });
-      return createResult(
+      return photoUpdateResult(
         ensured.state,
-        emitPhotoUpdate(),
-        [{ type: 'persist' }]
+        withPersist()
       );
     }
 
@@ -636,10 +647,10 @@ function reduceDomainCommand(state, command, env = {}) {
       const value = String(command.payload?.value || '');
 
       if (!envKey || !runtimeFlag) {
-        return createResult(state, [], []);
+        return unchangedResult(state);
       }
 
-      return createResult(state, emitStateSync(), [{
+      return stateSyncResult(state, [{
         type: 'persist-env-vars',
         payload: {
           entries: { [envKey]: value },
@@ -649,7 +660,7 @@ function reduceDomainCommand(state, command, env = {}) {
     }
 
     case 'trigger-recrawl':
-      return createResult(state, [], [{
+      return effectOnlyResult(state, [{
         type: 'start-recrawl-job',
         payload: {
           categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
@@ -657,7 +668,7 @@ function reduceDomainCommand(state, command, env = {}) {
       }]);
 
     case 'trigger-vision-analysis':
-      return createResult(state, [], [{
+      return effectOnlyResult(state, [{
         type: 'start-vision-analysis-job',
         payload: {
           categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
@@ -665,7 +676,7 @@ function reduceDomainCommand(state, command, env = {}) {
       }]);
 
     default:
-      return createResult(state, [], []);
+      return unchangedResult(state);
   }
 }
 

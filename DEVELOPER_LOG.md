@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Started Step 4 by Standardizing Reducer Result Shapes and Photo-Mutation Composition
+- **Goal**: Begin the implementation-companion Step 4 readability pass by removing repeated reducer ceremony around unchanged returns, state-sync/photo-update result shapes, and persistence-bearing photo metadata updates.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` to use small shared result helpers for unchanged results, state-sync results, photo-update results, effect-only results, conditional photo/state-sync event selection, and persistence-effect bundling.
+  - Added a composable `reducePhotoLibraryCommand(...)` helper so rating, broken-photo, crop, pairing, and metadata-report commands now share the same pure `update -> optional playback finalization -> persistence effect -> event` pipeline instead of reimplementing that flow in each branch.
+  - Kept the abstractions selective: simple branches like interval/theme changes still read directly, while repeated photo-library mutations now express only their specific updater and post-update policy.
+  - Added domain regression coverage for standardized no-op behavior on `patch-state` and missing-photo metadata commands, protecting the new result-shape boundary.
+  - Updated `FUNCTIONAL_REFACTOR_ROADMAP.md` to record this as the first completed Step 4 slice while keeping the overall Step 4 checkpoint active.
+- **Learning**: The cleanest Step 4 abstractions were not deep pipelines or clever point-free wrappers, but a small algebra of result builders plus one shared photo-mutation combinator. That keeps the reducer teachable: the repeated mechanics are centralized once, while each command branch still shows its domain-specific intent plainly.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-10: Completed the `server/app.js` Step 3 Shell Refactor with Kiosk and Idle-Daemon Runtimes
 - **Goal**: Finish the remaining `server/app.js` Step 3 shell-composition seam by extracting the kiosk/browser lifecycle and the 2-second idle-daemon orchestration loop out of the bootstrap file.
 - **Implementation**:

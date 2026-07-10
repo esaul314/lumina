@@ -630,6 +630,33 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('reducer patch-state no-op stays silent when the patch does not change any durable fields', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'patch-state',
+      payload: {
+        theme: state.config.theme,
+        widgets: { clock: state.config.widgets.clock }
+      }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
+  assertTest('reducer photo metadata commands stay silent when the target photo does not exist', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'set-photo-prevent-pairing',
+      payload: { url: 'missing-photo', preventPairing: true }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
   assertTest('reducer pool add and delete transitions stay pure and explicit', () => {
     const added = reduceDomainCommand(createState(), {
       type: 'add-pool',

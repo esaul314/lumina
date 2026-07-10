@@ -194,6 +194,12 @@ Acceptance criteria:
 - Repeated reducer patterns are expressed once.
 - The reducer remains readable to a human who is learning from the code.
 
+Progress note:
+
+- The reducer now uses standardized result builders for unchanged returns, state-sync returns, photo-update plus state-sync returns, and effect-only returns.
+- Repeated photo-mutation branches now share one composable `reducePhotoLibraryCommand(...)` path that handles `update -> optional playback finalization -> persistence effects -> event selection`.
+- The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity.
+
 ### Step 5: Align the client control surface with the same functional boundaries
 
 Why fifth:
