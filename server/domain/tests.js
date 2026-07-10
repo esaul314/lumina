@@ -29,6 +29,7 @@ const {
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
   decodeBrokenPhotoCommand,
+  decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodePhotoPreventPairingCommand,
   decodeRecrawlCommand,
@@ -387,6 +388,100 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(secondaryFrame.secondary?.url, 'port-2');
     assert.strictEqual(secondaryFrame.secondary?.cropPercent, 82);
     assert.strictEqual(secondaryCropResult.nextState.library.collections['Liminal Spaces'][1].cropPercent, 82);
+  });
+
+  assertTest('external Google Photos metadata updates emit a source-local persistence effect through the shared reducer path', () => {
+    const googleUrl = '/api/google-photos/media/picker-123?w=2560&h=1440';
+    const state = createState({
+      library: {
+        collections: createState().library.collections,
+        externalCollections: {
+          'Google Photos': [{
+            url: googleUrl,
+            title: 'Picker Photo',
+            category: 'Google Photos',
+            preventPairing: false
+          }]
+        },
+        photosList: [{
+          url: googleUrl,
+          title: 'Picker Photo',
+          category: 'Google Photos',
+          preventPairing: false
+        }]
+      },
+      playback: {
+        selectedCategories: ['Google Photos'],
+        activePhotoUrl: googleUrl,
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    });
+
+    const result = reduceDomainCommand(state, {
+      type: 'set-photo-prevent-pairing',
+      payload: { url: googleUrl, preventPairing: true, preserveActive: true }
+    });
+
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].preventPairing, true);
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, googleUrl);
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'persist-external-photo-metadata',
+      payload: {
+        url: googleUrl,
+        metadata: { preventPairing: true }
+      }
+    }]);
+  });
+
+  assertTest('report-photo-metadata decodes and persists Google Photos dimensions through the same effect language', () => {
+    const googleUrl = '/api/google-photos/media/picker-456?w=2560&h=1440';
+    const state = createState({
+      library: {
+        collections: createState().library.collections,
+        externalCollections: {
+          'Google Photos': [{
+            url: googleUrl,
+            title: 'Picker Photo',
+            category: 'Google Photos'
+          }]
+        },
+        photosList: [{
+          url: googleUrl,
+          title: 'Picker Photo',
+          category: 'Google Photos'
+        }]
+      },
+      playback: {
+        selectedCategories: ['Google Photos'],
+        activePhotoUrl: googleUrl,
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    });
+    const command = decodePhotoMetadataCommand({
+      url: googleUrl,
+      orientation: 'portrait',
+      width: 1080,
+      height: 1920
+    });
+    const result = reduceDomainCommand(state, command);
+
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].orientation, 'portrait');
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].width, 1080);
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].height, 1920);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'persist-external-photo-metadata',
+      payload: {
+        url: googleUrl,
+        metadata: {
+          orientation: 'portrait',
+          width: 1080,
+          height: 1920
+        }
+      }
+    }]);
   });
 
   assertTest('disallowing pairing can preserve the focused split portrait as the active single photo', () => {

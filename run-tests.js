@@ -34,6 +34,7 @@ const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const configureSockets = require('./server/sockets.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
+const googlePhotos = require('./server/services/googlePhotos.js');
 const {
   applyCachedMediaItemMetadataToState,
   buildGooglePhotoProxyUrl,
@@ -1131,10 +1132,14 @@ async function runClientStateTests() {
   await dispatchHarness.socketHandlers['change-category']('Scenic Nature,Liminal Spaces');
   await dispatchHarness.socketHandlers['rate-photo']({ url: 'land-1', rating: 7 });
   await dispatchHarness.socketHandlers['mark-photo-broken']({ url: 'land-1' });
+  await dispatchHarness.socketHandlers['set-photo-crop']({
+    url: buildGooglePhotoProxyUrl('picker-123'),
+    cropPercent: 62
+  });
   await dispatchHarness.socketHandlers['update-keywords']({ category: 'Scenic Nature', keywords: ['forest', 'mist'] });
   await dispatchHarness.socketHandlers['save-useapi-token']({ token: 'secret-123' });
 
-  assertTest('socket category, pool, photo, and admin compatibility events dispatch shared domain commands when available', () => {
+  assertTest('socket category, pool, photo, Google Photos, and admin compatibility events dispatch shared domain commands when available', () => {
     assert.deepStrictEqual(dispatchedCommands, [
       {
         type: 'select-categories',
@@ -1153,6 +1158,13 @@ async function runClientStateTests() {
         type: 'mark-photo-broken',
         payload: {
           url: 'land-1'
+        }
+      },
+      {
+        type: 'set-photo-crop',
+        payload: {
+          url: buildGooglePhotoProxyUrl('picker-123'),
+          cropPercent: 62
         }
       },
       {
@@ -1190,6 +1202,53 @@ async function runClientStateTests() {
       ['photo-update', { url: 'next-smart', title: 'next smart' }]
     );
   });
+
+  const googleFallbackHarness = createSocketHarness();
+  const originalIsGooglePhotoProxyUrl = googlePhotos.isGooglePhotoProxyUrl;
+  const originalUpdateCachedMediaItemMetadata = googlePhotos.updateCachedMediaItemMetadata;
+  const originalApplyCachedMediaItemMetadataToState = googlePhotos.applyCachedMediaItemMetadataToState;
+  const googleFallbackUrl = buildGooglePhotoProxyUrl('picker-fallback');
+
+  try {
+    googlePhotos.isGooglePhotoProxyUrl = (value) => value === googleFallbackUrl;
+    googlePhotos.updateCachedMediaItemMetadata = (value, metadata) => (
+      value === googleFallbackUrl
+        ? { id: 'picker-fallback', url: googleFallbackUrl, ...metadata }
+        : null
+    );
+    googlePhotos.applyCachedMediaItemMetadataToState = (state, value, metadata) => {
+      if (value !== googleFallbackUrl) {
+        return null;
+      }
+
+      state.photosList = [{
+        id: 'picker-fallback',
+        url: googleFallbackUrl,
+        title: 'Picker Photo',
+        ...metadata
+      }];
+      state.activePhoto = { ...state.photosList[0] };
+      return state.activePhoto;
+    };
+
+    await googleFallbackHarness.socketHandlers['set-photo-crop']({
+      url: googleFallbackUrl,
+      cropPercent: 48
+    });
+
+    assertTest('socket Google Photos fallback still applies source-local metadata when the shared dispatcher is unavailable', () => {
+      assert.strictEqual(googleFallbackHarness.state.photosList[0].cropPercent, 48);
+      assert.strictEqual(googleFallbackHarness.state.activePhoto.cropPercent, 48);
+      assert.deepStrictEqual(
+        googleFallbackHarness.ioEmits.findLast(([event]) => event === 'state-sync'),
+        ['state-sync', googleFallbackHarness.state]
+      );
+    });
+  } finally {
+    googlePhotos.isGooglePhotoProxyUrl = originalIsGooglePhotoProxyUrl;
+    googlePhotos.updateCachedMediaItemMetadata = originalUpdateCachedMediaItemMetadata;
+    googlePhotos.applyCachedMediaItemMetadataToState = originalApplyCachedMediaItemMetadataToState;
+  }
 }
 
 // ============================================================================
@@ -1500,6 +1559,60 @@ async function runIntegrationTests() {
         value: 'secret-123'
       }
     }]);
+  });
+
+  logSuite('REST Photo Patch Routes');
+  await assertAsyncTest('PATCH /api/photos routes Google Photos crop and pairing updates through the shared photo command batch', async () => {
+    const dispatched = [];
+    const googleUrl = buildGooglePhotoProxyUrl('picker-route');
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{
+              type: 'persist-external-photo-metadata',
+              payload: { url: googleUrl, metadata: {} }
+            }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: {
+        url: googleUrl,
+        cropPercent: 44,
+        preventPairing: true,
+        preserveActive: true
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.deepStrictEqual(response.body.photo, {
+      url: googleUrl,
+      cropPercent: 44,
+      preventPairing: true
+    });
+    assert.deepStrictEqual(dispatched, [
+      {
+        type: 'set-photo-crop',
+        payload: {
+          url: googleUrl,
+          cropPercent: 44
+        }
+      },
+      {
+        type: 'set-photo-prevent-pairing',
+        payload: {
+          url: googleUrl,
+          preventPairing: true,
+          preserveActive: true
+        }
+      }
+    ]);
   });
 
   logSuite('Live Server Endpoint Smoke Tests');

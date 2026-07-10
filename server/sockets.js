@@ -145,50 +145,46 @@ module.exports = function configureSockets({
     io.emit('state-sync', state);
   };
 
-  const applyGooglePhotoMetadata = (url, metadata) => {
-    const metadataPatch = googlePhotos.buildGooglePhotoMetadataPatch(metadata);
-    const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, metadataPatch);
-    if (!updatedPhoto) {
-      return null;
-    }
-
-    googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
-    return updatedPhoto;
-  };
-
-  const pickPayloadFields = (command, fields) => Object.fromEntries(
-    fields.flatMap((field) => (
-      command.payload?.[field] === undefined
-        ? []
-        : [[field, command.payload[field]]]
-    ))
+  const buildDefinedMetadataPatch = (entries) => Object.fromEntries(
+    Object.entries(entries).filter(([, value]) => value !== undefined)
   );
 
-  const preserveFocusedPhoto = (url) => {
-    const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
-    if (!focusedPhoto) {
-      return false;
-    }
-
-    state.activePhoto = { ...focusedPhoto };
-    state.activeSecondPhoto = null;
-    return true;
-  };
-
-  const createGooglePhotoMetadataInterceptor = ({ buildMetadata, afterApply }) => async (command) => {
-    const url = String(command.payload?.url || '');
+  const applyLegacyGooglePhotoMetadata = ({ url, metadata, afterApply }) => {
     if (!googlePhotos.isGooglePhotoProxyUrl(url)) {
       return false;
     }
 
-    const updatedPhoto = applyGooglePhotoMetadata(url, buildMetadata(command));
-    if (updatedPhoto && typeof afterApply === 'function') {
-      await afterApply({ command, updatedPhoto });
+    const metadataPatch = googlePhotos.buildGooglePhotoMetadataPatch(metadata);
+    if (Object.keys(metadataPatch).length === 0) {
+      return false;
     }
-    if (updatedPhoto) {
-      broadcast();
+
+    const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, metadataPatch);
+    if (!updatedPhoto) {
+      return false;
     }
+
+    googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
+    if (typeof afterApply === 'function') {
+      afterApply(updatedPhoto);
+    }
+    broadcast();
     return true;
+  };
+
+  const createLegacyPhotoMutationFallback = ({ applyCurated, buildGoogleMetadata = () => ({}), afterGoogleApply }) => (command) => {
+    const url = String(command.payload?.url || '');
+    const handledGooglePhoto = applyLegacyGooglePhotoMetadata({
+      url,
+      metadata: buildGoogleMetadata(command),
+      afterApply: () => afterGoogleApply?.(command)
+    });
+
+    if (handledGooglePhoto) {
+      return;
+    }
+
+    return applyCurated(command);
   };
 
   const applyLegacyStatePatchCommand = async (command) => {
@@ -310,7 +306,11 @@ module.exports = function configureSockets({
     const { url, preventPairing, preserveActive } = command.payload;
     updatePhotoPreventPairing(collections, state, url, preventPairing);
     if (preventPairing && preserveActive) {
-      preserveFocusedPhoto(url);
+      const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
+      if (focusedPhoto) {
+        state.activePhoto = { ...focusedPhoto };
+        state.activeSecondPhoto = null;
+      }
     }
     broadcast();
   };
@@ -535,9 +535,13 @@ module.exports = function configureSockets({
     listenForCommand(
       'report-photo-metadata',
       decodePhotoMetadataCommand,
-      null,
-      createGooglePhotoMetadataInterceptor({
-        buildMetadata: (command) => pickPayloadFields(command, ['orientation', 'width', 'height'])
+      createLegacyPhotoMutationFallback({
+        applyCurated: () => {},
+        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
+          orientation: command.payload?.orientation,
+          width: command.payload?.width,
+          height: command.payload?.height
+        })
       })
     );
 
@@ -569,9 +573,11 @@ module.exports = function configureSockets({
     listenForCommand(
       'rate-photo',
       decodePhotoRatingCommand,
-      applyLegacyPhotoRating,
-      createGooglePhotoMetadataInterceptor({
-        buildMetadata: (command) => pickPayloadFields(command, ['rating'])
+      createLegacyPhotoMutationFallback({
+        applyCurated: applyLegacyPhotoRating,
+        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
+          rating: command.payload?.rating
+        })
       })
     );
 
@@ -579,9 +585,12 @@ module.exports = function configureSockets({
     listenForCommand(
       'set-photo-crop',
       decodePhotoCropCommand,
-      applyLegacyPhotoCrop,
-      createGooglePhotoMetadataInterceptor({
-        buildMetadata: (command) => pickPayloadFields(command, ['cropPercent', 'cropPositionY'])
+      createLegacyPhotoMutationFallback({
+        applyCurated: applyLegacyPhotoCrop,
+        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
+          cropPercent: command.payload?.cropPercent,
+          cropPositionY: command.payload?.cropPositionY
+        })
       })
     );
 
@@ -590,12 +599,18 @@ module.exports = function configureSockets({
     listenForCommand(
       'set-photo-prevent-pairing',
       decodePhotoPreventPairingCommand,
-      applyLegacyPreventPairing,
-      createGooglePhotoMetadataInterceptor({
-        buildMetadata: (command) => pickPayloadFields(command, ['preventPairing']),
-        afterApply: ({ command }) => {
+      createLegacyPhotoMutationFallback({
+        applyCurated: applyLegacyPreventPairing,
+        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
+          preventPairing: command.payload?.preventPairing
+        }),
+        afterGoogleApply: (command) => {
           if (command.payload.preventPairing && command.payload.preserveActive) {
-            preserveFocusedPhoto(command.payload.url);
+            const focusedPhoto = state.photosList?.find((photo) => photo?.url === command.payload.url);
+            if (focusedPhoto) {
+              state.activePhoto = { ...focusedPhoto };
+              state.activeSecondPhoto = null;
+            }
           }
         }
       })
@@ -683,9 +698,9 @@ module.exports = function configureSockets({
         console.log(`[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`);
         return decodeBrokenPhotoCommand(payload);
       },
-      applyLegacyBrokenPhoto,
-      createGooglePhotoMetadataInterceptor({
-        buildMetadata: () => ({ rating: 1, isBroken: true })
+      createLegacyPhotoMutationFallback({
+        applyCurated: applyLegacyBrokenPhoto,
+        buildGoogleMetadata: () => ({ rating: 1, isBroken: true })
       })
     );
 

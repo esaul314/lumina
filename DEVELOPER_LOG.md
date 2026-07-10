@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Google Photos Photo Mutations Now Share the Reducer/Dispatcher Path
+- **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the last Google Photos photo-metadata interceptors from the REST and Socket.IO adapters.
+- **Implementation**:
+  - Generalized the shared reducer photo-update path so `rate-photo`, `mark-photo-broken`, `set-photo-crop`, `set-photo-prevent-pairing`, and `report-photo-metadata` can update either curated collections or `externalCollections` while keeping `photosList` and playback state coherent.
+  - Added a new explicit `persist-external-photo-metadata` effect interpreted by the dispatcher shell, with `server/app.js` wiring that effect to the Google Photos cache writer instead of letting routes or sockets mutate the cache inline.
+  - Removed the Google Photos `PATCH /api/photos` special case and the socket interceptors for photo metadata/rating/crop/pairing/broken updates, leaving those transports to decode commands and dispatch them through the shared path by default.
+  - Kept a small isolated socket fallback shim for dispatcher-less compatibility, so legacy mixed-version Google Photos control events still patch the cache-backed state without restoring ad hoc transport-owned business logic.
+  - Expanded regression coverage in `server/domain/tests.js` and `run-tests.js` for external-photo reducer effects, Google Photos REST photo patch batching, shared socket dispatch of Google proxy photo commands, and the legacy no-dispatch fallback shim.
+- **Learning**: The right abstraction boundary was not “special-case Google Photos in every transport,” but “teach the reducer about external collections, then express source-specific persistence as an explicit shell effect.” Once that boundary existed, both REST and Socket.IO could collapse back to ordinary command adapters.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. The known sandbox-only live smoke section still skipped the Unix-socket bind with `listen EPERM` as expected.
+
 ### 2026-07-10: Pool/Admin Socket Tail Now Shares the Command Path and Admin Secret Saves Are REST-First
 - **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the remaining pool/admin compatibility logic from ad hoc transport branches and moving remote admin secret writes onto a REST-first boundary.
 - **Implementation**:

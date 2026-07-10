@@ -13,6 +13,7 @@ function createDomainDispatcher({
   launchKioskBrowser,
   killKioskBrowser,
   setManualOverride,
+  persistExternalPhotoMetadata,
   runCrawler,
   startRecrawlJob,
   startVisionAnalysisJob,
@@ -31,6 +32,10 @@ function createDomainDispatcher({
     if (effect.type === 'persist') {
       saveCuratedCollections(collections, state);
       return;
+    }
+
+    if (effect.type === 'persist-external-photo-metadata' && typeof persistExternalPhotoMetadata === 'function') {
+      return persistExternalPhotoMetadata(effect.payload || {});
     }
 
     if (effect.type === 'launch-kiosk') {

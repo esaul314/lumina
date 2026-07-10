@@ -249,36 +249,6 @@ module.exports = function configureRoutes({
       changed: batchResult.changed
     }));
   });
-  const buildGooglePhotoPatch = (body) => {
-    const cropCommand = body.cropPercent !== undefined || body.cropPositionY !== undefined
-      ? decodePhotoCropCommand({
-          url: body.url,
-          cropPercent: body.cropPercent,
-          cropPositionY: body.cropPositionY
-        })
-      : null;
-
-    if ((body.cropPercent !== undefined || body.cropPositionY !== undefined) && !cropCommand) {
-      return null;
-    }
-
-    const preventPairing = body.preventPairing !== undefined ? Boolean(body.preventPairing) : undefined;
-    const metadataPatch = googlePhotos.buildGooglePhotoMetadataPatch({
-      ...(cropCommand?.payload.cropPercent !== undefined ? { cropPercent: cropCommand.payload.cropPercent } : {}),
-      ...(cropCommand?.payload.cropPositionY !== undefined ? { cropPositionY: cropCommand.payload.cropPositionY } : {}),
-      ...(preventPairing !== undefined ? { preventPairing } : {})
-    });
-
-    return {
-      metadataPatch,
-      responsePhoto: {
-        url: body.url,
-        ...(cropCommand?.payload.cropPercent !== undefined ? { cropPercent: cropCommand.payload.cropPercent } : {}),
-        ...(cropCommand?.payload.cropPositionY !== undefined ? { cropPositionY: cropCommand.payload.cropPositionY } : {}),
-        ...(preventPairing !== undefined ? { preventPairing } : {})
-      }
-    };
-  };
   const decodePhotoPatchRequest = (req) => {
     const body = isObject(req.body) ? req.body : null;
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
@@ -875,9 +845,9 @@ module.exports = function configureRoutes({
   const handlePhotoCommandPatch = createBatchCommandRoute({
     decode: decodePhotoPatchRequest,
     invalidMessage: 'Invalid photo patch payload.',
-    notFoundMessage: 'Photo URL not found in curated collections.',
+    notFoundMessage: 'Photo URL not found in available photo collections.',
     emptyStatus: 404,
-    emptyMessage: 'Photo URL not found in curated collections.',
+    emptyMessage: 'Photo URL not found in available photo collections.',
     present: ({ decoded }) => ({
       photo: decoded.responsePhoto
     })
@@ -888,42 +858,6 @@ module.exports = function configureRoutes({
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
     if (!url) {
       sendError(res, 400, 'Invalid parameter: "url" must be a non-empty string.');
-      return;
-    }
-
-    const isGoogleMetadataPatch = googlePhotos.isGooglePhotoProxyUrl(url)
-      && body?.rating === undefined
-      && body?.isBroken !== true
-      && (
-        body?.cropPercent !== undefined
-        || body?.cropPositionY !== undefined
-        || body?.preventPairing !== undefined
-      );
-
-    if (isGoogleMetadataPatch) {
-      const decoded = buildGooglePhotoPatch({ ...body, url });
-      if (!decoded) {
-        sendError(res, 400, 'Invalid crop payload.');
-        return;
-      }
-
-      const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, decoded.metadataPatch);
-      if (!updatedPhoto) {
-        sendError(res, 404, 'Photo URL not found in Google Photos cache.');
-        return;
-      }
-
-      googlePhotos.applyCachedMediaItemMetadataToState(state, url, decoded.metadataPatch);
-      if (body.preventPairing && body.preserveActive) {
-        const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
-        if (focusedPhoto) {
-          state.activePhoto = { ...focusedPhoto };
-          state.activeSecondPhoto = null;
-        }
-      }
-
-      broadcast();
-      sendSuccess(res, 200, { photo: decoded.responsePhoto });
       return;
     }
 

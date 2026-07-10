@@ -603,6 +603,13 @@ const runCrawler = async ({ categories = [] } = {}) => {
 };
 let recrawlJobService = null;
 let visionAnalysisJobService = null;
+const persistExternalPhotoMetadata = ({ url, metadata }) => {
+  if (!googlePhotos.isGooglePhotoProxyUrl(url)) {
+    return null;
+  }
+
+  return googlePhotos.updateCachedMediaItemMetadata(url, metadata || {});
+};
 
 const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
   state: screensaverState,
@@ -612,6 +619,7 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   launchKioskBrowser,
   killKioskBrowser,
   setManualOverride,
+  persistExternalPhotoMetadata,
   runCrawler,
   startRecrawlJob: (payload) => recrawlJobService?.submit(payload),
   startVisionAnalysisJob: (payload) => visionAnalysisJobService?.submit(payload),

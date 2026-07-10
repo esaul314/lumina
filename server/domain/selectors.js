@@ -138,7 +138,7 @@ function getPhotoByUrl(collections, url, externalCollections = {}) {
     .find((photo) => photo?.url === url) ?? null;
 }
 
-function updatePhotoInCollections(collections, url, updater) {
+function updatePhotoInNamedCollections(collections, url, updater) {
   let updatedPhoto = null;
   let changed = false;
 
@@ -163,6 +163,24 @@ function updatePhotoInCollections(collections, url, updater) {
     collections: nextCollections,
     updatedPhoto,
     changed
+  };
+}
+
+function updatePhotoInCollections(collections, url, updater) {
+  return updatePhotoInNamedCollections(collections, url, updater);
+}
+
+function updatePhotoInLibraries(collections, externalCollections = {}, url, updater) {
+  const updatedCollections = updatePhotoInNamedCollections(collections, url, updater);
+  const updatedExternalCollections = updatePhotoInNamedCollections(externalCollections, url, updater);
+
+  return {
+    collections: updatedCollections.collections,
+    externalCollections: updatedExternalCollections.collections,
+    updatedPhoto: updatedExternalCollections.updatedPhoto ?? updatedCollections.updatedPhoto,
+    changed: updatedCollections.changed || updatedExternalCollections.changed,
+    changedInCollections: updatedCollections.changed,
+    changedInExternalCollections: updatedExternalCollections.changed
   };
 }
 
@@ -409,5 +427,6 @@ module.exports = {
   selectWeightedRandomPhoto,
   shuffleWithRng,
   updatePhotoInCollections,
+  updatePhotoInLibraries,
   uniqByUrl
 };

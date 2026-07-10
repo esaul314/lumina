@@ -19,7 +19,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
 - Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
-- Next: keep shrinking `server/sockets.js`. Pool/admin compatibility shims and remote admin secret saves now dispatch through shared command listeners and REST-first admin routes by default; the remaining tail is source-local Google Photos exceptions plus truly ephemeral telemetry/update events.
+- Next: keep shrinking `server/sockets.js`. Google Photos photo metadata/rating/crop/pairing/broken mutations now use the shared reducer/dispatcher and REST photo patch route by default; the remaining socket-only tail is the on-demand signed-URL refresh helper plus truly ephemeral telemetry/update events.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), which currently starts with refactoring `server/sockets.js` into a thinner transport adapter.
 
 ## Architectural Rule
@@ -56,7 +56,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: keep thinning the remaining socket compatibility surface so the source-local Google Photos exceptions and any leftover ephemeral-only handlers stop owning ad hoc transport logic.
+  - Next focus: keep thinning the remaining socket compatibility surface so only on-demand Google Photos signed-URL refreshes and intentionally ephemeral telemetry/update handlers remain transport-specific.
 
 ### Shared domain flow
 

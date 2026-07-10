@@ -152,6 +152,7 @@
  * @typedef {{
  *   type:
  *     | 'persist'
+ *     | 'persist-external-photo-metadata'
  *     | 'launch-kiosk'
  *     | 'kill-kiosk'
  *     | 'run-crawler'
