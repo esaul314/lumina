@@ -7,6 +7,19 @@
 const { curry } = require('../utils/fn.js');
 const { validatePercent, validateRating } = require('../utils/validation.js');
 
+const STATE_PATCH_FIELDS = [
+  'theme',
+  'inactivityTimeout',
+  'slideshowInterval',
+  'scaleMode',
+  'splitPortrait',
+  'splitCropPercent',
+  'alignTimeOfDay',
+  'alignWeather',
+  'nightPercentage',
+  'allowOpenAiFallback'
+];
+
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -16,23 +29,20 @@ function isPlainObject(value) {
 }
 
 function normalizeKeywordList(keywords) {
-  if (Array.isArray(keywords)) {
-    return keywords.map((keyword) => String(keyword).trim()).filter(Boolean);
-  }
+  const rawKeywords = Array.isArray(keywords)
+    ? keywords
+    : (typeof keywords === 'string' ? keywords.split(/[;,]/) : []);
 
-  if (typeof keywords === 'string') {
-    return keywords.split(/[;,]/).map((keyword) => keyword.trim()).filter(Boolean);
-  }
-
-  return [];
+  return rawKeywords.map((keyword) => String(keyword).trim()).filter(Boolean);
 }
 
 function decodeCategorySelectionFromHttp(query) {
-  const categories = typeof query?.category === 'string'
-    ? query.category
-    : (typeof query?.categories === 'string'
-      ? query.categories
-      : (Array.isArray(query?.categories) ? query.categories.join(',') : ''));
+  const { category, categories: rawCategories } = query || {};
+  const categories = typeof category === 'string'
+    ? category
+    : (typeof rawCategories === 'string'
+      ? rawCategories
+      : (Array.isArray(rawCategories) ? rawCategories.join(',') : ''));
 
   if (!categories) {
     return null;
@@ -170,31 +180,17 @@ function decodeStatePatchCommand(payload) {
     return null;
   }
 
-  /** @type {Record<string, unknown>} */
-  const patch = {};
-
-  [
-    'theme',
-    'inactivityTimeout',
-    'slideshowInterval',
-    'scaleMode',
-    'splitPortrait',
-    'splitCropPercent',
-    'alignTimeOfDay',
-    'alignWeather',
-    'nightPercentage',
-    'allowOpenAiFallback'
-  ].forEach((field) => {
-    if (payload[field] !== undefined) {
-      patch[field] = payload[field];
-    }
-  });
+  const patch = STATE_PATCH_FIELDS.reduce((nextPatch, field) => (
+    payload[field] === undefined
+      ? nextPatch
+      : { ...nextPatch, [field]: payload[field] }
+  ), /** @type {Record<string, unknown>} */ ({}));
 
   if (Array.isArray(payload.excludedKeywords)) {
     patch.excludedKeywords = payload.excludedKeywords;
   }
 
-  if (payload.visionConfig && typeof payload.visionConfig === 'object' && !Array.isArray(payload.visionConfig)) {
+  if (isPlainObject(payload.visionConfig)) {
     patch.visionConfig = normalizeVisionConfig(payload.visionConfig);
   }
 
@@ -202,17 +198,18 @@ function decodeStatePatchCommand(payload) {
     patch.autoLocation = Boolean(payload.autoLocation);
   }
 
-  if (payload.manualLocation && typeof payload.manualLocation === 'object' && !Array.isArray(payload.manualLocation)) {
+  if (isPlainObject(payload.manualLocation)) {
+    const { lat, lon, city, regionName, country } = payload.manualLocation;
     patch.manualLocation = {
-      lat: normalizeCoordinate(payload.manualLocation.lat, 45.45),
-      lon: normalizeCoordinate(payload.manualLocation.lon, -73.56),
-      city: trimString(payload.manualLocation.city) || 'Verdun',
-      regionName: trimString(payload.manualLocation.regionName) || 'Quebec',
-      country: trimString(payload.manualLocation.country) || 'Canada'
+      lat: normalizeCoordinate(lat, 45.45),
+      lon: normalizeCoordinate(lon, -73.56),
+      city: trimString(city) || 'Verdun',
+      regionName: trimString(regionName) || 'Quebec',
+      country: trimString(country) || 'Canada'
     };
   }
 
-  if (payload.widgets && typeof payload.widgets === 'object' && !Array.isArray(payload.widgets)) {
+  if (isPlainObject(payload.widgets)) {
     patch.widgets = { ...payload.widgets };
   }
 

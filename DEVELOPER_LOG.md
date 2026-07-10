@@ -5,6 +5,15 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: ES6+ Cleanup Pass on the Shared Socket Patch Decoder Slice
+- **Goal**: Revisit the new socket transport refactor and remove avoidable noise so the code teaches modern JavaScript style more clearly without changing behavior.
+- **Implementation**:
+  - Refined `server/domain/commands.js` with shared field constants, destructured input handling, and declarative patch construction for `decodeStatePatchCommand(...)`.
+  - Tightened `server/sockets.js` with shared category helpers, optional chaining, nullish coalescing, logical assignment (`??=`), destructured patch handling, and small reusable arrow-function utilities for repeated active-photo sync and category parsing paths.
+  - Kept the work scoped to readability and intent clarity on the already-refactored transport boundary rather than broadening the migration surface again.
+- **Learning**: Once the functional boundary is correct, a second pass for ES6+ clarity is worthwhile. The best cleanup is usually replacing hand-rolled branching and initialization with a few small shared transforms, not adding new abstraction layers.
+- **Verification**: `npm run lint` and `npm test` passed. The known sandbox-only live smoke skip still reported `listen EPERM` as expected.
+
 ### 2026-07-10: Socket Settings Transport Now Uses Shared Patch-State Decoders
 - **Goal**: Start the next Phase 1 implementation-companion step by thinning `server/sockets.js` so the dashboard's durable socket settings stop owning their own mutation rules.
 - **Implementation**:

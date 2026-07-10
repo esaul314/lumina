@@ -30,6 +30,25 @@ const {
   decodeVisionAnalysisCommand,
 } = require('./domain/commands.js');
 
+const STATE_PATCH_FIELDS = [
+  'theme',
+  'inactivityTimeout',
+  'slideshowInterval',
+  'scaleMode',
+  'splitPortrait',
+  'splitCropPercent',
+  'alignTimeOfDay',
+  'alignWeather',
+  'nightPercentage',
+  'allowOpenAiFallback'
+];
+const CATEGORY_ALIASES = {
+  'Liminal Space': 'Liminal Spaces',
+  'Liminal Spaces': 'Liminal Spaces',
+  'AI Creation': 'AI Creations',
+  'AI Creations': 'AI Creations'
+};
+
 const decodeWidgetCommand = createStatePatchCommandDecoder(buildWidgetPatch);
 const decodeAlignTimeCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignTimeOfDay'));
 const decodeAlignWeatherCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignWeather'));
@@ -44,6 +63,14 @@ const decodeThemeCommand = createStatePatchCommandDecoder(buildTrimmedStringFiel
 const decodeAutoLocationCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('autoLocation'));
 const decodeManualLocationCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('manualLocation'));
 const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCommand({ active });
+const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const splitCategories = (categories = '') => categories.split(',').map((category) => category.trim()).filter(Boolean);
+const normalizeSocketCategories = (category) => splitCategories(category).map((name) => CATEGORY_ALIASES[name] ?? name);
+const pickRandomPhoto = (photos) => photos[Math.floor(Math.random() * photos.length)] ?? null;
+const syncActivePhoto = (io, state, photo) => {
+  state.activePhoto = photo;
+  io.emit('photo-update', state.activePhoto);
+};
 
 /**
  * @param {{
@@ -93,9 +120,9 @@ module.exports = function configureSockets({
 }) {
   const broadcast = () => {
     if (typeof broadcastStateSync === 'function') {
-      broadcastStateSync();
-      return;
+      return broadcastStateSync();
     }
+
     io.emit('state-sync', state);
   };
 
@@ -111,22 +138,17 @@ module.exports = function configureSockets({
   };
 
   const applyLegacyStatePatchCommand = async (command) => {
-    const patch = command.payload && typeof command.payload === 'object' ? command.payload : {};
+    const patch = isPlainObject(command.payload) ? command.payload : {};
+    const {
+      widgets,
+      visionConfig,
+      autoLocation,
+      manualLocation
+    } = patch;
     let changed = false;
     let refreshWeather = false;
 
-    [
-      'theme',
-      'inactivityTimeout',
-      'slideshowInterval',
-      'scaleMode',
-      'splitPortrait',
-      'splitCropPercent',
-      'alignTimeOfDay',
-      'alignWeather',
-      'nightPercentage',
-      'allowOpenAiFallback'
-    ].forEach((field) => {
+    STATE_PATCH_FIELDS.forEach((field) => {
       if (patch[field] === undefined || state[field] === patch[field]) {
         return;
       }
@@ -135,13 +157,13 @@ module.exports = function configureSockets({
       changed = true;
     });
 
-    if (patch.widgets && typeof patch.widgets === 'object' && !Array.isArray(patch.widgets)) {
-      Object.keys(patch.widgets).forEach((widgetName) => {
+    if (isPlainObject(widgets)) {
+      Object.keys(widgets).forEach((widgetName) => {
         if (!Object.prototype.hasOwnProperty.call(state.widgets || {}, widgetName)) {
           return;
         }
 
-        const visible = Boolean(patch.widgets[widgetName]);
+        const visible = Boolean(widgets[widgetName]);
         if (state.widgets[widgetName] !== visible) {
           state.widgets[widgetName] = visible;
           changed = true;
@@ -149,19 +171,19 @@ module.exports = function configureSockets({
       });
     }
 
-    if (patch.visionConfig && typeof patch.visionConfig === 'object' && !Array.isArray(patch.visionConfig)) {
-      state.visionConfig = { ...patch.visionConfig };
+    if (isPlainObject(visionConfig)) {
+      state.visionConfig = { ...visionConfig };
       changed = true;
     }
 
-    if (patch.autoLocation !== undefined && state.autoLocation !== patch.autoLocation) {
-      state.autoLocation = Boolean(patch.autoLocation);
+    if (autoLocation !== undefined && state.autoLocation !== autoLocation) {
+      state.autoLocation = Boolean(autoLocation);
       changed = true;
       refreshWeather = true;
     }
 
-    if (patch.manualLocation && typeof patch.manualLocation === 'object' && !Array.isArray(patch.manualLocation)) {
-      state.manualLocation = { ...patch.manualLocation };
+    if (isPlainObject(manualLocation)) {
+      state.manualLocation = { ...manualLocation };
       changed = true;
       refreshWeather = true;
     }
@@ -234,33 +256,22 @@ module.exports = function configureSockets({
           return;
         }
       }
-      
-      const selectedCategories = category.split(',').map(c => {
-        const catName = c.trim();
-        if (catName === 'Liminal Space' || catName === 'Liminal Spaces') {
-          return 'Liminal Spaces';
-        }
-        if (catName === 'AI Creation' || catName === 'AI Creations') {
-          return 'AI Creations';
-        }
-        return catName;
-      });
 
-      const validCategories = selectedCategories.filter(catName => !!collections[catName]);
+      const validCategories = normalizeSocketCategories(category).filter((name) => Boolean(collections[name]));
 
       if (validCategories.length > 0) {
         state.currentCategory = validCategories.join(',');
         state.photosList = combineFeedsBalanced(validCategories, collections);
-        
+
         const smartPhoto = getSmartPhoto('next');
         if (smartPhoto) {
           state.activePhoto = smartPhoto;
           console.log(`[SOCKET EVENT] Selected smart starting photo: "${smartPhoto.title}"`);
         } else if (state.photosList.length > 0) {
-          state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
+          state.activePhoto = pickRandomPhoto(state.photosList);
           console.log(`[SOCKET EVENT] Selected random starting photo: "${state.activePhoto.title}"`);
         }
-        
+
         console.log(`[SOCKET EVENT] Broadcasting state-sync with categories: "${state.currentCategory}"`);
         broadcast();
       } else {
@@ -304,9 +315,7 @@ module.exports = function configureSockets({
       }
 
       if (!dispatchCommand) return;
-      if (command) {
-        dispatchCommand(command);
-      }
+      dispatchCommand(command);
     });
 
     socket.on('report-tv-viewport', async (payload) => {
@@ -347,8 +356,7 @@ module.exports = function configureSockets({
       if (command.payload.rating === 1 && state.activePhoto && state.activePhoto.url === command.payload.url) {
         const nextPhoto = getSmartPhoto('next');
         if (nextPhoto) {
-          state.activePhoto = nextPhoto;
-          io.emit('photo-update', state.activePhoto);
+          syncActivePhoto(io, state, nextPhoto);
         }
       }
       broadcast();
@@ -495,18 +503,16 @@ module.exports = function configureSockets({
         saveCuratedCollections(collections, state);
 
         // Instantly refresh photos list in state to apply new exclusions
-        const activeCategory = state.currentCategory;
-        const currentCats = activeCategory ? activeCategory.split(',') : [];
+        const currentCats = splitCategories(state.currentCategory);
         state.photosList = combineFeedsBalanced(currentCats, collections);
-        
+
         if (state.photosList.length > 0) {
-          const matchesExclusionLocally = (photo) => {
-            if (!photo || !photo.title) return false;
-            const titleText = photo.title.toLowerCase();
-            return state.excludedKeywords.some(kw => titleText.includes(kw.toLowerCase()));
-          };
+          const matchesExclusionLocally = (photo) => state.excludedKeywords.some(
+            (keyword) => photo?.title?.toLowerCase().includes(keyword.toLowerCase())
+          );
+
           if (matchesExclusionLocally(state.activePhoto)) {
-            state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
+            state.activePhoto = pickRandomPhoto(state.photosList);
           }
         }
 
@@ -528,8 +534,8 @@ module.exports = function configureSockets({
       if (!category || typeof category !== 'string') return;
       const cleanCategory = category.trim();
       if (!cleanCategory) return;
-      
-      const cleanKeyword = (keyword || '').trim();
+
+      const cleanKeyword = String(keyword ?? '').trim();
       if (!cleanKeyword) return;
 
       // Split keywords by comma or semicolon, trim whitespace, filter out empty strings
@@ -543,9 +549,7 @@ module.exports = function configureSockets({
       console.log(`[SOCKET EVENT] add-category received: "${cleanCategory}" with keywords:`, parsedKeywords);
 
       // Initialize state searchKeywords if not present
-      if (!state.searchKeywords) {
-        state.searchKeywords = {};
-      }
+      state.searchKeywords ??= {};
 
       // Check if it already exists to prevent duplicate creation
       if (collections[cleanCategory] || state.searchKeywords[cleanCategory]) {
@@ -557,9 +561,7 @@ module.exports = function configureSockets({
       state.searchKeywords[cleanCategory] = parsedKeywords;
 
       // Initialize state feedConfigs if not present
-      if (!state.feedConfigs) {
-        state.feedConfigs = {};
-      }
+      state.feedConfigs ??= {};
       state.feedConfigs[cleanCategory] = {
         unsplash: { enabled: true, keywords: [...parsedKeywords] },
         wallhaven: { enabled: true, keywords: [...parsedKeywords] },
@@ -581,28 +583,27 @@ module.exports = function configureSockets({
         const { crawlAllCollections } = require('./services/crawler.js');
         const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
         if (updatedAny) {
-          for (const key of Object.keys(updatedCollections)) {
-            collections[key] = updatedCollections[key];
-          }
+          Object.entries(updatedCollections).forEach(([key, photos]) => {
+            collections[key] = photos;
+          });
           saveCuratedCollections(collections, state);
         }
 
         // If the added category is the current/active category, update photosList
-        const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+        const currentCats = splitCategories(state.currentCategory);
         if (currentCats.includes(cleanCategory)) {
           state.photosList = combineFeedsBalanced(currentCats, collections);
           if (state.photosList.length > 0) {
-            state.activePhoto = getSmartPhoto('next') || state.photosList[0];
-            io.emit('photo-update', state.activePhoto);
+            syncActivePhoto(io, state, getSmartPhoto('next') || state.photosList[0]);
           }
         }
-        
+
         // Broadcast fully loaded updated state
         broadcast();
-        
+
         // Run background image analysis on the new photos
         const { triggerImageAnalysisBackground } = require('./app.js');
-        triggerImageAnalysisBackground().catch(err => console.error('Error in background image analysis:', err));
+        triggerImageAnalysisBackground().catch((err) => console.error('Error in background image analysis:', err));
       } catch (err) {
         console.error(`Error crawling new category "${cleanCategory}":`, err.message);
       }
@@ -637,7 +638,7 @@ module.exports = function configureSockets({
       saveCuratedCollections(collections, state);
 
       // 3. Re-adjust screensaver selected active list if the deleted category was currently displayed
-      const currentCats = state.currentCategory ? state.currentCategory.split(',').map(c => c.trim()) : [];
+      const currentCats = splitCategories(state.currentCategory);
       if (currentCats.includes(cleanCategory)) {
         const remainingCats = currentCats.filter(c => c !== cleanCategory);
         if (remainingCats.length > 0) {
@@ -647,9 +648,9 @@ module.exports = function configureSockets({
           const remainingKeys = Object.keys(state.searchKeywords || {});
           state.currentCategory = remainingKeys[0] || 'Scenic Nature';
         }
-        
+
         // Re-combine remaining categories
-        const updatedCats = state.currentCategory.split(',').map(c => c.trim());
+        const updatedCats = splitCategories(state.currentCategory);
         state.photosList = combineFeedsBalanced(updatedCats, collections);
         const smartPhoto = getSmartPhoto('next');
         if (smartPhoto) {
@@ -668,16 +669,14 @@ module.exports = function configureSockets({
     listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), () => {
       const photo = getSmartPhoto('next');
       if (photo) {
-        state.activePhoto = photo;
-        io.emit('photo-update', state.activePhoto);
+        syncActivePhoto(io, state, photo);
       }
     });
 
     listenForCommand('prev-photo', () => decodeAdvancePhotoCommand('prev'), () => {
       const photo = getSmartPhoto('prev');
       if (photo) {
-        state.activePhoto = photo;
-        io.emit('photo-update', state.activePhoto);
+        syncActivePhoto(io, state, photo);
       }
     });
 
@@ -725,8 +724,7 @@ module.exports = function configureSockets({
         if (state.activePhoto && state.activePhoto.url === url) {
           const nextPhoto = getSmartPhoto('next');
           if (nextPhoto) {
-            state.activePhoto = nextPhoto;
-            io.emit('photo-update', state.activePhoto);
+            syncActivePhoto(io, state, nextPhoto);
           }
         }
         broadcast();
@@ -753,7 +751,7 @@ module.exports = function configureSockets({
 
     socket.on('save-useapi-token', ({ token }) => {
       console.log('[SOCKET EVENT] save-useapi-token received.');
-      const sanitizedToken = String(token || '').trim();
+      const sanitizedToken = String(token ?? '').trim();
 
       try {
         persistEnvVars({ USEAPI_TOKEN: sanitizedToken });
@@ -769,7 +767,7 @@ module.exports = function configureSockets({
 
     socket.on('save-tumblr-api-key', ({ token }) => {
       console.log('[SOCKET EVENT] save-tumblr-api-key received.');
-      const sanitizedToken = String(token || '').trim();
+      const sanitizedToken = String(token ?? '').trim();
 
       try {
         persistEnvVars({ TUMBLR_API_KEY: sanitizedToken });
