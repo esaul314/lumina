@@ -114,6 +114,34 @@ function decodePhotoCropCommand(payload) {
   };
 }
 
+function decodePhotoPreventPairingCommand(payload) {
+  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
+    return null;
+  }
+
+  return {
+    type: 'set-photo-prevent-pairing',
+    payload: {
+      url: payload.url,
+      preventPairing: Boolean(payload.preventPairing),
+      preserveActive: Boolean(payload.preserveActive)
+    }
+  };
+}
+
+function decodeBrokenPhotoCommand(payload) {
+  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
+    return null;
+  }
+
+  return {
+    type: 'mark-photo-broken',
+    payload: {
+      url: payload.url
+    }
+  };
+}
+
 function decodeExcludedKeywordsCommand(keywords) {
   if (!Array.isArray(keywords)) {
     return null;
@@ -438,9 +466,11 @@ module.exports = {
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
   decodePhotoCropCommand,
+  decodePhotoPreventPairingCommand,
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
   decodeVisionAnalysisCommand,
+  decodeBrokenPhotoCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodeStatePatchCommand,

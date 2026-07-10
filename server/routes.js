@@ -11,7 +11,9 @@ const {
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodeBrokenPhotoCommand,
   decodePhotoCropCommand,
+  decodePhotoPreventPairingCommand,
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
   decodeVisionAnalysisCommand,
@@ -295,10 +297,7 @@ module.exports = function configureRoutes({
     }
 
     if (body.isBroken === true) {
-      commands.push({
-        type: 'mark-photo-broken',
-        payload: { url }
-      });
+      commands.push(decodeBrokenPhotoCommand({ url }));
       responsePhoto.isBroken = true;
       responsePhoto.rating = 1;
     }
@@ -322,15 +321,16 @@ module.exports = function configureRoutes({
     }
 
     if (body.preventPairing !== undefined) {
-      commands.push({
-        type: 'set-photo-prevent-pairing',
-        payload: {
-          url,
-          preventPairing: Boolean(body.preventPairing),
-          preserveActive: Boolean(body.preserveActive)
-        }
+      const preventPairingCommand = decodePhotoPreventPairingCommand({
+        url,
+        preventPairing: body.preventPairing,
+        preserveActive: body.preserveActive
       });
-      responsePhoto.preventPairing = Boolean(body.preventPairing);
+      if (!preventPairingCommand) {
+        return null;
+      }
+      commands.push(preventPairingCommand);
+      responsePhoto.preventPairing = preventPairingCommand.payload.preventPairing;
     }
 
     return {

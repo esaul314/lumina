@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Socket Category and Curated-Photo Compatibility Handlers Now Share the Domain Command Path
+- **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the remaining ad hoc category/photo transport logic that already had reducer support elsewhere in the codebase.
+- **Implementation**:
+  - Added shared photo command decoders in `server/domain/commands.js` for broken-photo and prevent-pairing mutations so REST and Socket.IO stop hand-building those command objects independently.
+  - Refactored `server/sockets.js` around a slightly richer command-listener factory with optional interceptors, then moved category selection, active-photo preview, smart next/prev navigation, rating, crop, prevent-pairing, broken-photo marking, and photo-metadata reporting onto shared decode-and-dispatch flows.
+  - Isolated the unavoidable Google Photos divergence behind a small source-local metadata interceptor, keeping the transport shell aware only of the cache-backed exception rather than re-encoding the whole mutation path inline.
+  - Added regression coverage in `server/domain/tests.js` for the new decoders and in `run-tests.js` for the socket transport path, proving that category/photo compatibility events dispatch the same domain commands when the shared dispatcher is present while the legacy smart-photo fallback still works when it is not.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the next explicit tail is now pool/admin compatibility shims plus source-local Google Photos exceptions.
+- **Learning**: A transport adapter gets meaningfully thinner once the remaining “special cases” are split into two buckets: generic command-shaped work that should always decode through the domain layer, and genuinely source-local exceptions that deserve a small, named interceptor instead of another inline branch cascade.
+- **Verification**: `npm test` and `npm run lint` passed. The known sandbox-only live smoke skip still reported `listen EPERM` as expected.
+
 ### 2026-07-10: ES6+ Cleanup Pass on the Shared Socket Patch Decoder Slice
 - **Goal**: Revisit the new socket transport refactor and remove avoidable noise so the code teaches modern JavaScript style more clearly without changing behavior.
 - **Implementation**:

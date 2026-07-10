@@ -22,8 +22,10 @@ const {
   decodeExcludedKeywordsCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodeBrokenPhotoCommand,
   decodePhotoCropCommand,
   decodePhotoMetadataCommand,
+  decodePhotoPreventPairingCommand,
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
@@ -76,13 +78,18 @@ const syncActivePhoto = (io, state, photo) => {
  * @param {{
  *   dispatchCommand?: (command: Record<string, any>) => Promise<any> | any,
  *   decode: (payload: any) => Record<string, any> | null,
- *   fallback?: (command: Record<string, any>, payload: any) => Promise<void> | void
+ *   fallback?: (command: Record<string, any>, payload: any) => Promise<void> | void,
+ *   intercept?: (command: Record<string, any>, payload: any) => Promise<boolean> | boolean
  * }} options
  */
-function createCommandListener({ dispatchCommand, decode, fallback }) {
+function createCommandListener({ dispatchCommand, decode, fallback, intercept }) {
   return async (payload) => {
     const command = decode(payload);
     if (!command) {
+      return;
+    }
+
+    if (typeof intercept === 'function' && await intercept(command, payload)) {
       return;
     }
 
@@ -135,6 +142,41 @@ module.exports = function configureSockets({
 
     googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
     return updatedPhoto;
+  };
+
+  const pickPayloadFields = (command, fields) => Object.fromEntries(
+    fields.flatMap((field) => (
+      command.payload?.[field] === undefined
+        ? []
+        : [[field, command.payload[field]]]
+    ))
+  );
+
+  const preserveFocusedPhoto = (url) => {
+    const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
+    if (!focusedPhoto) {
+      return false;
+    }
+
+    state.activePhoto = { ...focusedPhoto };
+    state.activeSecondPhoto = null;
+    return true;
+  };
+
+  const createGooglePhotoMetadataInterceptor = ({ buildMetadata, afterApply }) => async (command) => {
+    const url = String(command.payload?.url || '');
+    if (!googlePhotos.isGooglePhotoProxyUrl(url)) {
+      return false;
+    }
+
+    const updatedPhoto = applyGooglePhotoMetadata(url, buildMetadata(command));
+    if (updatedPhoto && typeof afterApply === 'function') {
+      await afterApply({ command, updatedPhoto });
+    }
+    if (updatedPhoto) {
+      broadcast();
+    }
+    return true;
   };
 
   const applyLegacyStatePatchCommand = async (command) => {
@@ -199,6 +241,91 @@ module.exports = function configureSockets({
     broadcast();
   };
 
+  const applyLegacyCategorySelection = (command) => {
+    const validCategories = normalizeSocketCategories(command.payload?.categories).filter((name) => Boolean(collections[name]));
+
+    if (validCategories.length === 0) {
+      console.error(`[SOCKET EVENT] ERROR: None of the categories in "${command.payload?.categories}" exist in curatedCollections keys:`, Object.keys(collections));
+      return;
+    }
+
+    state.currentCategory = validCategories.join(',');
+    state.photosList = combineFeedsBalanced(validCategories, collections);
+
+    const smartPhoto = getSmartPhoto('next');
+    if (smartPhoto) {
+      state.activePhoto = smartPhoto;
+      console.log(`[SOCKET EVENT] Selected smart starting photo: "${smartPhoto.title}"`);
+    } else if (state.photosList.length > 0) {
+      state.activePhoto = pickRandomPhoto(state.photosList);
+      console.log(`[SOCKET EVENT] Selected random starting photo: "${state.activePhoto.title}"`);
+    }
+
+    console.log(`[SOCKET EVENT] Broadcasting state-sync with categories: "${state.currentCategory}"`);
+    broadcast();
+  };
+
+  const applyLegacyActivePhoto = (command) => {
+    syncActivePhoto(io, state, command.payload?.photo || { url: command.payload?.url });
+  };
+
+  const applyLegacyPhotoRating = (command) => {
+    const { updatePhotoRating } = require('./config/collections.js');
+    updatePhotoRating(collections, state, command.payload.url, command.payload.rating);
+    if (command.payload.rating === 1 && state.activePhoto && state.activePhoto.url === command.payload.url) {
+      const nextPhoto = getSmartPhoto('next');
+      if (nextPhoto) {
+        syncActivePhoto(io, state, nextPhoto);
+      }
+    }
+    broadcast();
+  };
+
+  const applyLegacyPhotoCrop = (command) => {
+    const { updatePhotoCrop } = require('./config/collections.js');
+    updatePhotoCrop(
+      collections,
+      state,
+      command.payload.url,
+      command.payload.cropPercent,
+      command.payload.cropPositionY
+    );
+    broadcast();
+  };
+
+  const applyLegacyPreventPairing = (command) => {
+    const { updatePhotoPreventPairing } = require('./config/collections.js');
+    const { url, preventPairing, preserveActive } = command.payload;
+    updatePhotoPreventPairing(collections, state, url, preventPairing);
+    if (preventPairing && preserveActive) {
+      preserveFocusedPhoto(url);
+    }
+    broadcast();
+  };
+
+  const applyLegacyAdvancePhoto = (direction) => () => {
+    const photo = getSmartPhoto(direction);
+    if (photo) {
+      syncActivePhoto(io, state, photo);
+    }
+  };
+
+  const applyLegacyBrokenPhoto = (command) => {
+    const { markPhotoBroken } = require('./config/collections.js');
+    const updated = markPhotoBroken(collections, state, command.payload.url);
+    if (!updated) {
+      return;
+    }
+
+    if (state.activePhoto && state.activePhoto.url === command.payload.url) {
+      const nextPhoto = getSmartPhoto('next');
+      if (nextPhoto) {
+        syncActivePhoto(io, state, nextPhoto);
+      }
+    }
+    broadcast();
+  };
+
   io.on('connection', (socket) => {
     console.log('Device connected to Lumina network:', socket.id);
 
@@ -214,8 +341,8 @@ module.exports = function configureSockets({
       socket.emit('job-status', job);
     });
 
-    const listenForCommand = (eventName, decode, fallback) => {
-      socket.on(eventName, createCommandListener({ dispatchCommand, decode, fallback }));
+    const listenForCommand = (eventName, decode, fallback, intercept) => {
+      socket.on(eventName, createCommandListener({ dispatchCommand, decode, fallback, intercept }));
     };
 
     const listenForStatePatch = (eventName, decode) => {
@@ -246,51 +373,13 @@ module.exports = function configureSockets({
     });
     
     // Change Wallpaper category
-    socket.on('change-category', async (category) => {
+    listenForCommand('change-category', (category) => {
       console.log(`[SOCKET EVENT] change-category received: "${category}"`);
-
-      if (dispatchCommand) {
-        const command = decodeCategorySelectionFromSocket(category);
-        if (command) {
-          await dispatchCommand(command);
-          return;
-        }
-      }
-
-      const validCategories = normalizeSocketCategories(category).filter((name) => Boolean(collections[name]));
-
-      if (validCategories.length > 0) {
-        state.currentCategory = validCategories.join(',');
-        state.photosList = combineFeedsBalanced(validCategories, collections);
-
-        const smartPhoto = getSmartPhoto('next');
-        if (smartPhoto) {
-          state.activePhoto = smartPhoto;
-          console.log(`[SOCKET EVENT] Selected smart starting photo: "${smartPhoto.title}"`);
-        } else if (state.photosList.length > 0) {
-          state.activePhoto = pickRandomPhoto(state.photosList);
-          console.log(`[SOCKET EVENT] Selected random starting photo: "${state.activePhoto.title}"`);
-        }
-
-        console.log(`[SOCKET EVENT] Broadcasting state-sync with categories: "${state.currentCategory}"`);
-        broadcast();
-      } else {
-        console.error(`[SOCKET EVENT] ERROR: None of the categories in "${category}" exist in curatedCollections keys:`, Object.keys(collections));
-      }
-    });
+      return decodeCategorySelectionFromSocket(category);
+    }, applyLegacyCategorySelection);
 
     // Change individual active photo
-    socket.on('set-active-photo', (photo) => {
-      if (dispatchCommand) {
-        const command = decodeActivePhotoCommand(photo);
-        if (command) {
-          dispatchCommand(command);
-        }
-        return;
-      }
-      state.activePhoto = photo;
-      io.emit('photo-update', photo);
-    });
+    listenForCommand('set-active-photo', decodeActivePhotoCommand, applyLegacyActivePhoto);
 
     // Set individual active second photo (sent by TV client to synchronize display control preview)
     socket.on('set-active-second-photo', (photo) => {
@@ -298,25 +387,14 @@ module.exports = function configureSockets({
       io.emit('second-photo-update', photo);
     });
 
-    socket.on('report-photo-metadata', (payload) => {
-      const command = decodePhotoMetadataCommand(payload);
-      if (!command) return;
-
-      if (googlePhotos.isGooglePhotoProxyUrl(command.payload.url)) {
-        const updatedPhoto = applyGooglePhotoMetadata(command.payload.url, {
-          orientation: command.payload.orientation,
-          width: command.payload.width,
-          height: command.payload.height
-        });
-        if (updatedPhoto) {
-          broadcast();
-        }
-        return;
-      }
-
-      if (!dispatchCommand) return;
-      dispatchCommand(command);
-    });
+    listenForCommand(
+      'report-photo-metadata',
+      decodePhotoMetadataCommand,
+      null,
+      createGooglePhotoMetadataInterceptor({
+        buildMetadata: (command) => pickPayloadFields(command, ['orientation', 'width', 'height'])
+      })
+    );
 
     socket.on('report-tv-viewport', async (payload) => {
       const width = Number(payload?.width);
@@ -343,92 +421,40 @@ module.exports = function configureSockets({
     });
 
     // Rate photo socket event
-    socket.on('rate-photo', ({ url, rating }) => {
-      const command = decodePhotoRatingCommand({ url, rating });
-      if (command && dispatchCommand) {
-        dispatchCommand(command);
-        return;
-      }
-      if (!command) return;
-
-      const { updatePhotoRating } = require('./config/collections.js');
-      updatePhotoRating(collections, state, command.payload.url, command.payload.rating);
-      if (command.payload.rating === 1 && state.activePhoto && state.activePhoto.url === command.payload.url) {
-        const nextPhoto = getSmartPhoto('next');
-        if (nextPhoto) {
-          syncActivePhoto(io, state, nextPhoto);
-        }
-      }
-      broadcast();
-    });
+    listenForCommand(
+      'rate-photo',
+      decodePhotoRatingCommand,
+      applyLegacyPhotoRating,
+      createGooglePhotoMetadataInterceptor({
+        buildMetadata: (command) => pickPayloadFields(command, ['rating'])
+      })
+    );
 
     // Set individual photo crop ratio and vertical position
-    socket.on('set-photo-crop', ({ url, cropPercent, cropPositionY }) => {
-      const command = decodePhotoCropCommand({ url, cropPercent, cropPositionY });
-      if (!command) return;
-
-      if (googlePhotos.isGooglePhotoProxyUrl(command.payload.url)) {
-        const updatedPhoto = applyGooglePhotoMetadata(command.payload.url, {
-          cropPercent: command.payload.cropPercent,
-          cropPositionY: command.payload.cropPositionY
-        });
-        if (updatedPhoto) {
-          broadcast();
-        }
-        return;
-      }
-
-      if (command && dispatchCommand) {
-        dispatchCommand(command);
-        return;
-      }
-
-      const { updatePhotoCrop } = require('./config/collections.js');
-      updatePhotoCrop(collections, state, command.payload.url, command.payload.cropPercent, command.payload.cropPositionY);
-      broadcast();
-    });
+    listenForCommand(
+      'set-photo-crop',
+      decodePhotoCropCommand,
+      applyLegacyPhotoCrop,
+      createGooglePhotoMetadataInterceptor({
+        buildMetadata: (command) => pickPayloadFields(command, ['cropPercent', 'cropPositionY'])
+      })
+    );
 
 
     // Set individual photo pairing prevention
-    socket.on('set-photo-prevent-pairing', ({ url, preventPairing, preserveActive }) => {
-      if (googlePhotos.isGooglePhotoProxyUrl(url)) {
-        const metadata = { preventPairing: Boolean(preventPairing) };
-        const updatedPhoto = applyGooglePhotoMetadata(url, metadata);
-        if (!updatedPhoto) return;
-
-        if (metadata.preventPairing && preserveActive) {
-          const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
-          if (focusedPhoto) {
-            state.activePhoto = { ...focusedPhoto };
-            state.activeSecondPhoto = null;
+    listenForCommand(
+      'set-photo-prevent-pairing',
+      decodePhotoPreventPairingCommand,
+      applyLegacyPreventPairing,
+      createGooglePhotoMetadataInterceptor({
+        buildMetadata: (command) => pickPayloadFields(command, ['preventPairing']),
+        afterApply: ({ command }) => {
+          if (command.payload.preventPairing && command.payload.preserveActive) {
+            preserveFocusedPhoto(command.payload.url);
           }
         }
-
-        broadcast();
-        return;
-      }
-
-      if (dispatchCommand) {
-        dispatchCommand({
-          type: 'set-photo-prevent-pairing',
-          payload: { url, preventPairing, preserveActive }
-        });
-        return;
-      }
-      if (!url || typeof url !== 'string') return;
-
-      const { updatePhotoPreventPairing } = require('./config/collections.js');
-      updatePhotoPreventPairing(collections, state, url, preventPairing);
-      if (preventPairing && preserveActive) {
-        const focusedPhoto = state.photosList?.find((photo) => photo?.url === url)
-          || Object.values(collections).flat().find((photo) => photo?.url === url);
-        if (focusedPhoto) {
-          state.activePhoto = focusedPhoto;
-          state.activeSecondPhoto = null;
-        }
-      }
-      broadcast();
-    });
+      })
+    );
 
     // Update keywords socket event
     socket.on('update-keywords', ({ category, keywords }) => {
@@ -666,19 +692,9 @@ module.exports = function configureSockets({
       broadcast();
     });
 
-    listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), () => {
-      const photo = getSmartPhoto('next');
-      if (photo) {
-        syncActivePhoto(io, state, photo);
-      }
-    });
+    listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), applyLegacyAdvancePhoto('next'));
 
-    listenForCommand('prev-photo', () => decodeAdvancePhotoCommand('prev'), () => {
-      const photo = getSmartPhoto('prev');
-      if (photo) {
-        syncActivePhoto(io, state, photo);
-      }
-    });
+    listenForCommand('prev-photo', () => decodeAdvancePhotoCommand('prev'), applyLegacyAdvancePhoto('prev'));
 
     listenForCommand('set-screensaver-active', decodeScreensaverActiveFromSocket, (command) => {
       if (command.payload.active) {
@@ -706,30 +722,17 @@ module.exports = function configureSockets({
       }
     });
 
-    // 🛑 Client reported broken photo marker
-    socket.on('mark-photo-broken', ({ url }) => {
-      if (!url || typeof url !== 'string') return;
-      console.log(`[SOCKET EVENT] mark-photo-broken received for URL: ${url}`);
-      if (dispatchCommand) {
-        dispatchCommand({
-          type: 'mark-photo-broken',
-          payload: { url }
-        });
-        return;
-      }
-      const { markPhotoBroken } = require('./config/collections.js');
-      const updated = markPhotoBroken(collections, state, url);
-      if (updated) {
-        // If the broken photo is currently active, transition to the next smart photo immediately
-        if (state.activePhoto && state.activePhoto.url === url) {
-          const nextPhoto = getSmartPhoto('next');
-          if (nextPhoto) {
-            syncActivePhoto(io, state, nextPhoto);
-          }
-        }
-        broadcast();
-      }
-    });
+    listenForCommand(
+      'mark-photo-broken',
+      (payload) => {
+        console.log(`[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`);
+        return decodeBrokenPhotoCommand(payload);
+      },
+      applyLegacyBrokenPhoto,
+      createGooglePhotoMetadataInterceptor({
+        buildMetadata: () => ({ rating: 1, isBroken: true })
+      })
+    );
 
     listenForCommand('trigger-recrawl', (payload) => {
       console.log('[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...');

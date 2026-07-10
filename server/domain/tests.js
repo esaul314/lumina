@@ -28,7 +28,9 @@ const {
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodeBrokenPhotoCommand,
   decodePhotoRatingCommand,
+  decodePhotoPreventPairingCommand,
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand,
@@ -182,6 +184,29 @@ function runDomainTests({ logSuite, assertTest }) {
         strategy: 'sequence'
       }
     });
+  });
+
+  assertTest('photo command decoders normalize prevent-pairing and broken-photo payloads', () => {
+    assert.deepStrictEqual(decodePhotoPreventPairingCommand({
+      url: ' https://example.com/photo.jpg ',
+      preventPairing: 1,
+      preserveActive: 'yes'
+    }), {
+      type: 'set-photo-prevent-pairing',
+      payload: {
+        url: ' https://example.com/photo.jpg ',
+        preventPairing: true,
+        preserveActive: true
+      }
+    });
+    assert.deepStrictEqual(decodeBrokenPhotoCommand({ url: 'broken-photo' }), {
+      type: 'mark-photo-broken',
+      payload: {
+        url: 'broken-photo'
+      }
+    });
+    assert.strictEqual(decodePhotoPreventPairingCommand({ preventPairing: true }), null);
+    assert.strictEqual(decodeBrokenPhotoCommand({ url: '   ' }), null);
   });
 
   assertTest('state patch decoder normalizes location, widgets, and vision config payloads', () => {

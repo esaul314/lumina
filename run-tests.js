@@ -32,6 +32,7 @@ const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
+const configureSockets = require('./server/sockets.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const {
   applyCachedMediaItemMetadataToState,
@@ -160,6 +161,82 @@ function buildConfiguredRoutesApp(extraEnv = {}) {
   });
 
   return app;
+}
+
+function createSocketHarness(extraEnv = {}) {
+  const ioEmits = [];
+  let connectionHandler = null;
+  const io = {
+    emit(event, payload) {
+      ioEmits.push([event, payload]);
+    },
+    on(event, handler) {
+      if (event === 'connection') {
+        connectionHandler = handler;
+      }
+    }
+  };
+  const socketHandlers = {};
+  const socketEmits = [];
+  const socket = {
+    id: 'socket-test',
+    on(event, handler) {
+      socketHandlers[event] = handler;
+    },
+    emit(event, payload) {
+      socketEmits.push([event, payload]);
+    }
+  };
+  const state = {
+    currentCategory: 'Scenic Nature',
+    photosList: [{ url: 'land-1', title: 'Forest' }],
+    activePhoto: { url: 'land-1', title: 'Forest' },
+    widgets: { clock: true },
+    searchKeywords: {
+      'Scenic Nature': ['forest'],
+      'Liminal Spaces': ['hallway']
+    },
+    feedConfigs: {},
+    excludedKeywords: []
+  };
+  const collections = {
+    'Scenic Nature': [{ url: 'land-1', title: 'Forest' }],
+    'Liminal Spaces': [{ url: 'port-1', title: 'Hallway' }]
+  };
+
+  configureSockets({
+    io,
+    state,
+    collections,
+    combineFeedsBalanced: (categories) => categories.map((category, index) => ({
+      url: `${category}-${index}`,
+      title: category,
+      category
+    })),
+    getSmartPhoto: (direction) => ({ url: `${direction}-smart`, title: `${direction} smart` }),
+    launchKioskBrowser: () => {},
+    killKioskBrowser: () => {},
+    setManualOverride: () => {},
+    getLocalIpAddresses: () => ['127.0.0.1'],
+    port: 5000,
+    triggerWeatherUpdate: async () => {},
+    ...extraEnv
+  });
+
+  if (typeof connectionHandler !== 'function') {
+    throw new Error('Socket harness failed to register a connection handler.');
+  }
+
+  connectionHandler(socket);
+
+  return {
+    collections,
+    ioEmits,
+    socket,
+    socketEmits,
+    socketHandlers,
+    state
+  };
 }
 
 function findRouteHandler(app, method, routePath) {
@@ -1025,6 +1102,56 @@ async function runClientStateTests() {
     global.window = originalWindow;
     global.fetch = originalFetch;
   }
+
+  const dispatchedCommands = [];
+  const dispatchHarness = createSocketHarness({
+    dispatchCommand: async (command) => {
+      dispatchedCommands.push(command);
+      return null;
+    }
+  });
+
+  await dispatchHarness.socketHandlers['change-category']('Scenic Nature,Liminal Spaces');
+  await dispatchHarness.socketHandlers['rate-photo']({ url: 'land-1', rating: 7 });
+  await dispatchHarness.socketHandlers['mark-photo-broken']({ url: 'land-1' });
+
+  assertTest('socket category and photo compatibility events dispatch shared domain commands when available', () => {
+    assert.deepStrictEqual(dispatchedCommands, [
+      {
+        type: 'select-categories',
+        payload: {
+          categories: 'Scenic Nature,Liminal Spaces'
+        }
+      },
+      {
+        type: 'rate-photo',
+        payload: {
+          url: 'land-1',
+          rating: 7
+        }
+      },
+      {
+        type: 'mark-photo-broken',
+        payload: {
+          url: 'land-1'
+        }
+      }
+    ]);
+  });
+
+  const fallbackHarness = createSocketHarness();
+  await fallbackHarness.socketHandlers['next-photo']();
+
+  assertTest('socket next-photo fallback still advances the active photo through the legacy smart selector', () => {
+    assert.deepStrictEqual(fallbackHarness.state.activePhoto, {
+      url: 'next-smart',
+      title: 'next smart'
+    });
+    assert.deepStrictEqual(
+      fallbackHarness.ioEmits.find(([event]) => event === 'photo-update'),
+      ['photo-update', { url: 'next-smart', title: 'next smart' }]
+    );
+  });
 }
 
 // ============================================================================

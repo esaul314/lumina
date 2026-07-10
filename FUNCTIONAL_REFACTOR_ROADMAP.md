@@ -20,7 +20,8 @@ Current checkpoint:
 
 - Manual recrawl and manual vision-analysis now run through shared `trigger-* -> start-*-job` effect paths, with REST owning job submission and Socket.IO reduced to live status pushes plus backward-compatible shims.
 - The first `server/sockets.js` cleanup slice is now in place: the module uses an object-shaped environment, shared command-listener factories, and shared patch-state decoders for dashboard settings and location mutations.
-- The next structural cleanup is to keep thinning `server/sockets.js` by migrating the remaining category/photo/admin compatibility handlers off ad hoc transport logic.
+- The next socket cleanup slice is now also in place: category selection, active-photo/navigation, and standard curated-photo compatibility handlers now decode through shared command listeners, with Google Photos metadata exceptions isolated behind a small source-local interceptor.
+- The remaining structural cleanup is to keep thinning `server/sockets.js` by migrating the pool/admin compatibility tail and any remaining source-local credential or cache shims off ad hoc transport logic.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -100,8 +101,8 @@ Changes:
 
 Progress note:
 
-- The object-shaped socket environment and shared command-listener / patch-decoder layer are now in place for widget, theme, interval, scale, split, alignment, vision-config, and location settings.
-- The remaining work in this step is the narrower compatibility tail: category selection, photo metadata/mutations with Google Photos exceptions, pool lifecycle shims, and admin-only credential writes.
+- The object-shaped socket environment and shared command-listener / patch-decoder layer are now in place for widget, theme, interval, scale, split, alignment, vision-config, location settings, category selection, active-photo/navigation, and standard curated-photo mutations.
+- The remaining work in this step is the narrower compatibility tail: pool lifecycle shims plus the source-local Google Photos and admin-only credential-write exceptions.
 
 Acceptance criteria:
 
