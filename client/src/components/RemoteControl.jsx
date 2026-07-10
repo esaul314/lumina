@@ -24,6 +24,7 @@ import {
   getPhotoCropState,
   isSplitFrameActive
 } from '../state/frameSelectors';
+import { toCssImageUrl } from '../state/cssImage.js';
 import {
   getSelectedCategories,
   serializeCategorySelection,
@@ -529,7 +530,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     }
 
     return {
-      backgroundImage: `url(${url})`,
+      backgroundImage: toCssImageUrl(url),
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
       backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat',
@@ -576,7 +577,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     }
 
     return {
-      backgroundImage: `url(${url})`,
+      backgroundImage: toCssImageUrl(url),
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
       backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat',
@@ -620,7 +621,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     }
 
     return {
-      backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url(${photo.url})`,
+      backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), ${toCssImageUrl(photo.url)}`,
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
       backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat',

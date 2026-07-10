@@ -13,6 +13,7 @@ import {
   getPhotoCropState,
   isSplitFrameActive
 } from '../state/frameSelectors';
+import { toCssImageUrl } from '../state/cssImage.js';
 
 /**
  * 🖼️ loadImageMeta
@@ -595,7 +596,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     }
 
     return {
-      backgroundImage: `url(${url})`,
+      backgroundImage: toCssImageUrl(url),
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
       backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat'
@@ -637,7 +638,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     }
 
     return {
-      backgroundImage: `url(${url})`,
+      backgroundImage: toCssImageUrl(url),
       backgroundSize: `${Math.round(wDisp)}px ${Math.round(hDisp)}px`,
       backgroundPosition: `center ${P_y}%`,
       backgroundRepeat: 'no-repeat'

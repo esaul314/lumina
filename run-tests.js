@@ -1760,6 +1760,26 @@ async function runClientStateTests() {
   }
 }
 
+async function runClientRenderingTests() {
+  logSuite('Client Rendering Helpers');
+
+  const { toCssImageUrl } = await importClientModule('./client/src/state/cssImage.js');
+
+  assertTest('toCssImageUrl quotes and encodes whitespace-safe image URLs', () => {
+    assert.strictEqual(
+      toCssImageUrl('https://images.metmuseum.org/CRDImages/as/original/8 NEW DP257785r1_61E.jpg'),
+      'url("https://images.metmuseum.org/CRDImages/as/original/8%20NEW%20DP257785r1_61E.jpg")'
+    );
+  });
+
+  assertTest('toCssImageUrl preserves already-encoded paths', () => {
+    assert.strictEqual(
+      toCssImageUrl('https://example.com/already%20encoded/image.jpg'),
+      'url("https://example.com/already%20encoded/image.jpg")'
+    );
+  });
+}
+
 // ============================================================================
 // 6. UNIT TEST SUITE: Multi-Source Wallpaper Aggregator
 // ============================================================================
@@ -1900,6 +1920,7 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // ============================================================================
 async function runIntegrationTests() {
   await runClientStateTests();
+  await runClientRenderingTests();
   logSuite('Async Recrawl Job Flow');
   await runRecrawlJobTests(assertAsyncTest);
 
