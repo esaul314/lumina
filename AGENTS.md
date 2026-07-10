@@ -23,7 +23,7 @@ Current migration checkpoint:
 - Phase 1 Step 3 complete: category selection, pool lifecycle, and feed-configuration mutations now use REST by default in operator UIs, with Socket.IO retained as the live sync/event transport.
 - Phase 1 Step 4 complete: manual recrawl flows now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
 - Phase 1 Step 5 complete: manual vision-analysis runs now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
-- Next focus: keep shrinking socket-only compatibility shims; category and standard curated-photo handlers now route through shared command listeners, leaving pool/admin shims plus source-local Google Photos exceptions as the remaining tail.
+- Next focus: keep shrinking socket-only compatibility shims; category, pool/admin, and legacy admin-secret handlers now route through shared command listeners, leaving source-local Google Photos exceptions plus truly ephemeral telemetry handlers as the remaining tail.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

@@ -552,6 +552,24 @@ function reduceDomainCommand(state, command, env = {}) {
       );
     }
 
+    case 'save-env-secret': {
+      const envKey = String(command.payload?.envKey || '').trim();
+      const runtimeFlag = String(command.payload?.runtimeFlag || '').trim();
+      const value = String(command.payload?.value || '');
+
+      if (!envKey || !runtimeFlag) {
+        return createResult(state, [], []);
+      }
+
+      return createResult(state, emitStateSync(), [{
+        type: 'persist-env-vars',
+        payload: {
+          entries: { [envKey]: value },
+          runtimeFlags: { [runtimeFlag]: Boolean(value) }
+        }
+      }]);
+    }
+
     case 'trigger-recrawl':
       return createResult(state, [], [{
         type: 'start-recrawl-job',

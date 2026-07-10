@@ -1,6 +1,7 @@
 // @ts-check
 
 const { saveCuratedCollections } = require('../config/collections.js');
+const { persistEnvVars } = require('../config/env.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 
@@ -55,6 +56,25 @@ function createDomainDispatcher({
     if (effect.type === 'run-crawler' && typeof runCrawler === 'function' && process.env.NODE_ENV !== 'test') {
       await runCrawler(effect.payload || {});
       return;
+    }
+
+    if (effect.type === 'persist-env-vars') {
+      const entries = effect.payload?.entries && typeof effect.payload.entries === 'object'
+        ? effect.payload.entries
+        : {};
+      const runtimeFlags = effect.payload?.runtimeFlags && typeof effect.payload.runtimeFlags === 'object'
+        ? effect.payload.runtimeFlags
+        : {};
+
+      persistEnvVars(entries);
+      Object.entries(runtimeFlags).forEach(([flag, enabled]) => {
+        state[flag] = Boolean(enabled);
+      });
+
+      return {
+        entries: { ...entries },
+        runtimeFlags: { ...runtimeFlags }
+      };
     }
 
     if (effect.type === 'start-recrawl-job' && typeof startRecrawlJob === 'function') {

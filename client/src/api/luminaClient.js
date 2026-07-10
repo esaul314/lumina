@@ -126,6 +126,21 @@ export function patchPoolFeedSource(name, source, config) {
   });
 }
 
+async function postAdminSecret(path, body, legacyEvent, { socket } = {}) {
+  try {
+    return await requestJson(path, {
+      method: 'POST',
+      body
+    });
+  } catch (error) {
+    if (error?.status === 404 && socket?.emit) {
+      socket.emit(legacyEvent, body);
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function startRecrawlJob(body = {}, { socket } = {}) {
   try {
     return await requestJson('/api/jobs/recrawl', {
@@ -139,6 +154,14 @@ export async function startRecrawlJob(body = {}, { socket } = {}) {
     }
     throw error;
   }
+}
+
+export function saveUseApiToken(token, { socket } = {}) {
+  return postAdminSecret('/api/admin/secrets/useapi-token', { token }, 'save-useapi-token', { socket });
+}
+
+export function saveTumblrApiKey(token, { socket } = {}) {
+  return postAdminSecret('/api/admin/secrets/tumblr-api-key', { token }, 'save-tumblr-api-key', { socket });
 }
 
 export async function startVisionAnalysisJob(body = {}, { socket } = {}) {

@@ -16,6 +16,8 @@ const {
   decodePhotoPreventPairingCommand,
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
+  decodeTumblrApiKeyCommand,
+  decodeUseApiTokenCommand,
   decodeVisionAnalysisCommand,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand
@@ -654,6 +656,20 @@ module.exports = function configureRoutes({
       state: buildStateResponse()
     })
   }));
+
+  const createAdminSecretRoute = (path, secretName, decode) => app.post(path, createCommandRoute({
+    decode: (req) => decode(req.body),
+    invalidMessage: 'Invalid admin secret payload.',
+    unavailableMessage: 'Admin secret dispatcher unavailable.',
+    present: ({ command }) => ({
+      secret: secretName,
+      configured: Boolean(command.payload?.value),
+      state: buildStateResponse()
+    })
+  }));
+
+  createAdminSecretRoute('/api/admin/secrets/useapi-token', 'useapi-token', decodeUseApiTokenCommand);
+  createAdminSecretRoute('/api/admin/secrets/tumblr-api-key', 'tumblr-api-key', decodeTumblrApiKeyCommand);
 
   app.post('/api/jobs/recrawl', createAsyncRoute(async (req, res) => {
     if (!requireDispatcher(res, 'Recrawl dispatcher unavailable.')) {

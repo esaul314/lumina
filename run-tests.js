@@ -148,7 +148,9 @@ function buildConfiguredRoutesApp(extraEnv = {}) {
       theme: 'Zen Retreat',
       feedConfigs: {},
       searchKeywords: {},
-      excludedKeywords: []
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
     },
     collections: {
       'Scenic Nature': [{ url: 'land-1', category: 'Scenic Nature' }]
@@ -192,6 +194,8 @@ function createSocketHarness(extraEnv = {}) {
     photosList: [{ url: 'land-1', title: 'Forest' }],
     activePhoto: { url: 'land-1', title: 'Forest' },
     widgets: { clock: true },
+    hasUseApiToken: false,
+    hasTumblrApiKey: false,
     searchKeywords: {
       'Scenic Nature': ['forest'],
       'Liminal Spaces': ['hallway']
@@ -1085,8 +1089,16 @@ async function runClientStateTests() {
       json: async () => ({})
     });
 
-    const { selectCategories: selectClientCategories } = await importClientModule('./client/src/api/luminaClient.js');
+    const {
+      saveUseApiToken: saveClientUseApiToken,
+      selectCategories: selectClientCategories
+    } = await importClientModule('./client/src/api/luminaClient.js');
     const fallbackResult = await selectClientCategories('Scenic Nature,Liminal Spaces', {
+      socket: {
+        emit: (...args) => emittedEvents.push(args)
+      }
+    });
+    const fallbackSecretResult = await saveClientUseApiToken('secret-123', {
       socket: {
         emit: (...args) => emittedEvents.push(args)
       }
@@ -1094,9 +1106,14 @@ async function runClientStateTests() {
 
     assertTest('selectCategories falls back to the legacy socket event when the REST route is missing', () => {
       assert.strictEqual(fallbackResult, null);
-      assert.deepStrictEqual(emittedEvents, [
+      assert.deepStrictEqual(emittedEvents[0], [
         ['change-category', 'Scenic Nature,Liminal Spaces']
-      ]);
+      ][0]);
+    });
+
+    assertTest('saveUseApiToken falls back to the legacy socket event when the REST route is missing', () => {
+      assert.strictEqual(fallbackSecretResult, null);
+      assert.deepStrictEqual(emittedEvents[1], ['save-useapi-token', { token: 'secret-123' }]);
     });
   } finally {
     global.window = originalWindow;
@@ -1114,8 +1131,10 @@ async function runClientStateTests() {
   await dispatchHarness.socketHandlers['change-category']('Scenic Nature,Liminal Spaces');
   await dispatchHarness.socketHandlers['rate-photo']({ url: 'land-1', rating: 7 });
   await dispatchHarness.socketHandlers['mark-photo-broken']({ url: 'land-1' });
+  await dispatchHarness.socketHandlers['update-keywords']({ category: 'Scenic Nature', keywords: ['forest', 'mist'] });
+  await dispatchHarness.socketHandlers['save-useapi-token']({ token: 'secret-123' });
 
-  assertTest('socket category and photo compatibility events dispatch shared domain commands when available', () => {
+  assertTest('socket category, pool, photo, and admin compatibility events dispatch shared domain commands when available', () => {
     assert.deepStrictEqual(dispatchedCommands, [
       {
         type: 'select-categories',
@@ -1135,8 +1154,27 @@ async function runClientStateTests() {
         payload: {
           url: 'land-1'
         }
+      },
+      {
+        type: 'set-pool-keywords',
+        payload: {
+          name: 'Scenic Nature',
+          keywords: ['forest', 'mist']
+        }
+      },
+      {
+        type: 'save-env-secret',
+        payload: {
+          envKey: 'USEAPI_TOKEN',
+          runtimeFlag: 'hasUseApiToken',
+          value: 'secret-123'
+        }
       }
     ]);
+    assert.deepStrictEqual(
+      dispatchHarness.socketEmits.find(([event]) => event === 'useapi-token-saved'),
+      ['useapi-token-saved', { success: true }]
+    );
   });
 
   const fallbackHarness = createSocketHarness();
@@ -1409,6 +1447,58 @@ async function runIntegrationTests() {
     assert.deepStrictEqual(dispatched, [{
       type: 'trigger-vision-analysis',
       payload: {}
+    }]);
+  });
+
+  logSuite('REST Admin Secret Routes');
+  await assertAsyncTest('POST /api/admin/secrets/useapi-token dispatches the shared admin secret command and returns the updated configured flag', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.hasUseApiToken = true;
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'persist-env-vars' }]
+          },
+          effectResults: [{
+            effect: { type: 'persist-env-vars' },
+            value: {
+              entries: { USEAPI_TOKEN: 'secret-123' },
+              runtimeFlags: { hasUseApiToken: true }
+            }
+          }]
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/admin/secrets/useapi-token', {
+      body: { token: ' secret-123 ' }
+    });
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.secret, 'useapi-token');
+    assert.strictEqual(response.body.configured, true);
+    assert.strictEqual(response.body.state.hasUseApiToken, true);
+    assert.deepStrictEqual(dispatched, [{
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'USEAPI_TOKEN',
+        runtimeFlag: 'hasUseApiToken',
+        value: 'secret-123'
+      }
     }]);
   });
 

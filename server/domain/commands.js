@@ -284,6 +284,22 @@ const buildObjectFieldPatch = curry((field, value) => (
     : null
 ));
 
+const createEnvSecretCommandDecoder = curry((envKey, runtimeFlag, payload) => {
+  const rawValue = payload?.token ?? payload?.value;
+  if (typeof rawValue !== 'string') {
+    return null;
+  }
+
+  return {
+    type: 'save-env-secret',
+    payload: {
+      envKey,
+      runtimeFlag,
+      value: trimString(rawValue)
+    }
+  };
+});
+
 function buildWidgetPatch(payload) {
   const widgetName = trimString(payload?.widgetName);
   if (!widgetName) {
@@ -455,6 +471,9 @@ function decodePhotoMetadataCommand(payload) {
   };
 }
 
+const decodeUseApiTokenCommand = createEnvSecretCommandDecoder('USEAPI_TOKEN', 'hasUseApiToken');
+const decodeTumblrApiKeyCommand = createEnvSecretCommandDecoder('TUMBLR_API_KEY', 'hasTumblrApiKey');
+
 module.exports = {
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
@@ -473,7 +492,9 @@ module.exports = {
   decodeBrokenPhotoCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
+  decodeTumblrApiKeyCommand,
   decodeStatePatchCommand,
+  decodeUseApiTokenCommand,
   createStatePatchCommandDecoder,
   buildBooleanFieldPatch,
   buildEnumFieldPatch,

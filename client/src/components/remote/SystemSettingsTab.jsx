@@ -5,7 +5,6 @@ import {
 
 function SystemSettingsTab({
   state,
-  socket,
   actions,
   connectionInfo,
   handleToggleWidget,
@@ -34,7 +33,9 @@ function SystemSettingsTab({
   recrawlCount,
   visionAnalysisCount,
   handleRecrawl,
-  handleVisionAnalysis
+  handleVisionAnalysis,
+  handleSaveTumblrApiKey,
+  handleSaveUseapiToken
 }) {
   return (
     <>
@@ -791,12 +792,12 @@ function SystemSettingsTab({
             </div>
           )}
           <button 
-            onClick={() => {
+            onClick={async () => {
               if (!useapiToken.trim()) {
                 alert('Please enter a valid token.');
                 return;
               }
-              socket.emit('save-useapi-token', { token: useapiToken.trim() });
+              await handleSaveUseapiToken();
             }}
             className="remote-btn" 
             style={{ background: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)', fontSize: '0.85rem' }}
@@ -847,12 +848,12 @@ function SystemSettingsTab({
             </div>
           )}
           <button
-            onClick={() => {
+            onClick={async () => {
               if (!tumblrApiKey.trim()) {
                 alert('Please enter a valid Tumblr API key.');
                 return;
               }
-              socket.emit('save-tumblr-api-key', { token: tumblrApiKey.trim() });
+              await handleSaveTumblrApiKey();
             }}
             className="remote-btn"
             style={{ background: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)', fontSize: '0.85rem' }}

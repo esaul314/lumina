@@ -10,6 +10,8 @@ import {
   patchState,
   previewPhoto,
   prevPhoto,
+  saveTumblrApiKey,
+  saveUseApiToken,
   selectCategories,
   setScreensaverActive,
   startRecrawlJob,
@@ -241,8 +243,41 @@ export function useLuminaActions(socket, setState) {
     },
     triggerRecrawl: () => runAction(() => startRecrawlJob({}, { socket })),
     triggerVisionAnalysis: () => runAction(() => startVisionAnalysisJob({}, { socket })),
-    saveUseapiToken: (token) => {
-      socket.emit('save-useapi-token', { token });
+    saveUseapiToken: async (token) => {
+      try {
+        const nextState = await saveUseApiToken(token, { socket });
+        if (nextState) {
+          applyStateResponse(nextState);
+        }
+        return {
+          success: true,
+          fallback: nextState === null
+        };
+      } catch (error) {
+        console.error('[LuminaActions] Action failed:', error);
+        return {
+          success: false,
+          fallback: false
+        };
+      }
+    },
+    saveTumblrApiKey: async (token) => {
+      try {
+        const nextState = await saveTumblrApiKey(token, { socket });
+        if (nextState) {
+          applyStateResponse(nextState);
+        }
+        return {
+          success: true,
+          fallback: nextState === null
+        };
+      } catch (error) {
+        console.error('[LuminaActions] Action failed:', error);
+        return {
+          success: false,
+          fallback: false
+        };
+      }
     }
   }), [setState, socket]);
 }

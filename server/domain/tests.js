@@ -34,6 +34,8 @@ const {
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand,
+  decodeTumblrApiKeyCommand,
+  decodeUseApiTokenCommand,
   decodeVisionAnalysisCommand
 } = require('./commands.js');
 const {
@@ -578,6 +580,28 @@ function runDomainTests({ logSuite, assertTest }) {
     }]);
   });
 
+  assertTest('reducer admin secret persistence stays effectful and updates runtime flags only through the shell', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'USEAPI_TOKEN',
+        runtimeFlag: 'hasUseApiToken',
+        value: 'secret-123'
+      }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, [{ type: 'state-sync' }]);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'persist-env-vars',
+      payload: {
+        entries: { USEAPI_TOKEN: 'secret-123' },
+        runtimeFlags: { hasUseApiToken: true }
+      }
+    }]);
+  });
+
   assertTest('reducer pool keyword updates persist without mutating collections', () => {
     const result = reduceDomainCommand(createState(), {
       type: 'set-pool-keywords',
@@ -693,6 +717,28 @@ function runDomainTests({ logSuite, assertTest }) {
       }
     });
     assert.strictEqual(decodeVisionAnalysisCommand({ categories: ['   '] }), null);
+  });
+
+  assertTest('admin secret decoders normalize REST and socket payloads into shared command shapes', () => {
+    assert.deepStrictEqual(decodeUseApiTokenCommand({ token: '  useapi-secret  ' }), {
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'USEAPI_TOKEN',
+        runtimeFlag: 'hasUseApiToken',
+        value: 'useapi-secret'
+      }
+    });
+
+    assert.deepStrictEqual(decodeTumblrApiKeyCommand({ value: 'tumblr-secret' }), {
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'TUMBLR_API_KEY',
+        runtimeFlag: 'hasTumblrApiKey',
+        value: 'tumblr-secret'
+      }
+    });
+
+    assert.strictEqual(decodeUseApiTokenCommand({}), null);
   });
 
   assertTest('category selection keeps Google Photos active pools populated from external cache state', () => {

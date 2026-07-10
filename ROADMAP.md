@@ -19,7 +19,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
 - Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
-- Next: keep shrinking `server/sockets.js`. The category and standard curated-photo compatibility handlers now dispatch through shared command listeners; the remaining tail is pool/admin compatibility shims plus source-local Google Photos exceptions.
+- Next: keep shrinking `server/sockets.js`. Pool/admin compatibility shims and remote admin secret saves now dispatch through shared command listeners and REST-first admin routes by default; the remaining tail is source-local Google Photos exceptions plus truly ephemeral telemetry/update events.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), which currently starts with refactoring `server/sockets.js` into a thinner transport adapter.
 
 ## Architectural Rule
@@ -37,7 +37,7 @@ The codebase already contains part of this direction, but Phase 1 is not complet
 - `server/routes.js` exposes REST endpoints for state, photos, pools, weather, and screensaver control.
 - `server/domain/` already holds shared command decoding, reducers, selectors, and snapshot logic used by both REST and Socket.IO for part of the mutation surface.
 - `client/src/hooks/useLuminaActions.js` is now REST-first for remote photo controls, durable state/settings controls, and category/pool/feed-config operator actions.
-- `server/sockets.js` now routes the dashboard's durable state/settings, category-selection, photo-navigation, and standard curated-photo socket events through shared command listeners, but it still carries live-sync, pool/admin compatibility shims, and source-local Google Photos or env-write exceptions that should continue shrinking during Phase 1.
+- `server/sockets.js` now routes the dashboard's durable state/settings, category-selection, photo-navigation, pool/admin compatibility events, and legacy admin secret-save shims through shared command listeners, but it still carries live-sync plus source-local Google Photos or other host-IO-specific exceptions that should continue shrinking during Phase 1.
 - Source-specific metadata persistence now exists for Google Photos, which reinforces the broader rule that metadata should live at the correct source boundary and then be projected back into the live snapshot.
 
 ## Phase 1
@@ -56,7 +56,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: keep thinning the remaining socket compatibility surface so pool/admin handlers and source-local Google Photos shims stop owning ad hoc transport logic.
+  - Next focus: keep thinning the remaining socket compatibility surface so the source-local Google Photos exceptions and any leftover ephemeral-only handlers stop owning ad hoc transport logic.
 
 ### Shared domain flow
 

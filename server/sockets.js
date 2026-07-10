@@ -29,6 +29,8 @@ const {
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,
+  decodeTumblrApiKeyCommand,
+  decodeUseApiTokenCommand,
   decodeVisionAnalysisCommand,
 } = require('./domain/commands.js');
 
@@ -79,27 +81,37 @@ const syncActivePhoto = (io, state, photo) => {
  *   dispatchCommand?: (command: Record<string, any>) => Promise<any> | any,
  *   decode: (payload: any) => Record<string, any> | null,
  *   fallback?: (command: Record<string, any>, payload: any) => Promise<void> | void,
- *   intercept?: (command: Record<string, any>, payload: any) => Promise<boolean> | boolean
+ *   intercept?: (command: Record<string, any>, payload: any) => Promise<boolean> | boolean,
+ *   afterDispatch?: (result: any, command: Record<string, any>, payload: any) => Promise<void> | void,
+ *   onError?: (error: Error, command: Record<string, any>, payload: any) => Promise<void> | void
  * }} options
  */
-function createCommandListener({ dispatchCommand, decode, fallback, intercept }) {
+function createCommandListener({ dispatchCommand, decode, fallback, intercept, afterDispatch, onError }) {
   return async (payload) => {
     const command = decode(payload);
     if (!command) {
       return;
     }
 
-    if (typeof intercept === 'function' && await intercept(command, payload)) {
-      return;
-    }
+    try {
+      if (typeof intercept === 'function' && await intercept(command, payload)) {
+        return;
+      }
 
-    if (typeof dispatchCommand === 'function') {
-      await dispatchCommand(command);
-      return;
-    }
+      const result = typeof dispatchCommand === 'function'
+        ? await dispatchCommand(command)
+        : (typeof fallback === 'function' ? await fallback(command, payload) : undefined);
 
-    if (typeof fallback === 'function') {
-      await fallback(command, payload);
+      if (typeof afterDispatch === 'function') {
+        await afterDispatch(result, command, payload);
+      }
+    } catch (error) {
+      if (typeof onError === 'function') {
+        await onError(error, command, payload);
+        return;
+      }
+
+      throw error;
     }
   };
 }
@@ -310,6 +322,132 @@ module.exports = function configureSockets({
     }
   };
 
+  const applyLegacyPoolKeywords = (command) => {
+    const { name, keywords } = command.payload;
+    if (!collections[name]) {
+      return;
+    }
+
+    state.searchKeywords[name] = [...keywords];
+    saveCuratedCollections(collections, state);
+    console.log(`[Config Socket] Saved updated search keywords for category "${name}":`, state.searchKeywords[name]);
+    broadcast();
+  };
+
+  const applyLegacyPoolFeedConfig = (command) => {
+    const { name, source, config } = command.payload;
+    if (!collections[name]) {
+      return;
+    }
+
+    state.feedConfigs ??= {};
+    state.feedConfigs[name] ??= {};
+    state.feedConfigs[name][source] = {
+      ...state.feedConfigs[name][source],
+      ...config
+    };
+
+    saveCuratedCollections(collections, state);
+    console.log(`[Config Socket] Saved updated feed config for category "${name}" source "${source}":`, state.feedConfigs[name][source]);
+    broadcast();
+  };
+
+  const buildDefaultPoolFeedConfig = (keywords) => ({
+    unsplash: { enabled: true, keywords: [...keywords] },
+    wallhaven: { enabled: true, keywords: [...keywords] },
+    metmuseum: { enabled: true, keywords: [...keywords] },
+    artic: { enabled: false, keywords: [...keywords] }
+  });
+
+  const applyLegacyAddPool = async (command) => {
+    const { name, keywords } = command.payload;
+    if (collections[name] || state.searchKeywords?.[name]) {
+      console.warn(`Category "${name}" already exists.`);
+      return;
+    }
+
+    console.log(`[SOCKET EVENT] add-category received: "${name}" with keywords:`, keywords);
+
+    state.searchKeywords ??= {};
+    state.searchKeywords[name] = [...keywords];
+    state.feedConfigs ??= {};
+    state.feedConfigs[name] = buildDefaultPoolFeedConfig(keywords);
+    collections[name] = [];
+
+    saveCuratedCollections(collections, state);
+    broadcast();
+
+    try {
+      const { crawlAllCollections } = require('./services/crawler.js');
+      const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
+      if (updatedAny) {
+        Object.entries(updatedCollections).forEach(([key, photos]) => {
+          collections[key] = photos;
+        });
+        saveCuratedCollections(collections, state);
+      }
+
+      const currentCats = splitCategories(state.currentCategory);
+      if (currentCats.includes(name)) {
+        state.photosList = combineFeedsBalanced(currentCats, collections);
+        if (state.photosList.length > 0) {
+          syncActivePhoto(io, state, getSmartPhoto('next') || state.photosList[0]);
+        }
+      }
+
+      broadcast();
+
+      const { triggerImageAnalysisBackground } = require('./app.js');
+      triggerImageAnalysisBackground().catch((err) => console.error('Error in background image analysis:', err));
+    } catch (err) {
+      console.error(`Error crawling new category "${name}":`, err.message);
+    }
+  };
+
+  const applyLegacyDeletePool = (command) => {
+    const { name } = command.payload;
+    if (!collections[name] && !state.searchKeywords?.[name]) {
+      return;
+    }
+
+    console.log(`[SOCKET EVENT] delete-category received: "${name}"`);
+
+    if (state.searchKeywords) {
+      delete state.searchKeywords[name];
+    }
+    if (state.feedConfigs) {
+      delete state.feedConfigs[name];
+    }
+    delete collections[name];
+
+    saveCuratedCollections(collections, state);
+
+    const currentCats = splitCategories(state.currentCategory);
+    if (currentCats.includes(name)) {
+      const remainingCats = currentCats.filter((category) => category !== name);
+      if (remainingCats.length > 0) {
+        state.currentCategory = remainingCats.join(',');
+      } else {
+        const remainingKeys = Object.keys(state.searchKeywords || {});
+        state.currentCategory = remainingKeys[0] || 'Scenic Nature';
+      }
+
+      const updatedCats = splitCategories(state.currentCategory);
+      state.photosList = combineFeedsBalanced(updatedCats, collections);
+      const smartPhoto = getSmartPhoto('next');
+      state.activePhoto = smartPhoto || pickRandomPhoto(state.photosList);
+    }
+
+    broadcast();
+  };
+
+  const createLegacyEnvSecretFallback = ({ envKey, runtimeFlag }) => (command) => {
+    const value = String(command.payload?.value || '');
+    persistEnvVars({ [envKey]: value });
+    state[runtimeFlag] = Boolean(value);
+    broadcast();
+  };
+
   const applyLegacyBrokenPhoto = (command) => {
     const { markPhotoBroken } = require('./config/collections.js');
     const updated = markPhotoBroken(collections, state, command.payload.url);
@@ -341,8 +479,15 @@ module.exports = function configureSockets({
       socket.emit('job-status', job);
     });
 
-    const listenForCommand = (eventName, decode, fallback, intercept) => {
-      socket.on(eventName, createCommandListener({ dispatchCommand, decode, fallback, intercept }));
+    const listenForCommand = (eventName, decode, fallback, intercept, afterDispatch, onError) => {
+      socket.on(eventName, createCommandListener({
+        dispatchCommand,
+        decode,
+        fallback,
+        intercept,
+        afterDispatch,
+        onError
+      }));
     };
 
     const listenForStatePatch = (eventName, decode) => {
@@ -457,61 +602,10 @@ module.exports = function configureSockets({
     );
 
     // Update keywords socket event
-    socket.on('update-keywords', ({ category, keywords }) => {
-      if (dispatchCommand) {
-        const command = decodePoolKeywordsCommand({ category, keywords });
-        if (command) {
-          void dispatchCommand(command);
-        }
-        return;
-      }
-
-      if (!category || typeof category !== 'string') return;
-      if (!collections[category]) return;
-      if (!Array.isArray(keywords) || !keywords.every(kw => typeof kw === 'string' && kw.trim().length > 0)) return;
-
-      // Update in state
-      state.searchKeywords[category] = keywords.map(kw => kw.trim());
-
-      // Save to curated_collections.json using unified persistence helper
-      saveCuratedCollections(collections, state);
-      console.log(`[Config Socket] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
-
-      broadcast();
-    });
+    listenForCommand('update-keywords', decodePoolKeywordsCommand, applyLegacyPoolKeywords);
 
     // Update feed config socket event
-    socket.on('update-feed-config', ({ category, source, config }) => {
-      if (dispatchCommand) {
-        const command = decodePoolFeedConfigCommand({ category, source, config });
-        if (command) {
-          void dispatchCommand(command);
-        }
-        return;
-      }
-
-      if (!category || typeof category !== 'string') return;
-      if (!source || typeof source !== 'string') return;
-      if (!config || typeof config !== 'object') return;
-      if (!collections[category]) return;
-
-      if (!state.feedConfigs) {
-        state.feedConfigs = {};
-      }
-      if (!state.feedConfigs[category]) {
-        state.feedConfigs[category] = {};
-      }
-
-      state.feedConfigs[category][source] = {
-        ...state.feedConfigs[category][source],
-        ...config
-      };
-
-      saveCuratedCollections(collections, state);
-      console.log(`[Config Socket] Saved updated feed config for category "${category}" source "${source}":`, state.feedConfigs[category][source]);
-
-      broadcast();
-    });
+    listenForCommand('update-feed-config', decodePoolFeedConfigCommand, applyLegacyPoolFeedConfig);
 
     // Save and sync excluded keywords
     socket.on('update-excluded-keywords', (keywords) => {
@@ -548,149 +642,10 @@ module.exports = function configureSockets({
     });
 
     // Add custom category / scenic pool
-    socket.on('add-category', async ({ category, keyword }) => {
-      if (dispatchCommand) {
-        const command = decodeAddPoolCommand({ category, keyword });
-        if (command) {
-          await dispatchCommand(command);
-        }
-        return;
-      }
-
-      if (!category || typeof category !== 'string') return;
-      const cleanCategory = category.trim();
-      if (!cleanCategory) return;
-
-      const cleanKeyword = String(keyword ?? '').trim();
-      if (!cleanKeyword) return;
-
-      // Split keywords by comma or semicolon, trim whitespace, filter out empty strings
-      const parsedKeywords = cleanKeyword
-        .split(/[;,]/)
-        .map(kw => kw.trim())
-        .filter(kw => kw.length > 0);
-
-      if (parsedKeywords.length === 0) return;
-
-      console.log(`[SOCKET EVENT] add-category received: "${cleanCategory}" with keywords:`, parsedKeywords);
-
-      // Initialize state searchKeywords if not present
-      state.searchKeywords ??= {};
-
-      // Check if it already exists to prevent duplicate creation
-      if (collections[cleanCategory] || state.searchKeywords[cleanCategory]) {
-        console.warn(`Category "${cleanCategory}" already exists.`);
-        return;
-      }
-
-      // 1. Register category keywords in state
-      state.searchKeywords[cleanCategory] = parsedKeywords;
-
-      // Initialize state feedConfigs if not present
-      state.feedConfigs ??= {};
-      state.feedConfigs[cleanCategory] = {
-        unsplash: { enabled: true, keywords: [...parsedKeywords] },
-        wallhaven: { enabled: true, keywords: [...parsedKeywords] },
-        metmuseum: { enabled: true, keywords: [...parsedKeywords] },
-        artic: { enabled: false, keywords: [...parsedKeywords] }
-      };
-
-      // 2. Initialize the collection list in collections
-      collections[cleanCategory] = [];
-
-      // 3. Save to curated_collections.json
-      saveCuratedCollections(collections, state);
-
-      // Sync state to all clients so remote control UI knows about the category right away
-      broadcast();
-
-      // 4. Trigger crawlAllCollections to download photos for this category instantly
-      try {
-        const { crawlAllCollections } = require('./services/crawler.js');
-        const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
-        if (updatedAny) {
-          Object.entries(updatedCollections).forEach(([key, photos]) => {
-            collections[key] = photos;
-          });
-          saveCuratedCollections(collections, state);
-        }
-
-        // If the added category is the current/active category, update photosList
-        const currentCats = splitCategories(state.currentCategory);
-        if (currentCats.includes(cleanCategory)) {
-          state.photosList = combineFeedsBalanced(currentCats, collections);
-          if (state.photosList.length > 0) {
-            syncActivePhoto(io, state, getSmartPhoto('next') || state.photosList[0]);
-          }
-        }
-
-        // Broadcast fully loaded updated state
-        broadcast();
-
-        // Run background image analysis on the new photos
-        const { triggerImageAnalysisBackground } = require('./app.js');
-        triggerImageAnalysisBackground().catch((err) => console.error('Error in background image analysis:', err));
-      } catch (err) {
-        console.error(`Error crawling new category "${cleanCategory}":`, err.message);
-      }
-    });
+    listenForCommand('add-category', decodeAddPoolCommand, applyLegacyAddPool);
 
     // Delete custom category / scenic pool
-    socket.on('delete-category', ({ category }) => {
-      if (dispatchCommand) {
-        const command = decodeDeletePoolCommand({ category });
-        if (command) {
-          void dispatchCommand(command);
-        }
-        return;
-      }
-
-      if (!category || typeof category !== 'string') return;
-      const cleanCategory = category.trim();
-      if (!cleanCategory) return;
-
-      console.log(`[SOCKET EVENT] delete-category received: "${cleanCategory}"`);
-
-      // 1. Delete the category key from state.searchKeywords, state.feedConfigs, and collections
-      if (state.searchKeywords) {
-        delete state.searchKeywords[cleanCategory];
-      }
-      if (state.feedConfigs) {
-        delete state.feedConfigs[cleanCategory];
-      }
-      delete collections[cleanCategory];
-
-      // 2. Save collections
-      saveCuratedCollections(collections, state);
-
-      // 3. Re-adjust screensaver selected active list if the deleted category was currently displayed
-      const currentCats = splitCategories(state.currentCategory);
-      if (currentCats.includes(cleanCategory)) {
-        const remainingCats = currentCats.filter(c => c !== cleanCategory);
-        if (remainingCats.length > 0) {
-          state.currentCategory = remainingCats.join(',');
-        } else {
-          // If no categories are left, fallback to first available category key, or default 'Scenic Nature'
-          const remainingKeys = Object.keys(state.searchKeywords || {});
-          state.currentCategory = remainingKeys[0] || 'Scenic Nature';
-        }
-
-        // Re-combine remaining categories
-        const updatedCats = splitCategories(state.currentCategory);
-        state.photosList = combineFeedsBalanced(updatedCats, collections);
-        const smartPhoto = getSmartPhoto('next');
-        if (smartPhoto) {
-          state.activePhoto = smartPhoto;
-        } else if (state.photosList.length > 0) {
-          state.activePhoto = state.photosList[Math.floor(Math.random() * state.photosList.length)];
-        } else {
-          state.activePhoto = null;
-        }
-      }
-
-      // 4. Sync state
-      broadcast();
-    });
+    listenForCommand('delete-category', decodeDeletePoolCommand, applyLegacyDeletePool);
 
     listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), applyLegacyAdvancePhoto('next'));
 
@@ -752,37 +707,39 @@ module.exports = function configureSockets({
       });
     });
 
-    socket.on('save-useapi-token', ({ token }) => {
-      console.log('[SOCKET EVENT] save-useapi-token received.');
-      const sanitizedToken = String(token ?? '').trim();
+    const emitSecretSaveResult = (eventName, success, error) => {
+      socket.emit(eventName, success ? { success: true } : { success: false, error });
+    };
 
-      try {
-        persistEnvVars({ USEAPI_TOKEN: sanitizedToken });
-        state.hasUseApiToken = !!sanitizedToken;
-        broadcast();
-        console.log('[SOCKET EVENT] Successfully persisted USEAPI_TOKEN to .env file');
-        socket.emit('useapi-token-saved', { success: true });
-      } catch (err) {
-        console.error('[SOCKET EVENT] Failed to save USEAPI_TOKEN to .env:', err.message);
-        socket.emit('useapi-token-saved', { success: false, error: err.message });
+    listenForCommand(
+      'save-useapi-token',
+      decodeUseApiTokenCommand,
+      createLegacyEnvSecretFallback({ envKey: 'USEAPI_TOKEN', runtimeFlag: 'hasUseApiToken' }),
+      null,
+      () => {
+        console.log('[SOCKET EVENT] Successfully persisted USEAPI_TOKEN through the shared admin command path');
+        emitSecretSaveResult('useapi-token-saved', true);
+      },
+      (error) => {
+        console.error('[SOCKET EVENT] Failed to save USEAPI_TOKEN:', error.message);
+        emitSecretSaveResult('useapi-token-saved', false, error.message);
       }
-    });
+    );
 
-    socket.on('save-tumblr-api-key', ({ token }) => {
-      console.log('[SOCKET EVENT] save-tumblr-api-key received.');
-      const sanitizedToken = String(token ?? '').trim();
-
-      try {
-        persistEnvVars({ TUMBLR_API_KEY: sanitizedToken });
-        state.hasTumblrApiKey = !!sanitizedToken;
-        broadcast();
-        console.log('[SOCKET EVENT] Successfully persisted TUMBLR_API_KEY to .env file');
-        socket.emit('tumblr-api-key-saved', { success: true });
-      } catch (err) {
-        console.error('[SOCKET EVENT] Failed to save TUMBLR_API_KEY to .env:', err.message);
-        socket.emit('tumblr-api-key-saved', { success: false, error: err.message });
+    listenForCommand(
+      'save-tumblr-api-key',
+      decodeTumblrApiKeyCommand,
+      createLegacyEnvSecretFallback({ envKey: 'TUMBLR_API_KEY', runtimeFlag: 'hasTumblrApiKey' }),
+      null,
+      () => {
+        console.log('[SOCKET EVENT] Successfully persisted TUMBLR_API_KEY through the shared admin command path');
+        emitSecretSaveResult('tumblr-api-key-saved', true);
+      },
+      (error) => {
+        console.error('[SOCKET EVENT] Failed to save TUMBLR_API_KEY:', error.message);
+        emitSecretSaveResult('tumblr-api-key-saved', false, error.message);
       }
-    });
+    );
 
     socket.on('disconnect', () => {
       console.log('Device disconnected:', socket.id);

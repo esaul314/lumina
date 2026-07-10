@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Pool/Admin Socket Tail Now Shares the Command Path and Admin Secret Saves Are REST-First
+- **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the remaining pool/admin compatibility logic from ad hoc transport branches and moving remote admin secret writes onto a REST-first boundary.
+- **Implementation**:
+  - Added shared admin-secret decoders in `server/domain/commands.js` plus a `save-env-secret -> persist-env-vars` command/effect pair in the reducer/dispatcher, so admin `.env` writes now flow through the same explicit intent/effect language as the rest of the migration.
+  - Added REST admin-secret routes and client helpers for UseAPI and Tumblr credentials, then updated the remote settings UI to save those secrets through REST by default with socket fallback reserved for mixed-version daemons.
+  - Refactored `server/sockets.js` so pool keyword updates, feed-config merges, add/delete pool compatibility events, and legacy admin secret-save events all use the shared command-listener factory instead of hand-rolled dispatch branches.
+  - Expanded regression coverage in `server/domain/tests.js` and `run-tests.js` for admin-secret command decoding, reducer effect purity, REST admin-secret routing, REST client fallback, and socket compatibility dispatch/ack behavior.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the next explicit socket-tail checkpoint is now the remaining source-local Google Photos exceptions plus intentionally ephemeral telemetry handlers.
+- **Learning**: A good transport-thinning slice often needs one more domain effect, not one more socket helper. Once secret persistence became an explicit effect, both REST and Socket.IO could share the same intent without pretending that `.env` writes were just another inline socket side effect.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed. The known sandbox-only live smoke section still skipped the Unix-socket bind with `listen EPERM` as expected.
+
 ### 2026-07-10: Socket Category and Curated-Photo Compatibility Handlers Now Share the Domain Command Path
 - **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the remaining ad hoc category/photo transport logic that already had reducer support elsewhere in the codebase.
 - **Implementation**:

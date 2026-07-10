@@ -221,6 +221,9 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
   const [recrawlMessage, setRecrawlMessage] = useState('');
   const [visionAnalysisCount, setVisionAnalysisCount] = useState(0);
   const [visionAnalysisMessage, setVisionAnalysisMessage] = useState('');
+  const scheduleTokenStatusReset = (setStatus) => {
+    setTimeout(() => setStatus('idle'), 4000);
+  };
 
   useEffect(() => {
     if (state.manualLocation) {
@@ -313,7 +316,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       } else {
         setUseapiStatus('error');
       }
-      setTimeout(() => setUseapiStatus('idle'), 4000);
+      scheduleTokenStatusReset(setUseapiStatus);
     };
 
     const handleTumblrApiSaved = (data) => {
@@ -323,7 +326,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       } else {
         setTumblrApiStatus('error');
       }
-      setTimeout(() => setTumblrApiStatus('idle'), 4000);
+      scheduleTokenStatusReset(setTumblrApiStatus);
     };
 
     socket.on('job-status', handleRecrawlJobStatus);
@@ -369,6 +372,38 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
         setVisionAnalysisMessage('');
       }, 4000);
     }
+  };
+
+  const handleSaveUseapiToken = async () => {
+    const result = await actions.saveUseapiToken(useapiToken.trim());
+    if (result.fallback) {
+      return;
+    }
+
+    if (result.success) {
+      setUseapiStatus('success');
+      setUseapiToken('');
+    } else {
+      setUseapiStatus('error');
+    }
+
+    scheduleTokenStatusReset(setUseapiStatus);
+  };
+
+  const handleSaveTumblrApiKey = async () => {
+    const result = await actions.saveTumblrApiKey(tumblrApiKey.trim());
+    if (result.fallback) {
+      return;
+    }
+
+    if (result.success) {
+      setTumblrApiStatus('success');
+      setTumblrApiKey('');
+    } else {
+      setTumblrApiStatus('error');
+    }
+
+    scheduleTokenStatusReset(setTumblrApiStatus);
   };
 
   useEffect(() => {
@@ -715,7 +750,6 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       {activeTab === 'settings' && (
         <SystemSettingsTab
           state={state}
-          socket={socket}
           actions={actions}
           connectionInfo={connectionInfo}
           handleToggleWidget={handleToggleWidget}
@@ -745,6 +779,8 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
           visionAnalysisCount={visionAnalysisCount}
           handleRecrawl={handleRecrawl}
           handleVisionAnalysis={handleVisionAnalysis}
+          handleSaveTumblrApiKey={handleSaveTumblrApiKey}
+          handleSaveUseapiToken={handleSaveUseapiToken}
         />
       )}
 

@@ -135,6 +135,7 @@
  *     | 'set-pool-keywords'
  *     | 'merge-pool-feed-config'
  *     | 'delete-pool'
+ *     | 'save-env-secret'
  *     | 'trigger-recrawl'
  *     | 'trigger-vision-analysis'
  *   payload?: Record<string, unknown> & { direction?: 'next' | 'prev', strategy?: AdvanceStrategy }
@@ -154,6 +155,7 @@
  *     | 'launch-kiosk'
  *     | 'kill-kiosk'
  *     | 'run-crawler'
+ *     | 'persist-env-vars'
  *     | 'start-recrawl-job'
  *     | 'start-vision-analysis-job'
  *   payload?: Record<string, unknown>
