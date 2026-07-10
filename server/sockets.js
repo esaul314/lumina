@@ -1,9 +1,19 @@
+// @ts-check
+
 const { sendEmailAlert } = require('./services/notifier.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const { saveCuratedCollections } = require('./config/collections.js');
 const { persistEnvVars } = require('./config/env.js');
 const { getHostDisplayInfo } = require('./services/system.js');
 const {
+  buildBooleanFieldPatch,
+  buildEnumFieldPatch,
+  buildFiniteNumberFieldPatch,
+  buildObjectFieldPatch,
+  buildPercentFieldPatch,
+  buildTrimmedStringFieldPatch,
+  buildWidgetPatch,
+  createStatePatchCommandDecoder,
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
@@ -16,31 +26,71 @@ const {
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodeRecrawlCommand,
+  decodeScreensaverActiveCommand,
   decodeVisionAnalysisCommand,
-  decodeSplitCropCommand,
-  decodeSplitPortraitCommand
 } = require('./domain/commands.js');
 
-const normalizeCoordinate = (value, fallback) => {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
+const decodeWidgetCommand = createStatePatchCommandDecoder(buildWidgetPatch);
+const decodeAlignTimeCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignTimeOfDay'));
+const decodeAlignWeatherCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignWeather'));
+const decodeAllowOpenAiFallbackCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('allowOpenAiFallback'));
+const decodeScaleModeCommand = createStatePatchCommandDecoder(buildEnumFieldPatch('scaleMode', ['cover', 'contain']));
+const decodeSplitPortraitCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('splitPortrait'));
+const decodeSplitCropCommand = createStatePatchCommandDecoder(buildPercentFieldPatch('splitCropPercent'));
+const decodeVisionConfigCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('visionConfig'));
+const decodeNightPercentageCommand = createStatePatchCommandDecoder(buildPercentFieldPatch('nightPercentage'));
+const decodeIntervalCommand = createStatePatchCommandDecoder(buildFiniteNumberFieldPatch('slideshowInterval'));
+const decodeThemeCommand = createStatePatchCommandDecoder(buildTrimmedStringFieldPatch('theme'));
+const decodeAutoLocationCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('autoLocation'));
+const decodeManualLocationCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('manualLocation'));
+const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCommand({ active });
 
 /**
- * 💾 persistLocationSettings
- * Saves autoLocation and manualLocation into curated_collections.json
- * so they survive server restarts.
+ * @param {{
+ *   dispatchCommand?: (command: Record<string, any>) => Promise<any> | any,
+ *   decode: (payload: any) => Record<string, any> | null,
+ *   fallback?: (command: Record<string, any>, payload: any) => Promise<void> | void
+ * }} options
  */
-function persistLocationSettings(state, collections) {
-  saveCuratedCollections(collections, state);
-  console.log('[Config] Persisted location settings to curated_collections.json');
+function createCommandListener({ dispatchCommand, decode, fallback }) {
+  return async (payload) => {
+    const command = decode(payload);
+    if (!command) {
+      return;
+    }
+
+    if (typeof dispatchCommand === 'function') {
+      await dispatchCommand(command);
+      return;
+    }
+
+    if (typeof fallback === 'function') {
+      await fallback(command, payload);
+    }
+  };
 }
+
 /**
  * 🛰️ configureSockets
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
  */
-module.exports = function(io, state, collections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, getLatestJobs = null) {
+module.exports = function configureSockets({
+  io,
+  state,
+  collections,
+  combineFeedsBalanced,
+  getSmartPhoto,
+  launchKioskBrowser,
+  killKioskBrowser,
+  setManualOverride,
+  getLocalIpAddresses,
+  port,
+  triggerWeatherUpdate,
+  dispatchCommand,
+  broadcastStateSync,
+  getLatestJobs = null
+}) {
   const broadcast = () => {
     if (typeof broadcastStateSync === 'function') {
       broadcastStateSync();
@@ -59,29 +109,110 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
     googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
     return updatedPhoto;
   };
-  
+
+  const applyLegacyStatePatchCommand = async (command) => {
+    const patch = command.payload && typeof command.payload === 'object' ? command.payload : {};
+    let changed = false;
+    let refreshWeather = false;
+
+    [
+      'theme',
+      'inactivityTimeout',
+      'slideshowInterval',
+      'scaleMode',
+      'splitPortrait',
+      'splitCropPercent',
+      'alignTimeOfDay',
+      'alignWeather',
+      'nightPercentage',
+      'allowOpenAiFallback'
+    ].forEach((field) => {
+      if (patch[field] === undefined || state[field] === patch[field]) {
+        return;
+      }
+
+      state[field] = patch[field];
+      changed = true;
+    });
+
+    if (patch.widgets && typeof patch.widgets === 'object' && !Array.isArray(patch.widgets)) {
+      Object.keys(patch.widgets).forEach((widgetName) => {
+        if (!Object.prototype.hasOwnProperty.call(state.widgets || {}, widgetName)) {
+          return;
+        }
+
+        const visible = Boolean(patch.widgets[widgetName]);
+        if (state.widgets[widgetName] !== visible) {
+          state.widgets[widgetName] = visible;
+          changed = true;
+        }
+      });
+    }
+
+    if (patch.visionConfig && typeof patch.visionConfig === 'object' && !Array.isArray(patch.visionConfig)) {
+      state.visionConfig = { ...patch.visionConfig };
+      changed = true;
+    }
+
+    if (patch.autoLocation !== undefined && state.autoLocation !== patch.autoLocation) {
+      state.autoLocation = Boolean(patch.autoLocation);
+      changed = true;
+      refreshWeather = true;
+    }
+
+    if (patch.manualLocation && typeof patch.manualLocation === 'object' && !Array.isArray(patch.manualLocation)) {
+      state.manualLocation = { ...patch.manualLocation };
+      changed = true;
+      refreshWeather = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    saveCuratedCollections(collections, state);
+    if (refreshWeather && typeof triggerWeatherUpdate === 'function') {
+      await triggerWeatherUpdate();
+    }
+    broadcast();
+  };
+
   io.on('connection', (socket) => {
     console.log('Device connected to Lumina network:', socket.id);
-    
+
     // Sync immediately on connect
     socket.emit('state-sync', state);
     socket.emit('ip-info', {
       localIps: getLocalIpAddresses(),
-      port: PORT
+      port
     });
 
     const latestJobs = typeof getLatestJobs === 'function' ? getLatestJobs() : [];
     latestJobs.filter(Boolean).forEach((job) => {
       socket.emit('job-status', job);
     });
-    
-    // Toggle Widget event
-    socket.on('toggle-widget', ({ widgetName, visible }) => {
-      if (state.widgets[widgetName] !== undefined) {
-        state.widgets[widgetName] = visible;
-        broadcast();
-      }
-    });
+
+    const listenForCommand = (eventName, decode, fallback) => {
+      socket.on(eventName, createCommandListener({ dispatchCommand, decode, fallback }));
+    };
+
+    const listenForStatePatch = (eventName, decode) => {
+      listenForCommand(eventName, decode, applyLegacyStatePatchCommand);
+    };
+
+    listenForStatePatch('toggle-widget', decodeWidgetCommand);
+    listenForStatePatch('toggle-align-time', decodeAlignTimeCommand);
+    listenForStatePatch('toggle-align-weather', decodeAlignWeatherCommand);
+    listenForStatePatch('toggle-allow-openai-fallback', decodeAllowOpenAiFallbackCommand);
+    listenForStatePatch('change-scale-mode', decodeScaleModeCommand);
+    listenForStatePatch('toggle-split-portrait', decodeSplitPortraitCommand);
+    listenForStatePatch('change-split-crop', decodeSplitCropCommand);
+    listenForStatePatch('update-vision-config', decodeVisionConfigCommand);
+    listenForStatePatch('change-night-percentage', decodeNightPercentageCommand);
+    listenForStatePatch('change-interval', decodeIntervalCommand);
+    listenForStatePatch('change-theme', decodeThemeCommand);
+    listenForStatePatch('toggle-auto-location', decodeAutoLocationCommand);
+    listenForStatePatch('update-manual-location', decodeManualLocationCommand);
 
     // Client media loading failure notifier
     socket.on('report-media-failure', ({ category, failedUrls, message }) => {
@@ -134,116 +265,6 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
         broadcast();
       } else {
         console.error(`[SOCKET EVENT] ERROR: None of the categories in "${category}" exist in curatedCollections keys:`, Object.keys(collections));
-      }
-    });
-
-    // Toggle time of day alignment
-    socket.on('toggle-align-time', (enabled) => {
-      state.alignTimeOfDay = enabled;
-      console.log(`Align Time of Day changed to: ${enabled}`);
-      broadcast();
-    });
-
-    // Toggle weather alignment
-    socket.on('toggle-align-weather', (enabled) => {
-      state.alignWeather = enabled;
-      console.log(`Align Weather changed to: ${enabled}`);
-      broadcast();
-    });
-
-    // Toggle OpenAI fallback consent
-    socket.on('toggle-allow-openai-fallback', (enabled) => {
-      state.allowOpenAiFallback = !!enabled;
-      console.log(`Allow OpenAI Fallback changed to: ${state.allowOpenAiFallback}`);
-      broadcast();
-    });
-
-    // Change scale mode
-    socket.on('change-scale-mode', (mode) => {
-      if (mode === 'cover' || mode === 'contain') {
-        if (dispatchCommand) {
-          dispatchCommand({
-            type: 'set-scale-mode',
-            payload: { mode }
-          });
-          return;
-        }
-        state.scaleMode = mode;
-        console.log(`Scale Mode changed to: ${mode}`);
-        saveCuratedCollections(collections, state);
-        broadcast();
-      }
-    });
-
-    // Toggle split portrait display
-    socket.on('toggle-split-portrait', (enabled) => {
-      if (dispatchCommand) {
-        const command = decodeSplitPortraitCommand(enabled);
-        dispatchCommand(command);
-        return;
-      }
-      state.splitPortrait = !!enabled;
-      console.log(`Split Portrait changed to: ${state.splitPortrait}`);
-      saveCuratedCollections(collections, state);
-      broadcast();
-    });
-
-    // Update split portrait crop percentage
-    socket.on('change-split-crop', (percent) => {
-      if (dispatchCommand) {
-        const command = decodeSplitCropCommand(percent);
-        if (command) {
-          dispatchCommand(command);
-        }
-        return;
-      }
-      const val = parseInt(percent, 10);
-      if (!isNaN(val) && val >= 0 && val <= 100) {
-        state.splitCropPercent = val;
-        console.log(`Split Crop Percent changed to: ${val}%`);
-        saveCuratedCollections(collections, state);
-        broadcast();
-      }
-    });
-
-    // Update vision configuration settings
-    socket.on('update-vision-config', (config) => {
-      if (config && typeof config === 'object') {
-        state.visionConfig = {
-          apiUrl: String(config.apiUrl || '').trim(),
-          apiKey: String(config.apiKey || '').trim(),
-          model: String(config.model || '').trim(),
-          fallbackUrl: String(config.fallbackUrl || '').trim(),
-          fallbackApiKey: String(config.fallbackApiKey || '').trim(),
-          fallbackModel: String(config.fallbackModel || '').trim()
-        };
-        console.log('[Config Socket] Saved updated Vision API Configuration.');
-        saveCuratedCollections(collections, state);
-        broadcast();
-      }
-    });
-
-    // Change night photo percentage selection
-    socket.on('change-night-percentage', (percentage) => {
-      if (typeof percentage === 'number' && percentage >= 0 && percentage <= 100) {
-        state.nightPercentage = percentage;
-        console.log(`Night Photo Percentage changed to: ${percentage}%`);
-        broadcast();
-      }
-    });
-
-    // Change slideshow transition interval
-    socket.on('change-interval', (intervalMs) => {
-      if (intervalMs && typeof intervalMs === 'number') {
-        if (dispatchCommand) {
-          dispatchCommand({
-            type: 'change-interval',
-            payload: { intervalMs }
-          });
-          return;
-        }
-        state.slideshowInterval = intervalMs;
-        broadcast();
       }
     });
 
@@ -644,12 +665,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       broadcast();
     });
 
-    // Trigger Next Photo
-    socket.on('next-photo', () => {
-      if (dispatchCommand) {
-        dispatchCommand(decodeAdvancePhotoCommand('next'));
-        return;
-      }
+    listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), () => {
       const photo = getSmartPhoto('next');
       if (photo) {
         state.activePhoto = photo;
@@ -657,12 +673,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
-    // Trigger Prev Photo
-    socket.on('prev-photo', () => {
-      if (dispatchCommand) {
-        dispatchCommand(decodeAdvancePhotoCommand('prev'));
-        return;
-      }
+    listenForCommand('prev-photo', () => decodeAdvancePhotoCommand('prev'), () => {
       const photo = getSmartPhoto('prev');
       if (photo) {
         state.activePhoto = photo;
@@ -670,29 +681,8 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
-    // Update Mood Theme
-    socket.on('change-theme', (themeName) => {
-      if (dispatchCommand) {
-        dispatchCommand({
-          type: 'change-theme',
-          payload: { theme: themeName }
-        });
-        return;
-      }
-      state.theme = themeName;
-      broadcast();
-    });
-
-    // Update screensaver active state
-    socket.on('set-screensaver-active', (active) => {
-      if (dispatchCommand) {
-        dispatchCommand({
-          type: 'set-screensaver-active',
-          payload: { active }
-        });
-        return;
-      }
-      if (active) {
+    listenForCommand('set-screensaver-active', decodeScreensaverActiveFromSocket, (command) => {
+      if (command.payload.active) {
         state.screensaverActive = true;
         // Arm manualOverride BEFORE launching so the idle daemon doesn't
         // immediately conclude shouldBeActive=false and revert the state.
@@ -705,7 +695,7 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
       broadcast();
     });
-    
+
     // Dynamic signed URL refresh for Google Photos casting on demand
     socket.on('get-active-google-photo', async ({ mediaItemId }) => {
       try {
@@ -714,34 +704,6 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       } catch (err) {
         console.error(`Socket Event: Failed to refresh Google Photo URL for item ${mediaItemId}:`, err.message);
         socket.emit('active-google-photo-response', { mediaItemId, error: err.message });
-      }
-    });
-    
-    // Toggle auto geolocation setting
-    socket.on('toggle-auto-location', async (autoLocation) => {
-      console.log(`[SOCKET EVENT] toggle-auto-location: ${autoLocation}`);
-      state.autoLocation = !!autoLocation;
-      persistLocationSettings(state, collections);
-      broadcast();
-      if (triggerWeatherUpdate) {
-        await triggerWeatherUpdate();
-      }
-    });
-
-    // Update manual location overrides
-    socket.on('update-manual-location', async ({ lat, lon, city, regionName, country }) => {
-      console.log(`[SOCKET EVENT] update-manual-location: ${city} (${lat}, ${lon})`);
-      state.manualLocation = {
-        lat: normalizeCoordinate(lat, 45.45),
-        lon: normalizeCoordinate(lon, -73.56),
-        city: String(city || 'Verdun').trim(),
-        regionName: String(regionName || 'Quebec').trim(),
-        country: String(country || 'Canada').trim()
-      };
-      persistLocationSettings(state, collections);
-      broadcast();
-      if (triggerWeatherUpdate) {
-        await triggerWeatherUpdate();
       }
     });
 
@@ -771,31 +733,22 @@ module.exports = function(io, state, collections, combineFeedsBalanced, getSmart
       }
     });
 
-    // 🔄 Force background crawler recrawl immediately
-    socket.on('trigger-recrawl', async (payload) => {
+    listenForCommand('trigger-recrawl', (payload) => {
       console.log('[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...');
-      const command = decodeRecrawlCommand(payload);
-      if (!dispatchCommand || !command) {
-        socket.emit('recrawl-complete', { success: false, error: 'Recrawl dispatcher unavailable.' });
-        return;
-      }
-
-      await dispatchCommand(command);
+      return decodeRecrawlCommand(payload);
+    }, () => {
+      socket.emit('recrawl-complete', { success: false, error: 'Recrawl dispatcher unavailable.' });
     });
 
-    socket.on('trigger-vision-analysis', async (payload) => {
+    listenForCommand('trigger-vision-analysis', (payload) => {
       console.log('[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...');
-      const command = decodeVisionAnalysisCommand(payload);
-      if (!dispatchCommand || !command) {
-        socket.emit('job-status', {
-          type: 'vision-analysis',
-          status: 'failed',
-          error: 'Vision-analysis dispatcher unavailable.'
-        });
-        return;
-      }
-
-      await dispatchCommand(command);
+      return decodeVisionAnalysisCommand(payload);
+    }, () => {
+      socket.emit('job-status', {
+        type: 'vision-analysis',
+        status: 'failed',
+        error: 'Vision-analysis dispatcher unavailable.'
+      });
     });
 
     socket.on('save-useapi-token', ({ token }) => {

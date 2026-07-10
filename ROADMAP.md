@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 ## Implementation Companion
 
@@ -19,7 +19,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
 - Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
-- Next: keep migrating any remaining operator-triggered async work that fits the same REST job boundary, while continuing to shrink socket-only compatibility shims.
+- Next: keep shrinking `server/sockets.js`, starting with the remaining category/photo/admin compatibility handlers now that the dashboard state/settings socket events dispatch through shared command listeners.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), which currently starts with refactoring `server/sockets.js` into a thinner transport adapter.
 
 ## Architectural Rule
@@ -37,7 +37,7 @@ The codebase already contains part of this direction, but Phase 1 is not complet
 - `server/routes.js` exposes REST endpoints for state, photos, pools, weather, and screensaver control.
 - `server/domain/` already holds shared command decoding, reducers, selectors, and snapshot logic used by both REST and Socket.IO for part of the mutation surface.
 - `client/src/hooks/useLuminaActions.js` is now REST-first for remote photo controls, durable state/settings controls, and category/pool/feed-config operator actions.
-- `server/sockets.js` still carries live-sync, server-push, backward-compatibility shims, and async orchestration overlap that should continue shrinking during Phase 1.
+- `server/sockets.js` now routes the dashboard's durable state/settings socket events through shared patch-state decoders plus command listeners, but it still carries live-sync, category/photo compatibility handlers, Google Photos special cases, and admin-only env writes that should continue shrinking during Phase 1.
 - Source-specific metadata persistence now exists for Google Photos, which reinforces the broader rule that metadata should live at the correct source boundary and then be projected back into the live snapshot.
 
 ## Phase 1
@@ -56,7 +56,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: keep moving any remaining operator-triggered async work that fits the same boundary onto shared REST-first jobs.
+  - Next focus: keep thinning the remaining socket compatibility surface so category/photo/admin handlers stop owning ad hoc transport logic.
 
 ### Shared domain flow
 

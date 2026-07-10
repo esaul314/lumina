@@ -4,10 +4,15 @@
  * @typedef {import('./types').Command} Command
  */
 
+const { curry } = require('../utils/fn.js');
 const { validatePercent, validateRating } = require('../utils/validation.js');
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function normalizeKeywordList(keywords) {
@@ -161,7 +166,7 @@ function normalizeVisionConfig(config) {
 }
 
 function decodeStatePatchCommand(payload) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isPlainObject(payload)) {
     return null;
   }
 
@@ -214,6 +219,56 @@ function decodeStatePatchCommand(payload) {
   return {
     type: 'patch-state',
     payload: patch
+  };
+}
+
+const createStatePatchCommandDecoder = (buildPatch) => (payload) => {
+  const patch = buildPatch(payload);
+  return patch ? decodeStatePatchCommand(patch) : null;
+};
+
+const buildBooleanFieldPatch = curry((field, value) => ({
+  [field]: Boolean(value)
+}));
+
+const buildEnumFieldPatch = curry((field, allowedValues, value) => (
+  allowedValues.includes(value)
+    ? { [field]: value }
+    : null
+));
+
+const buildFiniteNumberFieldPatch = curry((field, value) => (
+  Number.isFinite(value)
+    ? { [field]: value }
+    : null
+));
+
+const buildPercentFieldPatch = curry((field, value) => {
+  const normalized = validatePercent(value);
+  return normalized === null ? null : { [field]: normalized };
+});
+
+const buildTrimmedStringFieldPatch = curry((field, value) => {
+  const normalized = trimString(value);
+  return normalized ? { [field]: normalized } : null;
+});
+
+const buildObjectFieldPatch = curry((field, value) => (
+  isPlainObject(value)
+    ? { [field]: value }
+    : null
+));
+
+function buildWidgetPatch(payload) {
+  const widgetName = trimString(payload?.widgetName);
+  if (!widgetName) {
+    return null;
+  }
+
+  return {
+    widgets: {
+      [widgetName]: payload?.visible
+    }
   };
 }
 
@@ -392,6 +447,14 @@ module.exports = {
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodeStatePatchCommand,
+  createStatePatchCommandDecoder,
+  buildBooleanFieldPatch,
+  buildEnumFieldPatch,
+  buildFiniteNumberFieldPatch,
+  buildObjectFieldPatch,
+  buildPercentFieldPatch,
+  buildTrimmedStringFieldPatch,
+  buildWidgetPatch,
   decodeSplitCropCommand,
   decodeSplitPortraitCommand
 };

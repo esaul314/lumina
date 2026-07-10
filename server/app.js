@@ -657,10 +657,25 @@ require('./routes.js')({
   dispatchCommand,
   broadcastStateSync
 });
-require('./sockets.js')(io, screensaverState, curatedCollections, combineFeedsBalanced, getSmartPhoto, launchKioskBrowser, killKioskBrowser, setManualOverride, getLocalIpAddresses, PORT, triggerWeatherUpdate, dispatchCommand, broadcastStateSync, () => [
+require('./sockets.js')({
+  io,
+  state: screensaverState,
+  collections: curatedCollections,
+  combineFeedsBalanced,
+  getSmartPhoto,
+  launchKioskBrowser,
+  killKioskBrowser,
+  setManualOverride,
+  getLocalIpAddresses,
+  port: PORT,
+  triggerWeatherUpdate,
+  dispatchCommand,
+  broadcastStateSync,
+  getLatestJobs: () => [
   recrawlJobService.getLatestJob(),
   visionAnalysisJobService.getLatestJob()
-]);
+  ]
+});
 
 /**
  * 🧠 getNextScreensaverState

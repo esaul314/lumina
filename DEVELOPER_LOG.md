@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Socket Settings Transport Now Uses Shared Patch-State Decoders
+- **Goal**: Start the next Phase 1 implementation-companion step by thinning `server/sockets.js` so the dashboard's durable socket settings stop owning their own mutation rules.
+- **Implementation**:
+  - Added a small functional patch-decoder toolkit in `server/domain/commands.js` built around curried field-patch builders plus `createStatePatchCommandDecoder(...)`, so socket adapters can express `build patch -> decode shared command` instead of hand-rolling transport-local updates.
+  - Refactored `server/sockets.js` to use an object-shaped environment plus shared `createCommandListener(...)` / `listenForStatePatch(...)` helpers for widget toggles, theme, slideshow interval, scale/split controls, alignment toggles, vision config, and location settings.
+  - Moved those socket events onto the same `patch-state` / `set-screensaver-active` command path the REST layer already uses, leaving Socket.IO in a thinner adapter role while preserving the old fallback behavior as a contained compatibility shim.
+  - Expanded `server/domain/tests.js` with regression coverage for the new pure decoder builders, including valid shared-command composition and rejection of invalid enum/percent payloads.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the next checkpoint is explicit: continue shrinking the remaining category/photo/admin compatibility handlers in `server/sockets.js`.
+- **Learning**: The cleanest way to thin a transport is not to add more transport branching, but to make decoding itself composable. Once socket events can be described as pure patch builders feeding the shared command decoder, the transport layer becomes wiring instead of business logic.
+- **Verification**: `npm run lint` and `npm test` passed. The live smoke section still hit the known sandbox-only `listen EPERM` Unix-socket bind guard and was skipped as expected.
+
 ### 2026-07-09: Manual Vision Analysis Now Uses a REST-First Async Job Boundary
 - **Goal**: Complete the next Phase 1 roadmap step by moving manual vision-analysis runs onto the same explicit REST-first async job flow already used for recrawls.
 - **Implementation**:

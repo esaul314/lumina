@@ -13,6 +13,14 @@ const {
 } = require('./selectors.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const {
+  buildBooleanFieldPatch,
+  buildEnumFieldPatch,
+  buildFiniteNumberFieldPatch,
+  buildObjectFieldPatch,
+  buildPercentFieldPatch,
+  buildTrimmedStringFieldPatch,
+  buildWidgetPatch,
+  createStatePatchCommandDecoder,
   decodeAdvancePhotoCommand,
   decodeAddPoolCommand,
   decodeCategorySelectionFromHttp,
@@ -213,6 +221,77 @@ function runDomainTests({ logSuite, assertTest }) {
         }
       }
     });
+  });
+
+  assertTest('state patch helper decoders compose shared socket settings commands declaratively', () => {
+    const decodeWidgetCommand = createStatePatchCommandDecoder(buildWidgetPatch);
+    const decodeThemeCommand = createStatePatchCommandDecoder(buildTrimmedStringFieldPatch('theme'));
+    const decodeIntervalCommand = createStatePatchCommandDecoder(buildFiniteNumberFieldPatch('slideshowInterval'));
+    const decodeAlignWeatherCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignWeather'));
+    const decodeManualLocationCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('manualLocation'));
+
+    assert.deepStrictEqual(decodeWidgetCommand({ widgetName: 'clock', visible: 0 }), {
+      type: 'patch-state',
+      payload: {
+        widgets: { clock: 0 }
+      }
+    });
+    assert.deepStrictEqual(decodeThemeCommand(' Cosmic Night '), {
+      type: 'patch-state',
+      payload: {
+        theme: 'Cosmic Night'
+      }
+    });
+    assert.deepStrictEqual(decodeIntervalCommand(45000), {
+      type: 'patch-state',
+      payload: {
+        slideshowInterval: 45000
+      }
+    });
+    assert.deepStrictEqual(decodeAlignWeatherCommand(true), {
+      type: 'patch-state',
+      payload: {
+        alignWeather: true
+      }
+    });
+    assert.deepStrictEqual(decodeManualLocationCommand({
+      lat: '45.50',
+      lon: '-73.57',
+      city: ' Verdun ',
+      regionName: ' Quebec ',
+      country: ' Canada '
+    }), {
+      type: 'patch-state',
+      payload: {
+        manualLocation: {
+          lat: 45.5,
+          lon: -73.57,
+          city: 'Verdun',
+          regionName: 'Quebec',
+          country: 'Canada'
+        }
+      }
+    });
+  });
+
+  assertTest('state patch helper decoders reject invalid enum and percent socket payloads', () => {
+    const decodeScaleModeCommand = createStatePatchCommandDecoder(buildEnumFieldPatch('scaleMode', ['cover', 'contain']));
+    const decodeNightPercentageCommand = createStatePatchCommandDecoder(buildPercentFieldPatch('nightPercentage'));
+
+    assert.deepStrictEqual(decodeScaleModeCommand('contain'), {
+      type: 'patch-state',
+      payload: {
+        scaleMode: 'contain'
+      }
+    });
+    assert.strictEqual(decodeScaleModeCommand('stretch'), null);
+    assert.deepStrictEqual(decodeNightPercentageCommand(25), {
+      type: 'patch-state',
+      payload: {
+        nightPercentage: 25
+      }
+    });
+    assert.strictEqual(decodeNightPercentageCommand(250), null);
   });
 
   assertTest('screensaver decoder requires an explicit boolean active flag', () => {
