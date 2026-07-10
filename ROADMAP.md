@@ -19,8 +19,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
 - Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
-- Next: keep shrinking `server/sockets.js`. Google Photos photo metadata/rating/crop/pairing/broken mutations now use the shared reducer/dispatcher and REST photo patch route by default; the remaining socket-only tail is the on-demand signed-URL refresh helper plus truly ephemeral telemetry/update events.
-- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), which currently starts with refactoring `server/sockets.js` into a thinner transport adapter.
+- Next: continue the Phase 1 implementation companion after completing the `server/sockets.js` transport-adapter pass. The live socket layer is now limited to shared `decode -> dispatch` wiring plus the on-demand Google Photos signed-URL refresh helper and intentionally ephemeral telemetry/update handlers; the next companion checkpoint is to confirm whether any further domain command/effect expansion is still needed before shifting the cleanup emphasis to `server/app.js`.
+- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Step 1 is now complete and Step 2 is the next explicit checkpoint.
 
 ## Architectural Rule
 
@@ -37,7 +37,8 @@ The codebase already contains part of this direction, but Phase 1 is not complet
 - `server/routes.js` exposes REST endpoints for state, photos, pools, weather, and screensaver control.
 - `server/domain/` already holds shared command decoding, reducers, selectors, and snapshot logic used by both REST and Socket.IO for part of the mutation surface.
 - `client/src/hooks/useLuminaActions.js` is now REST-first for remote photo controls, durable state/settings controls, and category/pool/feed-config operator actions.
-- `server/sockets.js` now routes the dashboard's durable state/settings, category-selection, photo-navigation, pool/admin compatibility events, and legacy admin secret-save shims through shared command listeners, but it still carries live-sync plus source-local Google Photos or other host-IO-specific exceptions that should continue shrinking during Phase 1.
+- `server/sockets.js` now acts as a thin transport adapter over shared command listeners, while the optional mixed-version fallback business logic lives separately in `server/socketLegacyCompatibility.js`.
+- The live socket layer still intentionally owns connection lifecycle, viewport/reporting telemetry, transient push updates, and the on-demand Google Photos signed-URL refresh helper.
 - Source-specific metadata persistence now exists for Google Photos, which reinforces the broader rule that metadata should live at the correct source boundary and then be projected back into the live snapshot.
 
 ## Phase 1
@@ -56,7 +57,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: keep thinning the remaining socket compatibility surface so only on-demand Google Photos signed-URL refreshes and intentionally ephemeral telemetry/update handlers remain transport-specific.
+  - Next focus: Step 1 of the implementation companion is complete; the next companion checkpoint is Step 2's audit of whether any further domain command/effect expansion is still needed before the main cleanup emphasis moves to `server/app.js`.
 
 ### Shared domain flow
 

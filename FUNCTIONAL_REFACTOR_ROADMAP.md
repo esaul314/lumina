@@ -19,11 +19,10 @@ The target end state is:
 Current checkpoint:
 
 - Manual recrawl and manual vision-analysis now run through shared `trigger-* -> start-*-job` effect paths, with REST owning job submission and Socket.IO reduced to live status pushes plus backward-compatible shims.
-- The first `server/sockets.js` cleanup slice is now in place: the module uses an object-shaped environment, shared command-listener factories, and shared patch-state decoders for dashboard settings and location mutations.
-- The next socket cleanup slice is now also in place: category selection, active-photo/navigation, and standard curated-photo compatibility handlers now decode through shared command listeners, with Google Photos metadata exceptions isolated behind a small source-local interceptor.
-- The next socket cleanup slice is now in place for the remaining pool/admin compatibility tail: pool keyword/feed-config/category lifecycle events and admin secret-save shims now decode through shared commands, with REST-first admin secret routes owning the durable write path by default.
-- `update-excluded-keywords` now uses the same shared command-listener boundary as the rest of the durable socket controls, and the remaining socket-only viewport/media-failure/Google-refresh behavior now sits behind explicit async or telemetry listener helpers with injected host-IO dependencies.
-- The remaining structural cleanup is to keep thinning `server/sockets.js` until the only Google Photos transport-specific behavior is the on-demand signed-URL refresh helper and the rest of the file is limited to genuinely ephemeral telemetry/reporting behavior.
+- Step 1 is now complete: `server/sockets.js` is a transport adapter over shared command listeners, shared patch-state decoders, and explicit async/telemetry listener helpers.
+- Optional mixed-version fallback business logic no longer lives inline in `server/sockets.js`; it now sits in `server/socketLegacyCompatibility.js` and is only used when a shared dispatcher is unavailable.
+- The intentionally socket-specific tail is now explicit: connection lifecycle, viewport/reporting telemetry, transient pushes, and the on-demand Google Photos signed-URL refresh helper remain transport-owned by design.
+- The next explicit checkpoint is Step 2: confirm whether any further domain command/effect expansion is still needed, or whether the next substantive cleanup move is Step 3's `server/app.js` shell-composition refactor.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -105,7 +104,8 @@ Progress note:
 
 - The object-shaped socket environment and shared command-listener / patch-decoder layer are now in place for widget, theme, interval, scale, split, alignment, vision-config, location settings, category selection, active-photo/navigation, and standard curated-photo mutations.
 - `update-excluded-keywords` now belongs to that same shared command-listener path instead of living as a transport-local branch.
-- The remaining work in this step is the narrower source-local tail: the on-demand Google Photos signed-URL refresh helper plus telemetry-only or display-reporting handlers that are intentionally transport-specific, with those handlers now explicitly wrapped in async/telemetry listener factories instead of being interleaved with durable command wiring.
+- Legacy compatibility branches no longer live inline in `server/sockets.js`; they are isolated in `server/socketLegacyCompatibility.js` and only exercised when the shared dispatcher is unavailable.
+- Step 1 is complete. The remaining socket-only handlers are intentionally transport-specific and already wrapped behind explicit async/telemetry listener factories.
 
 Acceptance criteria:
 

@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Completed the `server/sockets.js` Transport-Adapter Step by Isolating Legacy Compatibility
+- **Goal**: Finish Step 1 of the functional refactor companion by removing the last inline legacy mutation branches from `server/sockets.js` without dropping mixed-version compatibility behavior.
+- **Implementation**:
+  - Added `server/socketLegacyCompatibility.js` as a dedicated compatibility adapter that owns the old no-dispatch fallback mutation paths for state patches, category/photo updates, pool/admin changes, excluded-keyword edits, screensaver toggles, and Google Photos cache-backed photo mutations.
+  - Simplified `server/sockets.js` so it now focuses on shared `decode -> dispatch` listener registration plus explicit async/telemetry handlers, creating the legacy compatibility adapter only when a shared dispatcher is unavailable.
+  - Kept the intentionally socket-owned tail explicit in `server/sockets.js`: connection lifecycle, viewport/media-failure telemetry, second-photo preview sync, and on-demand Google Photos signed-URL refreshes.
+  - Updated roadmap and agent-facing docs so Step 1 is marked complete and the next companion checkpoint is explicit.
+- **Learning**: The cleanest way to finish a transport-adapter refactor is often not to delete every old branch immediately, but to move compatibility behavior behind a named boundary so the live adapter reads as transport code again. Once the fallback path became a separate adapter, the remaining socket module structure matched the functional-core/imperative-shell split much more honestly.
+- **Verification**: `npm test` and `npm run lint` passed. The sandbox live smoke bind still skipped with the known `listen EPERM` Unix-socket limitation.
+
 ### 2026-07-10: Excluded-Keyword Socket Commands and Ephemeral Socket Tail Now Use Explicit Listener Boundaries
 - **Goal**: Continue the Phase 1 `server/sockets.js` thinning work by removing the last durable socket outlier and making the remaining socket-only handlers explicit, injectable, and testable.
 - **Implementation**:

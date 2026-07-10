@@ -2,9 +2,8 @@
 
 const { sendEmailAlert } = require('./services/notifier.js');
 const googlePhotos = require('./services/googlePhotos.js');
-const { saveCuratedCollections } = require('./config/collections.js');
-const { persistEnvVars } = require('./config/env.js');
 const { getHostDisplayInfo } = require('./services/system.js');
+const { createSocketLegacyCompatibility } = require('./socketLegacyCompatibility.js');
 const {
   buildBooleanFieldPatch,
   buildEnumFieldPatch,
@@ -34,25 +33,6 @@ const {
   decodeVisionAnalysisCommand,
 } = require('./domain/commands.js');
 
-const STATE_PATCH_FIELDS = [
-  'theme',
-  'inactivityTimeout',
-  'slideshowInterval',
-  'scaleMode',
-  'splitPortrait',
-  'splitCropPercent',
-  'alignTimeOfDay',
-  'alignWeather',
-  'nightPercentage',
-  'allowOpenAiFallback'
-];
-const CATEGORY_ALIASES = {
-  'Liminal Space': 'Liminal Spaces',
-  'Liminal Spaces': 'Liminal Spaces',
-  'AI Creation': 'AI Creations',
-  'AI Creations': 'AI Creations'
-};
-
 const decodeWidgetCommand = createStatePatchCommandDecoder(buildWidgetPatch);
 const decodeAlignTimeCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignTimeOfDay'));
 const decodeAlignWeatherCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignWeather'));
@@ -67,15 +47,6 @@ const decodeThemeCommand = createStatePatchCommandDecoder(buildTrimmedStringFiel
 const decodeAutoLocationCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('autoLocation'));
 const decodeManualLocationCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('manualLocation'));
 const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCommand({ active });
-const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-const splitCategories = (categories = '') => categories.split(',').map((category) => category.trim()).filter(Boolean);
-const normalizeSocketCategories = (category) => splitCategories(category).map((name) => CATEGORY_ALIASES[name] ?? name);
-const normalizeKeywordList = (keywords = []) => keywords.map((keyword) => String(keyword).trim()).filter(Boolean);
-const pickRandomPhoto = (photos) => photos[Math.floor(Math.random() * photos.length)] ?? null;
-const syncActivePhoto = (io, state, photo) => {
-  state.activePhoto = photo;
-  io.emit('photo-update', state.activePhoto);
-};
 const buildSocketErrorLogger = (label) => (error) => {
   console.error(`Socket Event: ${label} failed:`, error.message);
 };
@@ -213,347 +184,20 @@ module.exports = function configureSockets({
 
     io.emit('state-sync', state);
   };
-
-  const buildDefinedMetadataPatch = (entries) => Object.fromEntries(
-    Object.entries(entries).filter(([, value]) => value !== undefined)
-  );
-
-  const applyLegacyGooglePhotoMetadata = ({ url, metadata, afterApply }) => {
-    if (!googlePhotos.isGooglePhotoProxyUrl(url)) {
-      return false;
-    }
-
-    const metadataPatch = googlePhotos.buildGooglePhotoMetadataPatch(metadata);
-    if (Object.keys(metadataPatch).length === 0) {
-      return false;
-    }
-
-    const updatedPhoto = googlePhotos.updateCachedMediaItemMetadata(url, metadataPatch);
-    if (!updatedPhoto) {
-      return false;
-    }
-
-    googlePhotos.applyCachedMediaItemMetadataToState(state, url, metadataPatch);
-    if (typeof afterApply === 'function') {
-      afterApply(updatedPhoto);
-    }
-    broadcast();
-    return true;
-  };
-
-  const createLegacyPhotoMutationFallback = ({ applyCurated, buildGoogleMetadata = () => ({}), afterGoogleApply }) => (command) => {
-    const url = String(command.payload?.url || '');
-    const handledGooglePhoto = applyLegacyGooglePhotoMetadata({
-      url,
-      metadata: buildGoogleMetadata(command),
-      afterApply: () => afterGoogleApply?.(command)
-    });
-
-    if (handledGooglePhoto) {
-      return;
-    }
-
-    return applyCurated(command);
-  };
-
-  const applyLegacyStatePatchCommand = async (command) => {
-    const patch = isPlainObject(command.payload) ? command.payload : {};
-    const {
-      widgets,
-      visionConfig,
-      autoLocation,
-      manualLocation
-    } = patch;
-    let changed = false;
-    let refreshWeather = false;
-
-    STATE_PATCH_FIELDS.forEach((field) => {
-      if (patch[field] === undefined || state[field] === patch[field]) {
-        return;
-      }
-
-      state[field] = patch[field];
-      changed = true;
-    });
-
-    if (isPlainObject(widgets)) {
-      Object.keys(widgets).forEach((widgetName) => {
-        if (!Object.prototype.hasOwnProperty.call(state.widgets || {}, widgetName)) {
-          return;
-        }
-
-        const visible = Boolean(widgets[widgetName]);
-        if (state.widgets[widgetName] !== visible) {
-          state.widgets[widgetName] = visible;
-          changed = true;
-        }
-      });
-    }
-
-    if (isPlainObject(visionConfig)) {
-      state.visionConfig = { ...visionConfig };
-      changed = true;
-    }
-
-    if (autoLocation !== undefined && state.autoLocation !== autoLocation) {
-      state.autoLocation = Boolean(autoLocation);
-      changed = true;
-      refreshWeather = true;
-    }
-
-    if (isPlainObject(manualLocation)) {
-      state.manualLocation = { ...manualLocation };
-      changed = true;
-      refreshWeather = true;
-    }
-
-    if (!changed) {
-      return;
-    }
-
-    saveCuratedCollections(collections, state);
-    if (refreshWeather && typeof triggerWeatherUpdate === 'function') {
-      await triggerWeatherUpdate();
-    }
-    broadcast();
-  };
-
-  const applyLegacyCategorySelection = (command) => {
-    const validCategories = normalizeSocketCategories(command.payload?.categories).filter((name) => Boolean(collections[name]));
-
-    if (validCategories.length === 0) {
-      console.error(`[SOCKET EVENT] ERROR: None of the categories in "${command.payload?.categories}" exist in curatedCollections keys:`, Object.keys(collections));
-      return;
-    }
-
-    state.currentCategory = validCategories.join(',');
-    state.photosList = combineFeedsBalanced(validCategories, collections);
-
-    const smartPhoto = getSmartPhoto('next');
-    if (smartPhoto) {
-      state.activePhoto = smartPhoto;
-      console.log(`[SOCKET EVENT] Selected smart starting photo: "${smartPhoto.title}"`);
-    } else if (state.photosList.length > 0) {
-      state.activePhoto = pickRandomPhoto(state.photosList);
-      console.log(`[SOCKET EVENT] Selected random starting photo: "${state.activePhoto.title}"`);
-    }
-
-    console.log(`[SOCKET EVENT] Broadcasting state-sync with categories: "${state.currentCategory}"`);
-    broadcast();
-  };
-
-  const applyLegacyActivePhoto = (command) => {
-    syncActivePhoto(io, state, command.payload?.photo || { url: command.payload?.url });
-  };
-
-  const applyLegacyPhotoRating = (command) => {
-    const { updatePhotoRating } = require('./config/collections.js');
-    updatePhotoRating(collections, state, command.payload.url, command.payload.rating);
-    if (command.payload.rating === 1 && state.activePhoto && state.activePhoto.url === command.payload.url) {
-      const nextPhoto = getSmartPhoto('next');
-      if (nextPhoto) {
-        syncActivePhoto(io, state, nextPhoto);
-      }
-    }
-    broadcast();
-  };
-
-  const applyLegacyPhotoCrop = (command) => {
-    const { updatePhotoCrop } = require('./config/collections.js');
-    updatePhotoCrop(
-      collections,
+  const compatibility = typeof dispatchCommand === 'function'
+    ? null
+    : createSocketLegacyCompatibility({
+      io,
       state,
-      command.payload.url,
-      command.payload.cropPercent,
-      command.payload.cropPositionY
-    );
-    broadcast();
-  };
-
-  const applyLegacyPreventPairing = (command) => {
-    const { updatePhotoPreventPairing } = require('./config/collections.js');
-    const { url, preventPairing, preserveActive } = command.payload;
-    updatePhotoPreventPairing(collections, state, url, preventPairing);
-    if (preventPairing && preserveActive) {
-      const focusedPhoto = state.photosList?.find((photo) => photo?.url === url);
-      if (focusedPhoto) {
-        state.activePhoto = { ...focusedPhoto };
-        state.activeSecondPhoto = null;
-      }
-    }
-    broadcast();
-  };
-
-  const applyLegacyAdvancePhoto = (direction) => () => {
-    const photo = getSmartPhoto(direction);
-    if (photo) {
-      syncActivePhoto(io, state, photo);
-    }
-  };
-
-  const applyLegacyPoolKeywords = (command) => {
-    const { name, keywords } = command.payload;
-    if (!collections[name]) {
-      return;
-    }
-
-    state.searchKeywords[name] = [...keywords];
-    saveCuratedCollections(collections, state);
-    console.log(`[Config Socket] Saved updated search keywords for category "${name}":`, state.searchKeywords[name]);
-    broadcast();
-  };
-
-  const applyLegacyPoolFeedConfig = (command) => {
-    const { name, source, config } = command.payload;
-    if (!collections[name]) {
-      return;
-    }
-
-    state.feedConfigs ??= {};
-    state.feedConfigs[name] ??= {};
-    state.feedConfigs[name][source] = {
-      ...state.feedConfigs[name][source],
-      ...config
-    };
-
-    saveCuratedCollections(collections, state);
-    console.log(`[Config Socket] Saved updated feed config for category "${name}" source "${source}":`, state.feedConfigs[name][source]);
-    broadcast();
-  };
-
-  const buildDefaultPoolFeedConfig = (keywords) => ({
-    unsplash: { enabled: true, keywords: [...keywords] },
-    wallhaven: { enabled: true, keywords: [...keywords] },
-    metmuseum: { enabled: true, keywords: [...keywords] },
-    artic: { enabled: false, keywords: [...keywords] }
-  });
-
-  const applyLegacyAddPool = async (command) => {
-    const { name, keywords } = command.payload;
-    if (collections[name] || state.searchKeywords?.[name]) {
-      console.warn(`Category "${name}" already exists.`);
-      return;
-    }
-
-    console.log(`[SOCKET EVENT] add-category received: "${name}" with keywords:`, keywords);
-
-    state.searchKeywords ??= {};
-    state.searchKeywords[name] = [...keywords];
-    state.feedConfigs ??= {};
-    state.feedConfigs[name] = buildDefaultPoolFeedConfig(keywords);
-    collections[name] = [];
-
-    saveCuratedCollections(collections, state);
-    broadcast();
-
-    try {
-      const { crawlAllCollections } = require('./services/crawler.js');
-      const { updatedCollections, updatedAny } = await crawlAllCollections(collections, state.feedConfigs, state.searchKeywords);
-      if (updatedAny) {
-        Object.entries(updatedCollections).forEach(([key, photos]) => {
-          collections[key] = photos;
-        });
-        saveCuratedCollections(collections, state);
-      }
-
-      const currentCats = splitCategories(state.currentCategory);
-      if (currentCats.includes(name)) {
-        state.photosList = combineFeedsBalanced(currentCats, collections);
-        if (state.photosList.length > 0) {
-          syncActivePhoto(io, state, getSmartPhoto('next') || state.photosList[0]);
-        }
-      }
-
-      broadcast();
-
-      const { triggerImageAnalysisBackground } = require('./app.js');
-      triggerImageAnalysisBackground().catch((err) => console.error('Error in background image analysis:', err));
-    } catch (err) {
-      console.error(`Error crawling new category "${name}":`, err.message);
-    }
-  };
-
-  const applyLegacyDeletePool = (command) => {
-    const { name } = command.payload;
-    if (!collections[name] && !state.searchKeywords?.[name]) {
-      return;
-    }
-
-    console.log(`[SOCKET EVENT] delete-category received: "${name}"`);
-
-    if (state.searchKeywords) {
-      delete state.searchKeywords[name];
-    }
-    if (state.feedConfigs) {
-      delete state.feedConfigs[name];
-    }
-    delete collections[name];
-
-    saveCuratedCollections(collections, state);
-
-    const currentCats = splitCategories(state.currentCategory);
-    if (currentCats.includes(name)) {
-      const remainingCats = currentCats.filter((category) => category !== name);
-      if (remainingCats.length > 0) {
-        state.currentCategory = remainingCats.join(',');
-      } else {
-        const remainingKeys = Object.keys(state.searchKeywords || {});
-        state.currentCategory = remainingKeys[0] || 'Scenic Nature';
-      }
-
-      const updatedCats = splitCategories(state.currentCategory);
-      state.photosList = combineFeedsBalanced(updatedCats, collections);
-      const smartPhoto = getSmartPhoto('next');
-      state.activePhoto = smartPhoto || pickRandomPhoto(state.photosList);
-    }
-
-    broadcast();
-  };
-
-  const createLegacyEnvSecretFallback = ({ envKey, runtimeFlag }) => (command) => {
-    const value = String(command.payload?.value || '');
-    persistEnvVars({ [envKey]: value });
-    state[runtimeFlag] = Boolean(value);
-    broadcast();
-  };
-
-  const applyLegacyExcludedKeywords = (command) => {
-    const keywords = normalizeKeywordList(command.payload?.keywords);
-    state.excludedKeywords = keywords;
-    saveCuratedCollections(collections, state);
-
-    const currentCats = splitCategories(state.currentCategory);
-    state.photosList = combineFeedsBalanced(currentCats, collections);
-
-    if (state.photosList.length > 0) {
-      const matchesExcludedKeyword = (photo) => keywords.some((keyword) => (
-        photo?.title?.toLowerCase().includes(keyword.toLowerCase())
-      ));
-
-      if (matchesExcludedKeyword(state.activePhoto)) {
-        state.activePhoto = pickRandomPhoto(state.photosList);
-      }
-    }
-
-    broadcast();
-    console.log('[SOCKET EVENT] update-excluded-keywords saved and broadcasted:', state.excludedKeywords);
-  };
-
-  const applyLegacyBrokenPhoto = (command) => {
-    const { markPhotoBroken } = require('./config/collections.js');
-    const updated = markPhotoBroken(collections, state, command.payload.url);
-    if (!updated) {
-      return;
-    }
-
-    if (state.activePhoto && state.activePhoto.url === command.payload.url) {
-      const nextPhoto = getSmartPhoto('next');
-      if (nextPhoto) {
-        syncActivePhoto(io, state, nextPhoto);
-      }
-    }
-    broadcast();
-  };
+      collections,
+      combineFeedsBalanced,
+      getSmartPhoto,
+      launchKioskBrowser,
+      killKioskBrowser,
+      setManualOverride,
+      triggerWeatherUpdate,
+      broadcast
+    });
 
   io.on('connection', (socket) => {
     console.log('Device connected to Lumina network:', socket.id);
@@ -586,7 +230,7 @@ module.exports = function configureSockets({
     };
 
     const listenForStatePatch = (eventName, decode) => {
-      listenForCommand(eventName, decode, applyLegacyStatePatchCommand);
+      listenForCommand(eventName, decode, compatibility?.statePatch);
     };
 
     registerSocketListeners(socket, [
@@ -677,47 +321,29 @@ module.exports = function configureSockets({
     listenForCommand('change-category', (category) => {
       console.log(`[SOCKET EVENT] change-category received: "${category}"`);
       return decodeCategorySelectionFromSocket(category);
-    }, applyLegacyCategorySelection);
+    }, compatibility?.categorySelection);
 
     // Change individual active photo
-    listenForCommand('set-active-photo', decodeActivePhotoCommand, applyLegacyActivePhoto);
+    listenForCommand('set-active-photo', decodeActivePhotoCommand, compatibility?.activePhoto);
 
     listenForCommand(
       'report-photo-metadata',
       decodePhotoMetadataCommand,
-      createLegacyPhotoMutationFallback({
-        applyCurated: () => {},
-        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
-          orientation: command.payload?.orientation,
-          width: command.payload?.width,
-          height: command.payload?.height
-        })
-      })
+      compatibility?.photoMetadata
     );
 
     // Rate photo socket event
     listenForCommand(
       'rate-photo',
       decodePhotoRatingCommand,
-      createLegacyPhotoMutationFallback({
-        applyCurated: applyLegacyPhotoRating,
-        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
-          rating: command.payload?.rating
-        })
-      })
+      compatibility?.photoRating
     );
 
     // Set individual photo crop ratio and vertical position
     listenForCommand(
       'set-photo-crop',
       decodePhotoCropCommand,
-      createLegacyPhotoMutationFallback({
-        applyCurated: applyLegacyPhotoCrop,
-        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
-          cropPercent: command.payload?.cropPercent,
-          cropPositionY: command.payload?.cropPositionY
-        })
-      })
+      compatibility?.photoCrop
     );
 
 
@@ -725,55 +351,28 @@ module.exports = function configureSockets({
     listenForCommand(
       'set-photo-prevent-pairing',
       decodePhotoPreventPairingCommand,
-      createLegacyPhotoMutationFallback({
-        applyCurated: applyLegacyPreventPairing,
-        buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
-          preventPairing: command.payload?.preventPairing
-        }),
-        afterGoogleApply: (command) => {
-          if (command.payload.preventPairing && command.payload.preserveActive) {
-            const focusedPhoto = state.photosList?.find((photo) => photo?.url === command.payload.url);
-            if (focusedPhoto) {
-              state.activePhoto = { ...focusedPhoto };
-              state.activeSecondPhoto = null;
-            }
-          }
-        }
-      })
+      compatibility?.photoPreventPairing
     );
 
     // Update keywords socket event
-    listenForCommand('update-keywords', decodePoolKeywordsCommand, applyLegacyPoolKeywords);
+    listenForCommand('update-keywords', decodePoolKeywordsCommand, compatibility?.poolKeywords);
 
     // Update feed config socket event
-    listenForCommand('update-feed-config', decodePoolFeedConfigCommand, applyLegacyPoolFeedConfig);
+    listenForCommand('update-feed-config', decodePoolFeedConfigCommand, compatibility?.poolFeedConfig);
 
-    listenForCommand('update-excluded-keywords', decodeExcludedKeywordsCommand, applyLegacyExcludedKeywords);
+    listenForCommand('update-excluded-keywords', decodeExcludedKeywordsCommand, compatibility?.excludedKeywords);
 
     // Add custom category / scenic pool
-    listenForCommand('add-category', decodeAddPoolCommand, applyLegacyAddPool);
+    listenForCommand('add-category', decodeAddPoolCommand, compatibility?.addPool);
 
     // Delete custom category / scenic pool
-    listenForCommand('delete-category', decodeDeletePoolCommand, applyLegacyDeletePool);
+    listenForCommand('delete-category', decodeDeletePoolCommand, compatibility?.deletePool);
 
-    listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), applyLegacyAdvancePhoto('next'));
+    listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), compatibility?.advancePhoto('next'));
 
-    listenForCommand('prev-photo', () => decodeAdvancePhotoCommand('prev'), applyLegacyAdvancePhoto('prev'));
+    listenForCommand('prev-photo', () => decodeAdvancePhotoCommand('prev'), compatibility?.advancePhoto('prev'));
 
-    listenForCommand('set-screensaver-active', decodeScreensaverActiveFromSocket, (command) => {
-      if (command.payload.active) {
-        state.screensaverActive = true;
-        // Arm manualOverride BEFORE launching so the idle daemon doesn't
-        // immediately conclude shouldBeActive=false and revert the state.
-        setManualOverride(true);
-        launchKioskBrowser();
-      } else {
-        state.screensaverActive = false;
-        setManualOverride(false);
-        killKioskBrowser();
-      }
-      broadcast();
-    });
+    listenForCommand('set-screensaver-active', decodeScreensaverActiveFromSocket, compatibility?.screensaverActive);
 
     listenForCommand(
       'mark-photo-broken',
@@ -781,10 +380,7 @@ module.exports = function configureSockets({
         console.log(`[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`);
         return decodeBrokenPhotoCommand(payload);
       },
-      createLegacyPhotoMutationFallback({
-        applyCurated: applyLegacyBrokenPhoto,
-        buildGoogleMetadata: () => ({ rating: 1, isBroken: true })
-      })
+      compatibility?.brokenPhoto
     );
 
     listenForCommand('trigger-recrawl', (payload) => {
@@ -812,7 +408,7 @@ module.exports = function configureSockets({
     listenForCommand(
       'save-useapi-token',
       decodeUseApiTokenCommand,
-      createLegacyEnvSecretFallback({ envKey: 'USEAPI_TOKEN', runtimeFlag: 'hasUseApiToken' }),
+      compatibility?.envSecret({ envKey: 'USEAPI_TOKEN', runtimeFlag: 'hasUseApiToken' }),
       null,
       () => {
         console.log('[SOCKET EVENT] Successfully persisted USEAPI_TOKEN through the shared admin command path');
@@ -827,7 +423,7 @@ module.exports = function configureSockets({
     listenForCommand(
       'save-tumblr-api-key',
       decodeTumblrApiKeyCommand,
-      createLegacyEnvSecretFallback({ envKey: 'TUMBLR_API_KEY', runtimeFlag: 'hasTumblrApiKey' }),
+      compatibility?.envSecret({ envKey: 'TUMBLR_API_KEY', runtimeFlag: 'hasTumblrApiKey' }),
       null,
       () => {
         console.log('[SOCKET EVENT] Successfully persisted TUMBLR_API_KEY through the shared admin command path');
