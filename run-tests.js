@@ -37,6 +37,13 @@ const configureSockets = require('./server/sockets.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
 const {
+  chainRouteDecode,
+  collectRouteDecodeResults,
+  createRouteDecodeFailure,
+  createRouteDecodeSuccess,
+  mapRouteDecode
+} = require('./server/utils/routeDecode.js');
+const {
   applyCachedMediaItemMetadataToState,
   buildGooglePhotoProxyUrl,
   buildCachedMediaItem,
@@ -2349,6 +2356,34 @@ async function runIntegrationTests() {
     assert.strictEqual(response.body.error, 'Recrawl job service unavailable.');
   });
 
+  logSuite('Route Decode Helpers');
+  assertTest('collectRouteDecodeResults short-circuits on the first failure while preserving earlier successes only implicitly', () => {
+    const result = collectRouteDecodeResults([
+      createRouteDecodeSuccess({ step: 'first' }),
+      createRouteDecodeFailure(400, 'Bad second decode'),
+      createRouteDecodeSuccess({ step: 'third' })
+    ]);
+
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.failure.status, 400);
+    assert.strictEqual(result.failure.error, 'Bad second decode');
+  });
+
+  assertTest('chainRouteDecode composes follow-up validation on successful decode values only', () => {
+    const result = chainRouteDecode((value) => (
+      value.enabled
+        ? createRouteDecodeSuccess({ ...value, chained: true })
+        : createRouteDecodeFailure(409, 'Disabled decode')
+    ))(mapRouteDecode((value) => ({ ...value, enabled: true }))(createRouteDecodeSuccess({ key: 'value' })));
+
+    assert.strictEqual(result.ok, true);
+    assert.deepStrictEqual(result.value, {
+      key: 'value',
+      enabled: true,
+      chained: true
+    });
+  });
+
   logSuite('REST Pool Mutation Routes');
   await assertAsyncTest('POST /api/pools rejects duplicate pool names before dispatching the shared command route', async () => {
     let dispatched = false;
@@ -2387,6 +2422,28 @@ async function runIntegrationTests() {
 
     assert.strictEqual(response.status, 404);
     assert.strictEqual(response.body.error, 'Pool "Missing Pool" not found.');
+    assert.strictEqual(dispatched, false);
+  });
+
+  await assertAsyncTest('PATCH /api/pools/:name rejects an invalid feed-source config before batch dispatching the shared decode pipeline', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/pools/:name', {
+      params: { name: 'Scenic Nature' },
+      body: {
+        feedConfigs: {
+          reddit: ['not-an-object']
+        }
+      }
+    });
+
+    assert.strictEqual(response.status, 400);
+    assert.strictEqual(response.body.error, 'Invalid feed config payload for source "reddit".');
     assert.strictEqual(dispatched, false);
   });
 
@@ -2692,6 +2749,26 @@ async function runIntegrationTests() {
 
     assert.strictEqual(response.status, 404);
     assert.strictEqual(response.body.error, 'Photo URL not found in available photo collections.');
+    assert.strictEqual(dispatched, false);
+  });
+
+  await assertAsyncTest('PATCH /api/photos surfaces crop decode failures before dispatching the shared photo batch route', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: {
+        url: 'land-1',
+        cropPercent: 140
+      }
+    });
+
+    assert.strictEqual(response.status, 400);
+    assert.strictEqual(response.body.error, 'Invalid parameter: "cropPercent" and "cropPositionY" must be integers between 0 and 100.');
     assert.strictEqual(dispatched, false);
   });
 

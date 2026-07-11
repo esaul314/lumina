@@ -28,6 +28,15 @@ const {
   getPhotoByUrl,
   normalizeCategorySelection
 } = require('./domain/selectors.js');
+const {
+  chainRouteDecode,
+  collectRouteDecodeResults,
+  createRouteDecodeFailure,
+  createRouteDecodeSuccess,
+  createRouteFailure,
+  mapRouteDecode,
+  normalizeRouteDecodeResult
+} = require('./utils/routeDecode.js');
 
 const DEFAULT_CATEGORY = 'Scenic Nature';
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
@@ -61,6 +70,7 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
 const toErrorMessage = (error) => error instanceof Error ? error.message : String(error);
 const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const resolveRouteValue = (value, context) => (typeof value === 'function' ? value(context) : value);
+const compact = (values) => values.filter((value) => value !== null && value !== undefined);
 const normalizeMediaDimension = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -158,16 +168,32 @@ module.exports = function configureRoutes({
   };
   const hasPool = (name) => Boolean(name && collections[name]);
   const hasPoolConfig = (name) => Boolean(name && state.searchKeywords?.[name]);
-  const createRouteFailure = (status, error, extra = {}) => ({ status, error, extra });
-  const createRouteDecodeSuccess = (value) => ({ routeDecode: true, ok: true, value });
-  const createRouteDecodeFailure = (status, error, extra = {}) => ({
-    routeDecode: true,
-    ok: false,
-    failure: createRouteFailure(status, error, extra)
-  });
-  const normalizeRouteDecodeResult = (decoded) => (
-    decoded?.routeDecode ? decoded : createRouteDecodeSuccess(decoded)
+  const decodeCommandOrFailure = (command, status, error, extra = {}) => (
+    command
+      ? createRouteDecodeSuccess(command)
+      : createRouteDecodeFailure(status, error, extra)
   );
+  const decodeOptionalCommandPart = ({
+    active,
+    command,
+    error,
+    status = 400,
+    extra = {},
+    responsePatch = () => ({})
+  }) => (
+    !active
+      ? createRouteDecodeSuccess(null)
+      : mapRouteDecode((decodedCommand) => ({
+          command: decodedCommand,
+          responsePatch: responsePatch(decodedCommand)
+        }))(decodeCommandOrFailure(command, status, error, extra))
+  );
+  const buildCommandParts = (parts) => ({
+    commands: compact(parts.map((part) => part?.command)),
+    responsePatch: parts.reduce((patch, part) => (
+      part ? { ...patch, ...part.responsePatch } : patch
+    ), {})
+  });
   const buildPoolResponse = (name) => ({
     name,
     keywords: (state.searchKeywords && state.searchKeywords[name]) || [],
@@ -360,59 +386,60 @@ module.exports = function configureRoutes({
       return createRouteDecodeFailure(400, 'Invalid parameter: "url" must be a non-empty string.');
     }
 
-    const commands = [];
-    const responsePhoto = { url };
+    return mapRouteDecode((parts) => {
+      const { commands, responsePatch } = buildCommandParts(parts);
 
-    if (body.rating !== undefined) {
-      const ratingCommand = decodePhotoRatingCommand({ url, rating: body.rating });
-      if (!ratingCommand) {
-        return null;
-      }
-      commands.push(ratingCommand);
-      responsePhoto.rating = ratingCommand.payload.rating;
-    }
-
-    if (body.isBroken === true) {
-      commands.push(decodeBrokenPhotoCommand({ url }));
-      responsePhoto.isBroken = true;
-      responsePhoto.rating = 1;
-    }
-
-    if (body.cropPercent !== undefined || body.cropPositionY !== undefined) {
-      const cropCommand = decodePhotoCropCommand({
-        url,
-        cropPercent: body.cropPercent,
-        cropPositionY: body.cropPositionY
-      });
-      if (!cropCommand) {
-        return null;
-      }
-      commands.push(cropCommand);
-      if (cropCommand.payload.cropPercent !== undefined) {
-        responsePhoto.cropPercent = cropCommand.payload.cropPercent;
-      }
-      if (cropCommand.payload.cropPositionY !== undefined) {
-        responsePhoto.cropPositionY = cropCommand.payload.cropPositionY;
-      }
-    }
-
-    if (body.preventPairing !== undefined) {
-      const preventPairingCommand = decodePhotoPreventPairingCommand({
-        url,
-        preventPairing: body.preventPairing,
-        preserveActive: body.preserveActive
-      });
-      if (!preventPairingCommand) {
-        return null;
-      }
-      commands.push(preventPairingCommand);
-      responsePhoto.preventPairing = preventPairingCommand.payload.preventPairing;
-    }
-
-    return {
-      commands,
-      responsePhoto
-    };
+      return {
+        commands,
+        responsePhoto: {
+          url,
+          ...responsePatch
+        }
+      };
+    })(collectRouteDecodeResults([
+      decodeOptionalCommandPart({
+        active: body?.rating !== undefined,
+        command: decodePhotoRatingCommand({ url, rating: body?.rating }),
+        error: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
+        responsePatch: (command) => ({
+          rating: command.payload.rating
+        })
+      }),
+      decodeOptionalCommandPart({
+        active: body?.isBroken === true,
+        command: decodeBrokenPhotoCommand({ url }),
+        error: 'Invalid parameter: "url" must be a non-empty string.',
+        responsePatch: () => ({
+          isBroken: true,
+          rating: 1
+        })
+      }),
+      decodeOptionalCommandPart({
+        active: body?.cropPercent !== undefined || body?.cropPositionY !== undefined,
+        command: decodePhotoCropCommand({
+          url,
+          cropPercent: body?.cropPercent,
+          cropPositionY: body?.cropPositionY
+        }),
+        error: 'Invalid parameter: "cropPercent" and "cropPositionY" must be integers between 0 and 100.',
+        responsePatch: (command) => ({
+          ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
+          ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})
+        })
+      }),
+      decodeOptionalCommandPart({
+        active: body?.preventPairing !== undefined,
+        command: decodePhotoPreventPairingCommand({
+          url,
+          preventPairing: body?.preventPairing,
+          preserveActive: body?.preserveActive
+        }),
+        error: 'Invalid parameter: "preventPairing" must be a boolean-compatible value.',
+        responsePatch: (command) => ({
+          preventPairing: command.payload.preventPairing
+        })
+      })
+    ]));
   };
   const decodePoolPatchRequest = (req) => {
     const name = req.params.name.trim();
@@ -423,27 +450,28 @@ module.exports = function configureRoutes({
         !isObject(feedConfigs)
       )
     ) {
-      return null;
+      return createRouteDecodeFailure(400, 'Invalid parameter: "feedConfigs" must be an object keyed by source.');
     }
 
-    const commands = [
-      req.body?.keywords !== undefined
-        ? decodePoolKeywordsCommand({ name, keywords: req.body.keywords })
-        : null,
-      ...Object.entries(feedConfigs || {}).map(([source, config]) =>
-        decodePoolFeedConfigCommand({ name, source, config })
-      )
-    ].filter(Boolean);
+    const feedConfigDecoders = Object.entries(feedConfigs || {}).map(([source, config]) => (
+      decodeOptionalCommandPart({
+        active: true,
+        command: decodePoolFeedConfigCommand({ name, source, config }),
+        error: `Invalid feed config payload for source "${source}".`
+      })
+    ));
 
-    const expectedCount = (req.body?.keywords !== undefined ? 1 : 0) + Object.keys(feedConfigs || {}).length;
-    if (commands.length !== expectedCount) {
-      return null;
-    }
-
-    return {
+    return mapRouteDecode((parts) => ({
       name,
-      commands
-    };
+      commands: buildCommandParts(parts).commands
+    }))(collectRouteDecodeResults([
+      decodeOptionalCommandPart({
+        active: req.body?.keywords !== undefined,
+        command: decodePoolKeywordsCommand({ name, keywords: req.body?.keywords }),
+        error: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
+      }),
+      ...feedConfigDecoders
+    ]));
   };
   const decodeKeywordConfigRequest = (req) => {
     const category = typeof req.body?.category === 'string' ? req.body.category.trim() : '';
@@ -451,14 +479,14 @@ module.exports = function configureRoutes({
       return createRouteDecodeFailure(400, 'Invalid parameter: "category" must be a non-empty string.');
     }
 
-    const command = decodePoolKeywordsCommand({
-      name: category,
-      keywords: req.body?.keywords
-    });
-
-    return command
-      ? createRouteDecodeSuccess(command)
-      : createRouteDecodeFailure(400, 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.');
+    return decodeCommandOrFailure(
+      decodePoolKeywordsCommand({
+        name: category,
+        keywords: req.body?.keywords
+      }),
+      400,
+      'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
+    );
   };
   const createEffectSubmissionRoute = ({
     decode,
@@ -494,27 +522,26 @@ module.exports = function configureRoutes({
     })
   });
   const decodePreviewPhotoRequest = (req) => {
-    const command = decodeActivePhotoCommand(req.body);
-    if (!command) {
-      return createRouteDecodeFailure(400, 'Invalid parameter: "url" must be a non-empty string.');
-    }
+    return chainRouteDecode((command) => {
+      const payloadPhoto = command.payload.photo && typeof command.payload.photo === 'object'
+        ? command.payload.photo
+        : null;
+      const foundPhoto = findKnownPhoto(command.payload.url, payloadPhoto);
 
-    const payloadPhoto = command.payload.photo && typeof command.payload.photo === 'object'
-      ? command.payload.photo
-      : null;
-    const foundPhoto = findKnownPhoto(command.payload.url, payloadPhoto);
-
-    if (!foundPhoto) {
-      return createRouteDecodeFailure(404, 'Photo URL not found in active feed or curated collections.');
-    }
-
-    return createRouteDecodeSuccess({
-      ...command,
-      payload: {
-        ...command.payload,
-        photo: foundPhoto
-      }
-    });
+      return foundPhoto
+        ? createRouteDecodeSuccess({
+            ...command,
+            payload: {
+              ...command.payload,
+              photo: foundPhoto
+            }
+          })
+        : createRouteDecodeFailure(404, 'Photo URL not found in active feed or curated collections.');
+    })(decodeCommandOrFailure(
+      decodeActivePhotoCommand(req.body),
+      400,
+      'Invalid parameter: "url" must be a non-empty string.'
+    ));
   };
   const refreshActiveFeed = () => {
     state.photosList = getVisibleFeed();
