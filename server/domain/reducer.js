@@ -122,6 +122,43 @@ function reduceStateMutation(state, {
   );
 }
 
+function reduceCommandMutation(state, command, {
+  apply,
+  events,
+  effects,
+  ...options
+}) {
+  return reduceStateMutation(state, {
+    ...options,
+    ...(events === undefined
+      ? {}
+      : {
+          events: typeof events === 'function'
+            ? (nextState) => events(nextState, command)
+            : events
+        }),
+    ...(effects === undefined
+      ? {}
+      : {
+          effects: typeof effects === 'function'
+            ? (nextState) => effects(nextState, command)
+            : effects
+        }),
+    apply: (nextState) => apply(nextState, command)
+  });
+}
+
+function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) {
+  return (state, command) => reduceCommandMutation(state, command, {
+    ...options,
+    apply: (nextState, currentCommand) => assignIfChanged(
+      selectTarget(nextState),
+      field,
+      readValue(currentCommand)
+    )
+  });
+}
+
 function finalizeFeedMutation(nextState, {
   now,
   rng,
@@ -158,6 +195,25 @@ function reduceFeedMutation(state, options, env) {
 
 function stateSyncEventsFor(photoChanged) {
   return photoChanged ? emitPhotoUpdate() : emitStateSync();
+}
+
+function buildEffectResultReducer({
+  effectType,
+  result = effectOnlyResult,
+  buildPayload = () => ({})
+}) {
+  return (state, command) => {
+    const payload = buildPayload(command);
+
+    if (!payload) {
+      return unchangedResult(state);
+    }
+
+    return result(state, [{
+      type: effectType,
+      payload
+    }]);
+  };
 }
 
 function withPersist(effects = []) {
@@ -366,6 +422,12 @@ function assignIfChanged(target, key, value) {
 
   target[key] = value;
   return true;
+}
+
+function assignFields(target, entries) {
+  return entries.reduce((changed, [key, value]) => (
+    assignIfChanged(target, key, value) || changed
+  ), false);
 }
 
 function addPoolState(nextState, name, keywords) {
@@ -606,9 +668,93 @@ function reduceStatePatchCommand(state, patch, env) {
   );
 }
 
+function buildCategoryJobPayload(command) {
+  return {
+    categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
+  };
+}
+
+function buildEnvSecretEffectPayload(command) {
+  const envKey = String(command.payload?.envKey || '').trim();
+  const runtimeFlag = String(command.payload?.runtimeFlag || '').trim();
+  const value = String(command.payload?.value || '');
+
+  return envKey && runtimeFlag
+    ? {
+        entries: { [envKey]: value },
+        runtimeFlags: { [runtimeFlag]: Boolean(value) }
+      }
+    : null;
+}
+
+const reduceSimpleCommand = {
+  'set-split-portrait': buildFieldCommandReducer(
+    (nextState) => nextState.config,
+    'splitPortrait',
+    (command) => Boolean(command.payload?.enabled),
+    { persist: true }
+  ),
+  'set-split-crop': buildFieldCommandReducer(
+    (nextState) => nextState.config,
+    'splitCropPercent',
+    (command) => Number(command.payload?.percent),
+    { persist: true }
+  ),
+  'set-scale-mode': buildFieldCommandReducer(
+    (nextState) => nextState.config,
+    'scaleMode',
+    (command) => /** @type {'cover' | 'contain'} */ (command.payload?.mode),
+    { persist: true }
+  ),
+  'change-theme': (state, command) => reduceCommandMutation(state, command, {
+    apply: (nextState, currentCommand) => assignIfChanged(
+      nextState.config,
+      'theme',
+      String(currentCommand.payload?.theme || state.config.theme)
+    )
+  }),
+  'change-interval': buildFieldCommandReducer(
+    (nextState) => nextState.config,
+    'slideshowInterval',
+    (command) => Number(command.payload?.intervalMs)
+  ),
+  'set-screensaver-active': (state, command) => reduceCommandMutation(state, command, {
+    apply: (nextState, currentCommand) => {
+      const active = Boolean(currentCommand.payload?.active);
+
+      return assignFields(nextState.runtime, [
+        ['screensaverActive', active],
+        ['manualOverride', active],
+        ['browserRunning', active]
+      ]);
+    },
+    effects: (_nextState, currentCommand) => [{
+      type: currentCommand.payload?.active ? 'launch-kiosk' : 'kill-kiosk'
+    }]
+  }),
+  'save-env-secret': buildEffectResultReducer({
+    effectType: 'persist-env-vars',
+    result: stateSyncResult,
+    buildPayload: buildEnvSecretEffectPayload
+  }),
+  'trigger-recrawl': buildEffectResultReducer({
+    effectType: 'start-recrawl-job',
+    buildPayload: buildCategoryJobPayload
+  }),
+  'trigger-vision-analysis': buildEffectResultReducer({
+    effectType: 'start-vision-analysis-job',
+    buildPayload: buildCategoryJobPayload
+  })
+};
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
+  const reduceSharedCommand = reduceSimpleCommand[command.type];
+
+  if (reduceSharedCommand) {
+    return reduceSharedCommand(state, command);
+  }
 
   switch (command.type) {
     case 'select-categories': {
@@ -759,58 +905,6 @@ function reduceDomainCommand(state, command, env = {}) {
       });
     }
 
-    case 'set-split-portrait': {
-      return reduceStateMutation(state, {
-        apply: (nextState) => assignIfChanged(nextState.config, 'splitPortrait', Boolean(command.payload?.enabled)),
-        persist: true
-      });
-    }
-
-    case 'set-split-crop': {
-      return reduceStateMutation(state, {
-        apply: (nextState) => assignIfChanged(nextState.config, 'splitCropPercent', Number(command.payload?.percent)),
-        persist: true
-      });
-    }
-
-    case 'set-scale-mode': {
-      return reduceStateMutation(state, {
-        apply: (nextState) => assignIfChanged(
-          nextState.config,
-          'scaleMode',
-          /** @type {'cover' | 'contain'} */ (command.payload?.mode)
-        ),
-        persist: true
-      });
-    }
-
-    case 'change-theme': {
-      return reduceStateMutation(state, {
-        apply: (nextState) => assignIfChanged(nextState.config, 'theme', String(command.payload?.theme || state.config.theme))
-      });
-    }
-
-    case 'change-interval': {
-      return reduceStateMutation(state, {
-        apply: (nextState) => assignIfChanged(nextState.config, 'slideshowInterval', Number(command.payload?.intervalMs))
-      });
-    }
-
-    case 'set-screensaver-active': {
-      const active = Boolean(command.payload?.active);
-      return reduceStateMutation(state, {
-        apply: (nextState) => {
-          const changedFlags = [
-            assignIfChanged(nextState.runtime, 'screensaverActive', active),
-            assignIfChanged(nextState.runtime, 'manualOverride', active),
-            assignIfChanged(nextState.runtime, 'browserRunning', active)
-          ];
-          return changedFlags.some(Boolean);
-        },
-        effects: [{ type: active ? 'launch-kiosk' : 'kill-kiosk' }]
-      });
-    }
-
     case 'add-pool': {
       const name = normalizePoolName(command.payload?.name);
       const keywords = normalizeKeywordEntries(command.payload?.keywords)
@@ -867,40 +961,6 @@ function reduceDomainCommand(state, command, env = {}) {
         persist: true
       }, { now, rng });
     }
-
-    case 'save-env-secret': {
-      const envKey = String(command.payload?.envKey || '').trim();
-      const runtimeFlag = String(command.payload?.runtimeFlag || '').trim();
-      const value = String(command.payload?.value || '');
-
-      if (!envKey || !runtimeFlag) {
-        return unchangedResult(state);
-      }
-
-      return stateSyncResult(state, [{
-        type: 'persist-env-vars',
-        payload: {
-          entries: { [envKey]: value },
-          runtimeFlags: { [runtimeFlag]: Boolean(value) }
-        }
-      }]);
-    }
-
-    case 'trigger-recrawl':
-      return effectOnlyResult(state, [{
-        type: 'start-recrawl-job',
-        payload: {
-          categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
-        }
-      }]);
-
-    case 'trigger-vision-analysis':
-      return effectOnlyResult(state, [{
-        type: 'start-vision-analysis-job',
-        payload: {
-          categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
-        }
-      }]);
 
     default:
       return unchangedResult(state);

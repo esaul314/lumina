@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Continued Step 4 with Shared Reducer Specs for Simple Setter and Effect Commands
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated reducer ceremony for the simplest setter and effect-bearing commands without turning the reducer into a framework.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` around a few narrow helpers for command-local state mutation, field assignment, and effect-result construction, then moved the simple setter/effect branches onto one shared reducer-spec table.
+  - Standardized the branches for split layout, crop split percentage, scale mode, theme, slideshow interval, screensaver activation, admin-secret persistence, and async job triggers so they now reuse shared field/effect builders instead of repeating small state-update and payload-shaping blocks.
+  - Added regression coverage in `server/domain/tests.js` for the positive and no-op behavior of the shared setter reducers plus the silent invalid admin-secret payload case.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the current Step 4 checkpoint records this reducer-focused slice while staying intentionally open only for clearly repetitive future seams.
+- **Learning**: The useful abstraction here was a tiny reducer-spec algebra, not a command framework. Once the simplest branches became data plus a couple of local interpreters, the reducer kept its explicit switch for the complex cases while the repetitive field/effect ceremony disappeared.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-11: Continued Step 4 with Declarative Socket Listener Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated socket command-registration ceremony without hiding the intentionally imperative telemetry and signed-URL refresh handlers.
 - **Implementation**:

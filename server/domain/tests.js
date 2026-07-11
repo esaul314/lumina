@@ -709,9 +709,63 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('simple shared setter reducers keep config persistence and kiosk effects explicit', () => {
+    const state = createState();
+
+    const splitPortraitResult = reduceDomainCommand(state, {
+      type: 'set-split-portrait',
+      payload: { enabled: false }
+    });
+    const splitCropResult = reduceDomainCommand(state, {
+      type: 'set-split-crop',
+      payload: { percent: 35 }
+    });
+    const scaleModeResult = reduceDomainCommand(state, {
+      type: 'set-scale-mode',
+      payload: { mode: 'contain' }
+    });
+    const themeResult = reduceDomainCommand(state, {
+      type: 'change-theme',
+      payload: { theme: 'Cosmic Night' }
+    });
+    const intervalResult = reduceDomainCommand(state, {
+      type: 'change-interval',
+      payload: { intervalMs: 45000 }
+    });
+    const screensaverResult = reduceDomainCommand(state, {
+      type: 'set-screensaver-active',
+      payload: { active: true }
+    });
+
+    assert.strictEqual(splitPortraitResult.nextState.config.splitPortrait, false);
+    assert.deepStrictEqual(splitPortraitResult.effects.map((effect) => effect.type), ['persist']);
+    assert.strictEqual(splitCropResult.nextState.config.splitCropPercent, 35);
+    assert.deepStrictEqual(splitCropResult.effects.map((effect) => effect.type), ['persist']);
+    assert.strictEqual(scaleModeResult.nextState.config.scaleMode, 'contain');
+    assert.deepStrictEqual(scaleModeResult.effects.map((effect) => effect.type), ['persist']);
+    assert.strictEqual(themeResult.nextState.config.theme, 'Cosmic Night');
+    assert.deepStrictEqual(themeResult.effects, []);
+    assert.strictEqual(intervalResult.nextState.config.slideshowInterval, 45000);
+    assert.deepStrictEqual(intervalResult.effects, []);
+    assert.strictEqual(screensaverResult.nextState.runtime.screensaverActive, true);
+    assert.deepStrictEqual(screensaverResult.effects.map((effect) => effect.type), ['launch-kiosk']);
+  });
+
   assertTest('simple config and runtime setter commands now no-op when the requested value is already active', () => {
     const state = createState();
 
+    const sameSplitPortrait = reduceDomainCommand(state, {
+      type: 'set-split-portrait',
+      payload: { enabled: state.config.splitPortrait }
+    });
+    const sameSplitCrop = reduceDomainCommand(state, {
+      type: 'set-split-crop',
+      payload: { percent: state.config.splitCropPercent }
+    });
+    const sameScaleMode = reduceDomainCommand(state, {
+      type: 'set-scale-mode',
+      payload: { mode: state.config.scaleMode }
+    });
     const sameTheme = reduceDomainCommand(state, {
       type: 'change-theme',
       payload: { theme: state.config.theme }
@@ -725,7 +779,7 @@ function runDomainTests({ logSuite, assertTest }) {
       payload: { active: false }
     });
 
-    [sameTheme, sameInterval, sameScreensaverState].forEach((result) => {
+    [sameSplitPortrait, sameSplitCrop, sameScaleMode, sameTheme, sameInterval, sameScreensaverState].forEach((result) => {
       assert.strictEqual(result.nextState, state);
       assert.deepStrictEqual(result.events, []);
       assert.deepStrictEqual(result.effects, []);
@@ -809,6 +863,22 @@ function runDomainTests({ logSuite, assertTest }) {
         runtimeFlags: { hasUseApiToken: true }
       }
     }]);
+  });
+
+  assertTest('reducer admin secret persistence stays silent when the shared effect payload cannot be built', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'save-env-secret',
+      payload: {
+        envKey: '   ',
+        runtimeFlag: 'hasUseApiToken',
+        value: 'secret-123'
+      }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
   });
 
   assertTest('reducer pool keyword updates persist without mutating collections', () => {
