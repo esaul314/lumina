@@ -79,6 +79,40 @@ function effectOnlyResult(state, effects = []) {
   return createResult(state, [], effects);
 }
 
+function resolveMutationOutput(output, nextState) {
+  if (Array.isArray(output)) {
+    return output;
+  }
+
+  if (typeof output === 'function') {
+    return output(nextState);
+  }
+
+  return output;
+}
+
+function reduceStateMutation(state, {
+  apply,
+  events = emitStateSync(),
+  effects = [],
+  persist = false
+}) {
+  const nextState = cloneState(state);
+  const changed = apply(nextState);
+
+  if (!changed) {
+    return unchangedResult(state);
+  }
+
+  const resolvedEffects = resolveMutationOutput(effects, nextState) || [];
+
+  return createResult(
+    nextState,
+    resolveMutationOutput(events, nextState) || [],
+    persist ? withPersist(resolvedEffects) : resolvedEffects
+  );
+}
+
 function stateSyncEventsFor(photoChanged) {
   return photoChanged ? emitPhotoUpdate() : emitStateSync();
 }
@@ -289,6 +323,165 @@ function assignIfChanged(target, key, value) {
   return true;
 }
 
+function arraysEqual(left = [], right = []) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function shallowEqualObjects(left = {}, right = {}) {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key) => left[key] === right[key]);
+}
+
+function normalizeVisionConfig(config = {}) {
+  return {
+    apiUrl: String(config.apiUrl || '').trim(),
+    apiKey: String(config.apiKey || '').trim(),
+    model: String(config.model || '').trim(),
+    fallbackUrl: String(config.fallbackUrl || '').trim(),
+    fallbackApiKey: String(config.fallbackApiKey || '').trim(),
+    fallbackModel: String(config.fallbackModel || '').trim()
+  };
+}
+
+function markPatchChange(context, flags = {}) {
+  context.changed = true;
+  context.recomputePhotos ||= Boolean(flags.recomputePhotos);
+  context.refreshWeather ||= Boolean(flags.refreshWeather);
+  return context;
+}
+
+function applyScalarConfigPatch(context, fields) {
+  const changed = fields.reduce((didChange, field) => (
+    assignIfChanged(context.nextState.config, field, context.patch[field]) || didChange
+  ), false);
+
+  return changed ? markPatchChange(context) : context;
+}
+
+function applyExcludedKeywordsPatch(context) {
+  if (!Array.isArray(context.patch.excludedKeywords)) {
+    return context;
+  }
+
+  const keywords = trimKeywords(context.patch.excludedKeywords);
+
+  if (arraysEqual(keywords, context.nextState.config.excludedKeywords)) {
+    return context;
+  }
+
+  context.nextState.config.excludedKeywords = keywords;
+  return markPatchChange(context, { recomputePhotos: true });
+}
+
+function applyWidgetPatch(context) {
+  const widgets = context.patch.widgets;
+
+  if (!widgets || typeof widgets !== 'object' || Array.isArray(widgets)) {
+    return context;
+  }
+
+  const changed = Object.keys(widgets).reduce((didChange, widgetName) => {
+    if (!Object.prototype.hasOwnProperty.call(context.nextState.config.widgets, widgetName)) {
+      return didChange;
+    }
+
+    const visible = Boolean(widgets[widgetName]);
+    return assignIfChanged(context.nextState.config.widgets, widgetName, visible) || didChange;
+  }, false);
+
+  return changed ? markPatchChange(context) : context;
+}
+
+function applyVisionConfigPatch(context) {
+  const visionConfig = context.patch.visionConfig;
+
+  if (!visionConfig || typeof visionConfig !== 'object' || Array.isArray(visionConfig)) {
+    return context;
+  }
+
+  const normalizedVisionConfig = normalizeVisionConfig(visionConfig);
+
+  if (shallowEqualObjects(normalizedVisionConfig, context.nextState.config.visionConfig || {})) {
+    return context;
+  }
+
+  context.nextState.config.visionConfig = normalizedVisionConfig;
+  return markPatchChange(context);
+}
+
+function applyAutoLocationPatch(context) {
+  return assignIfChanged(
+    context.nextState.config,
+    'autoLocation',
+    context.patch.autoLocation === undefined ? undefined : Boolean(context.patch.autoLocation)
+  )
+    ? markPatchChange(context, { refreshWeather: true })
+    : context;
+}
+
+function applyManualLocationPatch(context) {
+  const manualLocation = context.patch.manualLocation;
+
+  if (!manualLocation || typeof manualLocation !== 'object' || Array.isArray(manualLocation)) {
+    return context;
+  }
+
+  if (shallowEqualObjects(manualLocation, context.nextState.config.manualLocation || {})) {
+    return context;
+  }
+
+  context.nextState.config.manualLocation = { ...manualLocation };
+  return markPatchChange(context, { refreshWeather: true });
+}
+
+function reduceStatePatchCommand(state, patch, env) {
+  const context = [
+    (current) => applyScalarConfigPatch(current, [
+      'theme',
+      'inactivityTimeout',
+      'slideshowInterval',
+      'scaleMode',
+      'splitPortrait',
+      'splitCropPercent',
+      'alignTimeOfDay',
+      'alignWeather',
+      'nightPercentage',
+      'allowOpenAiFallback'
+    ]),
+    applyExcludedKeywordsPatch,
+    applyWidgetPatch,
+    applyVisionConfigPatch,
+    applyAutoLocationPatch,
+    applyManualLocationPatch
+  ].reduce((current, applyPatch) => applyPatch(current), {
+    patch,
+    nextState: cloneState(state),
+    changed: false,
+    refreshWeather: false,
+    recomputePhotos: false
+  });
+
+  if (!context.changed) {
+    return unchangedResult(state);
+  }
+
+  const recomputed = context.recomputePhotos
+    ? recomputeFeed(context.nextState, env.rng)
+    : context.nextState;
+  const ensured = context.recomputePhotos
+    ? ensureActivePhoto(recomputed, { now: env.now, rng: env.rng, direction: 'next' })
+    : { state: recomputed, photoChanged: false };
+
+  return createResult(
+    ensured.state,
+    stateSyncEventsFor(ensured.photoChanged),
+    withPersist(context.refreshWeather ? [{ type: 'refresh-weather' }] : [])
+  );
+}
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
@@ -329,90 +522,7 @@ function reduceDomainCommand(state, command, env = {}) {
 
     case 'patch-state': {
       const patch = command.payload && typeof command.payload === 'object' ? command.payload : {};
-      const nextState = cloneState(state);
-      let changed = false;
-      let refreshWeather = false;
-      let recomputePhotos = false;
-
-      [
-        'theme',
-        'inactivityTimeout',
-        'slideshowInterval',
-        'scaleMode',
-        'splitPortrait',
-        'splitCropPercent',
-        'alignTimeOfDay',
-        'alignWeather',
-        'nightPercentage',
-        'allowOpenAiFallback'
-      ].forEach((field) => {
-        changed = assignIfChanged(nextState.config, field, patch[field]) || changed;
-      });
-
-      if (Array.isArray(patch.excludedKeywords)) {
-        const keywords = trimKeywords(patch.excludedKeywords);
-        if (JSON.stringify(keywords) !== JSON.stringify(nextState.config.excludedKeywords)) {
-          nextState.config.excludedKeywords = keywords;
-          changed = true;
-          recomputePhotos = true;
-        }
-      }
-
-      if (patch.widgets && typeof patch.widgets === 'object' && !Array.isArray(patch.widgets)) {
-        Object.keys(patch.widgets).forEach((widgetName) => {
-          if (!Object.prototype.hasOwnProperty.call(nextState.config.widgets, widgetName)) {
-            return;
-          }
-
-          const visible = Boolean(patch.widgets[widgetName]);
-          if (nextState.config.widgets[widgetName] !== visible) {
-            nextState.config.widgets[widgetName] = visible;
-            changed = true;
-          }
-        });
-      }
-
-      if (patch.visionConfig && typeof patch.visionConfig === 'object' && !Array.isArray(patch.visionConfig)) {
-        nextState.config.visionConfig = {
-          apiUrl: String(patch.visionConfig.apiUrl || '').trim(),
-          apiKey: String(patch.visionConfig.apiKey || '').trim(),
-          model: String(patch.visionConfig.model || '').trim(),
-          fallbackUrl: String(patch.visionConfig.fallbackUrl || '').trim(),
-          fallbackApiKey: String(patch.visionConfig.fallbackApiKey || '').trim(),
-          fallbackModel: String(patch.visionConfig.fallbackModel || '').trim()
-        };
-        changed = true;
-      }
-
-      if (patch.autoLocation !== undefined) {
-        const autoLocation = Boolean(patch.autoLocation);
-        if (nextState.config.autoLocation !== autoLocation) {
-          nextState.config.autoLocation = autoLocation;
-          changed = true;
-          refreshWeather = true;
-        }
-      }
-
-      if (patch.manualLocation && typeof patch.manualLocation === 'object' && !Array.isArray(patch.manualLocation)) {
-        nextState.config.manualLocation = { ...patch.manualLocation };
-        changed = true;
-        refreshWeather = true;
-      }
-
-      if (!changed) {
-        return unchangedResult(state);
-      }
-
-      const recomputed = recomputePhotos ? recomputeFeed(nextState, rng) : nextState;
-      const ensured = recomputePhotos
-        ? ensureActivePhoto(recomputed, { now, rng, direction: 'next' })
-        : { state: recomputed, photoChanged: false };
-
-      return createResult(
-        ensured.state,
-        stateSyncEventsFor(ensured.photoChanged),
-        withPersist(refreshWeather ? [{ type: 'refresh-weather' }] : [])
-      );
+      return reduceStatePatchCommand(state, patch, { now, rng });
     }
 
     case 'set-active-photo': {
@@ -532,44 +642,55 @@ function reduceDomainCommand(state, command, env = {}) {
     }
 
     case 'set-split-portrait': {
-      const nextState = cloneState(state);
-      nextState.config.splitPortrait = Boolean(command.payload?.enabled);
-      return stateSyncResult(nextState, withPersist());
+      return reduceStateMutation(state, {
+        apply: (nextState) => assignIfChanged(nextState.config, 'splitPortrait', Boolean(command.payload?.enabled)),
+        persist: true
+      });
     }
 
     case 'set-split-crop': {
-      const nextState = cloneState(state);
-      nextState.config.splitCropPercent = Number(command.payload?.percent);
-      return stateSyncResult(nextState, withPersist());
+      return reduceStateMutation(state, {
+        apply: (nextState) => assignIfChanged(nextState.config, 'splitCropPercent', Number(command.payload?.percent)),
+        persist: true
+      });
     }
 
     case 'set-scale-mode': {
-      const nextState = cloneState(state);
-      nextState.config.scaleMode = /** @type {'cover' | 'contain'} */ (command.payload?.mode);
-      return stateSyncResult(nextState, withPersist());
+      return reduceStateMutation(state, {
+        apply: (nextState) => assignIfChanged(
+          nextState.config,
+          'scaleMode',
+          /** @type {'cover' | 'contain'} */ (command.payload?.mode)
+        ),
+        persist: true
+      });
     }
 
     case 'change-theme': {
-      const nextState = cloneState(state);
-      nextState.config.theme = String(command.payload?.theme || state.config.theme);
-      return stateSyncResult(nextState);
+      return reduceStateMutation(state, {
+        apply: (nextState) => assignIfChanged(nextState.config, 'theme', String(command.payload?.theme || state.config.theme))
+      });
     }
 
     case 'change-interval': {
-      const nextState = cloneState(state);
-      nextState.config.slideshowInterval = Number(command.payload?.intervalMs);
-      return stateSyncResult(nextState);
+      return reduceStateMutation(state, {
+        apply: (nextState) => assignIfChanged(nextState.config, 'slideshowInterval', Number(command.payload?.intervalMs))
+      });
     }
 
     case 'set-screensaver-active': {
-      const nextState = cloneState(state);
-      nextState.runtime.screensaverActive = Boolean(command.payload?.active);
-      nextState.runtime.manualOverride = Boolean(command.payload?.active);
-      nextState.runtime.browserRunning = Boolean(command.payload?.active);
-      return stateSyncResult(
-        nextState,
-        [{ type: command.payload?.active ? 'launch-kiosk' : 'kill-kiosk' }]
-      );
+      const active = Boolean(command.payload?.active);
+      return reduceStateMutation(state, {
+        apply: (nextState) => {
+          const changedFlags = [
+            assignIfChanged(nextState.runtime, 'screensaverActive', active),
+            assignIfChanged(nextState.runtime, 'manualOverride', active),
+            assignIfChanged(nextState.runtime, 'browserRunning', active)
+          ];
+          return changedFlags.some(Boolean);
+        },
+        effects: [{ type: active ? 'launch-kiosk' : 'kill-kiosk' }]
+      });
     }
 
     case 'add-pool': {

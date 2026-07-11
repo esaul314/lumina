@@ -30,6 +30,7 @@ const { classifyWeatherCode } = require('./server/services/weather.js');
 const { updatePhotoCrop } = require('./server/config/collections.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
+const { createDomainDispatcher } = require('./server/domain/dispatch.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const configureSockets = require('./server/sockets.js');
@@ -244,6 +245,74 @@ function createSocketHarness(extraEnv = {}) {
     socket,
     socketEmits,
     socketHandlers,
+    state
+  };
+}
+
+function createDispatcherHarness(extraEnv = {}) {
+  const ioEmits = [];
+  const io = {
+    emit(event, payload) {
+      ioEmits.push([event, payload]);
+    }
+  };
+  const state = {
+    currentCategory: 'Scenic Nature',
+    photosList: [
+      { url: 'land-1', title: 'Forest Dawn', rating: 10, category: 'Scenic Nature' },
+      { url: 'land-2', title: 'Forest Mist', rating: 8, category: 'Scenic Nature' }
+    ],
+    activePhoto: { url: 'land-1', title: 'Forest Dawn', rating: 10, category: 'Scenic Nature' },
+    widgets: { clock: true },
+    theme: 'Zen Retreat',
+    scaleMode: 'cover',
+    splitPortrait: true,
+    splitCropPercent: 50,
+    inactivityTimeout: 600000,
+    slideshowInterval: 120000,
+    alignTimeOfDay: false,
+    alignWeather: false,
+    allowOpenAiFallback: false,
+    nightPercentage: 50,
+    searchKeywords: { 'Scenic Nature': ['forest'] },
+    feedConfigs: {},
+    excludedKeywords: [],
+    autoLocation: false,
+    manualLocation: {},
+    screensaverActive: false,
+    hasUseApiToken: false,
+    hasTumblrApiKey: false,
+    newsSentiment: { weatherMatch: 'Cloudy' },
+    physicalWeather: { weatherMatch: 'Cloudy' },
+    splitSeed: 0,
+    lastDirection: 'next'
+  };
+  const collections = {
+    'Scenic Nature': [
+      { url: 'land-1', title: 'Forest Dawn', rating: 10, category: 'Scenic Nature' },
+      { url: 'land-2', title: 'Forest Mist', rating: 8, category: 'Scenic Nature' }
+    ]
+  };
+  const runtimeContext = {
+    browserRunning: false,
+    manualOverride: false,
+    weather: null,
+    externalCollections: {}
+  };
+
+  const dispatcher = createDomainDispatcher({
+    state,
+    collections,
+    io,
+    getRuntimeContext: () => runtimeContext,
+    ...extraEnv
+  });
+
+  return {
+    collections,
+    dispatcher,
+    ioEmits,
+    runtimeContext,
     state
   };
 }
@@ -1356,6 +1425,99 @@ assertTest('crawler consumes custom searchKeywords instead of static defaults', 
 });
 
 runDomainTests({ logSuite, assertTest });
+
+logSuite('Domain Dispatch');
+
+assertAsyncTest('createDomainDispatcher routes photo-update events and state-sync broadcasts through the shared handler table', async () => {
+  const { dispatcher, ioEmits, state } = createDispatcherHarness();
+  const result = await dispatcher.dispatchCommand({
+    type: 'advance-photo',
+    payload: {
+      direction: 'next',
+      strategy: 'sequence'
+    }
+  });
+
+  assert.strictEqual(result.reducerResult.events[0].type, 'photo-update');
+  assert.strictEqual(result.reducerResult.events[1].type, 'state-sync');
+  assert.strictEqual(state.activePhoto.url, 'land-2');
+  assert.deepStrictEqual(ioEmits.map(([event]) => event), ['photo-update', 'state-sync']);
+  assert.strictEqual(ioEmits[0][1].url, 'land-2');
+  assert.strictEqual(ioEmits[1][1].activePhoto.url, 'land-2');
+});
+
+assertAsyncTest('createDomainDispatcher interprets kiosk launch effects and keeps effect-only job commands free of socket broadcasts', async () => {
+  const manualOverrideValues = [];
+  let launchCalls = 0;
+  let recrawlPayload = null;
+  const { dispatcher, ioEmits, state } = createDispatcherHarness({
+    launchKioskBrowser: () => { launchCalls += 1; },
+    setManualOverride: (value) => { manualOverrideValues.push(value); },
+    startRecrawlJob: async (payload) => {
+      recrawlPayload = payload;
+      return {
+        job: {
+          id: 'recrawl-test',
+          type: 'recrawl',
+          status: 'queued'
+        },
+        reused: false
+      };
+    }
+  });
+
+  const activeResult = await dispatcher.dispatchCommand({
+    type: 'set-screensaver-active',
+    payload: { active: true }
+  });
+  const jobResult = await dispatcher.dispatchCommand({
+    type: 'trigger-recrawl',
+    payload: { categories: ['Scenic Nature'] }
+  });
+
+  assert.strictEqual(activeResult.effectResults[0].effect.type, 'launch-kiosk');
+  assert.strictEqual(launchCalls, 1);
+  assert.deepStrictEqual(manualOverrideValues, [true]);
+  assert.strictEqual(state.screensaverActive, true);
+  assert.strictEqual(ioEmits.filter(([event]) => event === 'state-sync').length, 1);
+  assert.deepStrictEqual(jobResult.reducerResult.events, []);
+  assert.deepStrictEqual(recrawlPayload, { categories: ['Scenic Nature'] });
+  assert.strictEqual(jobResult.effectResults[0].value.job.id, 'recrawl-test');
+});
+
+assertAsyncTest('createDomainDispatcher interprets external photo persistence effects through the shared effect table', async () => {
+  const googleUrl = buildGooglePhotoProxyUrl('dispatcher-photo');
+  const persistedPayloads = [];
+  const { dispatcher, ioEmits, runtimeContext, state } = createDispatcherHarness({
+    persistExternalPhotoMetadata: async (payload) => {
+      persistedPayloads.push(payload);
+      return { persisted: true };
+    }
+  });
+
+  state.currentCategory = 'Google Photos';
+  state.photosList = [{ url: googleUrl, title: 'Google Photo', rating: 10, category: 'Google Photos' }];
+  state.activePhoto = state.photosList[0];
+  runtimeContext.externalCollections = {
+    'Google Photos': [{ url: googleUrl, title: 'Google Photo', rating: 10, category: 'Google Photos' }]
+  };
+
+  const result = await dispatcher.dispatchCommand({
+    type: 'set-photo-crop',
+    payload: {
+      url: googleUrl,
+      cropPercent: 42
+    }
+  });
+
+  assert.deepStrictEqual(persistedPayloads, [{
+    url: googleUrl,
+    metadata: { cropPercent: 42 }
+  }]);
+  assert.strictEqual(result.effectResults[0].effect.type, 'persist-external-photo-metadata');
+  assert.strictEqual(state.photosList[0].cropPercent, 42);
+  assert.deepStrictEqual(ioEmits.map(([event]) => event), ['state-sync']);
+});
 
 async function runClientStateTests() {
   logSuite('Remote Feed Control Snapshot Mutations');

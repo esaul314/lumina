@@ -645,6 +645,76 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('reducer patch-state stays silent for already-normalized vision and manual location objects', () => {
+    const state = createState({
+      config: {
+        ...createState().config,
+        manualLocation: {
+          city: 'Montreal',
+          lat: 45.5,
+          lon: -73.6,
+          regionName: 'Quebec',
+          country: 'Canada'
+        },
+        visionConfig: {
+          apiUrl: 'https://vision.example/api',
+          apiKey: '',
+          model: 'gpt-4.1-mini',
+          fallbackUrl: '',
+          fallbackApiKey: '',
+          fallbackModel: ''
+        }
+      }
+    });
+    const result = reduceDomainCommand(state, {
+      type: 'patch-state',
+      payload: {
+        manualLocation: {
+          city: 'Montreal',
+          lat: 45.5,
+          lon: -73.6,
+          regionName: 'Quebec',
+          country: 'Canada'
+        },
+        visionConfig: {
+          apiUrl: 'https://vision.example/api',
+          apiKey: '',
+          model: 'gpt-4.1-mini',
+          fallbackUrl: '',
+          fallbackApiKey: '',
+          fallbackModel: ''
+        }
+      }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
+  assertTest('simple config and runtime setter commands now no-op when the requested value is already active', () => {
+    const state = createState();
+
+    const sameTheme = reduceDomainCommand(state, {
+      type: 'change-theme',
+      payload: { theme: state.config.theme }
+    });
+    const sameInterval = reduceDomainCommand(state, {
+      type: 'change-interval',
+      payload: { intervalMs: state.config.slideshowInterval }
+    });
+    const sameScreensaverState = reduceDomainCommand(state, {
+      type: 'set-screensaver-active',
+      payload: { active: false }
+    });
+
+    [sameTheme, sameInterval, sameScreensaverState].forEach((result) => {
+      assert.strictEqual(result.nextState, state);
+      assert.deepStrictEqual(result.events, []);
+      assert.deepStrictEqual(result.effects, []);
+    });
+  });
+
   assertTest('reducer photo metadata commands stay silent when the target photo does not exist', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {

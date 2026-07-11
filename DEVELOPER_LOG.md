@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Continued Step 4 with Declarative Config Mutation Helpers and Dispatcher Handler Tables
+- **Goal**: Carry the active implementation-companion Step 4 checkpoint forward by cleaning up the remaining ad hoc command/effect seams after the earlier photo-mutation and result-shape standardization.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` so simple config/runtime setter commands now share a small `reduceStateMutation(...)` helper with proper no-op semantics instead of each branch cloning state and emitting events manually.
+  - Reworked the `patch-state` reducer branch into a declarative sequence of focused patch appliers for scalar config fields, excluded keywords, widgets, vision config, and location settings, with equality-aware checks that avoid redundant persistence or weather refreshes when the incoming payload is already normalized.
+  - Refactored `server/domain/dispatch.js` to use explicit effect and event handler tables, so the shell now reads as `reduce -> apply snapshot -> interpret effects -> emit events` rather than a long conditional ladder.
+  - Added regression coverage in `server/domain/tests.js` for identical `visionConfig` / `manualLocation` no-op patches and unchanged setter commands, plus `run-tests.js` coverage for dispatcher event ordering, kiosk launch effects, effect-only recrawl dispatch, and shared external-photo persistence interpretation.
+  - Updated `FUNCTIONAL_REFACTOR_ROADMAP.md` to record this as the next completed Step 4 slice while keeping the broader readability pass active.
+- **Learning**: The next useful abstraction layer was not a deeper algebra of commands, but a pair of very small tables: one for reducer-local state updates and one for shell-level effect/event interpretation. That keeps the pipeline composable without obscuring what each command actually changes.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-10: Started Step 4 by Standardizing Reducer Result Shapes and Photo-Mutation Composition
 - **Goal**: Begin the implementation-companion Step 4 readability pass by removing repeated reducer ceremony around unchanged returns, state-sync/photo-update result shapes, and persistence-bearing photo metadata updates.
 - **Implementation**:

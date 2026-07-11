@@ -5,6 +5,104 @@ const { persistEnvVars } = require('../config/env.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 
+function createEffectHandlers({
+  state,
+  collections,
+  launchKioskBrowser,
+  killKioskBrowser,
+  setManualOverride,
+  persistExternalPhotoMetadata,
+  runCrawler,
+  startRecrawlJob,
+  startVisionAnalysisJob,
+  triggerWeatherUpdate
+}) {
+  return {
+    persist: async () => {
+      saveCuratedCollections(collections, state);
+    },
+    'persist-external-photo-metadata': (effect) => (
+      typeof persistExternalPhotoMetadata === 'function'
+        ? persistExternalPhotoMetadata(effect.payload || {})
+        : undefined
+    ),
+    'launch-kiosk': async () => {
+      if (typeof setManualOverride === 'function') {
+        setManualOverride(true);
+      }
+      if (typeof launchKioskBrowser === 'function') {
+        launchKioskBrowser();
+      }
+    },
+    'kill-kiosk': async () => {
+      if (typeof setManualOverride === 'function') {
+        setManualOverride(false);
+      }
+      if (typeof killKioskBrowser === 'function') {
+        killKioskBrowser();
+      }
+    },
+    'run-crawler': (effect) => (
+      typeof runCrawler === 'function' && process.env.NODE_ENV !== 'test'
+        ? runCrawler(effect.payload || {})
+        : undefined
+    ),
+    'persist-env-vars': async (effect) => {
+      const entries = effect.payload?.entries && typeof effect.payload.entries === 'object'
+        ? effect.payload.entries
+        : {};
+      const runtimeFlags = effect.payload?.runtimeFlags && typeof effect.payload.runtimeFlags === 'object'
+        ? effect.payload.runtimeFlags
+        : {};
+
+      persistEnvVars(entries);
+      Object.entries(runtimeFlags).forEach(([flag, enabled]) => {
+        state[flag] = Boolean(enabled);
+      });
+
+      return {
+        entries: { ...entries },
+        runtimeFlags: { ...runtimeFlags }
+      };
+    },
+    'start-recrawl-job': (effect) => (
+      typeof startRecrawlJob === 'function'
+        ? startRecrawlJob(effect.payload || {})
+        : undefined
+    ),
+    'start-vision-analysis-job': (effect) => (
+      typeof startVisionAnalysisJob === 'function'
+        ? startVisionAnalysisJob(effect.payload || {})
+        : undefined
+    ),
+    'refresh-weather': async () => {
+      if (typeof triggerWeatherUpdate !== 'function') {
+        return undefined;
+      }
+
+      try {
+        await triggerWeatherUpdate();
+      } catch (error) {
+        console.warn('[Domain Dispatch] Weather refresh failed after state update:', error.message);
+      }
+      return undefined;
+    }
+  };
+}
+
+function createEventHandlers({ state, io, broadcastStateSync }) {
+  return {
+    'photo-update': () => {
+      if (state.activePhoto) {
+        io.emit('photo-update', state.activePhoto);
+      }
+    },
+    'state-sync': () => {
+      broadcastStateSync();
+    }
+  };
+}
+
 function createDomainDispatcher({
   state,
   collections,
@@ -28,74 +126,30 @@ function createDomainDispatcher({
     io.emit('state-sync', state);
   }
 
+  const effectHandlers = createEffectHandlers({
+    state,
+    collections,
+    launchKioskBrowser,
+    killKioskBrowser,
+    setManualOverride,
+    persistExternalPhotoMetadata,
+    runCrawler,
+    startRecrawlJob,
+    startVisionAnalysisJob,
+    triggerWeatherUpdate
+  });
+
+  const eventHandlers = createEventHandlers({ state, io, broadcastStateSync });
+
   async function interpretEffect(effect) {
-    if (effect.type === 'persist') {
-      saveCuratedCollections(collections, state);
-      return;
-    }
+    const handler = effectHandlers[effect.type];
+    return handler ? handler(effect) : undefined;
+  }
 
-    if (effect.type === 'persist-external-photo-metadata' && typeof persistExternalPhotoMetadata === 'function') {
-      return persistExternalPhotoMetadata(effect.payload || {});
-    }
-
-    if (effect.type === 'launch-kiosk') {
-      if (typeof setManualOverride === 'function') {
-        setManualOverride(true);
-      }
-      if (typeof launchKioskBrowser === 'function') {
-        launchKioskBrowser();
-      }
-      return;
-    }
-
-    if (effect.type === 'kill-kiosk') {
-      if (typeof setManualOverride === 'function') {
-        setManualOverride(false);
-      }
-      if (typeof killKioskBrowser === 'function') {
-        killKioskBrowser();
-      }
-      return;
-    }
-
-    if (effect.type === 'run-crawler' && typeof runCrawler === 'function' && process.env.NODE_ENV !== 'test') {
-      await runCrawler(effect.payload || {});
-      return;
-    }
-
-    if (effect.type === 'persist-env-vars') {
-      const entries = effect.payload?.entries && typeof effect.payload.entries === 'object'
-        ? effect.payload.entries
-        : {};
-      const runtimeFlags = effect.payload?.runtimeFlags && typeof effect.payload.runtimeFlags === 'object'
-        ? effect.payload.runtimeFlags
-        : {};
-
-      persistEnvVars(entries);
-      Object.entries(runtimeFlags).forEach(([flag, enabled]) => {
-        state[flag] = Boolean(enabled);
-      });
-
-      return {
-        entries: { ...entries },
-        runtimeFlags: { ...runtimeFlags }
-      };
-    }
-
-    if (effect.type === 'start-recrawl-job' && typeof startRecrawlJob === 'function') {
-      return startRecrawlJob(effect.payload || {});
-    }
-
-    if (effect.type === 'start-vision-analysis-job' && typeof startVisionAnalysisJob === 'function') {
-      return startVisionAnalysisJob(effect.payload || {});
-    }
-
-    if (effect.type === 'refresh-weather' && typeof triggerWeatherUpdate === 'function') {
-      try {
-        await triggerWeatherUpdate();
-      } catch (error) {
-        console.warn('[Domain Dispatch] Weather refresh failed after state update:', error.message);
-      }
+  function emitReducerEvent(event) {
+    const handler = eventHandlers[event.type];
+    if (handler) {
+      handler(event);
     }
   }
 
@@ -116,15 +170,7 @@ function createDomainDispatcher({
       });
     }
 
-    reducerResult.events.forEach((event) => {
-      if (event.type === 'photo-update' && state.activePhoto) {
-        io.emit('photo-update', state.activePhoto);
-      }
-
-      if (event.type === 'state-sync') {
-        broadcastStateSync();
-      }
-    });
+    reducerResult.events.forEach(emitReducerEvent);
 
     return { reducerResult, snapshot, effectResults };
   }
