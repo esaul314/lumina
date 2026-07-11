@@ -47,9 +47,41 @@ const decodeThemeCommand = createStatePatchCommandDecoder(buildTrimmedStringFiel
 const decodeAutoLocationCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('autoLocation'));
 const decodeManualLocationCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('manualLocation'));
 const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCommand({ active });
+const statePatchSpecs = [
+  ['toggle-widget', decodeWidgetCommand],
+  ['toggle-align-time', decodeAlignTimeCommand],
+  ['toggle-align-weather', decodeAlignWeatherCommand],
+  ['toggle-allow-openai-fallback', decodeAllowOpenAiFallbackCommand],
+  ['change-scale-mode', decodeScaleModeCommand],
+  ['toggle-split-portrait', decodeSplitPortraitCommand],
+  ['change-split-crop', decodeSplitCropCommand],
+  ['update-vision-config', decodeVisionConfigCommand],
+  ['change-night-percentage', decodeNightPercentageCommand],
+  ['change-interval', decodeIntervalCommand],
+  ['change-theme', decodeThemeCommand],
+  ['toggle-auto-location', decodeAutoLocationCommand],
+  ['update-manual-location', decodeManualLocationCommand]
+];
 const buildSocketErrorLogger = (label) => (error) => {
   console.error(`Socket Event: ${label} failed:`, error.message);
 };
+const emitSocketEvent = (socket, event) => (payload) => {
+  socket.emit(event, payload);
+};
+const createLoggedDecoder = (buildMessage, decode) => (payload) => {
+  console.log(typeof buildMessage === 'function' ? buildMessage(payload) : buildMessage);
+  return decode(payload);
+};
+const registerCommandSpecs = (listenForCommand) => (specs) => specs.forEach(({
+  event,
+  decode,
+  fallback,
+  intercept,
+  afterDispatch,
+  onError
+}) => {
+  listenForCommand(event, decode, fallback, intercept, afterDispatch, onError);
+});
 const toViewportDimensions = (payload) => ({
   width: Number(payload?.width),
   height: Number(payload?.height)
@@ -217,6 +249,8 @@ module.exports = function configureSockets({
     const emitGooglePhotoRefreshResponse = (mediaItemId, payload) => {
       socket.emit('active-google-photo-response', { mediaItemId, ...payload });
     };
+    const emitRecrawlUnavailable = emitSocketEvent(socket, 'recrawl-complete');
+    const emitVisionAnalysisUnavailable = emitSocketEvent(socket, 'job-status');
 
     const listenForCommand = (eventName, decode, fallback, intercept, afterDispatch, onError) => {
       socket.on(eventName, createCommandListener({
@@ -232,6 +266,7 @@ module.exports = function configureSockets({
     const listenForStatePatch = (eventName, decode) => {
       listenForCommand(eventName, decode, compatibility?.statePatch);
     };
+    const registerCommands = registerCommandSpecs(listenForCommand);
 
     registerSocketListeners(socket, [
       {
@@ -303,136 +338,122 @@ module.exports = function configureSockets({
       }
     ]);
 
-    listenForStatePatch('toggle-widget', decodeWidgetCommand);
-    listenForStatePatch('toggle-align-time', decodeAlignTimeCommand);
-    listenForStatePatch('toggle-align-weather', decodeAlignWeatherCommand);
-    listenForStatePatch('toggle-allow-openai-fallback', decodeAllowOpenAiFallbackCommand);
-    listenForStatePatch('change-scale-mode', decodeScaleModeCommand);
-    listenForStatePatch('toggle-split-portrait', decodeSplitPortraitCommand);
-    listenForStatePatch('change-split-crop', decodeSplitCropCommand);
-    listenForStatePatch('update-vision-config', decodeVisionConfigCommand);
-    listenForStatePatch('change-night-percentage', decodeNightPercentageCommand);
-    listenForStatePatch('change-interval', decodeIntervalCommand);
-    listenForStatePatch('change-theme', decodeThemeCommand);
-    listenForStatePatch('toggle-auto-location', decodeAutoLocationCommand);
-    listenForStatePatch('update-manual-location', decodeManualLocationCommand);
-
-    // Change Wallpaper category
-    listenForCommand('change-category', (category) => {
-      console.log(`[SOCKET EVENT] change-category received: "${category}"`);
-      return decodeCategorySelectionFromSocket(category);
-    }, compatibility?.categorySelection);
-
-    // Change individual active photo
-    listenForCommand('set-active-photo', decodeActivePhotoCommand, compatibility?.activePhoto);
-
-    listenForCommand(
-      'report-photo-metadata',
-      decodePhotoMetadataCommand,
-      compatibility?.photoMetadata
-    );
-
-    // Rate photo socket event
-    listenForCommand(
-      'rate-photo',
-      decodePhotoRatingCommand,
-      compatibility?.photoRating
-    );
-
-    // Set individual photo crop ratio and vertical position
-    listenForCommand(
-      'set-photo-crop',
-      decodePhotoCropCommand,
-      compatibility?.photoCrop
-    );
-
-
-    // Set individual photo pairing prevention
-    listenForCommand(
-      'set-photo-prevent-pairing',
-      decodePhotoPreventPairingCommand,
-      compatibility?.photoPreventPairing
-    );
-
-    // Update keywords socket event
-    listenForCommand('update-keywords', decodePoolKeywordsCommand, compatibility?.poolKeywords);
-
-    // Update feed config socket event
-    listenForCommand('update-feed-config', decodePoolFeedConfigCommand, compatibility?.poolFeedConfig);
-
-    listenForCommand('update-excluded-keywords', decodeExcludedKeywordsCommand, compatibility?.excludedKeywords);
-
-    // Add custom category / scenic pool
-    listenForCommand('add-category', decodeAddPoolCommand, compatibility?.addPool);
-
-    // Delete custom category / scenic pool
-    listenForCommand('delete-category', decodeDeletePoolCommand, compatibility?.deletePool);
-
-    listenForCommand('next-photo', () => decodeAdvancePhotoCommand('next'), compatibility?.advancePhoto('next'));
-
-    listenForCommand('prev-photo', () => decodeAdvancePhotoCommand('prev'), compatibility?.advancePhoto('prev'));
-
-    listenForCommand('set-screensaver-active', decodeScreensaverActiveFromSocket, compatibility?.screensaverActive);
-
-    listenForCommand(
-      'mark-photo-broken',
-      (payload) => {
-        console.log(`[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`);
-        return decodeBrokenPhotoCommand(payload);
-      },
-      compatibility?.brokenPhoto
-    );
-
-    listenForCommand('trigger-recrawl', (payload) => {
-      console.log('[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...');
-      return decodeRecrawlCommand(payload);
-    }, () => {
-      socket.emit('recrawl-complete', { success: false, error: 'Recrawl dispatcher unavailable.' });
-    });
-
-    listenForCommand('trigger-vision-analysis', (payload) => {
-      console.log('[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...');
-      return decodeVisionAnalysisCommand(payload);
-    }, () => {
-      socket.emit('job-status', {
-        type: 'vision-analysis',
-        status: 'failed',
-        error: 'Vision-analysis dispatcher unavailable.'
-      });
-    });
-
     const emitSecretSaveResult = (eventName, success, error) => {
       socket.emit(eventName, success ? { success: true } : { success: false, error });
     };
 
-    listenForCommand(
-      'save-useapi-token',
-      decodeUseApiTokenCommand,
-      compatibility?.envSecret({ envKey: 'USEAPI_TOKEN', runtimeFlag: 'hasUseApiToken' }),
-      null,
-      () => {
-        console.log('[SOCKET EVENT] Successfully persisted USEAPI_TOKEN through the shared admin command path');
-        emitSecretSaveResult('useapi-token-saved', true);
+    const createSecretSaveSpec = ({
+      event,
+      decode,
+      envKey,
+      runtimeFlag,
+      successEvent
+    }) => ({
+      event,
+      decode,
+      fallback: compatibility?.envSecret({ envKey, runtimeFlag }),
+      afterDispatch: () => {
+        console.log(`[SOCKET EVENT] Successfully persisted ${envKey} through the shared admin command path`);
+        emitSecretSaveResult(successEvent, true);
       },
-      (error) => {
-        console.error('[SOCKET EVENT] Failed to save USEAPI_TOKEN:', error.message);
-        emitSecretSaveResult('useapi-token-saved', false, error.message);
+      onError: (error) => {
+        console.error(`[SOCKET EVENT] Failed to save ${envKey}:`, error.message);
+        emitSecretSaveResult(successEvent, false, error.message);
       }
-    );
+    });
 
-    listenForCommand(
-      'save-tumblr-api-key',
-      decodeTumblrApiKeyCommand,
-      compatibility?.envSecret({ envKey: 'TUMBLR_API_KEY', runtimeFlag: 'hasTumblrApiKey' }),
-      null,
-      () => {
-        console.log('[SOCKET EVENT] Successfully persisted TUMBLR_API_KEY through the shared admin command path');
-        emitSecretSaveResult('tumblr-api-key-saved', true);
+    statePatchSpecs.forEach(([event, decode]) => {
+      listenForStatePatch(event, decode);
+    });
+
+    registerCommands([
+      {
+        event: 'change-category',
+        decode: createLoggedDecoder(
+          (category) => `[SOCKET EVENT] change-category received: "${category}"`,
+          decodeCategorySelectionFromSocket
+        ),
+        fallback: compatibility?.categorySelection
       },
-      (error) => {
-        console.error('[SOCKET EVENT] Failed to save TUMBLR_API_KEY:', error.message);
-        emitSecretSaveResult('tumblr-api-key-saved', false, error.message);
-      }
-    );
+      { event: 'set-active-photo', decode: decodeActivePhotoCommand, fallback: compatibility?.activePhoto },
+      { event: 'report-photo-metadata', decode: decodePhotoMetadataCommand, fallback: compatibility?.photoMetadata },
+      { event: 'rate-photo', decode: decodePhotoRatingCommand, fallback: compatibility?.photoRating },
+      { event: 'set-photo-crop', decode: decodePhotoCropCommand, fallback: compatibility?.photoCrop },
+      {
+        event: 'set-photo-prevent-pairing',
+        decode: decodePhotoPreventPairingCommand,
+        fallback: compatibility?.photoPreventPairing
+      },
+      { event: 'update-keywords', decode: decodePoolKeywordsCommand, fallback: compatibility?.poolKeywords },
+      { event: 'update-feed-config', decode: decodePoolFeedConfigCommand, fallback: compatibility?.poolFeedConfig },
+      {
+        event: 'update-excluded-keywords',
+        decode: decodeExcludedKeywordsCommand,
+        fallback: compatibility?.excludedKeywords
+      },
+      { event: 'add-category', decode: decodeAddPoolCommand, fallback: compatibility?.addPool },
+      { event: 'delete-category', decode: decodeDeletePoolCommand, fallback: compatibility?.deletePool },
+      {
+        event: 'next-photo',
+        decode: () => decodeAdvancePhotoCommand('next'),
+        fallback: compatibility?.advancePhoto('next')
+      },
+      {
+        event: 'prev-photo',
+        decode: () => decodeAdvancePhotoCommand('prev'),
+        fallback: compatibility?.advancePhoto('prev')
+      },
+      {
+        event: 'set-screensaver-active',
+        decode: decodeScreensaverActiveFromSocket,
+        fallback: compatibility?.screensaverActive
+      },
+      {
+        event: 'mark-photo-broken',
+        decode: createLoggedDecoder(
+          (payload) => `[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`,
+          decodeBrokenPhotoCommand
+        ),
+        fallback: compatibility?.brokenPhoto
+      },
+      {
+        event: 'trigger-recrawl',
+        decode: createLoggedDecoder(
+          '[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...',
+          decodeRecrawlCommand
+        ),
+        fallback: () => {
+          emitRecrawlUnavailable({ success: false, error: 'Recrawl dispatcher unavailable.' });
+        }
+      },
+      {
+        event: 'trigger-vision-analysis',
+        decode: createLoggedDecoder(
+          '[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...',
+          decodeVisionAnalysisCommand
+        ),
+        fallback: () => {
+          emitVisionAnalysisUnavailable({
+            type: 'vision-analysis',
+            status: 'failed',
+            error: 'Vision-analysis dispatcher unavailable.'
+          });
+        }
+      },
+      createSecretSaveSpec({
+        event: 'save-useapi-token',
+        decode: decodeUseApiTokenCommand,
+        envKey: 'USEAPI_TOKEN',
+        runtimeFlag: 'hasUseApiToken',
+        successEvent: 'useapi-token-saved'
+      }),
+      createSecretSaveSpec({
+        event: 'save-tumblr-api-key',
+        decode: decodeTumblrApiKeyCommand,
+        envKey: 'TUMBLR_API_KEY',
+        runtimeFlag: 'hasTumblrApiKey',
+        successEvent: 'tumblr-api-key-saved'
+      })
+    ]);
   });
 };

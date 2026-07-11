@@ -1937,6 +1937,42 @@ async function runClientStateTests() {
     );
   });
 
+  const statePatchCommands = [];
+  const statePatchHarness = createSocketHarness({
+    dispatchCommand: async (command) => {
+      statePatchCommands.push(command);
+      return null;
+    }
+  });
+  await statePatchHarness.socketHandlers['change-theme'](' Cosmic Night ');
+  await statePatchHarness.socketHandlers['toggle-auto-location'](true);
+  await statePatchHarness.socketHandlers['toggle-widget']({ widgetName: 'clock', visible: 0 });
+
+  assertTest('socket state-patch listener specs dispatch shared patch-state commands declaratively', () => {
+    assert.deepStrictEqual(statePatchCommands, [
+      {
+        type: 'patch-state',
+        payload: {
+          theme: 'Cosmic Night'
+        }
+      },
+      {
+        type: 'patch-state',
+        payload: {
+          autoLocation: true
+        }
+      },
+      {
+        type: 'patch-state',
+        payload: {
+          widgets: {
+            clock: 0
+          }
+        }
+      }
+    ]);
+  });
+
   const fallbackHarness = createSocketHarness();
   await fallbackHarness.socketHandlers['next-photo']();
 
@@ -2054,6 +2090,42 @@ async function runClientStateTests() {
     googlePhotos.updateCachedMediaItemMetadata = originalUpdateCachedMediaItemMetadata;
     googlePhotos.applyCachedMediaItemMetadataToState = originalApplyCachedMediaItemMetadataToState;
   }
+
+  const asyncFallbackHarness = createSocketHarness();
+  await asyncFallbackHarness.socketHandlers['trigger-recrawl']({});
+  await asyncFallbackHarness.socketHandlers['trigger-vision-analysis']({});
+
+  assertTest('socket async job fallback listeners emit explicit failure payloads when no dispatcher is available', () => {
+    assert.deepStrictEqual(
+      asyncFallbackHarness.socketEmits.findLast(([event]) => event === 'recrawl-complete'),
+      ['recrawl-complete', { success: false, error: 'Recrawl dispatcher unavailable.' }]
+    );
+    assert.deepStrictEqual(
+      asyncFallbackHarness.socketEmits.findLast(([event]) => event === 'job-status'),
+      ['job-status', {
+        type: 'vision-analysis',
+        status: 'failed',
+        error: 'Vision-analysis dispatcher unavailable.'
+      }]
+    );
+  });
+
+  const secretFailureHarness = createSocketHarness({
+    dispatchCommand: async (command) => {
+      if (command.type === 'save-env-secret') {
+        throw new Error('persist failed');
+      }
+      return null;
+    }
+  });
+  await secretFailureHarness.socketHandlers['save-tumblr-api-key']({ value: 'tumblr-secret' });
+
+  assertTest('socket secret-save listener specs acknowledge shared command failures without throwing', () => {
+    assert.deepStrictEqual(
+      secretFailureHarness.socketEmits.findLast(([event]) => event === 'tumblr-api-key-saved'),
+      ['tumblr-api-key-saved', { success: false, error: 'persist failed' }]
+    );
+  });
 }
 
 async function runClientRenderingTests() {

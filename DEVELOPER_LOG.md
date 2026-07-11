@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Continued Step 4 with Declarative Socket Listener Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated socket command-registration ceremony without hiding the intentionally imperative telemetry and signed-URL refresh handlers.
+- **Implementation**:
+  - Refactored `server/sockets.js` around small listener-spec helpers, so durable socket state-patch, photo, pool, async-job, and admin-secret commands now register through declarative spec data instead of a long repeated `listenForCommand(...)` sequence.
+  - Kept the socket-only shell behaviors explicit: viewport/media-failure telemetry, second-photo sync, disconnect lifecycle, and on-demand Google Photos URL refresh still sit outside the shared command-registration boundary.
+  - Added regression coverage in `run-tests.js` for declarative state-patch dispatch, explicit async-job fallback acknowledgements when no dispatcher is available, and secret-save failure acknowledgements through the shared listener-spec path.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the active Step 4 checkpoint records this slice while remaining open for only clearly repetitive future seams.
+- **Learning**: The right abstraction here was a small registration algebra, not another transport framework. Once socket command listeners became plain data plus a single interpreter, the durable mutation section read compositionally while the truly imperative socket tail remained obvious.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-11: Continued Step 4 with Shared Route-Decode Composition
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last hand-rolled REST mutation decode batching and follow-up validation seams without disturbing the shared dispatch-route shell.
 - **Implementation**:
