@@ -117,6 +117,7 @@
  * @typedef {{
  *   type:
  *     | 'select-categories'
+ *     | 'patch-state'
  *     | 'update-excluded-keywords'
  *     | 'set-active-photo'
  *     | 'advance-photo'
@@ -157,6 +158,7 @@
  *     | 'kill-kiosk'
  *     | 'run-crawler'
  *     | 'persist-env-vars'
+ *     | 'refresh-weather'
  *     | 'start-recrawl-job'
  *     | 'start-vision-analysis-job'
  *   payload?: Record<string, unknown>

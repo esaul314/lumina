@@ -1485,6 +1485,28 @@ assertAsyncTest('createDomainDispatcher interprets kiosk launch effects and keep
   assert.strictEqual(jobResult.effectResults[0].value.job.id, 'recrawl-test');
 });
 
+assertAsyncTest('createDomainDispatcher routes kiosk kill effects through the shared manual-override helper', async () => {
+  const manualOverrideValues = [];
+  let killCalls = 0;
+  const { dispatcher, ioEmits, state } = createDispatcherHarness({
+    killKioskBrowser: () => { killCalls += 1; },
+    setManualOverride: (value) => { manualOverrideValues.push(value); }
+  });
+
+  state.screensaverActive = true;
+
+  const result = await dispatcher.dispatchCommand({
+    type: 'set-screensaver-active',
+    payload: { active: false }
+  });
+
+  assert.strictEqual(result.effectResults[0].effect.type, 'kill-kiosk');
+  assert.strictEqual(killCalls, 1);
+  assert.deepStrictEqual(manualOverrideValues, [false]);
+  assert.strictEqual(state.screensaverActive, false);
+  assert.deepStrictEqual(ioEmits.map(([event]) => event), ['state-sync']);
+});
+
 assertAsyncTest('createDomainDispatcher routes vision-analysis submissions through the shared payload effect runner', async () => {
   let visionPayload = null;
   const { dispatcher, ioEmits } = createDispatcherHarness({
@@ -1510,6 +1532,39 @@ assertAsyncTest('createDomainDispatcher routes vision-analysis submissions throu
   assert.strictEqual(result.effectResults[0].effect.type, 'start-vision-analysis-job');
   assert.strictEqual(result.effectResults[0].value.job.id, 'vision-dispatch-test');
   assert.deepStrictEqual(ioEmits, []);
+});
+
+assertAsyncTest('createDomainDispatcher keeps weather-refresh failures inside the shared effect interpreter', async () => {
+  const warnings = [];
+  const originalWarn = console.warn;
+  const { dispatcher, ioEmits, state } = createDispatcherHarness({
+    triggerWeatherUpdate: async () => {
+      throw new Error('weather refresh unavailable');
+    }
+  });
+
+  console.warn = (...args) => {
+    warnings.push(args.join(' '));
+  };
+
+  try {
+    const result = await dispatcher.dispatchCommand({
+      type: 'patch-state',
+      payload: { autoLocation: true }
+    });
+
+    assert.deepStrictEqual(result.effectResults.map(({ effect }) => effect.type), ['persist', 'refresh-weather']);
+    assert.strictEqual(state.autoLocation, true);
+    assert.deepStrictEqual(ioEmits.map(([event]) => event), ['state-sync']);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.strictEqual(warnings.length, 1);
+  assert.ok(
+    warnings[0].includes('Weather refresh failed after state update: weather refresh unavailable'),
+    'Expected dispatcher to log a weather refresh warning without throwing.'
+  );
 });
 
 assertAsyncTest('createDomainDispatcher interprets external photo persistence effects through the shared effect table', async () => {
