@@ -5,6 +5,18 @@ const { persistEnvVars } = require('../config/env.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 
+const callOptionalPayloadHandler = (handler) => (effect) => (
+  typeof handler === 'function'
+    ? handler(effect.payload || {})
+    : undefined
+);
+
+const skipInTest = (handler) => (effect) => (
+  process.env.NODE_ENV !== 'test'
+    ? handler(effect)
+    : undefined
+);
+
 function createEffectHandlers({
   state,
   collections,
@@ -21,11 +33,7 @@ function createEffectHandlers({
     persist: async () => {
       saveCuratedCollections(collections, state);
     },
-    'persist-external-photo-metadata': (effect) => (
-      typeof persistExternalPhotoMetadata === 'function'
-        ? persistExternalPhotoMetadata(effect.payload || {})
-        : undefined
-    ),
+    'persist-external-photo-metadata': callOptionalPayloadHandler(persistExternalPhotoMetadata),
     'launch-kiosk': async () => {
       if (typeof setManualOverride === 'function') {
         setManualOverride(true);
@@ -42,11 +50,7 @@ function createEffectHandlers({
         killKioskBrowser();
       }
     },
-    'run-crawler': (effect) => (
-      typeof runCrawler === 'function' && process.env.NODE_ENV !== 'test'
-        ? runCrawler(effect.payload || {})
-        : undefined
-    ),
+    'run-crawler': skipInTest(callOptionalPayloadHandler(runCrawler)),
     'persist-env-vars': async (effect) => {
       const entries = effect.payload?.entries && typeof effect.payload.entries === 'object'
         ? effect.payload.entries
@@ -65,16 +69,8 @@ function createEffectHandlers({
         runtimeFlags: { ...runtimeFlags }
       };
     },
-    'start-recrawl-job': (effect) => (
-      typeof startRecrawlJob === 'function'
-        ? startRecrawlJob(effect.payload || {})
-        : undefined
-    ),
-    'start-vision-analysis-job': (effect) => (
-      typeof startVisionAnalysisJob === 'function'
-        ? startVisionAnalysisJob(effect.payload || {})
-        : undefined
-    ),
+    'start-recrawl-job': callOptionalPayloadHandler(startRecrawlJob),
+    'start-vision-analysis-job': callOptionalPayloadHandler(startVisionAnalysisJob),
     'refresh-weather': async () => {
       if (typeof triggerWeatherUpdate !== 'function') {
         return undefined;

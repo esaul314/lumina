@@ -341,6 +341,35 @@ module.exports = function configureRoutes({
       commands
     };
   };
+  const createEffectSubmissionRoute = ({
+    decode,
+    effectType,
+    present,
+    status = 202,
+    invalidMessage = 'Invalid request.',
+    unavailableMessage = 'Dispatcher unavailable.',
+    missingSubmissionMessage = 'Requested async effect service unavailable.',
+    isSubmitted = (submission) => Boolean(submission?.job)
+  }) => createAsyncRoute(async (req, res) => {
+    if (!requireDispatcher(res, unavailableMessage)) {
+      return;
+    }
+
+    const command = decode(req);
+    if (!command) {
+      sendError(res, 400, invalidMessage);
+      return;
+    }
+
+    const result = await dispatchCommand(command);
+    const submission = getEffectValue(result, effectType);
+    if (!isSubmitted(submission, result, command)) {
+      sendError(res, 503, missingSubmissionMessage);
+      return;
+    }
+
+    sendSuccess(res, status, present({ req, command, result, submission }));
+  });
   const decodePreviewPhoto = (req) => {
     const command = decodeActivePhotoCommand(req.body);
     if (!command) {
@@ -641,52 +670,28 @@ module.exports = function configureRoutes({
   createAdminSecretRoute('/api/admin/secrets/useapi-token', 'useapi-token', decodeUseApiTokenCommand);
   createAdminSecretRoute('/api/admin/secrets/tumblr-api-key', 'tumblr-api-key', decodeTumblrApiKeyCommand);
 
-  app.post('/api/jobs/recrawl', createAsyncRoute(async (req, res) => {
-    if (!requireDispatcher(res, 'Recrawl dispatcher unavailable.')) {
-      return;
-    }
-
-    const command = decodeRecrawlCommand(req.body);
-    if (!command) {
-      sendError(res, 400, 'Invalid recrawl payload.');
-      return;
-    }
-
-    const result = await dispatchCommand(command);
-    const submission = getEffectValue(result, 'start-recrawl-job');
-    if (!submission?.job) {
-      sendError(res, 503, 'Recrawl job service unavailable.');
-      return;
-    }
-
-    sendSuccess(res, 202, {
+  app.post('/api/jobs/recrawl', createEffectSubmissionRoute({
+    decode: (req) => decodeRecrawlCommand(req.body),
+    effectType: 'start-recrawl-job',
+    invalidMessage: 'Invalid recrawl payload.',
+    unavailableMessage: 'Recrawl dispatcher unavailable.',
+    missingSubmissionMessage: 'Recrawl job service unavailable.',
+    present: ({ submission }) => ({
       job: submission.job,
       reused: Boolean(submission.reused)
-    });
+    })
   }));
 
-  app.post('/api/jobs/vision-analysis', createAsyncRoute(async (req, res) => {
-    if (!requireDispatcher(res, 'Vision-analysis dispatcher unavailable.')) {
-      return;
-    }
-
-    const command = decodeVisionAnalysisCommand(req.body);
-    if (!command) {
-      sendError(res, 400, 'Invalid vision-analysis payload.');
-      return;
-    }
-
-    const result = await dispatchCommand(command);
-    const submission = getEffectValue(result, 'start-vision-analysis-job');
-    if (!submission?.job) {
-      sendError(res, 503, 'Vision-analysis job service unavailable.');
-      return;
-    }
-
-    sendSuccess(res, 202, {
+  app.post('/api/jobs/vision-analysis', createEffectSubmissionRoute({
+    decode: (req) => decodeVisionAnalysisCommand(req.body),
+    effectType: 'start-vision-analysis-job',
+    invalidMessage: 'Invalid vision-analysis payload.',
+    unavailableMessage: 'Vision-analysis dispatcher unavailable.',
+    missingSubmissionMessage: 'Vision-analysis job service unavailable.',
+    present: ({ submission }) => ({
       job: submission.job,
       reused: Boolean(submission.reused)
-    });
+    })
   }));
 
   app.get('/api/pools', (_req, res) => {
@@ -802,6 +807,23 @@ module.exports = function configureRoutes({
     });
   }));
 
+  const submitPoolRecrawl = createEffectSubmissionRoute({
+    decode: (req) => ({
+      type: 'trigger-recrawl',
+      payload: {
+        categories: [req.params.name.trim()]
+      }
+    }),
+    effectType: 'start-recrawl-job',
+    unavailableMessage: 'Recrawl dispatcher unavailable.',
+    missingSubmissionMessage: 'Recrawl job service unavailable.',
+    present: ({ req, submission }) => ({
+      pool: buildPoolResponse(req.params.name.trim()),
+      job: submission.job,
+      reused: Boolean(submission.reused)
+    })
+  });
+
   app.post('/api/pools/:name/crawl', createAsyncRoute(async (req, res) => {
     const name = req.params.name.trim();
     if (!collections[name]) {
@@ -809,27 +831,7 @@ module.exports = function configureRoutes({
       return;
     }
 
-    if (!requireDispatcher(res, 'Recrawl dispatcher unavailable.')) {
-      return;
-    }
-
-    const result = await dispatchCommand({
-      type: 'trigger-recrawl',
-      payload: {
-        categories: [name]
-      }
-    });
-    const submission = getEffectValue(result, 'start-recrawl-job');
-    if (!submission?.job) {
-      sendError(res, 503, 'Recrawl job service unavailable.');
-      return;
-    }
-
-    sendSuccess(res, 202, {
-      pool: buildPoolResponse(name),
-      job: submission.job,
-      reused: Boolean(submission.reused)
-    });
+    await submitPoolRecrawl(req, res);
   }));
 
   app.get('/api/pools/:name/photos', (req, res) => {

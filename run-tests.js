@@ -1485,6 +1485,33 @@ assertAsyncTest('createDomainDispatcher interprets kiosk launch effects and keep
   assert.strictEqual(jobResult.effectResults[0].value.job.id, 'recrawl-test');
 });
 
+assertAsyncTest('createDomainDispatcher routes vision-analysis submissions through the shared payload effect runner', async () => {
+  let visionPayload = null;
+  const { dispatcher, ioEmits } = createDispatcherHarness({
+    startVisionAnalysisJob: async (payload) => {
+      visionPayload = payload;
+      return {
+        job: {
+          id: 'vision-dispatch-test',
+          type: 'vision-analysis',
+          status: 'queued'
+        },
+        reused: false
+      };
+    }
+  });
+
+  const result = await dispatcher.dispatchCommand({
+    type: 'trigger-vision-analysis',
+    payload: { categories: ['Scenic Nature'] }
+  });
+
+  assert.deepStrictEqual(visionPayload, { categories: ['Scenic Nature'] });
+  assert.strictEqual(result.effectResults[0].effect.type, 'start-vision-analysis-job');
+  assert.strictEqual(result.effectResults[0].value.job.id, 'vision-dispatch-test');
+  assert.deepStrictEqual(ioEmits, []);
+});
+
 assertAsyncTest('createDomainDispatcher interprets external photo persistence effects through the shared effect table', async () => {
   const googleUrl = buildGooglePhotoProxyUrl('dispatcher-photo');
   const persistedPayloads = [];
@@ -2229,6 +2256,27 @@ async function runIntegrationTests() {
       type: 'trigger-vision-analysis',
       payload: {}
     }]);
+  });
+
+  await assertAsyncTest('POST /api/jobs/recrawl returns 503 when the shared dispatcher does not yield a submitted job', async () => {
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => ({
+        reducerResult: {
+          events: [],
+          effects: [{ type: 'start-recrawl-job' }]
+        },
+        effectResults: [{
+          effect: { type: 'start-recrawl-job' },
+          value: { reused: false }
+        }]
+      })
+    });
+    const response = await invokeRoute(app, 'post', '/api/jobs/recrawl', {
+      body: {}
+    });
+
+    assert.strictEqual(response.status, 503);
+    assert.strictEqual(response.body.error, 'Recrawl job service unavailable.');
   });
 
   logSuite('REST Admin Secret Routes');
