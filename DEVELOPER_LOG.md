@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Continued Step 4 with Shared Feed-Mutation Finalization Helpers
+- **Goal**: Keep the active Step 4 readability pass moving by collapsing the remaining repeated reducer ceremony around feed recomputation, active-photo finalization, and persistence-bearing library mutations without changing the high-signal command branches.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` so category selection, excluded-keyword updates, and pool deletion now share one selective `reduceFeedMutation(...)` boundary that composes `apply -> recomputeFeed -> ensureActivePhoto -> emit/persist` instead of open-coding that pipeline in each branch.
+  - Added an equality-aware `assignExcludedKeywords(...)` helper so `update-excluded-keywords` now stays fully silent when the trimmed effective keyword list is already active, matching the no-op discipline already established for patch-state and pool/config mutations.
+  - Added regression coverage in `server/domain/tests.js` and `run-tests.js` for normalized excluded-keyword no-ops, preserving the rule that reducer and dispatcher layers should not emit events or persistence effects when nothing durable changes.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the active Step 4 checkpoint records the new shared feed-finalization slice while keeping the broader readability pass open.
+- **Learning**: The useful abstraction here was a tiny composition boundary for feed-affecting mutations, not a generic reducer framework. Once the shared `recompute -> ensure -> emit` tail existed in one place, the command branches became easier to read precisely because they now only describe their actual state mutation.
+- **Verification**: `npm test` and `npm run lint` are the intended verification gate for this slice.
+
 ### 2026-07-10: Continued Step 4 with Shared Async Effect Submission Helpers
 - **Goal**: Keep Step 4 moving by removing the repeated async `dispatch -> effect extraction -> 202 response` ceremony from the shell boundary without hiding route-specific validation or presentation.
 - **Implementation**:

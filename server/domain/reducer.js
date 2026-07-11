@@ -113,6 +113,40 @@ function reduceStateMutation(state, {
   );
 }
 
+function finalizeFeedMutation(nextState, {
+  now,
+  rng,
+  direction = 'next',
+  forceReselect = false,
+  eventsFor = ({ photoChanged }) => stateSyncEventsFor(photoChanged),
+  effects = [],
+  persist = false
+}) {
+  const recomputed = recomputeFeed(nextState, rng);
+  const finalized = ensureActivePhoto(recomputed, { now, rng, direction, forceReselect });
+  const resolvedEffects = resolveMutationOutput(effects, finalized) || [];
+
+  return createResult(
+    finalized.state,
+    resolveMutationOutput(eventsFor, finalized) || [],
+    persist ? withPersist(resolvedEffects) : resolvedEffects
+  );
+}
+
+function reduceFeedMutation(state, options, env) {
+  const nextState = cloneState(state);
+  const changed = options.apply(nextState);
+
+  if (!changed) {
+    return unchangedResult(state);
+  }
+
+  return finalizeFeedMutation(nextState, {
+    ...options,
+    ...env
+  });
+}
+
 function stateSyncEventsFor(photoChanged) {
   return photoChanged ? emitPhotoUpdate() : emitStateSync();
 }
@@ -351,6 +385,15 @@ function assignPoolKeywords(nextState, name, keywords) {
   return true;
 }
 
+function assignExcludedKeywords(nextState, keywords) {
+  if (arraysEqual(nextState.config.excludedKeywords, keywords)) {
+    return false;
+  }
+
+  nextState.config.excludedKeywords = [...keywords];
+  return true;
+}
+
 function mergePoolSourceConfig(nextState, name, source, configPatch) {
   const existingPoolConfig = nextState.config.feedConfigs[name] || {};
   const existingSourceConfig = existingPoolConfig[source] || {};
@@ -570,31 +613,24 @@ function reduceDomainCommand(state, command, env = {}) {
         Object.keys(state.library.collections),
         state.playback.selectedCategories[0] || Object.keys(state.library.collections)[0] || 'Scenic Nature'
       );
-      const withCategories = recomputeFeed({
-        ...cloneState(state),
-        playback: {
-          ...state.playback,
-          selectedCategories: categories
-        }
-      }, rng);
-      const nextState = ensureActivePhoto(withCategories, { now, rng, direction: 'next', forceReselect: true });
-      return photoUpdateResult(nextState.state);
+      return reduceFeedMutation(state, {
+        apply: (nextState) => {
+          nextState.playback.selectedCategories = [...categories];
+          return true;
+        },
+        direction: 'next',
+        forceReselect: true,
+        eventsFor: emitPhotoUpdate()
+      }, { now, rng });
     }
 
     case 'update-excluded-keywords': {
-      const nextState = recomputeFeed({
-        ...cloneState(state),
-        config: {
-          ...state.config,
-          excludedKeywords: trimKeywords(command.payload?.keywords)
-        }
-      }, rng);
-      const ensured = ensureActivePhoto(nextState, { now, rng, direction: 'next' });
-      return createResult(
-        ensured.state,
-        stateSyncEventsFor(ensured.photoChanged),
-        withPersist()
-      );
+      const keywords = trimKeywords(command.payload?.keywords);
+      return reduceFeedMutation(state, {
+        apply: (nextState) => assignExcludedKeywords(nextState, keywords),
+        direction: 'next',
+        persist: true
+      }, { now, rng });
     }
 
     case 'patch-state': {
@@ -817,17 +853,13 @@ function reduceDomainCommand(state, command, env = {}) {
         return unchangedResult(state);
       }
 
-      const nextState = cloneState(state);
-      if (!removePoolState(nextState, name)) {
-        return unchangedResult(state);
-      }
-
-      const recomputed = recomputeFeed(nextState, rng);
-      const ensured = ensureActivePhoto(recomputed, { now, rng, direction: 'next', forceReselect: true });
-      return photoUpdateResult(
-        ensured.state,
-        withPersist()
-      );
+      return reduceFeedMutation(state, {
+        apply: (nextState) => removePoolState(nextState, name),
+        direction: 'next',
+        forceReselect: true,
+        eventsFor: emitPhotoUpdate(),
+        persist: true
+      }, { now, rng });
     }
 
     case 'save-env-secret': {

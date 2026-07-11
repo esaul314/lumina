@@ -1576,6 +1576,21 @@ assertAsyncTest('createDomainDispatcher stays silent for no-op pool config comma
   assert.deepStrictEqual(ioEmits, []);
 });
 
+assertAsyncTest('createDomainDispatcher stays silent for no-op excluded-keyword commands after normalization', async () => {
+  const { dispatcher, ioEmits, state } = createDispatcherHarness();
+  state.excludedKeywords = ['forest', 'mist'];
+
+  const result = await dispatcher.dispatchCommand({
+    type: 'update-excluded-keywords',
+    payload: { keywords: ['  forest  ', '', 'mist '] }
+  });
+
+  assert.deepStrictEqual(result.reducerResult.events, []);
+  assert.deepStrictEqual(result.reducerResult.effects, []);
+  assert.deepStrictEqual(ioEmits, []);
+  assert.deepStrictEqual(state.excludedKeywords, ['forest', 'mist']);
+});
+
 async function runClientStateTests() {
   logSuite('Remote Feed Control Snapshot Mutations');
 

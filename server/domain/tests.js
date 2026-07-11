@@ -645,6 +645,23 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('reducer excluded-keyword updates stay silent when the trimmed list is already active', () => {
+    const state = createState({
+      config: {
+        ...createState().config,
+        excludedKeywords: ['forest', 'mist']
+      }
+    });
+    const result = reduceDomainCommand(state, {
+      type: 'update-excluded-keywords',
+      payload: { keywords: ['  forest  ', '', 'mist '] }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
   assertTest('reducer patch-state stays silent for already-normalized vision and manual location objects', () => {
     const state = createState({
       config: {
