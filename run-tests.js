@@ -2419,6 +2419,68 @@ async function runIntegrationTests() {
     assert.strictEqual(dispatched, false);
   });
 
+  await assertAsyncTest('POST /api/config/keywords routes time-scoped keyword specs through the shared pool-keywords command', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {
+        'Scenic Nature': ['forest']
+      },
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const collections = {
+      'Scenic Nature': [{ url: 'land-1', category: 'Scenic Nature' }]
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      collections,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.searchKeywords[command.payload.name] = command.payload.keywords;
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'persist' }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/config/keywords', {
+      body: {
+        category: 'Scenic Nature',
+        keywords: [
+          { timeStart: ' 18:00 ', timeEnd: '23:30', keywords: [' night sky ', ' moon '] },
+          'forest'
+        ]
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.category, 'Scenic Nature');
+    assert.deepStrictEqual(response.body.keywords, [
+      { timeStart: '18:00', timeEnd: '23:30', keywords: ['night sky', 'moon'] },
+      'forest'
+    ]);
+    assert.deepStrictEqual(dispatched, [{
+      type: 'set-pool-keywords',
+      payload: {
+        name: 'Scenic Nature',
+        keywords: [
+          { timeStart: '18:00', timeEnd: '23:30', keywords: ['night sky', 'moon'] },
+          'forest'
+        ]
+      }
+    }]);
+  });
+
   logSuite('REST Admin Secret Routes');
   await assertAsyncTest('POST /api/admin/secrets/useapi-token dispatches the shared admin secret command and returns the updated configured flag', async () => {
     const dispatched = [];

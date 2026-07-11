@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Continued Step 4 with Shared Keyword-Spec Normalization and Route Unification
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last direct keyword-config mutation route and expressing timed keyword specs through one pure normalization/equality boundary.
+- **Implementation**:
+  - Added `server/utils/keywordSpecs.js` so keyword entries now share small pure helpers for trimming, timed-spec normalization, deep equality, cloning, and feed-config term projection.
+  - Refactored `server/domain/commands.js`, `server/domain/reducer.js`, `server/domain/snapshot.js`, `server/config/collectionsCodec.js`, and `server/config/state.js` to reuse that same helper layer, preserving time-scoped keyword objects through decode, reducer updates, snapshot cloning, and persisted config loading.
+  - Rewired `POST /api/config/keywords` in `server/routes.js` onto the shared guarded command shell by decoding straight to `set-pool-keywords` instead of mutating `state.searchKeywords` and persisting inline.
+  - Added regression coverage in `server/domain/tests.js` and `run-tests.js` for timed keyword-spec decoding, equality-aware no-op reducer behavior, and the keyword route's shared-command dispatch path.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records this latest Step 4 slice while keeping the broader readability pass active.
+- **Learning**: The useful abstraction here was not a new keyword subsystem; it was one small lawful normalization boundary. Once timed keyword specs had one canonical shape plus one equality rule, the old route-local mutation logic collapsed naturally into the same command path as the rest of the pool state.
+- **Verification**: `npm test` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-10: Continued Step 4 with Decode-Aware Photo Mutation Route Composition
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last ad hoc photo mutation and preview wrappers from the REST shell without losing the route-specific photo lookup behavior.
 - **Implementation**:

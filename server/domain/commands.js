@@ -5,6 +5,10 @@
  */
 
 const { curry } = require('../utils/fn.js');
+const {
+  normalizeKeywordEntries,
+  normalizeKeywordTerms
+} = require('../utils/keywordSpecs.js');
 const { validatePercent, validateRating } = require('../utils/validation.js');
 
 const STATE_PATCH_FIELDS = [
@@ -26,14 +30,6 @@ function trimString(value) {
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function normalizeKeywordList(keywords) {
-  const rawKeywords = Array.isArray(keywords)
-    ? keywords
-    : (typeof keywords === 'string' ? keywords.split(/[;,]/) : []);
-
-  return rawKeywords.map((keyword) => String(keyword).trim()).filter(Boolean);
 }
 
 function decodeCategorySelectionFromHttp(query) {
@@ -351,7 +347,7 @@ function decodeSplitCropCommand(percent) {
 
 function decodeAddPoolCommand(payload) {
   const name = trimString(payload?.name ?? payload?.category);
-  const keywords = normalizeKeywordList(payload?.keywords ?? payload?.keyword);
+  const keywords = normalizeKeywordTerms(payload?.keywords ?? payload?.keyword, { splitString: true });
 
   if (!name || keywords.length === 0) {
     return null;
@@ -383,7 +379,7 @@ function decodeDeletePoolCommand(payload) {
 
 function decodePoolKeywordsCommand(payload) {
   const name = trimString(payload?.name ?? payload?.category);
-  const keywords = normalizeKeywordList(payload?.keywords);
+  const keywords = normalizeKeywordEntries(payload?.keywords, { splitTopLevelString: true });
 
   if (!name || keywords.length === 0) {
     return null;

@@ -19,13 +19,22 @@ const {
   selectSmartPhoto,
   updatePhotoInLibraries
 } = require('./selectors.js');
+const {
+  keywordEntriesEqual,
+  normalizeKeywordEntries
+} = require('../utils/keywordSpecs.js');
 
 function cloneState(state) {
   return {
     config: {
       ...state.config,
       widgets: { ...state.config.widgets },
-      searchKeywords: { ...state.config.searchKeywords },
+      searchKeywords: Object.fromEntries(
+        Object.entries(state.config.searchKeywords).map(([category, keywords]) => [
+          category,
+          normalizeKeywordEntries(keywords)
+        ])
+      ),
       feedConfigs: { ...state.config.feedConfigs },
       excludedKeywords: [...state.config.excludedKeywords],
       manualLocation: { ...state.config.manualLocation },
@@ -319,12 +328,6 @@ function reducePhotoLibraryCommand(state, {
   );
 }
 
-function trimKeywords(keywords) {
-  return (Array.isArray(keywords) ? keywords : [])
-    .map((keyword) => String(keyword).trim())
-    .filter(Boolean);
-}
-
 function normalizeFeedConfigKeywords(keywords) {
   return {
     unsplash: { enabled: true, keywords: [...keywords] },
@@ -377,11 +380,11 @@ function addPoolState(nextState, name, keywords) {
 }
 
 function assignPoolKeywords(nextState, name, keywords) {
-  if (arraysEqual(nextState.config.searchKeywords[name] || [], keywords)) {
+  if (keywordEntriesEqual(nextState.config.searchKeywords[name] || [], keywords)) {
     return false;
   }
 
-  nextState.config.searchKeywords[name] = [...keywords];
+  nextState.config.searchKeywords[name] = normalizeKeywordEntries(keywords);
   return true;
 }
 
@@ -486,7 +489,8 @@ function applyExcludedKeywordsPatch(context) {
     return context;
   }
 
-  const keywords = trimKeywords(context.patch.excludedKeywords);
+  const keywords = normalizeKeywordEntries(context.patch.excludedKeywords)
+    .filter((keyword) => typeof keyword === 'string');
 
   if (arraysEqual(keywords, context.nextState.config.excludedKeywords)) {
     return context;
@@ -625,7 +629,8 @@ function reduceDomainCommand(state, command, env = {}) {
     }
 
     case 'update-excluded-keywords': {
-      const keywords = trimKeywords(command.payload?.keywords);
+      const keywords = normalizeKeywordEntries(command.payload?.keywords)
+        .filter((keyword) => typeof keyword === 'string');
       return reduceFeedMutation(state, {
         apply: (nextState) => assignExcludedKeywords(nextState, keywords),
         direction: 'next',
@@ -808,7 +813,8 @@ function reduceDomainCommand(state, command, env = {}) {
 
     case 'add-pool': {
       const name = normalizePoolName(command.payload?.name);
-      const keywords = trimKeywords(command.payload?.keywords);
+      const keywords = normalizeKeywordEntries(command.payload?.keywords)
+        .filter((keyword) => typeof keyword === 'string');
       if (!name || keywords.length === 0) {
         return unchangedResult(state);
       }
@@ -822,7 +828,7 @@ function reduceDomainCommand(state, command, env = {}) {
 
     case 'set-pool-keywords': {
       const name = normalizePoolName(command.payload?.name);
-      const keywords = trimKeywords(command.payload?.keywords);
+      const keywords = normalizeKeywordEntries(command.payload?.keywords);
       if (keywords.length === 0) {
         return unchangedResult(state);
       }

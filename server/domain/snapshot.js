@@ -6,6 +6,7 @@
  */
 
 const { deriveCurrentFrame, normalizeCategorySelection } = require('./selectors.js');
+const { normalizeKeywordEntries } = require('../utils/keywordSpecs.js');
 
 function cloneCollections(collections) {
   return Object.fromEntries(
@@ -18,6 +19,15 @@ function cloneCollections(collections) {
 
 function clonePhotosList(photosList) {
   return (photosList || []).map((photo) => ({ ...photo }));
+}
+
+function cloneSearchKeywords(searchKeywords = {}) {
+  return Object.fromEntries(
+    Object.entries(searchKeywords).map(([category, keywords]) => [
+      category,
+      normalizeKeywordEntries(keywords)
+    ])
+  );
 }
 
 function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
@@ -42,7 +52,7 @@ function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
       alignWeather: Boolean(legacyState.alignWeather),
       allowOpenAiFallback: Boolean(legacyState.allowOpenAiFallback),
       nightPercentage: legacyState.nightPercentage ?? 50,
-      searchKeywords: { ...(legacyState.searchKeywords || {}) },
+      searchKeywords: cloneSearchKeywords(legacyState.searchKeywords),
       feedConfigs: { ...(legacyState.feedConfigs || {}) },
       excludedKeywords: [...(legacyState.excludedKeywords || [])],
       autoLocation: Boolean(legacyState.autoLocation),

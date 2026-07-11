@@ -1,4 +1,5 @@
 const config = require('./configLoader.js');
+const { collectKeywordTerms } = require('../utils/keywordSpecs.js');
 
 const createKeywordSourceConfig = (keywords) => ({
   unsplash: { enabled: true, keywords: [...keywords] },
@@ -35,26 +36,10 @@ const builtInFeedConfigOverrides = Object.freeze({
   }
 });
 
-function collectKeywordStrings(kws) {
-  if (Array.isArray(kws)) {
-    return kws.flatMap(item => {
-      if (typeof item === 'string') {
-        return [item];
-      }
-      if (item && typeof item === 'object') {
-        const itemKws = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
-        return itemKws.filter(kw => typeof kw === 'string');
-      }
-      return [];
-    });
-  }
-  return typeof kws === 'string' ? [kws] : [];
-}
-
 function buildFeedConfigsFromKeywords(keywordsMap) {
   return Object.fromEntries(
     Object.entries(keywordsMap).map(([category, kws]) => {
-      const keywords = collectKeywordStrings(kws);
+      const keywords = collectKeywordTerms(kws);
       return [
         category,
         {

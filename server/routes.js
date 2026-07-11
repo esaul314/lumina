@@ -415,6 +415,21 @@ module.exports = function configureRoutes({
       commands
     };
   };
+  const decodeKeywordConfigRequest = (req) => {
+    const category = typeof req.body?.category === 'string' ? req.body.category.trim() : '';
+    if (!category) {
+      return createRouteDecodeFailure(400, 'Invalid parameter: "category" must be a non-empty string.');
+    }
+
+    const command = decodePoolKeywordsCommand({
+      name: category,
+      keywords: req.body?.keywords
+    });
+
+    return command
+      ? createRouteDecodeSuccess(command)
+      : createRouteDecodeFailure(400, 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.');
+  };
   const createEffectSubmissionRoute = ({
     decode,
     effectType,
@@ -587,63 +602,17 @@ module.exports = function configureRoutes({
     })
   }));
 
-  app.post('/api/config/keywords', createAsyncRoute(async (req, res) => {
-    const { category, keywords } = req.body;
-
-    if (!category || typeof category !== 'string') {
-      sendError(res, 400, 'Invalid parameter: "category" must be a non-empty string.');
-      return;
-    }
-
-    if (!collections[category]) {
-      sendError(res, 404, `Category "${category}" not found in curated collections.`);
-      return;
-    }
-
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    const isValid = Array.isArray(keywords) && keywords.every((item) => {
-      if (typeof item === 'string') {
-        return item.trim().length > 0;
-      }
-
-      if (!isObject(item)) {
-        return false;
-      }
-
-      const itemKeywords = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
-      return (
-        typeof item.timeStart === 'string'
-        && timeRegex.test(item.timeStart)
-        && typeof item.timeEnd === 'string'
-        && timeRegex.test(item.timeEnd)
-        && itemKeywords.every((keyword) => typeof keyword === 'string' && keyword.trim().length > 0)
-      );
-    });
-
-    if (!isValid) {
-      sendError(res, 400, 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.');
-      return;
-    }
-
-    state.searchKeywords[category] = keywords.map((item) => {
-      if (typeof item === 'string') {
-        return item.trim();
-      }
-
-      const itemKeywords = Array.isArray(item.keywords) ? item.keywords : [item.keywords];
-      return {
-        timeStart: item.timeStart.trim(),
-        timeEnd: item.timeEnd.trim(),
-        keywords: itemKeywords.map((keyword) => keyword.trim())
-      };
-    });
-
-    const { saveCuratedCollections } = require('./config/collections.js');
-    saveCuratedCollections(collections, state);
-    console.log(`[Config API] Saved updated search keywords for category "${category}":`, state.searchKeywords[category]);
-
-    broadcast();
-    sendSuccess(res, 200, { category, keywords: state.searchKeywords[category] });
+  app.post('/api/config/keywords', createCommandRoute({
+    decode: decodeKeywordConfigRequest,
+    unavailableMessage: 'Keyword dispatcher unavailable.',
+    allowNoop: true,
+    guards: [
+      ({ command }) => ensurePoolExists(command.payload.name)
+    ],
+    present: ({ command }) => ({
+      category: command.payload.name,
+      keywords: state.searchKeywords?.[command.payload.name] || []
+    })
   }));
 
   app.post('/api/auth/google/credentials', createAsyncRoute(async (req, res) => {

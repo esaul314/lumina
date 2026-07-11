@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 ## Implementation Companion
 
@@ -58,7 +58,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: Steps 1 through 3 of the implementation companion are complete; the active companion work is now Step 4's command/effect readability pass across the shared reducer, guarded route helpers, and dispatcher boundaries, with photo/config/pool/feed-finalization helpers already standardized and the remaining work limited to clearly repetitive seams.
+  - Next focus: Steps 1 through 3 of the implementation companion are complete; the active companion work is now Step 4's command/effect readability pass across the shared reducer, guarded route helpers, and dispatcher boundaries, with photo/config/pool/feed-finalization helpers already standardized, legacy keyword-route mutation now moved onto the shared pool-keyword command path, and the remaining work limited to clearly repetitive seams.
 
 ### Shared domain flow
 

@@ -1,6 +1,7 @@
 // @ts-check
 
 const fs = require('fs');
+const { normalizeKeywordEntries } = require('../utils/keywordSpecs.js');
 
 function cloneCollectionEntries(collections = {}) {
   return Object.fromEntries(
@@ -21,9 +22,11 @@ function cloneCategoryEntries(category, photos) {
 
 function normalizeKeywordsMap(rawKeywords = {}, fallbackKeywords = {}) {
   return {
-    ...fallbackKeywords,
     ...Object.fromEntries(
-      Object.entries(rawKeywords).map(([category, value]) => [category, Array.isArray(value) ? [...value] : value])
+      Object.entries(fallbackKeywords).map(([category, keywords]) => [category, normalizeKeywordEntries(keywords)])
+    ),
+    ...Object.fromEntries(
+      Object.entries(rawKeywords).map(([category, keywords]) => [category, normalizeKeywordEntries(keywords)])
     )
   };
 }

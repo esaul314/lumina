@@ -822,6 +822,25 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
   });
 
+  assertTest('reducer pool keyword updates preserve time-scoped keyword objects through the shared command path', () => {
+    const result = reduceDomainCommand(createState(), {
+      type: 'set-pool-keywords',
+      payload: {
+        name: 'Scenic Nature',
+        keywords: [
+          { timeStart: '18:00', timeEnd: '23:30', keywords: ['night sky', 'moon'] },
+          'forest'
+        ]
+      }
+    });
+
+    assert.deepStrictEqual(result.nextState.config.searchKeywords['Scenic Nature'], [
+      { timeStart: '18:00', timeEnd: '23:30', keywords: ['night sky', 'moon'] },
+      'forest'
+    ]);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+  });
+
   assertTest('reducer pool keyword updates stay silent when the normalized keyword list is unchanged', () => {
     const state = createState({
       config: {
@@ -835,6 +854,33 @@ function runDomainTests({ logSuite, assertTest }) {
     const result = reduceDomainCommand(state, {
       type: 'set-pool-keywords',
       payload: { name: 'Scenic Nature', keywords: ['forest', 'mist'] }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
+  assertTest('reducer pool keyword updates treat normalized time-scoped keyword specs as equality-aware no-ops', () => {
+    const state = createState({
+      config: {
+        ...createState().config,
+        searchKeywords: {
+          ...createState().config.searchKeywords,
+          'Scenic Nature': [
+            { timeStart: '18:00', timeEnd: '23:30', keywords: ['night sky', 'moon'] }
+          ]
+        }
+      }
+    });
+    const result = reduceDomainCommand(state, {
+      type: 'set-pool-keywords',
+      payload: {
+        name: 'Scenic Nature',
+        keywords: [
+          { timeStart: ' 18:00 ', timeEnd: '23:30', keywords: [' night sky ', ' moon '] }
+        ]
+      }
     });
 
     assert.strictEqual(result.nextState, state);
@@ -925,6 +971,24 @@ function runDomainTests({ logSuite, assertTest }) {
       {
         type: 'set-pool-keywords',
         payload: { name: 'Scenic Nature', keywords: ['forest', 'mist'] }
+      }
+    );
+
+    assert.deepStrictEqual(
+      decodePoolKeywordsCommand({
+        category: 'Scenic Nature',
+        keywords: [
+          { timeStart: ' 18:00 ', timeEnd: '23:30', keywords: [' night sky ', ' moon '] }
+        ]
+      }),
+      {
+        type: 'set-pool-keywords',
+        payload: {
+          name: 'Scenic Nature',
+          keywords: [
+            { timeStart: '18:00', timeEnd: '23:30', keywords: ['night sky', 'moon'] }
+          ]
+        }
       }
     );
 
