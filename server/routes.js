@@ -227,61 +227,14 @@ module.exports = function configureRoutes({
   const runRouteGuards = (guards, context) => (
     guards.reduce((failure, guard) => failure || guard(context), null)
   );
-  const createCommandRoute = ({
+  const createDispatchRoute = ({
     decode,
     present,
+    buildPlan,
     status = 200,
     invalidMessage = 'Invalid request.',
-    notFoundMessage = 'Requested resource not found.',
-    notFoundStatus = 404,
-    allowNoop = false,
     send = sendSuccess,
-    unavailableMessage = 'Dispatcher unavailable.',
-    guards = []
-  }) => createAsyncRoute(async (req, res) => {
-    if (!requireDispatcher(res, unavailableMessage)) {
-      return;
-    }
-
-    const decodedResult = normalizeRouteDecodeResult(decode(req));
-    if (!decodedResult.ok) {
-      sendRouteFailure(res, decodedResult.failure, { req });
-      return;
-    }
-
-    const command = decodedResult.value;
-    if (!command) {
-      sendError(res, 400, invalidMessage);
-      return;
-    }
-
-    const context = { req, command };
-    const guardFailure = runRouteGuards(guards, context);
-    if (guardFailure) {
-      sendRouteFailure(res, guardFailure, context);
-      return;
-    }
-
-    const result = await dispatchCommand(command);
-    if (!allowNoop && !didDispatchChange(result)) {
-      sendError(res, notFoundStatus, resolveRouteValue(notFoundMessage, { ...context, result }));
-      return;
-    }
-
-    send(res, status, present({ ...context, result }));
-  });
-  const createBatchCommandRoute = ({
-    decode,
-    present,
-    status = 200,
-    invalidMessage = 'Invalid request.',
-    notFoundMessage = 'Requested resource not found.',
-    notFoundStatus = 404,
-    allowNoop = false,
-    emptyStatus = 400,
-    emptyMessage = invalidMessage,
-    unavailableMessage = 'Dispatcher unavailable.',
-    guards = []
+    unavailableMessage = 'Dispatcher unavailable.'
   }) => createAsyncRoute(async (req, res) => {
     if (!requireDispatcher(res, unavailableMessage)) {
       return;
@@ -299,29 +252,106 @@ module.exports = function configureRoutes({
       return;
     }
 
-    if (decoded.commands.length === 0 && !allowNoop) {
-      sendError(res, emptyStatus, emptyMessage);
-      return;
-    }
-
-    const context = { req, decoded };
-    const guardFailure = runRouteGuards(guards, context);
+    const plan = buildPlan({ req, decoded });
+    const context = plan.context || { req, decoded };
+    const guardFailure = runRouteGuards(plan.guards || [], context);
     if (guardFailure) {
       sendRouteFailure(res, guardFailure, context);
       return;
     }
 
-    const batchResult = await dispatchAll(decoded.commands);
-    if (!allowNoop && !batchResult.changed) {
-      sendError(res, notFoundStatus, resolveRouteValue(notFoundMessage, { ...context, batchResult }));
+    const preflightFailure = plan.preflight ? plan.preflight(context) : null;
+    if (preflightFailure) {
+      sendRouteFailure(res, preflightFailure, context);
       return;
     }
 
-    sendSuccess(res, status, present({
+    const dispatchOutcome = await plan.run(context);
+    const finalContext = {
       ...context,
-      results: batchResult.results,
-      changed: batchResult.changed
-    }));
+      ...dispatchOutcome
+    };
+    const failure = plan.validate ? plan.validate(finalContext) : null;
+    if (failure) {
+      sendRouteFailure(res, failure, finalContext);
+      return;
+    }
+
+    send(res, status, present(finalContext));
+  });
+  const createCommandRoute = ({
+    decode,
+    present,
+    status = 200,
+    invalidMessage = 'Invalid request.',
+    notFoundMessage = 'Requested resource not found.',
+    notFoundStatus = 404,
+    allowNoop = false,
+    send = sendSuccess,
+    unavailableMessage = 'Dispatcher unavailable.',
+    guards = []
+  }) => createDispatchRoute({
+    decode,
+    present,
+    status,
+    invalidMessage,
+    send,
+    unavailableMessage,
+    buildPlan: ({ req, decoded: command }) => ({
+      context: { req, command },
+      guards,
+      run: async ({ command }) => ({
+        result: await dispatchCommand(command)
+      }),
+      validate: ({ result }) => (
+        !allowNoop && !didDispatchChange(result)
+          ? createRouteFailure(notFoundStatus, notFoundMessage)
+          : null
+      )
+    })
+  });
+  const createBatchCommandRoute = ({
+    decode,
+    present,
+    status = 200,
+    invalidMessage = 'Invalid request.',
+    notFoundMessage = 'Requested resource not found.',
+    notFoundStatus = 404,
+    allowNoop = false,
+    emptyStatus = 400,
+    emptyMessage = invalidMessage,
+    unavailableMessage = 'Dispatcher unavailable.',
+    guards = []
+  }) => createDispatchRoute({
+    decode,
+    present,
+    status,
+    invalidMessage,
+    unavailableMessage,
+    buildPlan: ({ req, decoded }) => ({
+      context: { req, decoded },
+      guards,
+      preflight: ({ decoded }) => (
+        decoded.commands.length === 0 && !allowNoop
+          ? createRouteFailure(emptyStatus, emptyMessage)
+          : null
+      ),
+      run: async ({ decoded }) => {
+        const batchResult = await dispatchAll(decoded.commands);
+        return {
+          batchResult,
+          results: batchResult.results,
+          changed: batchResult.changed
+        };
+      },
+      validate: ({ batchResult }) => (
+        (
+          !allowNoop && !batchResult.changed
+            ? createRouteFailure(notFoundStatus, notFoundMessage)
+            : null
+        )
+      )
+    })
   });
   const decodePhotoPatchRequest = (req) => {
     const body = isObject(req.body) ? req.body : null;
@@ -440,38 +470,28 @@ module.exports = function configureRoutes({
     missingSubmissionMessage = 'Requested async effect service unavailable.',
     isSubmitted = (submission) => Boolean(submission?.job),
     guards = []
-  }) => createAsyncRoute(async (req, res) => {
-    if (!requireDispatcher(res, unavailableMessage)) {
-      return;
-    }
-
-    const decodedResult = normalizeRouteDecodeResult(decode(req));
-    if (!decodedResult.ok) {
-      sendRouteFailure(res, decodedResult.failure, { req });
-      return;
-    }
-
-    const command = decodedResult.value;
-    if (!command) {
-      sendError(res, 400, invalidMessage);
-      return;
-    }
-
-    const context = { req, command };
-    const guardFailure = runRouteGuards(guards, context);
-    if (guardFailure) {
-      sendRouteFailure(res, guardFailure, context);
-      return;
-    }
-
-    const result = await dispatchCommand(command);
-    const submission = getEffectValue(result, effectType);
-    if (!isSubmitted(submission, result, command)) {
-      sendError(res, 503, resolveRouteValue(missingSubmissionMessage, { ...context, result, submission }));
-      return;
-    }
-
-    sendSuccess(res, status, present({ ...context, result, submission }));
+  }) => createDispatchRoute({
+    decode,
+    present,
+    status,
+    invalidMessage,
+    unavailableMessage,
+    buildPlan: ({ req, decoded: command }) => ({
+      context: { req, command },
+      guards,
+      run: async ({ command }) => {
+        const result = await dispatchCommand(command);
+        return {
+          result,
+          submission: getEffectValue(result, effectType)
+        };
+      },
+      validate: ({ command, result, submission }) => (
+        !isSubmitted(submission, result, command)
+          ? createRouteFailure(503, missingSubmissionMessage)
+          : null
+      )
+    })
   });
   const decodePreviewPhotoRequest = (req) => {
     const command = decodeActivePhotoCommand(req.body);

@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Continued Step 4 with One Shared REST Dispatch-Route Shell
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicate route-shell ceremony across command, batch-command, and async effect-submission handlers without hiding route-specific validation or response shaping.
+- **Implementation**:
+  - Refactored `server/routes.js` around one shared `createDispatchRoute(...)` boundary, so the higher-level route helpers now specialize the same `decode -> guard -> preflight -> dispatch -> present` flow instead of re-implementing overlapping error and dispatcher logic.
+  - Preserved the route-specific behavior as data: command routes still own no-op semantics and custom response senders, batch routes still reject empty mutation sets before dispatch, and async job routes still validate extracted effect submissions before returning `202 Accepted`.
+  - Added regression coverage in `run-tests.js` for the restored photo-batch preflight rejection and for the `PATCH /api/state` no-op path that must keep its raw state response shape even when the shared command route produces no reducer events or effects.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the active Step 4 checkpoint now records the new shared dispatch-route shell while leaving the broader readability pass open.
+- **Learning**: The right abstraction here was a tiny route-plan algebra, not a larger HTTP DSL. Once each route kind could describe its own guards, preflight checks, dispatch step, and post-dispatch validation as data, the shell stopped repeating itself without becoming opaque.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-11: Continued Step 4 with Shared Keyword-Spec Normalization and Route Unification
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last direct keyword-config mutation route and expressing timed keyword specs through one pure normalization/equality boundary.
 - **Implementation**:

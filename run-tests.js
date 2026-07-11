@@ -2481,6 +2481,54 @@ async function runIntegrationTests() {
     }]);
   });
 
+  logSuite('REST State Mutation Routes');
+  await assertAsyncTest('PATCH /api/state preserves the raw state response shape when the shared command route is a no-op', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        return {
+          reducerResult: {
+            events: [],
+            effects: []
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/state', {
+      body: {
+        widgets: {
+          clock: true
+        }
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, undefined);
+    assert.strictEqual(response.body.theme, 'Zen Retreat');
+    assert.deepStrictEqual(dispatched, [{
+      type: 'patch-state',
+      payload: {
+        widgets: {
+          clock: true
+        }
+      }
+    }]);
+  });
+
   logSuite('REST Admin Secret Routes');
   await assertAsyncTest('POST /api/admin/secrets/useapi-token dispatches the shared admin secret command and returns the updated configured flag', async () => {
     const dispatched = [];
@@ -2550,6 +2598,25 @@ async function runIntegrationTests() {
 
     assert.strictEqual(response.status, 400);
     assert.strictEqual(response.body.error, 'Invalid parameter: "url" must be a non-empty string.');
+    assert.strictEqual(dispatched, false);
+  });
+
+  await assertAsyncTest('PATCH /api/photos rejects a no-op photo batch before dispatching the shared route shell', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: {
+        url: 'land-1'
+      }
+    });
+
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(response.body.error, 'Photo URL not found in available photo collections.');
     assert.strictEqual(dispatched, false);
   });
 
