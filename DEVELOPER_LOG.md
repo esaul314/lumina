@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Continued Step 4 with Dispatcher-Local Effect Sequencing Helpers
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated command/effect ceremony in `server/domain/dispatch.js` without turning the dispatcher into a framework.
+- **Implementation**:
+  - Refactored `server/domain/dispatch.js` around a few small shell helpers: sequential effect interpretation, event emission, manual-override effect runners, env/runtime payload normalization, and fail-safe weather-refresh handling.
+  - Kept the dispatch flow explicit as `reduce -> apply snapshot -> interpret effects -> emit events`, while moving the repeated payload-shape and `typeof handler === 'function'` plumbing behind narrow helpers instead of duplicating it across effect cases.
+  - Tightened `server/domain/types.js` so the shared JSDoc contract now includes `patch-state` commands and `refresh-weather` effects, matching the live reducer/effect surface.
+  - Added regression coverage in `run-tests.js` for the shared kiosk-kill helper path and for the rule that a failed `refresh-weather` effect logs once but does not abort the enclosing state update or broadcast.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the current Step 4 checkpoint records this dispatcher-focused slice while staying open for future clearly repetitive seams only.
+- **Learning**: The useful abstraction here was a tiny interpreter boundary, not a generic dispatcher DSL. Once effect sequencing, payload normalization, and fail-safe shell behaviors each had one named helper, the dispatcher became easier to extend without hiding the actual order of work.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-11: Continued Step 4 with One Shared REST Dispatch-Route Shell
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicate route-shell ceremony across command, batch-command, and async effect-submission handlers without hiding route-specific validation or response shaping.
 - **Implementation**:
