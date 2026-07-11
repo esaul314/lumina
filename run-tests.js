@@ -2294,6 +2294,131 @@ async function runIntegrationTests() {
     assert.strictEqual(response.body.error, 'Recrawl job service unavailable.');
   });
 
+  logSuite('REST Pool Mutation Routes');
+  await assertAsyncTest('POST /api/pools rejects duplicate pool names before dispatching the shared command route', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/pools', {
+      body: {
+        name: 'Scenic Nature',
+        keywords: ['forest']
+      }
+    });
+
+    assert.strictEqual(response.status, 409);
+    assert.strictEqual(response.body.error, 'Pool "Scenic Nature" already exists.');
+    assert.strictEqual(dispatched, false);
+  });
+
+  await assertAsyncTest('PATCH /api/pools/:name returns 404 before batch dispatch when the pool guard fails', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/pools/:name', {
+      params: { name: 'Missing Pool' },
+      body: {
+        keywords: ['mist']
+      }
+    });
+
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(response.body.error, 'Pool "Missing Pool" not found.');
+    assert.strictEqual(dispatched, false);
+  });
+
+  await assertAsyncTest('PATCH /api/pools/:name/feed-sources/:source uses the shared guarded command route for existing pools', async () => {
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {
+        'Scenic Nature': {
+          reddit: { enabled: true, subreddits: ['EarthPorn'] }
+        }
+      },
+      searchKeywords: {
+        'Scenic Nature': ['forest']
+      },
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const collections = {
+      'Scenic Nature': [{ url: 'land-1', category: 'Scenic Nature' }]
+    };
+    const dispatched = [];
+    const app = buildConfiguredRoutesApp({
+      state,
+      collections,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.feedConfigs['Scenic Nature'].reddit = {
+          ...state.feedConfigs['Scenic Nature'].reddit,
+          ...command.payload.config
+        };
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'persist' }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/pools/:name/feed-sources/:source', {
+      params: { name: 'Scenic Nature', source: 'reddit' },
+      body: {
+        subreddits: ['CityPorn', 'WeatherPorn']
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.feedSource, 'reddit');
+    assert.deepStrictEqual(response.body.pool.feedConfigs.reddit, {
+      enabled: true,
+      subreddits: ['CityPorn', 'WeatherPorn']
+    });
+    assert.deepStrictEqual(dispatched, [{
+      type: 'merge-pool-feed-config',
+      payload: {
+        name: 'Scenic Nature',
+        source: 'reddit',
+        config: {
+          subreddits: ['CityPorn', 'WeatherPorn']
+        }
+      }
+    }]);
+  });
+
+  await assertAsyncTest('POST /api/pools/:name/crawl returns 404 before async effect submission when the pool guard fails', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/pools/:name/crawl', {
+      params: { name: 'Missing Pool' },
+      body: {}
+    });
+
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(response.body.error, 'Pool "Missing Pool" not found.');
+    assert.strictEqual(dispatched, false);
+  });
+
   logSuite('REST Admin Secret Routes');
   await assertAsyncTest('POST /api/admin/secrets/useapi-token dispatches the shared admin secret command and returns the updated configured flag', async () => {
     const dispatched = [];
@@ -2347,10 +2472,61 @@ async function runIntegrationTests() {
   });
 
   logSuite('REST Photo Patch Routes');
+  await assertAsyncTest('PATCH /api/photos rejects an empty url before dispatching the shared photo batch route', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: {
+        cropPercent: 44
+      }
+    });
+
+    assert.strictEqual(response.status, 400);
+    assert.strictEqual(response.body.error, 'Invalid parameter: "url" must be a non-empty string.');
+    assert.strictEqual(dispatched, false);
+  });
+
+  await assertAsyncTest('PATCH /api/photos returns 404 before batch dispatch when the photo guard fails', async () => {
+    let dispatched = false;
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async () => {
+        dispatched = true;
+        return null;
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: {
+        url: 'missing-photo',
+        cropPercent: 44
+      }
+    });
+
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(response.body.error, 'Photo URL not found in available photo collections.');
+    assert.strictEqual(dispatched, false);
+  });
+
   await assertAsyncTest('PATCH /api/photos routes Google Photos crop and pairing updates through the shared photo command batch', async () => {
     const dispatched = [];
     const googleUrl = buildGooglePhotoProxyUrl('picker-route');
+    const state = {
+      currentCategory: 'Google Photos',
+      photosList: [{ url: googleUrl, title: 'Proxy Photo', author: 'Lumina' }],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
     const app = buildConfiguredRoutesApp({
+      state,
       dispatchCommand: async (command) => {
         dispatched.push(command);
         return {
@@ -2398,6 +2574,51 @@ async function runIntegrationTests() {
         }
       }
     ]);
+  });
+
+  logSuite('REST Photo Preview Routes');
+  await assertAsyncTest('POST /api/photos/preview routes a payload photo through the shared preview command shell', async () => {
+    const dispatched = [];
+    const previewPhoto = {
+      url: 'preview-photo-route',
+      title: 'Preview Route',
+      author: 'Lumina'
+    };
+    const state = {
+      currentCategory: 'Scenic Nature',
+      activePhoto: { url: 'land-1', title: 'Land 1', author: 'A' },
+      photosList: [{ url: 'land-1', title: 'Land 1', author: 'A', category: 'Scenic Nature' }],
+      widgets: { clock: true },
+      theme: 'Zen Retreat'
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.activePhoto = command.payload.photo;
+        return {
+          reducerResult: {
+            events: [{ type: 'photo-update' }, { type: 'state-sync' }],
+            effects: []
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/photos/preview', {
+      body: previewPhoto
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.activePhoto.url, 'preview-photo-route');
+    assert.deepStrictEqual(dispatched, [{
+      type: 'set-active-photo',
+      payload: {
+        url: 'preview-photo-route',
+        photo: previewPhoto
+      }
+    }]);
   });
 
   logSuite('Live Server Endpoint Smoke Tests');

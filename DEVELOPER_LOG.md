@@ -5,6 +5,26 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Continued Step 4 with Decode-Aware Photo Mutation Route Composition
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last ad hoc photo mutation and preview wrappers from the REST shell without losing the route-specific photo lookup behavior.
+- **Implementation**:
+  - Extended `server/routes.js` with small decode-result helpers so shared command, batch-command, and async-submission route factories can surface custom decode-phase failures instead of forcing transport-local wrapper handlers.
+  - Rewired `PATCH /api/photos` onto the shared batch-command route directly, adding a pre-dispatch photo-existence guard so missing photo mutations now fail at the shell boundary instead of silently dispatching no-op command batches.
+  - Rewired `POST /api/photos/preview` onto the shared command route while preserving the payload-photo preview fallback for items that are not already in the active feed snapshot.
+  - Added regression coverage in `run-tests.js` for photo batch decode failures, missing-photo guard failures, and the preview route's shared-command dispatch path.
+- **Learning**: The useful next Step 4 abstraction was not another special-case photo helper, but a small decode-result algebra for the route shell. Once route factories could express custom decode failures, the remaining photo wrappers collapsed into the same declarative transport pipeline as the pool routes.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
+### 2026-07-10: Continued Step 4 with Guarded REST Mutation Route Composition
+- **Goal**: Keep the active Step 4 readability pass moving by collapsing the remaining repeated REST mutation-route ceremony without hiding route-specific validation or response shaping.
+- **Implementation**:
+  - Refactored `server/routes.js` so single-command, batch-command, and async effect-submission handlers now share one guard-aware boundary for `decode -> guard -> dispatch -> present`, with dynamic not-found and missing-submission messages still owned by each route.
+  - Rewired the pool mutation routes (`POST /api/pools`, `DELETE /api/pools/:name`, `PATCH /api/pools/:name`, `PATCH /api/pools/:name/feed-sources/:source`, and `POST /api/pools/:name/crawl`) onto that shared shell, replacing bespoke dispatcher/existence checks with small pool guard helpers.
+  - Added regression coverage in `run-tests.js` for duplicate-pool rejection, missing-pool guard failures on batch and async-job routes, and the existing-pool feed-source patch success path through the new shared route boundary.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records this latest Step 4 slice while keeping the broader readability pass open.
+- **Learning**: The useful abstraction here was a tiny validation semigroup at the shell edge, not a full route DSL. Once guards became explicit data passed into the shared route factories, the pool routes read as declarative transport code again without losing their concrete HTTP behavior.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-10: Continued Step 4 with Shared Feed-Mutation Finalization Helpers
 - **Goal**: Keep the active Step 4 readability pass moving by collapsing the remaining repeated reducer ceremony around feed recomputation, active-photo finalization, and persistence-bearing library mutations without changing the high-signal command branches.
 - **Implementation**:

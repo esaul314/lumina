@@ -202,6 +202,8 @@ Progress note:
 - The latest Step 4 slice applies that same selective-combinator approach to pool/config mutations, so pool keyword and feed-config updates now share reducer-local helpers and stay silent when the normalized effective config is unchanged.
 - The latest Step 4 slice standardized async effect submission across the dispatcher and REST async-job routes, so recrawl and vision-analysis submission now share one `decode -> dispatch -> extract effect submission -> present` boundary with consistent missing-service handling.
 - The latest Step 4 slice extracted a shared feed-mutation finalization path, so category selection, excluded-keyword updates, and pool deletion now share one explicit `apply -> recompute feed -> ensure active photo -> emit -> persist` boundary while normalized excluded-keyword no-ops stay silent.
+- The latest Step 4 slice standardized guarded REST mutation shells, so pool mutation routes now share one `decode -> guard -> dispatch -> present` boundary across single-command, batch-command, and async submission handlers without inlining duplicate existence checks.
+- The latest Step 4 slice made route decoding itself composable, so photo patch and preview routes now use the same shared command factories with explicit decode-phase failures and pre-dispatch photo guards instead of ad hoc wrapper handlers.
 - `server/domain/dispatch.js` now interprets reducer effects and events through explicit handler tables, keeping the shell readable as `reduce -> apply snapshot -> interpret effects -> emit events`.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity.
 

@@ -60,6 +60,7 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
 
 const toErrorMessage = (error) => error instanceof Error ? error.message : String(error);
 const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const resolveRouteValue = (value, context) => (typeof value === 'function' ? value(context) : value);
 const normalizeMediaDimension = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -101,6 +102,12 @@ module.exports = function configureRoutes({
     error,
     ...extra
   });
+  const sendRouteFailure = (res, failure, context) => sendError(
+    res,
+    failure.status,
+    resolveRouteValue(failure.error, context),
+    resolveRouteValue(failure.extra, context) || {}
+  );
   const buildStateResponse = () => ({
     ...state,
     currentFrame: state.currentFrame || null,
@@ -150,12 +157,49 @@ module.exports = function configureRoutes({
     return buildFeedForCategories([Object.keys(collections)[0] || DEFAULT_CATEGORY]);
   };
   const hasPool = (name) => Boolean(name && collections[name]);
+  const hasPoolConfig = (name) => Boolean(name && state.searchKeywords?.[name]);
+  const createRouteFailure = (status, error, extra = {}) => ({ status, error, extra });
+  const createRouteDecodeSuccess = (value) => ({ routeDecode: true, ok: true, value });
+  const createRouteDecodeFailure = (status, error, extra = {}) => ({
+    routeDecode: true,
+    ok: false,
+    failure: createRouteFailure(status, error, extra)
+  });
+  const normalizeRouteDecodeResult = (decoded) => (
+    decoded?.routeDecode ? decoded : createRouteDecodeSuccess(decoded)
+  );
   const buildPoolResponse = (name) => ({
     name,
     keywords: (state.searchKeywords && state.searchKeywords[name]) || [],
     feedConfigs: (state.feedConfigs && state.feedConfigs[name]) || {},
     photosCount: Array.isArray(collections[name]) ? collections[name].length : 0
   });
+  const findKnownPhoto = (url, fallbackPhoto = null) => (
+    findPhotoInFeed(state.photosList, url)
+    || getPhotoByUrl(collections, url, buildExternalCollections())
+    || fallbackPhoto
+    || null
+  );
+  const ensurePoolExists = (name, status = 404) => (
+    hasPool(name)
+      ? null
+      : createRouteFailure(status, `Pool "${name}" not found.`)
+  );
+  const ensurePoolKnown = (name, status = 404) => (
+    hasPool(name) || hasPoolConfig(name)
+      ? null
+      : createRouteFailure(status, `Pool "${name}" not found.`)
+  );
+  const ensurePoolMissing = (name) => (
+    hasPool(name) || hasPoolConfig(name)
+      ? createRouteFailure(409, `Pool "${name}" already exists.`)
+      : null
+  );
+  const ensureKnownPhoto = (url, status = 404) => (
+    findKnownPhoto(url)
+      ? null
+      : createRouteFailure(status, 'Photo URL not found in available photo collections.')
+  );
   const respondWithState = (res, status, body = {}) => sendSuccess(res, status, {
     ...body,
     state: buildStateResponse()
@@ -180,6 +224,9 @@ module.exports = function configureRoutes({
       sendError(res, 500, toErrorMessage(error));
     }
   };
+  const runRouteGuards = (guards, context) => (
+    guards.reduce((failure, guard) => failure || guard(context), null)
+  );
   const createCommandRoute = ({
     decode,
     present,
@@ -189,25 +236,39 @@ module.exports = function configureRoutes({
     notFoundStatus = 404,
     allowNoop = false,
     send = sendSuccess,
-    unavailableMessage = 'Dispatcher unavailable.'
+    unavailableMessage = 'Dispatcher unavailable.',
+    guards = []
   }) => createAsyncRoute(async (req, res) => {
     if (!requireDispatcher(res, unavailableMessage)) {
       return;
     }
 
-    const command = decode(req);
+    const decodedResult = normalizeRouteDecodeResult(decode(req));
+    if (!decodedResult.ok) {
+      sendRouteFailure(res, decodedResult.failure, { req });
+      return;
+    }
+
+    const command = decodedResult.value;
     if (!command) {
       sendError(res, 400, invalidMessage);
       return;
     }
 
-    const result = await dispatchCommand(command);
-    if (!allowNoop && !didDispatchChange(result)) {
-      sendError(res, notFoundStatus, notFoundMessage);
+    const context = { req, command };
+    const guardFailure = runRouteGuards(guards, context);
+    if (guardFailure) {
+      sendRouteFailure(res, guardFailure, context);
       return;
     }
 
-    send(res, status, present({ req, command, result }));
+    const result = await dispatchCommand(command);
+    if (!allowNoop && !didDispatchChange(result)) {
+      sendError(res, notFoundStatus, resolveRouteValue(notFoundMessage, { ...context, result }));
+      return;
+    }
+
+    send(res, status, present({ ...context, result }));
   });
   const createBatchCommandRoute = ({
     decode,
@@ -219,13 +280,20 @@ module.exports = function configureRoutes({
     allowNoop = false,
     emptyStatus = 400,
     emptyMessage = invalidMessage,
-    unavailableMessage = 'Dispatcher unavailable.'
+    unavailableMessage = 'Dispatcher unavailable.',
+    guards = []
   }) => createAsyncRoute(async (req, res) => {
     if (!requireDispatcher(res, unavailableMessage)) {
       return;
     }
 
-    const decoded = decode(req);
+    const decodedResult = normalizeRouteDecodeResult(decode(req));
+    if (!decodedResult.ok) {
+      sendRouteFailure(res, decodedResult.failure, { req });
+      return;
+    }
+
+    const decoded = decodedResult.value;
     if (!decoded) {
       sendError(res, 400, invalidMessage);
       return;
@@ -236,15 +304,21 @@ module.exports = function configureRoutes({
       return;
     }
 
+    const context = { req, decoded };
+    const guardFailure = runRouteGuards(guards, context);
+    if (guardFailure) {
+      sendRouteFailure(res, guardFailure, context);
+      return;
+    }
+
     const batchResult = await dispatchAll(decoded.commands);
     if (!allowNoop && !batchResult.changed) {
-      sendError(res, notFoundStatus, notFoundMessage);
+      sendError(res, notFoundStatus, resolveRouteValue(notFoundMessage, { ...context, batchResult }));
       return;
     }
 
     sendSuccess(res, status, present({
-      req,
-      decoded,
+      ...context,
       results: batchResult.results,
       changed: batchResult.changed
     }));
@@ -253,7 +327,7 @@ module.exports = function configureRoutes({
     const body = isObject(req.body) ? req.body : null;
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
     if (!url) {
-      return null;
+      return createRouteDecodeFailure(400, 'Invalid parameter: "url" must be a non-empty string.');
     }
 
     const commands = [];
@@ -349,51 +423,63 @@ module.exports = function configureRoutes({
     invalidMessage = 'Invalid request.',
     unavailableMessage = 'Dispatcher unavailable.',
     missingSubmissionMessage = 'Requested async effect service unavailable.',
-    isSubmitted = (submission) => Boolean(submission?.job)
+    isSubmitted = (submission) => Boolean(submission?.job),
+    guards = []
   }) => createAsyncRoute(async (req, res) => {
     if (!requireDispatcher(res, unavailableMessage)) {
       return;
     }
 
-    const command = decode(req);
+    const decodedResult = normalizeRouteDecodeResult(decode(req));
+    if (!decodedResult.ok) {
+      sendRouteFailure(res, decodedResult.failure, { req });
+      return;
+    }
+
+    const command = decodedResult.value;
     if (!command) {
       sendError(res, 400, invalidMessage);
+      return;
+    }
+
+    const context = { req, command };
+    const guardFailure = runRouteGuards(guards, context);
+    if (guardFailure) {
+      sendRouteFailure(res, guardFailure, context);
       return;
     }
 
     const result = await dispatchCommand(command);
     const submission = getEffectValue(result, effectType);
     if (!isSubmitted(submission, result, command)) {
-      sendError(res, 503, missingSubmissionMessage);
+      sendError(res, 503, resolveRouteValue(missingSubmissionMessage, { ...context, result, submission }));
       return;
     }
 
-    sendSuccess(res, status, present({ req, command, result, submission }));
+    sendSuccess(res, status, present({ ...context, result, submission }));
   });
-  const decodePreviewPhoto = (req) => {
+  const decodePreviewPhotoRequest = (req) => {
     const command = decodeActivePhotoCommand(req.body);
     if (!command) {
-      return null;
+      return createRouteDecodeFailure(400, 'Invalid parameter: "url" must be a non-empty string.');
     }
 
     const payloadPhoto = command.payload.photo && typeof command.payload.photo === 'object'
       ? command.payload.photo
       : null;
-    const foundPhoto = findPhotoInFeed(state.photosList, command.payload.url)
-      || getPhotoByUrl(collections, command.payload.url, buildExternalCollections())
-      || payloadPhoto;
+    const foundPhoto = findKnownPhoto(command.payload.url, payloadPhoto);
 
     if (!foundPhoto) {
-      return null;
+      return createRouteDecodeFailure(404, 'Photo URL not found in active feed or curated collections.');
     }
 
-    return {
+    return createRouteDecodeSuccess({
       ...command,
       payload: {
         ...command.payload,
         photo: foundPhoto
       }
-    };
+    });
   };
   const refreshActiveFeed = () => {
     state.photosList = getVisibleFeed();
@@ -698,116 +784,70 @@ module.exports = function configureRoutes({
     res.json(Object.keys(collections).map(buildPoolResponse));
   });
 
-  app.post('/api/pools', createAsyncRoute(async (req, res) => {
-    const command = decodeAddPoolCommand(req.body);
-    if (!command) {
-      sendError(res, 400, 'Invalid pool payload. Provide a non-empty "name" and at least one keyword.');
-      return;
-    }
-
-    if (hasPool(command.payload.name) || (state.searchKeywords && state.searchKeywords[command.payload.name])) {
-      sendError(res, 409, `Pool "${command.payload.name}" already exists.`);
-      return;
-    }
-
-    if (!requireDispatcher(res, 'Pool dispatcher unavailable.')) {
-      return;
-    }
-
-    const result = await dispatchCommand(command);
-    if (!didDispatchChange(result)) {
-      sendError(res, 404, `Pool "${command.payload.name}" could not be created.`);
-      return;
-    }
-
-    respondWithState(res, 201, {
+  app.post('/api/pools', createCommandRoute({
+    decode: (req) => decodeAddPoolCommand(req.body),
+    invalidMessage: 'Invalid pool payload. Provide a non-empty "name" and at least one keyword.',
+    unavailableMessage: 'Pool dispatcher unavailable.',
+    status: 201,
+    guards: [
+      ({ command }) => ensurePoolMissing(command.payload.name)
+    ],
+    notFoundMessage: ({ command }) => `Pool "${command.payload.name}" could not be created.`,
+    send: respondWithState,
+    present: ({ command }) => ({
       pool: buildPoolResponse(command.payload.name)
-    });
+    })
   }));
 
-  app.delete('/api/pools/:name', createAsyncRoute(async (req, res) => {
-    const command = decodeDeletePoolCommand({ name: req.params.name });
-    if (!command) {
-      sendError(res, 400, 'Invalid pool name.');
-      return;
-    }
-
-    if (!hasPool(command.payload.name) && (!state.searchKeywords || !state.searchKeywords[command.payload.name])) {
-      sendError(res, 404, `Pool "${command.payload.name}" not found.`);
-      return;
-    }
-
-    if (!requireDispatcher(res, 'Pool dispatcher unavailable.')) {
-      return;
-    }
-
-    const result = await dispatchCommand(command);
-    if (!didDispatchChange(result)) {
-      sendError(res, 404, `Pool "${command.payload.name}" not found.`);
-      return;
-    }
-
-    respondWithState(res, 200, {
+  app.delete('/api/pools/:name', createCommandRoute({
+    decode: (req) => decodeDeletePoolCommand({ name: req.params.name }),
+    invalidMessage: 'Invalid pool name.',
+    unavailableMessage: 'Pool dispatcher unavailable.',
+    guards: [
+      ({ command }) => ensurePoolKnown(command.payload.name)
+    ],
+    notFoundMessage: ({ command }) => `Pool "${command.payload.name}" not found.`,
+    send: respondWithState,
+    present: ({ command }) => ({
       message: `Pool "${command.payload.name}" deleted successfully.`
-    });
+    })
   }));
 
-  const handlePoolPatch = createBatchCommandRoute({
+  app.patch('/api/pools/:name', createBatchCommandRoute({
     decode: decodePoolPatchRequest,
     invalidMessage: 'Invalid pool patch payload.',
     notFoundMessage: 'Pool patch did not modify any existing state.',
     allowNoop: true,
     unavailableMessage: 'Pool dispatcher unavailable.',
+    guards: [
+      ({ decoded }) => ensurePoolExists(decoded.name)
+    ],
     present: ({ decoded }) => ({
       state: buildStateResponse(),
       pool: buildPoolResponse(decoded.name)
     })
-  });
+  }));
 
-  app.patch('/api/pools/:name', async (req, res) => {
-    const name = req.params.name.trim();
-    if (!hasPool(name)) {
-      sendError(res, 404, `Pool "${name}" not found.`);
-      return;
-    }
-
-    await handlePoolPatch(req, res);
-  });
-
-  app.patch('/api/pools/:name/feed-sources/:source', createAsyncRoute(async (req, res) => {
-    const command = decodePoolFeedConfigCommand({
+  app.patch('/api/pools/:name/feed-sources/:source', createCommandRoute({
+    decode: (req) => decodePoolFeedConfigCommand({
       name: req.params.name,
       source: req.params.source,
       config: req.body
-    });
-
-    if (!command) {
-      sendError(res, 400, 'Invalid feed source patch payload.');
-      return;
-    }
-
-    if (!hasPool(command.payload.name)) {
-      sendError(res, 404, `Pool "${command.payload.name}" not found.`);
-      return;
-    }
-
-    if (!requireDispatcher(res, 'Pool dispatcher unavailable.')) {
-      return;
-    }
-
-    const result = await dispatchCommand(command);
-    if (!didDispatchChange(result)) {
-      sendError(res, 404, `Pool "${command.payload.name}" not found.`);
-      return;
-    }
-
-    respondWithState(res, 200, {
+    }),
+    invalidMessage: 'Invalid feed source patch payload.',
+    unavailableMessage: 'Pool dispatcher unavailable.',
+    guards: [
+      ({ command }) => ensurePoolExists(command.payload.name)
+    ],
+    notFoundMessage: ({ command }) => `Pool "${command.payload.name}" not found.`,
+    send: respondWithState,
+    present: ({ command }) => ({
       pool: buildPoolResponse(command.payload.name),
       feedSource: command.payload.source
-    });
+    })
   }));
 
-  const submitPoolRecrawl = createEffectSubmissionRoute({
+  app.post('/api/pools/:name/crawl', createEffectSubmissionRoute({
     decode: (req) => ({
       type: 'trigger-recrawl',
       payload: {
@@ -817,21 +857,14 @@ module.exports = function configureRoutes({
     effectType: 'start-recrawl-job',
     unavailableMessage: 'Recrawl dispatcher unavailable.',
     missingSubmissionMessage: 'Recrawl job service unavailable.',
+    guards: [
+      ({ req }) => ensurePoolExists(req.params.name.trim())
+    ],
     present: ({ req, submission }) => ({
       pool: buildPoolResponse(req.params.name.trim()),
       job: submission.job,
       reused: Boolean(submission.reused)
     })
-  });
-
-  app.post('/api/pools/:name/crawl', createAsyncRoute(async (req, res) => {
-    const name = req.params.name.trim();
-    if (!collections[name]) {
-      sendError(res, 404, `Pool "${name}" not found.`);
-      return;
-    }
-
-    await submitPoolRecrawl(req, res);
   }));
 
   app.get('/api/pools/:name/photos', (req, res) => {
@@ -844,48 +877,26 @@ module.exports = function configureRoutes({
     res.json(collections[name]);
   });
 
-  const handlePhotoCommandPatch = createBatchCommandRoute({
+  app.patch('/api/photos', createBatchCommandRoute({
     decode: decodePhotoPatchRequest,
     invalidMessage: 'Invalid photo patch payload.',
     notFoundMessage: 'Photo URL not found in available photo collections.',
     emptyStatus: 404,
     emptyMessage: 'Photo URL not found in available photo collections.',
+    guards: [
+      ({ decoded }) => ensureKnownPhoto(decoded.responsePhoto.url)
+    ],
     present: ({ decoded }) => ({
       photo: decoded.responsePhoto
     })
-  });
-
-  app.patch('/api/photos', createAsyncRoute(async (req, res) => {
-    const body = isObject(req.body) ? req.body : null;
-    const url = typeof body?.url === 'string' ? body.url.trim() : '';
-    if (!url) {
-      sendError(res, 400, 'Invalid parameter: "url" must be a non-empty string.');
-      return;
-    }
-
-    await handlePhotoCommandPatch(req, res);
   }));
 
-  app.post('/api/photos/preview', createAsyncRoute(async (req, res) => {
-    if (!requireDispatcher(res, 'Preview dispatcher unavailable.')) {
-      return;
-    }
-
-    const command = decodePreviewPhoto(req);
-    if (!command) {
-      const activeCommand = decodeActivePhotoCommand(req.body);
-      sendError(
-        res,
-        activeCommand ? 404 : 400,
-        activeCommand
-          ? 'Photo URL not found in active feed or curated collections.'
-          : 'Invalid parameter: "url" must be a non-empty string.'
-      );
-      return;
-    }
-
-    await dispatchCommand(command);
-    sendSuccess(res, 200, { activePhoto: state.activePhoto });
+  app.post('/api/photos/preview', createCommandRoute({
+    decode: decodePreviewPhotoRequest,
+    unavailableMessage: 'Preview dispatcher unavailable.',
+    present: () => ({
+      activePhoto: state.activePhoto
+    })
   }));
 
   const createAdvanceRoute = (direction) => createCommandRoute({
