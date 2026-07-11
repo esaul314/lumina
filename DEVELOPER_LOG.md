@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Continued Step 4 with Shared Async Effect Submission Helpers
+- **Goal**: Keep Step 4 moving by removing the repeated async `dispatch -> effect extraction -> 202 response` ceremony from the shell boundary without hiding route-specific validation or presentation.
+- **Implementation**:
+  - Refactored `server/domain/dispatch.js` so payload-driven optional effects (`persist-external-photo-metadata`, `run-crawler`, `start-recrawl-job`, `start-vision-analysis-job`) now share small effect-runner helpers instead of repeating the same `typeof handler === 'function'` payload plumbing.
+  - Added `createEffectSubmissionRoute(...)` in `server/routes.js`, then rewired `POST /api/jobs/recrawl`, `POST /api/jobs/vision-analysis`, and `POST /api/pools/:name/crawl` to share one explicit `decode -> dispatch -> extract submission -> present` path with the same 503 handling when no job snapshot is produced.
+  - Added regression coverage in `run-tests.js` for shared vision-analysis effect interpretation in the dispatcher and for the recrawl route's missing-submission failure path, while preserving the existing accepted-job route assertions.
+  - Updated `FUNCTIONAL_REFACTOR_ROADMAP.md` to record this Step 4 slice while keeping the overall checkpoint active.
+- **Learning**: The useful abstraction here was not a generic route DSL; it was one tiny async submission boundary that treats reducer effects as a first-class contract. That keeps the shell composable while leaving per-route validation and response shape obvious.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-10: Continued Step 4 with Pool/Feed-Config Reducer Combinators and No-Op Guardrails
 - **Goal**: Keep the implementation-companion Step 4 readability pass moving by collapsing the remaining repeated pool/config reducer ceremony without hiding the more complex playback-recompute branches.
 - **Implementation**:

@@ -200,6 +200,7 @@ Progress note:
 - Repeated photo-mutation branches now share one composable `reducePhotoLibraryCommand(...)` path that handles `update -> optional playback finalization -> persistence effects -> event selection`.
 - The next Step 4 slice standardized config/runtime mutation helpers and the `patch-state` branch, so repeated durable updates now flow through small equality-aware combinators instead of open-coded branching.
 - The latest Step 4 slice applies that same selective-combinator approach to pool/config mutations, so pool keyword and feed-config updates now share reducer-local helpers and stay silent when the normalized effective config is unchanged.
+- The latest Step 4 slice standardized async effect submission across the dispatcher and REST async-job routes, so recrawl and vision-analysis submission now share one `decode -> dispatch -> extract effect submission -> present` boundary with consistent missing-service handling.
 - `server/domain/dispatch.js` now interprets reducer effects and events through explicit handler tables, keeping the shell readable as `reduce -> apply snapshot -> interpret effects -> emit events`.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity.
 
