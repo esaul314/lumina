@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Continued Step 4 with Shared Route-Decode Composition
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last hand-rolled REST mutation decode batching and follow-up validation seams without disturbing the shared dispatch-route shell.
+- **Implementation**:
+  - Added `server/utils/routeDecode.js` as a tiny pure success/failure algebra with `collect`, `map`, and `chain` helpers so route decoding can short-circuit predictably without scattering nullable command checks.
+  - Refactored `server/routes.js` so the photo patch, pool patch, keyword, and preview decoders now compose as explicit `decode -> collect -> map/chain` pipelines, with field-specific failures such as invalid crop bounds or bad source-config payloads returned before dispatch.
+  - Added regression coverage in `run-tests.js` for the new route-decode helper layer and for shared route-shell short-circuiting on invalid pool feed-config and photo crop decode failures.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records the new route-decode slice while keeping the broader Step 4 checkpoint active.
+- **Learning**: The useful abstraction here was a tiny lawful decode result, not a broader transport DSL. Once route decode success/failure became composable data, the remaining REST mutation decoders collapsed into small pipelines and the dispatch shell stayed unchanged.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-11: Continued Step 4 with Dispatcher-Local Effect Sequencing Helpers
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated command/effect ceremony in `server/domain/dispatch.js` without turning the dispatcher into a framework.
 - **Implementation**:

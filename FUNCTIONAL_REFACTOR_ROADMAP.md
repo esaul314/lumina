@@ -208,6 +208,7 @@ Progress note:
 - The latest Step 4 slice collapsed the remaining REST route factories onto one shared dispatch shell, so command, batch-command, and async effect-submission handlers now specialize the same `decode -> guard -> preflight -> dispatch -> present` boundary while preserving no-op handling, custom response envelopes, and async submission checks.
 - `server/domain/dispatch.js` now interprets reducer effects and events through explicit handler tables, keeping the shell readable as `reduce -> apply snapshot -> interpret effects -> emit events`.
 - The latest Step 4 slice standardized dispatcher-local effect sequencing and env/runtime payload normalization, so shell effects now flow through small interpreters and focused fail-safe helpers instead of repeating inline manual-override, payload-shape, and weather-refresh ceremony.
+- The latest Step 4 slice extracted a tiny route-decode result algebra, so photo patch, pool patch, keyword, and preview decoders now compose as pure `decode -> collect -> map/chain` flows with explicit source-level failures instead of hand-rolled nullable command batching.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity.
 
 ### Step 5: Align the client control surface with the same functional boundaries
