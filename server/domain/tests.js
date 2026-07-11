@@ -805,6 +805,26 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
   });
 
+  assertTest('reducer pool keyword updates stay silent when the normalized keyword list is unchanged', () => {
+    const state = createState({
+      config: {
+        ...createState().config,
+        searchKeywords: {
+          ...createState().config.searchKeywords,
+          'Scenic Nature': ['forest', 'mist']
+        }
+      }
+    });
+    const result = reduceDomainCommand(state, {
+      type: 'set-pool-keywords',
+      payload: { name: 'Scenic Nature', keywords: ['forest', 'mist'] }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
   assertTest('reducer pool feed config updates merge a source patch instead of replacing sibling fields', () => {
     const result = reduceDomainCommand(createState({
       config: {
@@ -829,6 +849,31 @@ function runDomainTests({ logSuite, assertTest }) {
       subreddits: ['CityPorn', 'WeatherPorn']
     });
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+  });
+
+  assertTest('reducer pool feed config updates stay silent when a source patch does not change the effective config', () => {
+    const state = createState({
+      config: {
+        ...createState().config,
+        feedConfigs: {
+          'Scenic Nature': {
+            reddit: { enabled: true, subreddits: ['EarthPorn'] }
+          }
+        }
+      }
+    });
+    const result = reduceDomainCommand(state, {
+      type: 'merge-pool-feed-config',
+      payload: {
+        name: 'Scenic Nature',
+        source: 'reddit',
+        config: { enabled: true, subreddits: ['EarthPorn'] }
+      }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
   });
 
   assertTest('REST and socket adapters decode the same category command', () => {

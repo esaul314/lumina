@@ -1519,6 +1519,36 @@ assertAsyncTest('createDomainDispatcher interprets external photo persistence ef
   assert.deepStrictEqual(ioEmits.map(([event]) => event), ['state-sync']);
 });
 
+assertAsyncTest('createDomainDispatcher stays silent for no-op pool config commands', async () => {
+  const { dispatcher, ioEmits, state } = createDispatcherHarness();
+  state.searchKeywords['Scenic Nature'] = ['forest', 'mist'];
+  state.feedConfigs['Scenic Nature'] = {
+    reddit: { enabled: true, subreddits: ['EarthPorn'] }
+  };
+
+  const keywordsResult = await dispatcher.dispatchCommand({
+    type: 'set-pool-keywords',
+    payload: {
+      name: 'Scenic Nature',
+      keywords: ['forest', 'mist']
+    }
+  });
+  const feedConfigResult = await dispatcher.dispatchCommand({
+    type: 'merge-pool-feed-config',
+    payload: {
+      name: 'Scenic Nature',
+      source: 'reddit',
+      config: { enabled: true, subreddits: ['EarthPorn'] }
+    }
+  });
+
+  [keywordsResult, feedConfigResult].forEach((result) => {
+    assert.deepStrictEqual(result.reducerResult.events, []);
+    assert.deepStrictEqual(result.reducerResult.effects, []);
+  });
+  assert.deepStrictEqual(ioEmits, []);
+});
+
 async function runClientStateTests() {
   logSuite('Remote Feed Control Snapshot Mutations');
 

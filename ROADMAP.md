@@ -20,7 +20,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
 - Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
 - Done: implementation companion Step 3. `server/app.js` now delegates active-feed refresh, environment refresh, kiosk/browser lifecycle, and idle-daemon orchestration to dedicated runtime modules.
-- Next: continue the Phase 1 implementation companion with Step 4, focused on making the shared command/effect pipeline more composable and legible.
+- Next: continue the Phase 1 implementation companion with Step 4, focused on extending the new reducer-local combinators and dispatcher readability patterns only where they remove real repeated command/effect ceremony.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 3 are complete and Step 4 is the active refactor checkpoint.
 
 ## Architectural Rule
@@ -58,7 +58,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: Steps 1 through 3 of the implementation companion are complete; the active companion work is now Step 4's command/effect readability pass across the shared reducer and dispatcher helpers.
+  - Next focus: Steps 1 through 3 of the implementation companion are complete; the active companion work is now Step 4's command/effect readability pass across the shared reducer and dispatcher helpers, with photo/config/pool mutation helpers already standardized and the remaining work limited to clearly repetitive seams.
 
 ### Shared domain flow
 

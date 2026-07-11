@@ -304,6 +304,14 @@ function hasPool(state, name) {
   return Boolean(name && state.library.collections[name]);
 }
 
+function normalizePoolName(value) {
+  return String(value || '').trim();
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function mergePoolFeedConfig(existingConfig, source, patch) {
   return {
     ...existingConfig,
@@ -323,8 +331,77 @@ function assignIfChanged(target, key, value) {
   return true;
 }
 
+function addPoolState(nextState, name, keywords) {
+  if (hasPool(nextState, name)) {
+    return false;
+  }
+
+  nextState.library.collections[name] = [];
+  nextState.config.searchKeywords[name] = [...keywords];
+  nextState.config.feedConfigs[name] = normalizeFeedConfigKeywords(keywords);
+  return true;
+}
+
+function assignPoolKeywords(nextState, name, keywords) {
+  if (arraysEqual(nextState.config.searchKeywords[name] || [], keywords)) {
+    return false;
+  }
+
+  nextState.config.searchKeywords[name] = [...keywords];
+  return true;
+}
+
+function mergePoolSourceConfig(nextState, name, source, configPatch) {
+  const existingPoolConfig = nextState.config.feedConfigs[name] || {};
+  const existingSourceConfig = existingPoolConfig[source] || {};
+  const mergedPoolConfig = mergePoolFeedConfig(existingPoolConfig, source, configPatch);
+  const mergedSourceConfig = mergedPoolConfig[source] || {};
+
+  if (shallowEqualObjects(mergedSourceConfig, existingSourceConfig)) {
+    return false;
+  }
+
+  nextState.config.feedConfigs[name] = mergedPoolConfig;
+  return true;
+}
+
+function removePoolState(nextState, name) {
+  if (!hasPool(nextState, name)) {
+    return false;
+  }
+
+  delete nextState.library.collections[name];
+  delete nextState.config.searchKeywords[name];
+  delete nextState.config.feedConfigs[name];
+  nextState.playback.selectedCategories = normalizeCategorySelection(
+    nextState.playback.selectedCategories.filter((category) => category !== name),
+    Object.keys(nextState.library.collections),
+    Object.keys(nextState.library.collections)[0] || 'Scenic Nature'
+  );
+  return true;
+}
+
+function reducePoolMutation(state, name, options = {}) {
+  if (!hasPool(state, name)) {
+    return unchangedResult(state);
+  }
+
+  return reduceStateMutation(state, {
+    ...options,
+    apply: (nextState) => options.apply(nextState, name)
+  });
+}
+
 function arraysEqual(left = [], right = []) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function valuesEqual(left, right) {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && arraysEqual(left, right);
+  }
+
+  return left === right;
 }
 
 function shallowEqualObjects(left = {}, right = {}) {
@@ -332,7 +409,7 @@ function shallowEqualObjects(left = {}, right = {}) {
   const rightKeys = Object.keys(right);
 
   return leftKeys.length === rightKeys.length
-    && leftKeys.every((key) => left[key] === right[key]);
+    && leftKeys.every((key) => valuesEqual(left[key], right[key]));
 }
 
 function normalizeVisionConfig(config = {}) {
@@ -694,66 +771,57 @@ function reduceDomainCommand(state, command, env = {}) {
     }
 
     case 'add-pool': {
-      const name = String(command.payload?.name || '').trim();
+      const name = normalizePoolName(command.payload?.name);
       const keywords = trimKeywords(command.payload?.keywords);
-      if (!name || keywords.length === 0 || hasPool(state, name)) {
+      if (!name || keywords.length === 0) {
         return unchangedResult(state);
       }
 
-      const nextState = cloneState(state);
-      nextState.library.collections[name] = [];
-      nextState.config.searchKeywords[name] = keywords;
-      nextState.config.feedConfigs[name] = normalizeFeedConfigKeywords(keywords);
-      return stateSyncResult(
-        nextState,
-        withPersist([{ type: 'run-crawler', payload: { categories: [name] } }])
-      );
+      return reduceStateMutation(state, {
+        apply: (nextState) => addPoolState(nextState, name, keywords),
+        persist: true,
+        effects: [{ type: 'run-crawler', payload: { categories: [name] } }]
+      });
     }
 
     case 'set-pool-keywords': {
-      const name = String(command.payload?.name || '').trim();
+      const name = normalizePoolName(command.payload?.name);
       const keywords = trimKeywords(command.payload?.keywords);
-      if (!hasPool(state, name) || keywords.length === 0) {
+      if (keywords.length === 0) {
         return unchangedResult(state);
       }
 
-      const nextState = cloneState(state);
-      nextState.config.searchKeywords[name] = keywords;
-      return stateSyncResult(nextState, withPersist());
+      return reducePoolMutation(state, name, {
+        apply: (nextState, poolName) => assignPoolKeywords(nextState, poolName, keywords),
+        persist: true
+      });
     }
 
     case 'merge-pool-feed-config': {
-      const name = String(command.payload?.name || '').trim();
-      const source = String(command.payload?.source || '').trim();
+      const name = normalizePoolName(command.payload?.name);
+      const source = normalizePoolName(command.payload?.source);
       const configPatch = command.payload?.config;
-      if (!hasPool(state, name) || !source || !configPatch || typeof configPatch !== 'object' || Array.isArray(configPatch)) {
+      if (!source || !isPlainObject(configPatch)) {
         return unchangedResult(state);
       }
 
-      const nextState = cloneState(state);
-      nextState.config.feedConfigs[name] = mergePoolFeedConfig(
-        nextState.config.feedConfigs[name] || {},
-        source,
-        configPatch
-      );
-      return stateSyncResult(nextState, withPersist());
+      return reducePoolMutation(state, name, {
+        apply: (nextState, poolName) => mergePoolSourceConfig(nextState, poolName, source, configPatch),
+        persist: true
+      });
     }
 
     case 'delete-pool': {
-      const name = String(command.payload?.name || '').trim();
-      if (!hasPool(state, name)) {
+      const name = normalizePoolName(command.payload?.name);
+      if (!name) {
         return unchangedResult(state);
       }
 
       const nextState = cloneState(state);
-      delete nextState.library.collections[name];
-      delete nextState.config.searchKeywords[name];
-      delete nextState.config.feedConfigs[name];
-      nextState.playback.selectedCategories = normalizeCategorySelection(
-        nextState.playback.selectedCategories.filter((category) => category !== name),
-        Object.keys(nextState.library.collections),
-        Object.keys(nextState.library.collections)[0] || 'Scenic Nature'
-      );
+      if (!removePoolState(nextState, name)) {
+        return unchangedResult(state);
+      }
+
       const recomputed = recomputeFeed(nextState, rng);
       const ensured = ensureActivePhoto(recomputed, { now, rng, direction: 'next', forceReselect: true });
       return photoUpdateResult(

@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-10: Continued Step 4 with Pool/Feed-Config Reducer Combinators and No-Op Guardrails
+- **Goal**: Keep the implementation-companion Step 4 readability pass moving by collapsing the remaining repeated pool/config reducer ceremony without hiding the more complex playback-recompute branches.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` so pool lifecycle/config branches now share small reducer-local helpers for pool-name normalization, equality-aware keyword replacement, source-config merging, and pool removal setup instead of repeating clone/validate/persist scaffolding inline.
+  - Added content-aware equality for small config objects so array-backed source settings like `subreddits` and `keywords` no longer trigger persistence or broadcasts when the normalized effective config is unchanged.
+  - Kept the delete-pool playback recompute path explicit while reusing the new removal helper, preserving readability by standardizing only the truly repetitive parts of the command/effect pipeline.
+  - Added regression coverage in `server/domain/tests.js` and `run-tests.js` for no-op pool keyword updates, no-op feed-config merges, and dispatcher silence when those commands do not change durable state.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo still points to Step 4 as the active checkpoint while recording that the pool/config slice is now complete.
+- **Learning**: The right Step 4 abstraction here was a small semigroup-like merge boundary for pool config plus explicit no-op detection, not a generic mutation framework. Repeated ceremony disappeared, but the delete/recompute branch still reads plainly because it stayed concrete.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-10: Continued Step 4 with Declarative Config Mutation Helpers and Dispatcher Handler Tables
 - **Goal**: Carry the active implementation-companion Step 4 checkpoint forward by cleaning up the remaining ad hoc command/effect seams after the earlier photo-mutation and result-shape standardization.
 - **Implementation**:
