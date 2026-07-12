@@ -2745,6 +2745,112 @@ async function runIntegrationTests() {
     }]);
   });
 
+  await assertAsyncTest('PATCH /api/pools/:name batches keywords and feed-config updates through the shared decoder-spec pipeline', async () => {
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {
+        'Scenic Nature': {
+          reddit: { enabled: true, subreddits: ['EarthPorn'] },
+          unsplash: { enabled: true, keywords: ['forest'] }
+        }
+      },
+      searchKeywords: {
+        'Scenic Nature': ['forest']
+      },
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const collections = {
+      'Scenic Nature': [{ url: 'land-1', category: 'Scenic Nature' }]
+    };
+    const dispatched = [];
+    const app = buildConfiguredRoutesApp({
+      state,
+      collections,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+
+        if (command.type === 'set-pool-keywords') {
+          state.searchKeywords[command.payload.name] = command.payload.keywords;
+        }
+
+        if (command.type === 'merge-pool-feed-config') {
+          state.feedConfigs[command.payload.name] ||= {};
+          state.feedConfigs[command.payload.name][command.payload.source] = {
+            ...(state.feedConfigs[command.payload.name][command.payload.source] || {}),
+            ...command.payload.config
+          };
+        }
+
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'persist' }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'patch', '/api/pools/:name', {
+      params: { name: 'Scenic Nature' },
+      body: {
+        keywords: ['mist', 'river'],
+        feedConfigs: {
+          reddit: { enabled: false, subreddits: ['CityPorn'] },
+          unsplash: { featured: true, keywords: ['mist'] }
+        }
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.deepStrictEqual(response.body.pool.keywords, ['mist', 'river']);
+    assert.deepStrictEqual(response.body.pool.feedConfigs.reddit, {
+      enabled: false,
+      subreddits: ['CityPorn']
+    });
+    assert.deepStrictEqual(response.body.pool.feedConfigs.unsplash, {
+      enabled: true,
+      keywords: ['mist'],
+      featured: true
+    });
+    assert.deepStrictEqual(dispatched, [
+      {
+        type: 'set-pool-keywords',
+        payload: {
+          name: 'Scenic Nature',
+          keywords: ['mist', 'river']
+        }
+      },
+      {
+        type: 'merge-pool-feed-config',
+        payload: {
+          name: 'Scenic Nature',
+          source: 'reddit',
+          config: {
+            enabled: false,
+            subreddits: ['CityPorn']
+          }
+        }
+      },
+      {
+        type: 'merge-pool-feed-config',
+        payload: {
+          name: 'Scenic Nature',
+          source: 'unsplash',
+          config: {
+            featured: true,
+            keywords: ['mist']
+          }
+        }
+      }
+    ]);
+  });
+
   await assertAsyncTest('POST /api/pools/:name/crawl returns 404 before async effect submission when the pool guard fails', async () => {
     let dispatched = false;
     const app = buildConfiguredRoutesApp({

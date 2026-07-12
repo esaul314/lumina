@@ -188,6 +188,19 @@ module.exports = function configureRoutes({
           responsePatch: responsePatch(decodedCommand)
         }))(decodeCommandOrFailure(command, status, error, extra))
   );
+  const decodeOptionalCommandSpec = (context) => (spec) => decodeOptionalCommandPart({
+    active: resolveRouteValue(spec.active, context),
+    command: resolveRouteValue(spec.decode, context),
+    error: resolveRouteValue(spec.error, context),
+    status: resolveRouteValue(spec.status, context) ?? 400,
+    extra: resolveRouteValue(spec.extra, context) || {},
+    responsePatch: (command) => (
+      resolveRouteValue(spec.responsePatch, { ...context, command }) || {}
+    )
+  });
+  const decodeCommandSpecs = (context, specs) => mapRouteDecode(buildCommandParts)(
+    collectRouteDecodeResults(specs.map(decodeOptionalCommandSpec(context)))
+  );
   const buildCommandParts = (parts) => ({
     commands: compact(parts.map((part) => part?.command)),
     responsePatch: parts.reduce((patch, part) => (
@@ -379,6 +392,50 @@ module.exports = function configureRoutes({
       )
     })
   });
+  const createPhotoPatchSpecs = () => [
+    {
+      active: ({ body }) => body?.rating !== undefined,
+      decode: ({ url, body }) => decodePhotoRatingCommand({ url, rating: body?.rating }),
+      error: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
+      responsePatch: ({ command }) => ({
+        rating: command.payload.rating
+      })
+    },
+    {
+      active: ({ body }) => body?.isBroken === true,
+      decode: ({ url }) => decodeBrokenPhotoCommand({ url }),
+      error: 'Invalid parameter: "url" must be a non-empty string.',
+      responsePatch: () => ({
+        isBroken: true,
+        rating: 1
+      })
+    },
+    {
+      active: ({ body }) => body?.cropPercent !== undefined || body?.cropPositionY !== undefined,
+      decode: ({ url, body }) => decodePhotoCropCommand({
+        url,
+        cropPercent: body?.cropPercent,
+        cropPositionY: body?.cropPositionY
+      }),
+      error: 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.',
+      responsePatch: ({ command }) => ({
+        ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
+        ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})
+      })
+    },
+    {
+      active: ({ body }) => body?.preventPairing !== undefined,
+      decode: ({ url, body }) => decodePhotoPreventPairingCommand({
+        url,
+        preventPairing: body?.preventPairing,
+        preserveActive: body?.preserveActive
+      }),
+      error: 'Invalid parameter: "preventPairing" must be a boolean-compatible value.',
+      responsePatch: ({ command }) => ({
+        preventPairing: command.payload.preventPairing
+      })
+    }
+  ];
   const decodePhotoPatchRequest = (req) => {
     const body = isObject(req.body) ? req.body : null;
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
@@ -386,61 +443,26 @@ module.exports = function configureRoutes({
       return createRouteDecodeFailure(400, 'Invalid parameter: "url" must be a non-empty string.');
     }
 
-    return mapRouteDecode((parts) => {
-      const { commands, responsePatch } = buildCommandParts(parts);
-
-      return {
-        commands,
-        responsePhoto: {
-          url,
-          ...responsePatch
-        }
-      };
-    })(collectRouteDecodeResults([
-      decodeOptionalCommandPart({
-        active: body?.rating !== undefined,
-        command: decodePhotoRatingCommand({ url, rating: body?.rating }),
-        error: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
-        responsePatch: (command) => ({
-          rating: command.payload.rating
-        })
-      }),
-      decodeOptionalCommandPart({
-        active: body?.isBroken === true,
-        command: decodeBrokenPhotoCommand({ url }),
-        error: 'Invalid parameter: "url" must be a non-empty string.',
-        responsePatch: () => ({
-          isBroken: true,
-          rating: 1
-        })
-      }),
-      decodeOptionalCommandPart({
-        active: body?.cropPercent !== undefined || body?.cropPositionY !== undefined,
-        command: decodePhotoCropCommand({
-          url,
-          cropPercent: body?.cropPercent,
-          cropPositionY: body?.cropPositionY
-        }),
-        error: 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.',
-        responsePatch: (command) => ({
-          ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
-          ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})
-        })
-      }),
-      decodeOptionalCommandPart({
-        active: body?.preventPairing !== undefined,
-        command: decodePhotoPreventPairingCommand({
-          url,
-          preventPairing: body?.preventPairing,
-          preserveActive: body?.preserveActive
-        }),
-        error: 'Invalid parameter: "preventPairing" must be a boolean-compatible value.',
-        responsePatch: (command) => ({
-          preventPairing: command.payload.preventPairing
-        })
-      })
-    ]));
+    return mapRouteDecode(({ commands, responsePatch }) => ({
+      commands,
+      responsePhoto: {
+        url,
+        ...responsePatch
+      }
+    }))(decodeCommandSpecs({ body, url }, createPhotoPatchSpecs()));
   };
+  const createPoolPatchSpecs = ({ name, body, feedConfigs }) => [
+    {
+      active: () => body?.keywords !== undefined,
+      decode: () => decodePoolKeywordsCommand({ name, keywords: body?.keywords }),
+      error: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
+    },
+    ...Object.entries(feedConfigs || {}).map(([source, config]) => ({
+      active: true,
+      decode: () => decodePoolFeedConfigCommand({ name, source, config }),
+      error: `Invalid feed config payload for source "${source}".`
+    }))
+  ];
   const decodePoolPatchRequest = (req) => {
     const name = req.params.name.trim();
     const feedConfigs = req.body?.feedConfigs;
@@ -453,25 +475,13 @@ module.exports = function configureRoutes({
       return createRouteDecodeFailure(400, 'Invalid parameter: "feedConfigs" must be an object keyed by source.');
     }
 
-    const feedConfigDecoders = Object.entries(feedConfigs || {}).map(([source, config]) => (
-      decodeOptionalCommandPart({
-        active: true,
-        command: decodePoolFeedConfigCommand({ name, source, config }),
-        error: `Invalid feed config payload for source "${source}".`
-      })
-    ));
-
-    return mapRouteDecode((parts) => ({
+    return mapRouteDecode(({ commands }) => ({
       name,
-      commands: buildCommandParts(parts).commands
-    }))(collectRouteDecodeResults([
-      decodeOptionalCommandPart({
-        active: req.body?.keywords !== undefined,
-        command: decodePoolKeywordsCommand({ name, keywords: req.body?.keywords }),
-        error: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
-      }),
-      ...feedConfigDecoders
-    ]));
+      commands
+    }))(decodeCommandSpecs(
+      { body: req.body, feedConfigs, name },
+      createPoolPatchSpecs({ name, body: req.body, feedConfigs })
+    ));
   };
   const decodeKeywordConfigRequest = (req) => {
     const category = typeof req.body?.category === 'string' ? req.body.category.trim() : '';
