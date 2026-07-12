@@ -2,26 +2,8 @@
 
 const assert = require('assert');
 const {
-  buildBalancedFeed,
-  deriveCurrentFrame,
-  filterPhotosForNight,
-  filterPhotosForTime,
-  filterPhotosForWeather,
-  normalizeCategorySelection,
-  selectSmartPhoto,
-  selectWeightedRandomPhoto
-} = require('./selectors.js');
-const { reduceDomainCommand } = require('./reducer.js');
-const {
-  buildBooleanFieldPatch,
-  buildEnumFieldPatch,
-  buildFiniteNumberFieldPatch,
-  buildObjectFieldPatch,
-  buildPercentFieldPatch,
-  buildTrimmedStringFieldPatch,
-  buildWidgetPatch,
+  SOCKET_STATE_PATCH_SPECS,
   decodeActivePhotoCommand,
-  createStatePatchCommandDecoder,
   decodeAdvancePhotoCommand,
   decodeAddPoolCommand,
   decodeCategorySelectionFromHttp,
@@ -42,9 +24,22 @@ const {
   decodeVisionAnalysisCommand
 } = require('./commands.js');
 const {
+  buildBalancedFeed,
+  deriveCurrentFrame,
+  filterPhotosForNight,
+  filterPhotosForTime,
+  filterPhotosForWeather,
+  normalizeCategorySelection,
+  selectSmartPhoto,
+  selectWeightedRandomPhoto
+} = require('./selectors.js');
+const { reduceDomainCommand } = require('./reducer.js');
+const {
   buildPersistedSnapshot,
   normalizePersistedSnapshot
 } = require('../config/collectionsCodec.js');
+
+const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
 
 function createState(overrides = {}) {
   const baseState = {
@@ -286,12 +281,12 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
-  assertTest('state patch helper decoders compose shared socket settings commands declaratively', () => {
-    const decodeWidgetCommand = createStatePatchCommandDecoder(buildWidgetPatch);
-    const decodeThemeCommand = createStatePatchCommandDecoder(buildTrimmedStringFieldPatch('theme'));
-    const decodeIntervalCommand = createStatePatchCommandDecoder(buildFiniteNumberFieldPatch('slideshowInterval'));
-    const decodeAlignWeatherCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignWeather'));
-    const decodeManualLocationCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('manualLocation'));
+  assertTest('shared socket state-patch specs compose the patch-state command boundary declaratively', () => {
+    const decodeWidgetCommand = findSocketStatePatchDecode('toggle-widget');
+    const decodeThemeCommand = findSocketStatePatchDecode('change-theme');
+    const decodeIntervalCommand = findSocketStatePatchDecode('change-interval');
+    const decodeAlignWeatherCommand = findSocketStatePatchDecode('toggle-align-weather');
+    const decodeManualLocationCommand = findSocketStatePatchDecode('update-manual-location');
 
     assert.deepStrictEqual(decodeWidgetCommand({ widgetName: 'clock', visible: 0 }), {
       type: 'patch-state',
@@ -337,9 +332,9 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
-  assertTest('state patch helper decoders reject invalid enum and percent socket payloads', () => {
-    const decodeScaleModeCommand = createStatePatchCommandDecoder(buildEnumFieldPatch('scaleMode', ['cover', 'contain']));
-    const decodeNightPercentageCommand = createStatePatchCommandDecoder(buildPercentFieldPatch('nightPercentage'));
+  assertTest('shared socket state-patch specs reject invalid enum and percent payloads', () => {
+    const decodeScaleModeCommand = findSocketStatePatchDecode('change-scale-mode');
+    const decodeNightPercentageCommand = findSocketStatePatchDecode('change-night-percentage');
 
     assert.deepStrictEqual(decodeScaleModeCommand('contain'), {
       type: 'patch-state',

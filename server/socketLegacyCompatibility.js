@@ -9,19 +9,7 @@ const {
   markPhotoBroken
 } = require('./config/collections.js');
 const { persistEnvVars } = require('./config/env.js');
-
-const STATE_PATCH_FIELDS = [
-  'theme',
-  'inactivityTimeout',
-  'slideshowInterval',
-  'scaleMode',
-  'splitPortrait',
-  'splitCropPercent',
-  'alignTimeOfDay',
-  'alignWeather',
-  'nightPercentage',
-  'allowOpenAiFallback'
-];
+const { STATE_PATCH_FIELDS } = require('./domain/commands.js');
 
 const CATEGORY_ALIASES = {
   'Liminal Space': 'Liminal Spaces',

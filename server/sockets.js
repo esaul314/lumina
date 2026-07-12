@@ -5,14 +5,7 @@ const googlePhotos = require('./services/googlePhotos.js');
 const { getHostDisplayInfo } = require('./services/system.js');
 const { createSocketLegacyCompatibility } = require('./socketLegacyCompatibility.js');
 const {
-  buildBooleanFieldPatch,
-  buildEnumFieldPatch,
-  buildFiniteNumberFieldPatch,
-  buildObjectFieldPatch,
-  buildPercentFieldPatch,
-  buildTrimmedStringFieldPatch,
-  buildWidgetPatch,
-  createStatePatchCommandDecoder,
+  SOCKET_STATE_PATCH_SPECS,
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
@@ -33,35 +26,7 @@ const {
   decodeVisionAnalysisCommand,
 } = require('./domain/commands.js');
 
-const decodeWidgetCommand = createStatePatchCommandDecoder(buildWidgetPatch);
-const decodeAlignTimeCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignTimeOfDay'));
-const decodeAlignWeatherCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('alignWeather'));
-const decodeAllowOpenAiFallbackCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('allowOpenAiFallback'));
-const decodeScaleModeCommand = createStatePatchCommandDecoder(buildEnumFieldPatch('scaleMode', ['cover', 'contain']));
-const decodeSplitPortraitCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('splitPortrait'));
-const decodeSplitCropCommand = createStatePatchCommandDecoder(buildPercentFieldPatch('splitCropPercent'));
-const decodeVisionConfigCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('visionConfig'));
-const decodeNightPercentageCommand = createStatePatchCommandDecoder(buildPercentFieldPatch('nightPercentage'));
-const decodeIntervalCommand = createStatePatchCommandDecoder(buildFiniteNumberFieldPatch('slideshowInterval'));
-const decodeThemeCommand = createStatePatchCommandDecoder(buildTrimmedStringFieldPatch('theme'));
-const decodeAutoLocationCommand = createStatePatchCommandDecoder(buildBooleanFieldPatch('autoLocation'));
-const decodeManualLocationCommand = createStatePatchCommandDecoder(buildObjectFieldPatch('manualLocation'));
 const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCommand({ active });
-const statePatchSpecs = [
-  ['toggle-widget', decodeWidgetCommand],
-  ['toggle-align-time', decodeAlignTimeCommand],
-  ['toggle-align-weather', decodeAlignWeatherCommand],
-  ['toggle-allow-openai-fallback', decodeAllowOpenAiFallbackCommand],
-  ['change-scale-mode', decodeScaleModeCommand],
-  ['toggle-split-portrait', decodeSplitPortraitCommand],
-  ['change-split-crop', decodeSplitCropCommand],
-  ['update-vision-config', decodeVisionConfigCommand],
-  ['change-night-percentage', decodeNightPercentageCommand],
-  ['change-interval', decodeIntervalCommand],
-  ['change-theme', decodeThemeCommand],
-  ['toggle-auto-location', decodeAutoLocationCommand],
-  ['update-manual-location', decodeManualLocationCommand]
-];
 const buildSocketErrorLogger = (label) => (error) => {
   console.error(`Socket Event: ${label} failed:`, error.message);
 };
@@ -362,7 +327,7 @@ module.exports = function configureSockets({
       }
     });
 
-    statePatchSpecs.forEach(([event, decode]) => {
+    SOCKET_STATE_PATCH_SPECS.forEach(({ event, decode }) => {
       listenForStatePatch(event, decode);
     });
 

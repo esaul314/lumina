@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared Durable Socket State-Patch Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated socket state-patch decoder assembly without changing the existing Socket.IO event contracts.
+- **Implementation**:
+  - Moved the durable socket state-patch event specs into `server/domain/commands.js`, so the shared command module now owns the declarative `event -> patch builder -> patch-state command` mapping instead of rebuilding the decoders in `server/sockets.js`.
+  - Refactored `server/sockets.js` to register those shared specs directly, leaving the transport layer with only wiring and fallback policy instead of another pocket of patch-decoder assembly.
+  - Reused the shared `STATE_PATCH_FIELDS` list in `server/socketLegacyCompatibility.js`, so the compatibility fallback and the shared command decoder stop carrying parallel scalar field inventories.
+  - Expanded `server/domain/tests.js` to assert against the exported shared socket state-patch specs directly, which keeps the regression coverage on the actual transport command boundary instead of on locally rebuilt test helpers.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was not another listener factory, but one small shared spec table. Once the durable socket settings boundary became plain spec data owned by the command module, both the transport adapter and the fallback/test seams got smaller without losing readability.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-12: Continued Step 4 with Shared Reducer Specs for Playback Selection Commands
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated playback-selection reducer ceremony without hiding preview-feed staging or navigation policy.
 - **Implementation**:

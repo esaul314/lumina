@@ -248,6 +248,11 @@ const createStatePatchCommandDecoder = (buildPatch) => (payload) => {
   return patch ? decodeStatePatchCommand(patch) : null;
 };
 
+const createSocketStatePatchSpec = curry((event, buildPatch) => ({
+  event,
+  decode: createStatePatchCommandDecoder(buildPatch)
+}));
+
 const buildBooleanFieldPatch = curry((field, value) => ({
   [field]: Boolean(value)
 }));
@@ -319,28 +324,21 @@ function decodeScreensaverActiveCommand(payload) {
   });
 }
 
-function decodeSplitPortraitCommand(enabled) {
-  return {
-    type: 'set-split-portrait',
-    payload: {
-      enabled: Boolean(enabled)
-    }
-  };
-}
-
-function decodeSplitCropCommand(percent) {
-  const value = validatePercent(percent);
-  if (value === null) {
-    return null;
-  }
-
-  return {
-    type: 'set-split-crop',
-    payload: {
-      percent: value
-    }
-  };
-}
+const SOCKET_STATE_PATCH_SPECS = [
+  createSocketStatePatchSpec('toggle-widget', buildWidgetPatch),
+  createSocketStatePatchSpec('toggle-align-time', buildBooleanFieldPatch('alignTimeOfDay')),
+  createSocketStatePatchSpec('toggle-align-weather', buildBooleanFieldPatch('alignWeather')),
+  createSocketStatePatchSpec('toggle-allow-openai-fallback', buildBooleanFieldPatch('allowOpenAiFallback')),
+  createSocketStatePatchSpec('change-scale-mode', buildEnumFieldPatch('scaleMode', ['cover', 'contain'])),
+  createSocketStatePatchSpec('toggle-split-portrait', buildBooleanFieldPatch('splitPortrait')),
+  createSocketStatePatchSpec('change-split-crop', buildPercentFieldPatch('splitCropPercent')),
+  createSocketStatePatchSpec('update-vision-config', buildObjectFieldPatch('visionConfig')),
+  createSocketStatePatchSpec('change-night-percentage', buildPercentFieldPatch('nightPercentage')),
+  createSocketStatePatchSpec('change-interval', buildFiniteNumberFieldPatch('slideshowInterval')),
+  createSocketStatePatchSpec('change-theme', buildTrimmedStringFieldPatch('theme')),
+  createSocketStatePatchSpec('toggle-auto-location', buildBooleanFieldPatch('autoLocation')),
+  createSocketStatePatchSpec('update-manual-location', buildObjectFieldPatch('manualLocation'))
+];
 
 const decodeAddPoolCommand = createPoolCommandDecoder('add-pool', (name, payload) => {
   const keywords = normalizeKeywordTerms(payload?.keywords ?? payload?.keyword, { splitString: true });
@@ -438,6 +436,8 @@ module.exports = {
   decodeTumblrApiKeyCommand,
   decodeStatePatchCommand,
   decodeUseApiTokenCommand,
+  SOCKET_STATE_PATCH_SPECS,
+  STATE_PATCH_FIELDS,
   createStatePatchCommandDecoder,
   buildBooleanFieldPatch,
   buildEnumFieldPatch,
@@ -445,7 +445,5 @@ module.exports = {
   buildObjectFieldPatch,
   buildPercentFieldPatch,
   buildTrimmedStringFieldPatch,
-  buildWidgetPatch,
-  decodeSplitCropCommand,
-  decodeSplitPortraitCommand
+  buildWidgetPatch
 };
