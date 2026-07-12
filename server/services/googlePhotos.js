@@ -14,6 +14,11 @@ if (!fs.existsSync(configDir)) {
   fs.mkdirSync(configDir, { recursive: true });
 }
 
+const MEDIA_DIR = path.join(configDir, 'google_photos_media');
+if (!fs.existsSync(MEDIA_DIR)) {
+  fs.mkdirSync(MEDIA_DIR, { recursive: true });
+}
+
 let credentials = {
   clientId: readEnvVar('GOOGLE_CLIENT_ID'),
   clientSecret: readEnvVar('GOOGLE_CLIENT_SECRET')
@@ -514,6 +519,13 @@ async function syncGoogleAlbum(sessionId) {
 
     writeCachedMediaItems(syncedItems);
     console.log(`Google Photos Service: Synced and cached ${syncedItems.length} selected items successfully for session ${sessionId}.`);
+
+    // Clean orphaned files and kick off background download of new files
+    cleanOrphanedMediaFiles(syncedItems);
+    downloadSyncMediaItems(syncedItems).catch((err) => {
+      console.error('Google Photos Service: Error in background downloader:', err.message);
+    });
+
     return syncedItems;
   } catch (err) {
     console.error('Google Photos Service: Picker session sync failed:', err.message);
@@ -709,6 +721,18 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
 
 async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
   const cachedItem = findCachedMediaItem(mediaItemId);
+  const localFilePath = getLocalMediaFilePath(mediaItemId);
+  if (fs.existsSync(localFilePath)) {
+    try {
+      return {
+        buffer: fs.readFileSync(localFilePath),
+        contentType: cachedItem?.mimeType || 'image/jpeg'
+      };
+    } catch (err) {
+      console.warn(`Google Photos Service: Failed to read local cached file for item ${mediaItemId}, falling back to fetch:`, err.message);
+    }
+  }
+
   const contentTypeHint = cachedItem?.mimeType || 'image/jpeg';
   const requiresAuth = !mediaItemId.startsWith('MOCK_');
   const token = requiresAuth ? await getValidToken() : null;
@@ -749,8 +773,12 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
     });
 
     if (res.ok) {
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (!mediaItemId.startsWith('MOCK_')) {
+        fs.writeFileSync(localFilePath, buffer);
+      }
       return {
-        buffer: Buffer.from(await res.arrayBuffer()),
+        buffer,
         contentType: res.headers.get('content-type') || contentTypeHint
       };
     }
@@ -769,8 +797,12 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
         });
 
         if (retryRes.ok) {
+          const buffer = Buffer.from(await retryRes.arrayBuffer());
+          if (!mediaItemId.startsWith('MOCK_')) {
+            fs.writeFileSync(localFilePath, buffer);
+          }
           return {
-            buffer: Buffer.from(await retryRes.arrayBuffer()),
+            buffer,
             contentType: retryRes.headers.get('content-type') || contentTypeHint
           };
         }
@@ -784,6 +816,60 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
 
   throw lastError || new Error(`Google Photos Service: Failed to fetch media bytes for item ${mediaItemId}.`);
 }
+
+// Pure functional helpers for set difference and orphaned file mapping
+const difference = (setA, setB) => new Set([...setA].filter(x => !setB.has(x)));
+
+const getOrphanedFiles = (allFiles, activeIds) => {
+  const activeSet = new Set(activeIds);
+  const fileIds = new Set(allFiles.map(file => path.parse(file).name));
+  const orphans = difference(fileIds, activeSet);
+  return allFiles.filter(file => orphans.has(path.parse(file).name));
+};
+
+// File system effectful operations
+const getLocalMediaFilePath = (mediaItemId) => path.join(MEDIA_DIR, `${mediaItemId}.jpg`);
+
+const cleanOrphanedMediaFiles = (newItems) => {
+  if (!fs.existsSync(MEDIA_DIR) || process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const files = fs.readdirSync(MEDIA_DIR);
+    const activeIds = newItems.map(item => item.id);
+    const orphans = getOrphanedFiles(files, activeIds);
+    orphans.forEach(file => {
+      fs.unlinkSync(path.join(MEDIA_DIR, file));
+      console.log(`Google Photos Service: Deleted orphaned local file: ${file}`);
+    });
+  } catch (err) {
+    console.warn('Google Photos Service: Failed to clean up orphaned media files:', err.message);
+  }
+};
+
+const downloadSyncMediaItems = async (items) => {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  console.log(`Google Photos Service: Starting background download of ${items.length} media items...`);
+  for (const item of items) {
+    const filePath = getLocalMediaFilePath(item.id);
+    if (!fs.existsSync(filePath)) {
+      try {
+        const url = buildGooglePhotoContentUrl(item.googleBaseUrl);
+        if (url) {
+          const res = await fetch(url);
+          if (res.ok) {
+            fs.writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));
+            console.log(`Google Photos Service: Successfully pre-downloaded item: ${item.id}`);
+          }
+        }
+      } catch (err) {
+        console.warn(`Google Photos Service: Failed to pre-download media for item ${item.id}:`, err.message);
+      }
+    }
+  }
+};
 
 /**
  * 📂 getCachedMediaItems
@@ -833,5 +919,10 @@ module.exports = {
   mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
   isUsableCachedMediaItem,
-  updateCachedMediaItemMetadata
+  updateCachedMediaItemMetadata,
+  difference,
+  getOrphanedFiles,
+  getLocalMediaFilePath,
+  cleanOrphanedMediaFiles,
+  downloadSyncMediaItems
 };

@@ -50,7 +50,13 @@ const {
   getGooglePhotoMediaItemId,
   mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
-  isUsableCachedMediaItem
+  isUsableCachedMediaItem,
+  difference,
+  getOrphanedFiles,
+  getLocalMediaFilePath,
+  cleanOrphanedMediaFiles,
+  downloadSyncMediaItems,
+  fetchMediaItemBytes
 } = require('./server/services/googlePhotos.js');
 const {
   buildChromiumFlags,
@@ -942,6 +948,155 @@ assertTest('legacy Google Photos cache rows without baseUrl or picker session ar
   });
 
   assert.strictEqual(isUsableCachedMediaItem(healthy), true, 'Rows with picker session metadata should remain eligible');
+});
+
+assertTest('difference functional helper computes set difference correctly', () => {
+  const setA = new Set(['a', 'b', 'c']);
+  const setB = new Set(['b', 'd']);
+  const diff = difference(setA, setB);
+  assert.deepStrictEqual([...diff].sort(), ['a', 'c']);
+});
+
+assertTest('getOrphanedFiles functional helper identifies orphaned media files correctly', () => {
+  const allFiles = ['item1.jpg', 'item2.jpg', 'item3.jpg'];
+  const activeIds = ['item1', 'item3'];
+  const orphans = getOrphanedFiles(allFiles, activeIds);
+  assert.deepStrictEqual(orphans, ['item2.jpg']);
+});
+
+assertTest('getLocalMediaFilePath builds correct JPG file destination path', () => {
+  const mediaPath = getLocalMediaFilePath('photo-123');
+  assert.ok(mediaPath.endsWith('google_photos_media/photo-123.jpg'));
+});
+
+assertAsyncTest('fetchMediaItemBytes serves from local file if it exists', async () => {
+  const testId = 'TEST_LOCAL_SERVE_ID';
+  const filePath = getLocalMediaFilePath(testId);
+  const testBuffer = Buffer.from('mock-local-image-bytes');
+  const fs = require('fs');
+  const path = require('path');
+  
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, testBuffer);
+
+  try {
+    const result = await fetchMediaItemBytes(testId);
+    assert.deepStrictEqual(result.buffer.toString(), 'mock-local-image-bytes');
+    assert.strictEqual(result.contentType, 'image/jpeg');
+  } finally {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  }
+});
+
+assertAsyncTest('fetchMediaItemBytes lazy-downloads and caches media when missing', async () => {
+  const originalFetch = globalThis.fetch;
+  const testId = 'MOCK_MEDIA_ITEM_9999';
+  const filePath = getLocalMediaFilePath(testId);
+  const fs = require('fs');
+  
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+
+  globalThis.fetch = async (url, options) => {
+    const urlString = typeof url === 'string' ? url : (url?.url || url?.href || String(url || ''));
+    if (urlString.includes('picsum.photos')) {
+      return {
+        ok: true,
+        headers: {
+          get: (name) => name === 'content-type' ? 'image/jpeg' : null
+        },
+        arrayBuffer: async () => {
+          const buf = Buffer.from('mocked-network-bytes');
+          return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+        }
+      };
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const result = await fetchMediaItemBytes(testId);
+    assert.deepStrictEqual(result.buffer.toString(), 'mocked-network-bytes');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+assertAsyncTest('fetchMediaItemBytes lazy-downloads and caches non-mock media to local disk', async () => {
+  const originalFetch = globalThis.fetch;
+  const testId = 'test-non-mock-id';
+  const filePath = getLocalMediaFilePath(testId);
+  const fs = require('fs');
+  const path = require('path');
+  
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+
+  globalThis.fetch = async (url, options) => {
+    const urlString = typeof url === 'string' ? url : (url?.url || url?.href || String(url || ''));
+    if (urlString.includes('oauth2.googleapis.com')) {
+      return {
+        ok: true,
+        json: async () => ({
+          access_token: 'mock-access-token',
+          expires_in: 3600
+        })
+      };
+    }
+    if (urlString.includes('photoslibrary.googleapis.com')) {
+      return {
+        ok: true,
+        json: async () => ({
+          baseUrl: 'https://mock-google-content.com/some-photo'
+        })
+      };
+    }
+    if (urlString.includes('mock-google-content.com')) {
+      return {
+        ok: true,
+        headers: {
+          get: (name) => name === 'content-type' ? 'image/png' : null
+        },
+        arrayBuffer: async () => {
+          const buf = Buffer.from('mocked-png-bytes');
+          return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+        }
+      };
+    }
+    return originalFetch(url, options);
+  };
+
+  try {
+    const cacheFile = path.join(__dirname, 'server', 'config', 'google_photos_cache.json');
+    const originalCache = fs.existsSync(cacheFile) ? fs.readFileSync(cacheFile, 'utf8') : '[]';
+    
+    fs.writeFileSync(cacheFile, JSON.stringify([{
+      id: testId,
+      url: `/api/google-photos/media/${testId}`,
+      googleBaseUrl: 'https://mock-google-content.com/some-photo',
+      mimeType: 'image/png',
+      width: 800,
+      height: 600
+    }]));
+
+    const result = await fetchMediaItemBytes(testId);
+    assert.deepStrictEqual(result.buffer.toString(), 'mocked-png-bytes');
+    assert.strictEqual(result.contentType, 'image/png');
+    
+    assert.ok(fs.existsSync(filePath), 'Image should be cached to disk');
+    assert.deepStrictEqual(fs.readFileSync(filePath).toString(), 'mocked-png-bytes');
+
+    fs.writeFileSync(cacheFile, originalCache);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 // ============================================================================
