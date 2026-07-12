@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared Reducer Specs for Feed Mutations
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated reducer ceremony across feed-mutating commands without flattening their distinct reselection and persistence policies.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` around one narrow feed-command reducer-spec helper, so `select-categories`, `update-excluded-keywords`, and `delete-pool` now express only their payload normalization and mutation policy while sharing the repeated `apply -> recompute -> finalize playback` interpreter.
+  - Preserved the existing command semantics: category selection still forces photo reselection and emits `photo-update`, excluded-keyword clears still persist and recompute, and invalid pool deletions still short-circuit as no-ops.
+  - Expanded `server/domain/tests.js` with direct regression coverage for forced reselection, exclusion clearing, and invalid delete no-op behavior through the new shared reducer boundary.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was another tiny reducer-spec interpreter, not a generic mutation framework. Once the feed-affecting branches became payload readers plus one shared finalization boundary, the remaining command-specific behavior stayed obvious because the only things left in each spec were the actual policy choices.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-12: Continued Step 4 with Shared Route Decoder-Spec Pipelines for Photo and Pool Patches
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last hand-built optional-command decode ceremony from the shared REST photo/pool patch routes without changing their wire contracts.
 - **Implementation**:
