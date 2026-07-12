@@ -585,6 +585,49 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(rewound.playback.activePhotoUrl, 'port-1');
   });
 
+  assertTest('shared playback reducer specs stage selected preview photos into the visible feed before activation', () => {
+    const state = createState({
+      library: {
+        ...createState().library,
+        photosList: [
+          { url: 'port-1', title: 'Midnight Hallway', rating: 10, orientation: 'portrait', category: 'Liminal Spaces' }
+        ]
+      }
+    });
+    const result = reduceDomainCommand(state, {
+      type: 'set-active-photo',
+      payload: {
+        url: 'preview-1',
+        photo: {
+          url: 'preview-1',
+          title: 'Preview Photo',
+          author: 'Lumina',
+          category: 'Preview'
+        }
+      }
+    });
+
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, 'preview-1');
+    assert.strictEqual(result.nextState.library.photosList[0].url, 'preview-1');
+    assert.strictEqual(result.nextState.library.photosList[0].title, 'Preview Photo');
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
+  assertTest('shared playback reducer specs keep active-photo selection silent when the target photo cannot be resolved', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'set-active-photo',
+      payload: {
+        url: 'missing-preview'
+      }
+    });
+
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.events, []);
+    assert.deepStrictEqual(result.effects, []);
+  });
+
   assertTest('reducer exclusion updates recompute playback consistently', () => {
     const state = createState({
       library: {

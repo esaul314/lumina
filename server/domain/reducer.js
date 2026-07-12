@@ -467,6 +467,62 @@ function buildPoolCommandReducer({
   };
 }
 
+function prependVisiblePhoto(photosList, photo) {
+  if (!photo?.url) {
+    return photosList;
+  }
+
+  return [
+    { ...photo },
+    ...photosList.filter((currentPhoto) => currentPhoto.url !== photo.url)
+  ];
+}
+
+function findSelectablePhoto(state, url, fallbackPhoto = null) {
+  return findPhotoInFeed(state.library.photosList, url)
+    || getPhotoByUrl(state.library.collections, url, state.library.externalCollections)
+    || fallbackPhoto
+    || null;
+}
+
+function applyPlaybackSelection(state, selectedPhoto, {
+  direction,
+  prepareState = (nextState) => nextState
+}) {
+  const nextState = prepareState(cloneState(state), selectedPhoto);
+  const updatedState = updateActivePhotoUrl(nextState, selectedPhoto, direction);
+  return photoUpdateResult(updatedState.state);
+}
+
+function buildPlaybackCommandReducer({
+  readPayload,
+  selectPhoto,
+  resolveDirection,
+  prepareState
+}) {
+  return (state, command, env = {}) => {
+    const payload = readPayload(command, state);
+
+    if (payload === null) {
+      return unchangedResult(state);
+    }
+
+    const selectedPhoto = selectPhoto(state, payload, env);
+    if (!selectedPhoto) {
+      return unchangedResult(state);
+    }
+
+    return applyPlaybackSelection(state, selectedPhoto, {
+      direction: resolveDirection(payload, command, state, env),
+      prepareState: (nextState) => (
+        prepareState
+          ? prepareState(nextState, payload, selectedPhoto, command, state, env)
+          : nextState
+      )
+    });
+  };
+}
+
 const reducePhotoCommand = {
   'rate-photo': buildPhotoCommandReducer({
     buildUpdater: ({ rating }, photo) => ({
@@ -880,6 +936,20 @@ const readPoolFeedConfigPayload = (command) => {
     : null;
 };
 
+const readActivePhotoSelectionPayload = (command) => {
+  const url = String(command.payload?.url || '');
+  const photo = command.payload?.photo && typeof command.payload.photo === 'object'
+    ? /** @type {Photo} */ ({ ...command.payload.photo })
+    : null;
+
+  return url ? { url, photo } : null;
+};
+
+const readAdvancePlaybackPayload = (command) => ({
+  direction: /** @type {'next' | 'prev'} */ (command.payload?.direction || 'next'),
+  strategy: command.payload?.strategy === 'sequence' ? 'sequence' : 'smart'
+});
+
 const reduceSimpleCommand = {
   'set-split-portrait': buildFieldCommandReducer(
     (nextState) => nextState.config,
@@ -987,6 +1057,35 @@ const reducePoolCommand = {
   })
 };
 
+const reducePlaybackCommand = {
+  'set-active-photo': buildPlaybackCommandReducer({
+    readPayload: readActivePhotoSelectionPayload,
+    selectPhoto: (state, { url, photo }) => findSelectablePhoto(state, url, photo),
+    resolveDirection: (_payload, _command, state) => state.playback.lastDirection,
+    prepareState: (nextState, { url, photo }, selectedPhoto) => {
+      if (findPhotoInFeed(nextState.library.photosList, url)) {
+        return nextState;
+      }
+
+      nextState.library.photosList = prependVisiblePhoto(
+        nextState.library.photosList,
+        photo || selectedPhoto
+      );
+
+      return nextState;
+    }
+  }),
+  'advance-photo': buildPlaybackCommandReducer({
+    readPayload: readAdvancePlaybackPayload,
+    selectPhoto: (state, { direction, strategy }, { now, rng }) => (
+      strategy === 'sequence'
+        ? selectSequentialPhoto({ state, direction })
+        : selectSmartPhoto({ state, direction, now, rng })
+    ),
+    resolveDirection: ({ direction }) => direction
+  })
+};
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
@@ -994,6 +1093,7 @@ function reduceDomainCommand(state, command, env = {}) {
   const reduceSharedPhotoCommand = reducePhotoCommand[command.type];
   const reduceSharedFeedCommand = reduceFeedCommand[command.type];
   const reduceSharedPoolCommand = reducePoolCommand[command.type];
+  const reduceSharedPlaybackCommand = reducePlaybackCommand[command.type];
 
   if (reduceSharedCommand) {
     return reduceSharedCommand(state, command);
@@ -1011,46 +1111,14 @@ function reduceDomainCommand(state, command, env = {}) {
     return reduceSharedPoolCommand(state, command);
   }
 
+  if (reduceSharedPlaybackCommand) {
+    return reduceSharedPlaybackCommand(state, command, { now, rng });
+  }
+
   switch (command.type) {
     case 'patch-state': {
       const patch = command.payload && typeof command.payload === 'object' ? command.payload : {};
       return reduceStatePatchCommand(state, patch, { now, rng });
-    }
-
-    case 'set-active-photo': {
-      const url = String(command.payload?.url || '');
-      const payloadPhoto = command.payload?.photo && typeof command.payload.photo === 'object'
-        ? /** @type {Photo} */ ({ ...command.payload.photo })
-        : null;
-      const selectedPhoto = findPhotoInFeed(state.library.photosList, url)
-        || getPhotoByUrl(state.library.collections, url, state.library.externalCollections)
-        || payloadPhoto;
-      if (!selectedPhoto) {
-        return unchangedResult(state);
-      }
-      const nextState = cloneState(state);
-      if (!findPhotoInFeed(nextState.library.photosList, url)) {
-        const previewPhoto = payloadPhoto || selectedPhoto;
-        nextState.library.photosList = [
-          { ...previewPhoto },
-          ...nextState.library.photosList.filter((photo) => photo.url !== url)
-        ];
-      }
-      const updatedState = updateActivePhotoUrl(nextState, selectedPhoto, state.playback.lastDirection);
-      return photoUpdateResult(updatedState.state);
-    }
-
-    case 'advance-photo': {
-      const direction = /** @type {'next' | 'prev'} */ (command.payload?.direction || 'next');
-      const strategy = command.payload?.strategy === 'sequence' ? 'sequence' : 'smart';
-      const nextPhoto = strategy === 'sequence'
-        ? selectSequentialPhoto({ state, direction })
-        : selectSmartPhoto({ state, direction, now, rng });
-      if (!nextPhoto) {
-        return unchangedResult(state);
-      }
-      const nextState = updateActivePhotoUrl(cloneState(state), nextPhoto, direction);
-      return photoUpdateResult(nextState.state);
     }
 
     default:

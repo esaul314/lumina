@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared Reducer Specs for Playback Selection Commands
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated playback-selection reducer ceremony without hiding preview-feed staging or navigation policy.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` around one narrow playback-command reducer-spec helper, so `set-active-photo` and `advance-photo` now express only their payload readers, photo-selection policy, direction policy, and optional feed-staging behavior while sharing the repeated `select -> activate -> emit photo update` shell.
+  - Preserved the existing behavior: preview photos still get staged into the visible feed when needed, sequence and smart navigation still choose photos through the same selectors, and unresolved target URLs still stay silent as no-ops.
+  - Expanded `server/domain/tests.js` with direct regression coverage for preview-photo staging and missing-photo no-op semantics through the new shared playback reducer boundary.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was another tiny reducer-spec interpreter, not a generalized playback DSL. Once the shared shell owned only `select -> maybe stage -> activate`, the interesting behavior stayed explicit because each spec still owns the only domain-specific choices: where the photo comes from and whether the visible feed needs patching first.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-12: Continued Step 4 with Shared Reducer Specs for Remaining Pool Commands
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated reducer ceremony across pool creation and pool-config mutations without flattening their distinct persistence and crawler behaviors.
 - **Implementation**:
