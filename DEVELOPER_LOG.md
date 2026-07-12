@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared Reducer Specs for Remaining Pool Commands
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated reducer ceremony across pool creation and pool-config mutations without flattening their distinct persistence and crawler behaviors.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` around one narrow pool-command reducer-spec helper, so `add-pool`, `set-pool-keywords`, and `merge-pool-feed-config` now express only their payload readers, mutation policy, and optional side effects while sharing the repeated persistence/no-op shell.
+  - Kept `delete-pool` on the separate feed-mutation path, preserving the existing `recompute -> ensure active photo -> emit` flow while limiting the new helper strictly to the pool commands that still shared the simpler `read -> apply -> persist/effect` pattern.
+  - Expanded `server/domain/tests.js` with direct no-op coverage for duplicate pool creation and invalid feed-config payloads through the new shared reducer boundary.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was another tiny reducer-spec interpreter, not a generalized pool DSL. Once pool creation and pool-config commands became payload readers plus one explicit shell, the interesting behavior stayed visible because the only things left in each spec were the actual policy choices: create, persist, crawl, or silently no-op.
+- **Verification**: `npm test` passed with 165 assertions. `npm run lint` is the remaining verification gate for this slice.
+
 ### 2026-07-12: Continued Step 4 with Shared Reducer Specs for Feed Mutations
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated reducer ceremony across feed-mutating commands without flattening their distinct reselection and persistence policies.
 - **Implementation**:
