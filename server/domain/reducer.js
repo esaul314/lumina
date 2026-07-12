@@ -384,6 +384,95 @@ function reducePhotoLibraryCommand(state, {
   );
 }
 
+const readPhotoCommandUrl = (command) => String(command.payload?.url || '');
+
+function buildPhotoCommandReducer({
+  buildUpdater,
+  buildMetadata = () => ({}),
+  resolveAfterUpdate = () => keepUpdatedPhotoState,
+  eventsFor
+}) {
+  return (state, command, env = {}) => {
+    const payload = command.payload || {};
+
+    return reducePhotoLibraryCommand(state, {
+      url: readPhotoCommandUrl(command),
+      updater: (photo) => buildUpdater(payload, photo),
+      metadata: buildMetadata(payload),
+      afterUpdate: resolveAfterUpdate(payload),
+      ...(eventsFor ? { eventsFor } : {}),
+      env
+    });
+  };
+}
+
+const reducePhotoCommand = {
+  'rate-photo': buildPhotoCommandReducer({
+    buildUpdater: ({ rating }, photo) => ({
+      ...photo,
+      rating: Number(rating)
+    }),
+    buildMetadata: ({ rating }) => ({
+      rating: Number(rating)
+    }),
+    resolveAfterUpdate: ({ rating }) => (
+      Number(rating) === 1
+        ? recomputeUpdatedPhotoState
+        : keepUpdatedPhotoState
+    )
+  }),
+  'mark-photo-broken': buildPhotoCommandReducer({
+    buildUpdater: (_payload, photo) => ({
+      ...photo,
+      rating: 1,
+      isBroken: true
+    }),
+    buildMetadata: () => ({
+      rating: 1,
+      isBroken: true
+    }),
+    resolveAfterUpdate: () => recomputeUpdatedPhotoState
+  }),
+  'set-photo-crop': buildPhotoCommandReducer({
+    buildUpdater: ({ cropPercent, cropPositionY }, photo) => ({
+      ...photo,
+      ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
+      ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
+    }),
+    buildMetadata: ({ cropPercent, cropPositionY }) => ({
+      ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
+      ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
+    })
+  }),
+  'set-photo-prevent-pairing': buildPhotoCommandReducer({
+    buildUpdater: ({ preventPairing }, photo) => ({
+      ...photo,
+      preventPairing: Boolean(preventPairing)
+    }),
+    buildMetadata: ({ preventPairing }) => ({
+      preventPairing: Boolean(preventPairing)
+    }),
+    resolveAfterUpdate: ({ preventPairing, preserveActive }) => (
+      Boolean(preventPairing) && Boolean(preserveActive)
+        ? preserveUpdatedPhotoState
+        : keepUpdatedPhotoState
+    )
+  }),
+  'report-photo-metadata': buildPhotoCommandReducer({
+    buildUpdater: ({ orientation, width, height }, photo) => ({
+      ...photo,
+      orientation,
+      ...(width !== undefined ? { width: Number(width) } : {}),
+      ...(height !== undefined ? { height: Number(height) } : {})
+    }),
+    buildMetadata: ({ orientation, width, height }) => ({
+      orientation,
+      ...(width !== undefined ? { width: Number(width) } : {}),
+      ...(height !== undefined ? { height: Number(height) } : {})
+    })
+  })
+};
+
 function normalizeFeedConfigKeywords(keywords) {
   return {
     unsplash: { enabled: true, keywords: [...keywords] },
@@ -751,9 +840,14 @@ function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
   const reduceSharedCommand = reduceSimpleCommand[command.type];
+  const reduceSharedPhotoCommand = reducePhotoCommand[command.type];
 
   if (reduceSharedCommand) {
     return reduceSharedCommand(state, command);
+  }
+
+  if (reduceSharedPhotoCommand) {
+    return reduceSharedPhotoCommand(state, command, { now, rng });
   }
 
   switch (command.type) {
@@ -823,86 +917,6 @@ function reduceDomainCommand(state, command, env = {}) {
       }
       const nextState = updateActivePhotoUrl(cloneState(state), nextPhoto, direction);
       return photoUpdateResult(nextState.state);
-    }
-
-    case 'rate-photo': {
-      const url = String(command.payload?.url || '');
-      const rating = Number(command.payload?.rating);
-      return reducePhotoLibraryCommand(state, {
-        url,
-        updater: (photo) => ({
-          ...photo,
-          rating
-        }),
-        metadata: { rating },
-        afterUpdate: rating === 1
-          ? (nextState) => recomputeUpdatedPhotoState(nextState, { now, rng, direction: 'next' })
-          : keepUpdatedPhotoState
-      });
-    }
-
-    case 'mark-photo-broken': {
-      const url = String(command.payload?.url || '');
-      return reducePhotoLibraryCommand(state, {
-        url,
-        updater: (photo) => ({
-          ...photo,
-          rating: 1,
-          isBroken: true
-        }),
-        metadata: { rating: 1, isBroken: true },
-        afterUpdate: (nextState) => recomputeUpdatedPhotoState(nextState, { now, rng, direction: 'next' })
-      });
-    }
-
-    case 'set-photo-crop': {
-      const url = String(command.payload?.url || '');
-      const cropPercent = command.payload?.cropPercent;
-      const cropPositionY = command.payload?.cropPositionY;
-      return reducePhotoLibraryCommand(state, {
-        url,
-        updater: (photo) => ({
-          ...photo,
-          ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
-          ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
-        }),
-        metadata: {
-          ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
-          ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
-        }
-      });
-    }
-
-    case 'set-photo-prevent-pairing': {
-      const url = String(command.payload?.url || '');
-      const preventPairing = Boolean(command.payload?.preventPairing);
-      const shouldPreserveActive = preventPairing && Boolean(command.payload?.preserveActive);
-      return reducePhotoLibraryCommand(state, {
-        url,
-        updater: (photo) => ({
-          ...photo,
-          preventPairing
-        }),
-        metadata: { preventPairing },
-        afterUpdate: shouldPreserveActive ? preserveUpdatedPhotoState : keepUpdatedPhotoState
-      });
-    }
-
-    case 'report-photo-metadata': {
-      const url = String(command.payload?.url || '');
-      const orientation = /** @type {'portrait' | 'landscape'} */ (command.payload?.orientation);
-      const width = command.payload?.width !== undefined ? Number(command.payload.width) : undefined;
-      const height = command.payload?.height !== undefined ? Number(command.payload.height) : undefined;
-      return reducePhotoLibraryCommand(state, {
-        url,
-        updater: (photo) => ({
-          ...photo,
-          orientation,
-          ...(width !== undefined ? { width } : {}),
-          ...(height !== undefined ? { height } : {})
-        }),
-        metadata: { orientation, width, height }
-      });
     }
 
     case 'add-pool': {

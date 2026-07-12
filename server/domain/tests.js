@@ -786,6 +786,58 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('shared photo mutation reducers stay silent when the requested metadata is already active', () => {
+    const baseState = createState();
+    const withKnownPhoto = (photo) => ({
+      ...photo,
+      ...(photo.url === 'port-1'
+        ? {
+            rating: 10,
+            cropPercent: 37,
+            cropPositionY: 22,
+            preventPairing: false,
+            width: 1080,
+            height: 1920
+          }
+        : {})
+    });
+    const state = createState({
+      library: {
+        collections: Object.fromEntries(
+          Object.entries(baseState.library.collections).map(([category, photos]) => [
+            category,
+            photos.map(withKnownPhoto)
+          ])
+        ),
+        externalCollections: {},
+        photosList: baseState.library.photosList.map(withKnownPhoto)
+      }
+    });
+
+    const sameRating = reduceDomainCommand(state, {
+      type: 'rate-photo',
+      payload: { url: 'port-1', rating: 10 }
+    });
+    const sameCrop = reduceDomainCommand(state, {
+      type: 'set-photo-crop',
+      payload: { url: 'port-1', cropPercent: 37, cropPositionY: 22 }
+    });
+    const samePairing = reduceDomainCommand(state, {
+      type: 'set-photo-prevent-pairing',
+      payload: { url: 'port-1', preventPairing: false, preserveActive: false }
+    });
+    const sameMetadata = reduceDomainCommand(state, {
+      type: 'report-photo-metadata',
+      payload: { url: 'port-1', orientation: 'portrait', width: 1080, height: 1920 }
+    });
+
+    [sameRating, sameCrop, samePairing, sameMetadata].forEach((result) => {
+      assert.strictEqual(result.nextState, state);
+      assert.deepStrictEqual(result.events, []);
+      assert.deepStrictEqual(result.effects, []);
+    });
+  });
+
   assertTest('reducer photo metadata commands stay silent when the target photo does not exist', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {

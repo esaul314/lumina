@@ -138,6 +138,18 @@ function getPhotoByUrl(collections, url, externalCollections = {}) {
     .find((photo) => photo?.url === url) ?? null;
 }
 
+function shallowEqualRecords(left, right) {
+  if (left === right) {
+    return true;
+  }
+
+  const leftKeys = Object.keys(left || {});
+  const rightKeys = Object.keys(right || {});
+
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key) => left[key] === right[key]);
+}
+
 function updatePhotoInNamedCollections(collections, url, updater) {
   let updatedPhoto = null;
   let changed = false;
@@ -150,9 +162,12 @@ function updatePhotoInNamedCollections(collections, url, updater) {
         }
 
         const nextPhoto = updater({ ...photo, category: photo.category ?? category });
-        updatedPhoto = nextPhoto;
-        changed = true;
-        return nextPhoto;
+        const photoChanged = !shallowEqualRecords(nextPhoto, photo);
+
+        updatedPhoto = photoChanged ? nextPhoto : photo;
+        changed = changed || photoChanged;
+
+        return photoChanged ? nextPhoto : { ...photo };
       });
 
       return [category, nextPhotos];

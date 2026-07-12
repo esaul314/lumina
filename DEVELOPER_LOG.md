@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Continued Step 4 with Shared Reducer Specs for Photo Library Commands
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining inline reducer ceremony across the shared photo-library command branches without hiding their distinct playback rules.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` so `rate-photo`, `mark-photo-broken`, `set-photo-crop`, `set-photo-prevent-pairing`, and `report-photo-metadata` now register through one small photo-command reducer-spec table.
+  - Kept the command-specific behavior as data: each spec still owns its updater, persisted metadata patch, and playback finalizer (`recompute`, `preserve`, or `keep`) while the shared helper owns only the repeated `url -> update -> persist -> emit` ceremony.
+  - Added regression coverage in `server/domain/tests.js` for equality-aware no-op behavior across the shared photo reducer specs, alongside the existing crop, pairing, ban, and Google Photos metadata assertions.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the active Step 4 checkpoint records this reducer-focused slice while remaining intentionally selective.
+- **Learning**: The useful abstraction here was another tiny reducer-spec boundary, not a broader photo DSL. Once the photo commands became plain data plus one interpreter, the reducer kept the interesting playback semantics visible while the copy-pasted metadata plumbing disappeared.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` passed.
+
 ### 2026-07-11: Continued Step 4 with Shared Reducer Specs for Simple Setter and Effect Commands
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated reducer ceremony for the simplest setter and effect-bearing commands without turning the reducer into a framework.
 - **Implementation**:
