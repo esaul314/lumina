@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared Route Decoder-Spec Pipelines for Photo and Pool Patches
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last hand-built optional-command decode ceremony from the shared REST photo/pool patch routes without changing their wire contracts.
+- **Implementation**:
+  - Refactored [server/routes.js](file:///home/alex/work/lumina/server/routes.js) around one tiny optional-command spec interpreter, so photo and pool patch decoders now express their mutation fields as declarative spec data instead of repeating `decodeOptionalCommandPart(...)` wrapper calls inline.
+  - Rewrote the `PATCH /api/photos` and `PATCH /api/pools/:name` decode paths to build their command batches through those shared spec pipelines while keeping the existing validation messages, command order, and response shaping intact.
+  - Expanded [run-tests.js](file:///home/alex/work/lumina/run-tests.js) with a batch pool-patch regression that proves keywords plus multi-source feed-config updates still dispatch in deterministic order through the new decoder boundary.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was another small lawful interpreter, not a new HTTP DSL. Once optional route mutations became plain spec rows plus one collector, the route layer stayed readable because each mutation still owns the only interesting part: its payload policy and validation message.
+- **Verification**: `npm test` passed with 162 assertions. `npm run lint` passed.
+
 ### 2026-07-12: Continued Step 4 with Shared Transport Command-Decoder Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated transport decode ceremony in `server/domain/commands.js` without changing the existing REST or Socket.IO wire contracts.
 - **Implementation**:
