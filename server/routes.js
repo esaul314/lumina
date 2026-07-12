@@ -158,13 +158,15 @@ module.exports = function configureRoutes({
     externalCollections: buildExternalCollections(),
     excludedKeywords: state.excludedKeywords
   });
-  const getVisibleFeed = () => {
+  const getVisibleFeed = ({ fallbackOnEmpty = true } = {}) => {
     const photos = buildFeedForCategories(getSelectedCategories());
     if (photos.length > 0) {
       return photos;
     }
 
-    return buildFeedForCategories([Object.keys(collections)[0] || DEFAULT_CATEGORY]);
+    return fallbackOnEmpty
+      ? buildFeedForCategories([Object.keys(collections)[0] || DEFAULT_CATEGORY])
+      : [];
   };
   const hasPool = (name) => Boolean(name && collections[name]);
   const hasPoolConfig = (name) => Boolean(name && state.searchKeywords?.[name]);
@@ -625,6 +627,8 @@ module.exports = function configureRoutes({
   });
 
   app.get('/api/photos', createAsyncRoute(async (req, res) => {
+    const requestedCategory = req.query.category;
+
     if (req.query.category) {
       if (!requireDispatcher(res, 'Category selection dispatcher unavailable.')) {
         return;
@@ -636,7 +640,9 @@ module.exports = function configureRoutes({
       }
     }
 
-    res.json(getVisibleFeed());
+    res.json(getVisibleFeed({
+      fallbackOnEmpty: !requestedCategory
+    }));
   }));
 
   app.post('/api/photos/rate', createCommandRoute({
