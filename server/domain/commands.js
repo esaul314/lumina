@@ -6,6 +6,12 @@
 
 const { curry } = require('../utils/fn.js');
 const {
+  normalizeManualLocation,
+  normalizeVisionConfig,
+  pickStatePatchFields,
+  STATE_PATCH_FIELDS
+} = require('./statePatch.js');
+const {
   normalizeKeywordEntries,
   normalizeKeywordTerms
 } = require('../utils/keywordSpecs.js');
@@ -14,19 +20,6 @@ const {
   validatePhotoCropPercent,
   validateRating
 } = require('../utils/validation.js');
-
-const STATE_PATCH_FIELDS = [
-  'theme',
-  'inactivityTimeout',
-  'slideshowInterval',
-  'scaleMode',
-  'splitPortrait',
-  'splitCropPercent',
-  'alignTimeOfDay',
-  'alignWeather',
-  'nightPercentage',
-  'allowOpenAiFallback'
-];
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -184,32 +177,12 @@ function decodeAdvancePhotoCommand(direction, strategy = 'smart') {
   };
 }
 
-function normalizeCoordinate(value, fallback) {
-  const parsed = Number.parseFloat(String(value ?? ''));
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function normalizeVisionConfig(config) {
-  return {
-    apiUrl: trimString(config?.apiUrl),
-    apiKey: trimString(config?.apiKey),
-    model: trimString(config?.model),
-    fallbackUrl: trimString(config?.fallbackUrl),
-    fallbackApiKey: trimString(config?.fallbackApiKey),
-    fallbackModel: trimString(config?.fallbackModel)
-  };
-}
-
 function decodeStatePatchCommand(payload) {
   if (!isPlainObject(payload)) {
     return null;
   }
 
-  const patch = STATE_PATCH_FIELDS.reduce((nextPatch, field) => (
-    payload[field] === undefined
-      ? nextPatch
-      : { ...nextPatch, [field]: payload[field] }
-  ), /** @type {Record<string, unknown>} */ ({}));
+  const patch = pickStatePatchFields(payload);
 
   if (Array.isArray(payload.excludedKeywords)) {
     patch.excludedKeywords = payload.excludedKeywords;
@@ -224,14 +197,7 @@ function decodeStatePatchCommand(payload) {
   }
 
   if (isPlainObject(payload.manualLocation)) {
-    const { lat, lon, city, regionName, country } = payload.manualLocation;
-    patch.manualLocation = {
-      lat: normalizeCoordinate(lat, 45.45),
-      lon: normalizeCoordinate(lon, -73.56),
-      city: trimString(city) || 'Verdun',
-      regionName: trimString(regionName) || 'Quebec',
-      country: trimString(country) || 'Canada'
-    };
+    patch.manualLocation = normalizeManualLocation(payload.manualLocation);
   }
 
   if (isPlainObject(payload.widgets)) {

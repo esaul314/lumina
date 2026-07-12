@@ -287,6 +287,46 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('shared state-patch field specs keep decode and reducer scalar updates aligned', () => {
+    const state = createState();
+    const command = decodeStatePatchCommand({
+      theme: 'Cosmic Night',
+      inactivityTimeout: 300000,
+      slideshowInterval: 45000,
+      scaleMode: 'contain',
+      splitPortrait: false,
+      splitCropPercent: 35,
+      alignTimeOfDay: true,
+      alignWeather: true,
+      nightPercentage: 25,
+      allowOpenAiFallback: true
+    });
+
+    assert.deepStrictEqual(command, {
+      type: 'patch-state',
+      payload: {
+        theme: 'Cosmic Night',
+        inactivityTimeout: 300000,
+        slideshowInterval: 45000,
+        scaleMode: 'contain',
+        splitPortrait: false,
+        splitCropPercent: 35,
+        alignTimeOfDay: true,
+        alignWeather: true,
+        nightPercentage: 25,
+        allowOpenAiFallback: true
+      }
+    });
+
+    const result = reduceDomainCommand(state, command);
+
+    Object.entries(command.payload).forEach(([field, value]) => {
+      assert.deepStrictEqual(result.nextState.config[field], value);
+    });
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+  });
+
   assertTest('shared socket state-patch specs compose the patch-state command boundary declaratively', () => {
     const decodeWidgetCommand = findSocketStatePatchDecode('toggle-widget');
     const decodeThemeCommand = findSocketStatePatchDecode('change-theme');

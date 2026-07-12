@@ -23,6 +23,10 @@ const {
   keywordEntriesEqual,
   normalizeKeywordEntries
 } = require('../utils/keywordSpecs.js');
+const {
+  normalizeVisionConfig,
+  STATE_PATCH_FIELDS
+} = require('./statePatch.js');
 
 function cloneState(state) {
   return {
@@ -726,17 +730,6 @@ function shallowEqualObjects(left = {}, right = {}) {
     && leftKeys.every((key) => valuesEqual(left[key], right[key]));
 }
 
-function normalizeVisionConfig(config = {}) {
-  return {
-    apiUrl: String(config.apiUrl || '').trim(),
-    apiKey: String(config.apiKey || '').trim(),
-    model: String(config.model || '').trim(),
-    fallbackUrl: String(config.fallbackUrl || '').trim(),
-    fallbackApiKey: String(config.fallbackApiKey || '').trim(),
-    fallbackModel: String(config.fallbackModel || '').trim()
-  };
-}
-
 function markPatchChange(context, flags = {}) {
   context.changed = true;
   context.recomputePhotos ||= Boolean(flags.recomputePhotos);
@@ -831,18 +824,7 @@ function applyManualLocationPatch(context) {
 
 function reduceStatePatchCommand(state, patch, env) {
   const context = [
-    (current) => applyScalarConfigPatch(current, [
-      'theme',
-      'inactivityTimeout',
-      'slideshowInterval',
-      'scaleMode',
-      'splitPortrait',
-      'splitCropPercent',
-      'alignTimeOfDay',
-      'alignWeather',
-      'nightPercentage',
-      'allowOpenAiFallback'
-    ]),
+    (current) => applyScalarConfigPatch(current, STATE_PATCH_FIELDS),
     applyExcludedKeywordsPatch,
     applyWidgetPatch,
     applyVisionConfigPatch,
