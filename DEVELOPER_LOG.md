@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared Durable Socket Command Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining durable socket command-registration tables from `server/sockets.js` without hiding the transport-only fallback and acknowledgement behavior.
+- **Implementation**:
+  - Added declarative shared socket command spec tables in `server/domain/commands.js` for durable category/photo/pool/playback handlers, async job triggers, and admin secret saves.
+  - Refactored `server/sockets.js` to register those specs through small shared decode/fallback helpers, leaving the socket layer with only transport-owned compatibility resolution, unavailable-job acknowledgements, secret-save acknowledgements, telemetry, and Google Photos URL refresh behavior.
+  - Expanded `server/domain/tests.js` to assert the shared durable socket command, async-job, and secret-save specs directly, so the regression coverage now targets the actual event/decode metadata instead of another local registration copy.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was another small spec table, not a broader socket framework. Once the remaining durable socket handlers became shared event/decode metadata, `server/sockets.js` could stay explicit about transport-only responsibilities while dropping the repeated registration inventory.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-12: Continued Step 4 with Shared Durable Socket State-Patch Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated socket state-patch decoder assembly without changing the existing Socket.IO event contracts.
 - **Implementation**:
