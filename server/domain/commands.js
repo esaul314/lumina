@@ -36,6 +36,56 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+const createCommand = curry((type, payload) => ({
+  type,
+  payload
+}));
+
+const readRequiredString = (value) => (
+  typeof value === 'string' && value.trim()
+    ? value
+    : null
+);
+
+const mergeDecodedFields = (parts) => parts.reduce((merged, part) => (
+  merged && part
+    ? { ...merged, ...part }
+    : null
+), {});
+
+const createRequiredValueCommandDecoder = curry((type, readRequiredValue, buildPayload, input) => {
+  const requiredValue = readRequiredValue(input);
+  if (requiredValue === null) {
+    return null;
+  }
+
+  const payload = buildPayload(requiredValue, input);
+  return payload ? createCommand(type, payload) : null;
+});
+
+const decodeOptionalField = curry((field, validator, payload) => {
+  if (payload?.[field] === undefined) {
+    return {};
+  }
+
+  const normalized = validator(payload[field]);
+  return normalized === null ? null : { [field]: normalized };
+});
+
+const readPhotoUrl = (payload) => readRequiredString(payload?.url);
+const createPhotoCommandDecoder = curry((type, buildPayload, payload) => (
+  createRequiredValueCommandDecoder(type, readPhotoUrl, buildPayload, payload)
+));
+const readPoolName = (payload) => readRequiredString(trimString(payload?.name ?? payload?.category));
+const createPoolCommandDecoder = curry((type, buildPayload, payload) => (
+  createRequiredValueCommandDecoder(type, readPoolName, buildPayload, payload)
+));
+const readActivePhotoUrl = (payload) => readRequiredString(
+  typeof payload === 'string'
+    ? payload
+    : payload?.url
+);
+
 function decodeCategorySelectionFromHttp(query) {
   const { category, categories: rawCategories } = query || {};
   const categories = typeof category === 'string'
@@ -61,86 +111,38 @@ function decodeCategorySelectionFromSocket(category) {
     return null;
   }
 
-  return {
-    type: 'select-categories',
-    payload: {
-      categories: category
-    }
-  };
+  return createCommand('select-categories', {
+    categories: category
+  });
 }
 
-function decodePhotoRatingCommand(payload) {
-  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
-    return null;
-  }
-
+const decodePhotoRatingCommand = createPhotoCommandDecoder('rate-photo', (url, payload) => {
   const rating = validateRating(payload.rating);
-  if (rating === null) {
-    return null;
-  }
+  return rating === null ? null : { url, rating };
+});
 
-  return {
-    type: 'rate-photo',
-    payload: {
-      url: payload.url,
-      rating
-    }
-  };
-}
+const decodePhotoCropCommand = createPhotoCommandDecoder('set-photo-crop', (url, payload) => {
+  const fields = mergeDecodedFields([
+    decodeOptionalField('cropPercent', validatePhotoCropPercent, payload),
+    decodeOptionalField('cropPositionY', validatePercent, payload)
+  ]);
 
-function decodePhotoCropCommand(payload) {
-  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
-    return null;
-  }
+  return fields ? { url, ...fields } : null;
+});
 
-  const cropPercent = payload.cropPercent !== undefined ? validatePhotoCropPercent(payload.cropPercent) : undefined;
-  const cropPositionY = payload.cropPositionY !== undefined ? validatePercent(payload.cropPositionY) : undefined;
+const decodePhotoPreventPairingCommand = createPhotoCommandDecoder(
+  'set-photo-prevent-pairing',
+  (url, payload) => ({
+    url,
+    preventPairing: Boolean(payload.preventPairing),
+    preserveActive: Boolean(payload.preserveActive)
+  })
+);
 
-  if (payload.cropPercent !== undefined && cropPercent === null) {
-    return null;
-  }
-
-  if (payload.cropPositionY !== undefined && cropPositionY === null) {
-    return null;
-  }
-
-  return {
-    type: 'set-photo-crop',
-    payload: {
-      url: payload.url,
-      ...(cropPercent !== undefined ? { cropPercent } : {}),
-      ...(cropPositionY !== undefined ? { cropPositionY } : {})
-    }
-  };
-}
-
-function decodePhotoPreventPairingCommand(payload) {
-  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
-    return null;
-  }
-
-  return {
-    type: 'set-photo-prevent-pairing',
-    payload: {
-      url: payload.url,
-      preventPairing: Boolean(payload.preventPairing),
-      preserveActive: Boolean(payload.preserveActive)
-    }
-  };
-}
-
-function decodeBrokenPhotoCommand(payload) {
-  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
-    return null;
-  }
-
-  return {
-    type: 'mark-photo-broken',
-    payload: {
-      url: payload.url
-    }
-  };
-}
+const decodeBrokenPhotoCommand = createPhotoCommandDecoder(
+  'mark-photo-broken',
+  (url) => ({ url })
+);
 
 function decodeExcludedKeywordsCommand(keywords) {
   if (!Array.isArray(keywords)) {
@@ -156,21 +158,15 @@ function decodeExcludedKeywordsCommand(keywords) {
 }
 
 function decodeActivePhotoCommand(payload) {
-  const url = typeof payload === 'string'
-    ? payload
-    : (payload && typeof payload.url === 'string' ? payload.url : '');
-
-  if (!url.trim()) {
-    return null;
-  }
-
-  return {
-    type: 'set-active-photo',
-    payload: {
-      url,
-      ...(payload && typeof payload === 'object' ? { photo: payload } : {})
-    }
-  };
+  return createRequiredValueCommandDecoder(
+    'set-active-photo',
+    readActivePhotoUrl,
+    (activeUrl, input) => ({
+      url: activeUrl,
+      ...(input && typeof input === 'object' ? { photo: input } : {})
+    }),
+    payload
+  );
 }
 
 function decodeAdvancePhotoCommand(direction, strategy = 'smart') {
@@ -318,12 +314,9 @@ function decodeScreensaverActiveCommand(payload) {
     return null;
   }
 
-  return {
-    type: 'set-screensaver-active',
-    payload: {
-      active: payload.active
-    }
-  };
+  return createCommand('set-screensaver-active', {
+    active: payload.active
+  });
 }
 
 function decodeSplitPortraitCommand(enabled) {
@@ -349,73 +342,36 @@ function decodeSplitCropCommand(percent) {
   };
 }
 
-function decodeAddPoolCommand(payload) {
-  const name = trimString(payload?.name ?? payload?.category);
+const decodeAddPoolCommand = createPoolCommandDecoder('add-pool', (name, payload) => {
   const keywords = normalizeKeywordTerms(payload?.keywords ?? payload?.keyword, { splitString: true });
-
-  if (!name || keywords.length === 0) {
-    return null;
-  }
-
-  return {
-    type: 'add-pool',
-    payload: {
-      name,
-      keywords
-    }
-  };
-}
+  return keywords.length === 0 ? null : { name, keywords };
+});
 
 function decodeDeletePoolCommand(payload) {
-  const name = trimString(typeof payload === 'string' ? payload : (payload?.name ?? payload?.category));
+  const input = typeof payload === 'string' ? { name: payload } : payload;
 
-  if (!name) {
-    return null;
-  }
-
-  return {
-    type: 'delete-pool',
-    payload: {
-      name
-    }
-  };
+  return createPoolCommandDecoder('delete-pool', (name) => ({ name }), input);
 }
 
-function decodePoolKeywordsCommand(payload) {
-  const name = trimString(payload?.name ?? payload?.category);
+const decodePoolKeywordsCommand = createPoolCommandDecoder('set-pool-keywords', (name, payload) => {
   const keywords = normalizeKeywordEntries(payload?.keywords, { splitTopLevelString: true });
+  return keywords.length === 0 ? null : { name, keywords };
+});
 
-  if (!name || keywords.length === 0) {
-    return null;
-  }
-
-  return {
-    type: 'set-pool-keywords',
-    payload: {
-      name,
-      keywords
-    }
-  };
-}
-
-function decodePoolFeedConfigCommand(payload) {
-  const name = trimString(payload?.name ?? payload?.category);
+const decodePoolFeedConfigCommand = createPoolCommandDecoder('merge-pool-feed-config', (name, payload) => {
   const source = trimString(payload?.source);
   const config = payload?.config;
 
-  if (!name || !source || !config || typeof config !== 'object' || Array.isArray(config)) {
+  if (!source || !isPlainObject(config)) {
     return null;
   }
 
   return {
-    type: 'merge-pool-feed-config',
-    payload: {
-      name,
-      source,
-      config
-    }
+    name,
+    source,
+    config
   };
-}
+});
 
 function decodeRecrawlCommand(payload) {
   return decodeScopedJobCommand(payload, 'trigger-recrawl');
@@ -427,10 +383,7 @@ function decodeVisionAnalysisCommand(payload) {
 
 function decodeScopedJobCommand(payload, type) {
   if (payload === undefined || payload === null) {
-    return {
-      type,
-      payload: {}
-    };
+    return createCommand(type, {});
   }
 
   if (typeof payload !== 'object' || Array.isArray(payload)) {
@@ -445,31 +398,21 @@ function decodeScopedJobCommand(payload, type) {
     return null;
   }
 
-  return {
-    type,
-    payload: categories.length > 0 ? { categories } : {}
-  };
+  return createCommand(type, categories.length > 0 ? { categories } : {});
 }
 
-function decodePhotoMetadataCommand(payload) {
-  if (!payload || typeof payload.url !== 'string' || !payload.url.trim()) {
-    return null;
-  }
-
+const decodePhotoMetadataCommand = createPhotoCommandDecoder('report-photo-metadata', (url, payload) => {
   if (payload.orientation !== 'portrait' && payload.orientation !== 'landscape') {
     return null;
   }
 
   return {
-    type: 'report-photo-metadata',
-    payload: {
-      url: payload.url,
-      orientation: payload.orientation,
-      ...(payload.width !== undefined ? { width: Number(payload.width) } : {}),
-      ...(payload.height !== undefined ? { height: Number(payload.height) } : {})
-    }
+    url,
+    orientation: payload.orientation,
+    ...(payload.width !== undefined ? { width: Number(payload.width) } : {}),
+    ...(payload.height !== undefined ? { height: Number(payload.height) } : {})
   };
-}
+});
 
 const decodeUseApiTokenCommand = createEnvSecretCommandDecoder('USEAPI_TOKEN', 'hasUseApiToken');
 const decodeTumblrApiKeyCommand = createEnvSecretCommandDecoder('TUMBLR_API_KEY', 'hasTumblrApiKey');

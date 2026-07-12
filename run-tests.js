@@ -54,8 +54,6 @@ const {
   difference,
   getOrphanedFiles,
   getLocalMediaFilePath,
-  cleanOrphanedMediaFiles,
-  downloadSyncMediaItems,
   fetchMediaItemBytes
 } = require('./server/services/googlePhotos.js');
 const {

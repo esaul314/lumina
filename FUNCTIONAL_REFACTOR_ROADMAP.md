@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 ## Purpose
 
@@ -212,6 +212,7 @@ Progress note:
 - The latest Step 4 slice moved durable socket command registration onto declarative listener specs, so state-patch, photo, pool, async-job, and admin-secret socket handlers now specialize one shared registration boundary while the intentional socket-only telemetry and Google Photos refresh tail stay explicit.
 - The latest Step 4 slice standardized the remaining simple reducer setter/effect branches, so split-layout, scale, theme, interval, screensaver, admin-secret, and async-job commands now share small command reducers plus pure payload builders instead of repeating field-update and effect-shaping ceremony.
 - The latest Step 4 slice standardized the remaining photo-library mutation branches into one reducer-spec boundary, so rating, broken-photo, crop, pairing, and metadata commands now specialize shared `url -> update -> persist -> finalize playback` plumbing while keeping their distinct updater and finalizer rules visible as data.
+- The latest Step 4 slice standardized the remaining transport command decoders into shared required-value decoder specs, so photo and pool mutations now read as small normalization combinators plus command-local payload policies instead of repeating `require field -> normalize -> build command` shells across REST and Socket.IO adapters.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity.
 
 ### Step 5: Align the client control surface with the same functional boundaries

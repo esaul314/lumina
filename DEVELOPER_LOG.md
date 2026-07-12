@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared Transport Command-Decoder Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated transport decode ceremony in `server/domain/commands.js` without changing the existing REST or Socket.IO wire contracts.
+- **Implementation**:
+  - Added small pure decoder helpers in `server/domain/commands.js` for shared command construction, required-value validation, optional field normalization, and photo/pool decoder specialization.
+  - Rewrote the repeated photo and pool decoders to specialize those helpers as data, so the transport layer now reads as `require value -> normalize payload -> build command` instead of repeating the same guard shell for each mutation.
+  - Expanded `server/domain/tests.js` with direct assertions for active-photo preview decoding and partial photo-crop decoding so the new shared decoder boundary is covered explicitly.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records this as the latest Step 4 slice while keeping the broader checkpoint active.
+- **Learning**: The right abstraction here was another tiny spec boundary, not a full parser DSL. Once the required-value guard and payload normalization steps became shared helpers, the decoder layer stayed readable because each command still owns the only interesting part: how its payload is shaped.
+- **Verification**: `npm test` passed with 162 assertions. `npm run lint` passed after removing two unused Google Photos test imports from `run-tests.js`.
+
 ### 2026-07-12: Implemented Local Offline Caching for Google Photos
 - **Goal**: Resolve the 7-day session expiration and 60-minute URL expiration limitations of Google's public APIs by caching selected photo files locally.
 - **Implementation**:

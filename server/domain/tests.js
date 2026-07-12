@@ -20,6 +20,7 @@ const {
   buildPercentFieldPatch,
   buildTrimmedStringFieldPatch,
   buildWidgetPatch,
+  decodeActivePhotoCommand,
   createStatePatchCommandDecoder,
   decodeAdvancePhotoCommand,
   decodeAddPoolCommand,
@@ -29,6 +30,7 @@ const {
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
   decodeBrokenPhotoCommand,
+  decodePhotoCropCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodePhotoPreventPairingCommand,
@@ -210,6 +212,39 @@ function runDomainTests({ logSuite, assertTest }) {
     });
     assert.strictEqual(decodePhotoPreventPairingCommand({ preventPairing: true }), null);
     assert.strictEqual(decodeBrokenPhotoCommand({ url: '   ' }), null);
+  });
+
+  assertTest('photo command decoders share url validation while preserving active-photo previews and partial crop patches', () => {
+    assert.deepStrictEqual(decodeActivePhotoCommand({
+      url: 'preview-photo',
+      title: 'Preview Photo',
+      author: 'Lumina'
+    }), {
+      type: 'set-active-photo',
+      payload: {
+        url: 'preview-photo',
+        photo: {
+          url: 'preview-photo',
+          title: 'Preview Photo',
+          author: 'Lumina'
+        }
+      }
+    });
+    assert.deepStrictEqual(decodePhotoCropCommand({
+      url: 'crop-photo',
+      cropPercent: 135
+    }), {
+      type: 'set-photo-crop',
+      payload: {
+        url: 'crop-photo',
+        cropPercent: 135
+      }
+    });
+    assert.strictEqual(decodeActivePhotoCommand({ title: 'Missing URL' }), null);
+    assert.strictEqual(decodePhotoCropCommand({
+      url: 'crop-photo',
+      cropPercent: 250
+    }), null);
   });
 
   assertTest('state patch decoder normalizes location, widgets, and vision config payloads', () => {
