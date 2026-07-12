@@ -2,6 +2,9 @@
 
 const assert = require('assert');
 const {
+  SOCKET_ASYNC_JOB_COMMAND_SPECS,
+  SOCKET_DURABLE_COMMAND_SPECS,
+  SOCKET_SECRET_COMMAND_SPECS,
   SOCKET_STATE_PATCH_SPECS,
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
@@ -40,6 +43,9 @@ const {
 } = require('../config/collectionsCodec.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
+const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
+const findSocketAsyncJobSpec = (event) => SOCKET_ASYNC_JOB_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
+const findSocketSecretSpec = (event) => SOCKET_SECRET_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
 
 function createState(overrides = {}) {
   const baseState = {
@@ -350,6 +356,63 @@ function runDomainTests({ logSuite, assertTest }) {
       }
     });
     assert.strictEqual(decodeNightPercentageCommand(250), null);
+  });
+
+  assertTest('shared durable socket command specs centralize legacy event decoding and fallback policy metadata', () => {
+    const categorySpec = findSocketCommandSpec('change-category');
+    const nextPhotoSpec = findSocketCommandSpec('next-photo');
+    const brokenPhotoSpec = findSocketCommandSpec('mark-photo-broken');
+
+    assert.deepStrictEqual(categorySpec?.decode(' Scenic Nature,Liminal Spaces '), {
+      type: 'select-categories',
+      payload: {
+        categories: ' Scenic Nature,Liminal Spaces '
+      }
+    });
+    assert.strictEqual(categorySpec?.fallbackKey, 'categorySelection');
+    assert.deepStrictEqual(nextPhotoSpec?.decode(), {
+      type: 'advance-photo',
+      payload: {
+        direction: 'next',
+        strategy: 'smart'
+      }
+    });
+    assert.deepStrictEqual(nextPhotoSpec?.fallbackArgs, ['next']);
+    assert.deepStrictEqual(brokenPhotoSpec?.decode({ url: 'broken-photo' }), {
+      type: 'mark-photo-broken',
+      payload: {
+        url: 'broken-photo'
+      }
+    });
+    assert.strictEqual(brokenPhotoSpec?.fallbackKey, 'brokenPhoto');
+  });
+
+  assertTest('shared async-job and secret socket specs keep their command and acknowledgement metadata declarative', () => {
+    const recrawlSpec = findSocketAsyncJobSpec('trigger-recrawl');
+    const visionSpec = findSocketAsyncJobSpec('trigger-vision-analysis');
+    const useApiSpec = findSocketSecretSpec('save-useapi-token');
+
+    assert.deepStrictEqual(recrawlSpec?.decode({ categories: [' Scenic Nature ', ''] }), {
+      type: 'trigger-recrawl',
+      payload: {
+        categories: ['Scenic Nature']
+      }
+    });
+    assert.strictEqual(recrawlSpec?.unavailableEvent, 'recrawl-complete');
+    assert.deepStrictEqual(visionSpec?.unavailablePayload, {
+      type: 'vision-analysis',
+      status: 'failed',
+      error: 'Vision-analysis dispatcher unavailable.'
+    });
+    assert.deepStrictEqual(useApiSpec?.decode({ token: ' secret-123 ' }), {
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'USEAPI_TOKEN',
+        runtimeFlag: 'hasUseApiToken',
+        value: 'secret-123'
+      }
+    });
+    assert.strictEqual(useApiSpec?.successEvent, 'useapi-token-saved');
   });
 
   assertTest('screensaver decoder requires an explicit boolean active flag', () => {

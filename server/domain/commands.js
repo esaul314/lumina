@@ -85,6 +85,7 @@ const readActivePhotoUrl = (payload) => readRequiredString(
     ? payload
     : payload?.url
 );
+const createSocketCommandSpec = (event, decode, extra = {}) => ({ event, decode, ...extra });
 
 function decodeCategorySelectionFromHttp(query) {
   const { category, categories: rawCategories } = query || {};
@@ -324,6 +325,8 @@ function decodeScreensaverActiveCommand(payload) {
   });
 }
 
+const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCommand({ active });
+
 const SOCKET_STATE_PATCH_SPECS = [
   createSocketStatePatchSpec('toggle-widget', buildWidgetPatch),
   createSocketStatePatchSpec('toggle-align-time', buildBooleanFieldPatch('alignTimeOfDay')),
@@ -415,6 +418,91 @@ const decodePhotoMetadataCommand = createPhotoCommandDecoder('report-photo-metad
 const decodeUseApiTokenCommand = createEnvSecretCommandDecoder('USEAPI_TOKEN', 'hasUseApiToken');
 const decodeTumblrApiKeyCommand = createEnvSecretCommandDecoder('TUMBLR_API_KEY', 'hasTumblrApiKey');
 
+const SOCKET_DURABLE_COMMAND_SPECS = [
+  createSocketCommandSpec('change-category', decodeCategorySelectionFromSocket, {
+    fallbackKey: 'categorySelection',
+    logMessage: (category) => `[SOCKET EVENT] change-category received: "${category}"`
+  }),
+  createSocketCommandSpec('set-active-photo', decodeActivePhotoCommand, {
+    fallbackKey: 'activePhoto'
+  }),
+  createSocketCommandSpec('report-photo-metadata', decodePhotoMetadataCommand, {
+    fallbackKey: 'photoMetadata'
+  }),
+  createSocketCommandSpec('rate-photo', decodePhotoRatingCommand, {
+    fallbackKey: 'photoRating'
+  }),
+  createSocketCommandSpec('set-photo-crop', decodePhotoCropCommand, {
+    fallbackKey: 'photoCrop'
+  }),
+  createSocketCommandSpec('set-photo-prevent-pairing', decodePhotoPreventPairingCommand, {
+    fallbackKey: 'photoPreventPairing'
+  }),
+  createSocketCommandSpec('update-keywords', decodePoolKeywordsCommand, {
+    fallbackKey: 'poolKeywords'
+  }),
+  createSocketCommandSpec('update-feed-config', decodePoolFeedConfigCommand, {
+    fallbackKey: 'poolFeedConfig'
+  }),
+  createSocketCommandSpec('update-excluded-keywords', decodeExcludedKeywordsCommand, {
+    fallbackKey: 'excludedKeywords'
+  }),
+  createSocketCommandSpec('add-category', decodeAddPoolCommand, {
+    fallbackKey: 'addPool'
+  }),
+  createSocketCommandSpec('delete-category', decodeDeletePoolCommand, {
+    fallbackKey: 'deletePool'
+  }),
+  createSocketCommandSpec('next-photo', () => decodeAdvancePhotoCommand('next'), {
+    fallbackKey: 'advancePhoto',
+    fallbackArgs: ['next']
+  }),
+  createSocketCommandSpec('prev-photo', () => decodeAdvancePhotoCommand('prev'), {
+    fallbackKey: 'advancePhoto',
+    fallbackArgs: ['prev']
+  }),
+  createSocketCommandSpec('set-screensaver-active', decodeScreensaverActiveFromSocket, {
+    fallbackKey: 'screensaverActive'
+  }),
+  createSocketCommandSpec('mark-photo-broken', decodeBrokenPhotoCommand, {
+    fallbackKey: 'brokenPhoto',
+    logMessage: (payload) => `[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`
+  })
+];
+
+const SOCKET_ASYNC_JOB_COMMAND_SPECS = [
+  createSocketCommandSpec('trigger-recrawl', decodeRecrawlCommand, {
+    logMessage: '[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...',
+    unavailableEvent: 'recrawl-complete',
+    unavailablePayload: {
+      success: false,
+      error: 'Recrawl dispatcher unavailable.'
+    }
+  }),
+  createSocketCommandSpec('trigger-vision-analysis', decodeVisionAnalysisCommand, {
+    logMessage: '[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...',
+    unavailableEvent: 'job-status',
+    unavailablePayload: {
+      type: 'vision-analysis',
+      status: 'failed',
+      error: 'Vision-analysis dispatcher unavailable.'
+    }
+  })
+];
+
+const SOCKET_SECRET_COMMAND_SPECS = [
+  createSocketCommandSpec('save-useapi-token', decodeUseApiTokenCommand, {
+    envKey: 'USEAPI_TOKEN',
+    runtimeFlag: 'hasUseApiToken',
+    successEvent: 'useapi-token-saved'
+  }),
+  createSocketCommandSpec('save-tumblr-api-key', decodeTumblrApiKeyCommand, {
+    envKey: 'TUMBLR_API_KEY',
+    runtimeFlag: 'hasTumblrApiKey',
+    successEvent: 'tumblr-api-key-saved'
+  })
+];
+
 module.exports = {
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
@@ -433,6 +521,9 @@ module.exports = {
   decodeBrokenPhotoCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
+  SOCKET_ASYNC_JOB_COMMAND_SPECS,
+  SOCKET_DURABLE_COMMAND_SPECS,
+  SOCKET_SECRET_COMMAND_SPECS,
   decodeTumblrApiKeyCommand,
   decodeStatePatchCommand,
   decodeUseApiTokenCommand,

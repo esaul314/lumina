@@ -5,37 +5,32 @@ const googlePhotos = require('./services/googlePhotos.js');
 const { getHostDisplayInfo } = require('./services/system.js');
 const { createSocketLegacyCompatibility } = require('./socketLegacyCompatibility.js');
 const {
+  SOCKET_ASYNC_JOB_COMMAND_SPECS,
+  SOCKET_DURABLE_COMMAND_SPECS,
+  SOCKET_SECRET_COMMAND_SPECS,
   SOCKET_STATE_PATCH_SPECS,
-  decodeAddPoolCommand,
-  decodeActivePhotoCommand,
-  decodeAdvancePhotoCommand,
-  decodeCategorySelectionFromSocket,
-  decodeDeletePoolCommand,
-  decodeExcludedKeywordsCommand,
-  decodePoolFeedConfigCommand,
-  decodePoolKeywordsCommand,
-  decodeBrokenPhotoCommand,
-  decodePhotoCropCommand,
-  decodePhotoMetadataCommand,
-  decodePhotoPreventPairingCommand,
-  decodePhotoRatingCommand,
-  decodeRecrawlCommand,
-  decodeScreensaverActiveCommand,
-  decodeTumblrApiKeyCommand,
-  decodeUseApiTokenCommand,
-  decodeVisionAnalysisCommand,
 } = require('./domain/commands.js');
-
-const decodeScreensaverActiveFromSocket = (active) => decodeScreensaverActiveCommand({ active });
 const buildSocketErrorLogger = (label) => (error) => {
   console.error(`Socket Event: ${label} failed:`, error.message);
-};
-const emitSocketEvent = (socket, event) => (payload) => {
-  socket.emit(event, payload);
 };
 const createLoggedDecoder = (buildMessage, decode) => (payload) => {
   console.log(typeof buildMessage === 'function' ? buildMessage(payload) : buildMessage);
   return decode(payload);
+};
+const resolveCommandDecode = ({ decode, logMessage }) => (
+  logMessage
+    ? createLoggedDecoder(logMessage, decode)
+    : decode
+);
+const resolveCompatibilityFallback = (compatibility, { fallbackKey, fallbackArgs = [] }) => {
+  if (!compatibility || !fallbackKey) {
+    return undefined;
+  }
+
+  const fallback = compatibility[fallbackKey];
+  return fallbackArgs.length > 0 && typeof fallback === 'function'
+    ? fallback(...fallbackArgs)
+    : fallback;
 };
 const registerCommandSpecs = (listenForCommand) => (specs) => specs.forEach(({
   event,
@@ -214,8 +209,6 @@ module.exports = function configureSockets({
     const emitGooglePhotoRefreshResponse = (mediaItemId, payload) => {
       socket.emit('active-google-photo-response', { mediaItemId, ...payload });
     };
-    const emitRecrawlUnavailable = emitSocketEvent(socket, 'recrawl-complete');
-    const emitVisionAnalysisUnavailable = emitSocketEvent(socket, 'job-status');
 
     const listenForCommand = (eventName, decode, fallback, intercept, afterDispatch, onError) => {
       socket.on(eventName, createCommandListener({
@@ -315,7 +308,7 @@ module.exports = function configureSockets({
       successEvent
     }) => ({
       event,
-      decode,
+      decode: resolveCommandDecode({ decode }),
       fallback: compatibility?.envSecret({ envKey, runtimeFlag }),
       afterDispatch: () => {
         console.log(`[SOCKET EVENT] Successfully persisted ${envKey} through the shared admin command path`);
@@ -332,93 +325,19 @@ module.exports = function configureSockets({
     });
 
     registerCommands([
-      {
-        event: 'change-category',
-        decode: createLoggedDecoder(
-          (category) => `[SOCKET EVENT] change-category received: "${category}"`,
-          decodeCategorySelectionFromSocket
-        ),
-        fallback: compatibility?.categorySelection
-      },
-      { event: 'set-active-photo', decode: decodeActivePhotoCommand, fallback: compatibility?.activePhoto },
-      { event: 'report-photo-metadata', decode: decodePhotoMetadataCommand, fallback: compatibility?.photoMetadata },
-      { event: 'rate-photo', decode: decodePhotoRatingCommand, fallback: compatibility?.photoRating },
-      { event: 'set-photo-crop', decode: decodePhotoCropCommand, fallback: compatibility?.photoCrop },
-      {
-        event: 'set-photo-prevent-pairing',
-        decode: decodePhotoPreventPairingCommand,
-        fallback: compatibility?.photoPreventPairing
-      },
-      { event: 'update-keywords', decode: decodePoolKeywordsCommand, fallback: compatibility?.poolKeywords },
-      { event: 'update-feed-config', decode: decodePoolFeedConfigCommand, fallback: compatibility?.poolFeedConfig },
-      {
-        event: 'update-excluded-keywords',
-        decode: decodeExcludedKeywordsCommand,
-        fallback: compatibility?.excludedKeywords
-      },
-      { event: 'add-category', decode: decodeAddPoolCommand, fallback: compatibility?.addPool },
-      { event: 'delete-category', decode: decodeDeletePoolCommand, fallback: compatibility?.deletePool },
-      {
-        event: 'next-photo',
-        decode: () => decodeAdvancePhotoCommand('next'),
-        fallback: compatibility?.advancePhoto('next')
-      },
-      {
-        event: 'prev-photo',
-        decode: () => decodeAdvancePhotoCommand('prev'),
-        fallback: compatibility?.advancePhoto('prev')
-      },
-      {
-        event: 'set-screensaver-active',
-        decode: decodeScreensaverActiveFromSocket,
-        fallback: compatibility?.screensaverActive
-      },
-      {
-        event: 'mark-photo-broken',
-        decode: createLoggedDecoder(
-          (payload) => `[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`,
-          decodeBrokenPhotoCommand
-        ),
-        fallback: compatibility?.brokenPhoto
-      },
-      {
-        event: 'trigger-recrawl',
-        decode: createLoggedDecoder(
-          '[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...',
-          decodeRecrawlCommand
-        ),
+      ...SOCKET_DURABLE_COMMAND_SPECS.map((spec) => ({
+        event: spec.event,
+        decode: resolveCommandDecode(spec),
+        fallback: resolveCompatibilityFallback(compatibility, spec)
+      })),
+      ...SOCKET_ASYNC_JOB_COMMAND_SPECS.map((spec) => ({
+        event: spec.event,
+        decode: resolveCommandDecode(spec),
         fallback: () => {
-          emitRecrawlUnavailable({ success: false, error: 'Recrawl dispatcher unavailable.' });
+          socket.emit(spec.unavailableEvent, spec.unavailablePayload);
         }
-      },
-      {
-        event: 'trigger-vision-analysis',
-        decode: createLoggedDecoder(
-          '[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...',
-          decodeVisionAnalysisCommand
-        ),
-        fallback: () => {
-          emitVisionAnalysisUnavailable({
-            type: 'vision-analysis',
-            status: 'failed',
-            error: 'Vision-analysis dispatcher unavailable.'
-          });
-        }
-      },
-      createSecretSaveSpec({
-        event: 'save-useapi-token',
-        decode: decodeUseApiTokenCommand,
-        envKey: 'USEAPI_TOKEN',
-        runtimeFlag: 'hasUseApiToken',
-        successEvent: 'useapi-token-saved'
-      }),
-      createSecretSaveSpec({
-        event: 'save-tumblr-api-key',
-        decode: decodeTumblrApiKeyCommand,
-        envKey: 'TUMBLR_API_KEY',
-        runtimeFlag: 'hasTumblrApiKey',
-        successEvent: 'tumblr-api-key-saved'
-      })
+      })),
+      ...SOCKET_SECRET_COMMAND_SPECS.map(createSecretSaveSpec)
     ]);
   });
 };
