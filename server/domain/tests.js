@@ -616,6 +616,40 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(result.nextState.library.photosList.length, 1);
   });
 
+  assertTest('shared feed reducer specs preserve forced reselection, exclusion clears, and invalid delete no-op semantics', () => {
+    const selected = reduceDomainCommand(createState(), {
+      type: 'select-categories',
+      payload: { categories: 'Liminal Spaces' }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.9 });
+
+    assert.deepStrictEqual(selected.nextState.playback.selectedCategories, ['Liminal Spaces']);
+    assert.strictEqual(selected.nextState.playback.activePhotoUrl, 'port-2');
+    assert.deepStrictEqual(selected.events.map((event) => event.type), ['photo-update', 'state-sync']);
+
+    const cleared = reduceDomainCommand(createState({
+      config: {
+        ...createState().config,
+        excludedKeywords: ['anime']
+      }
+    }), {
+      type: 'update-excluded-keywords',
+      payload: { keywords: [] }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.deepStrictEqual(cleared.nextState.config.excludedKeywords, []);
+    assert.deepStrictEqual(cleared.effects.map((effect) => effect.type), ['persist']);
+
+    const state = createState();
+    const invalidDelete = reduceDomainCommand(state, {
+      type: 'delete-pool',
+      payload: { name: '   ' }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.strictEqual(invalidDelete.nextState, state);
+    assert.deepStrictEqual(invalidDelete.events, []);
+    assert.deepStrictEqual(invalidDelete.effects, []);
+  });
+
   assertTest('reducer state patch updates widgets, exclusions, and weather-driven location settings declaratively', () => {
     const state = createState({
       library: {

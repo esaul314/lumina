@@ -406,6 +406,37 @@ function buildPhotoCommandReducer({
   };
 }
 
+function resolveReducerValue(value, ...args) {
+  return typeof value === 'function' ? value(...args) : value;
+}
+
+function buildFeedCommandReducer({
+  readPayload,
+  apply,
+  direction = 'next',
+  forceReselect = false,
+  eventsFor,
+  persist = false
+}) {
+  return (state, command, env = {}) => {
+    const payload = readPayload(command, state);
+
+    if (payload === null) {
+      return unchangedResult(state);
+    }
+
+    return reduceFeedMutation(state, {
+      direction: resolveReducerValue(direction, payload, command, state),
+      forceReselect: resolveReducerValue(forceReselect, payload, command, state),
+      ...(eventsFor === undefined
+        ? {}
+        : { eventsFor: resolveReducerValue(eventsFor, payload, command, state) }),
+      persist: resolveReducerValue(persist, payload, command, state),
+      apply: (nextState) => apply(nextState, payload, command, state)
+    }, env);
+  };
+}
+
 const reducePhotoCommand = {
   'rate-photo': buildPhotoCommandReducer({
     buildUpdater: ({ rating }, photo) => ({
@@ -776,6 +807,24 @@ function buildEnvSecretEffectPayload(command) {
     : null;
 }
 
+const readSelectedCategoriesPayload = (command, state) => ({
+  categories: normalizeCategorySelection(
+    command.payload?.categories,
+    Object.keys(state.library.collections),
+    state.playback.selectedCategories[0] || Object.keys(state.library.collections)[0] || 'Scenic Nature'
+  )
+});
+
+const readExcludedKeywordsPayload = (command) => ({
+  keywords: normalizeKeywordEntries(command.payload?.keywords)
+    .filter((keyword) => typeof keyword === 'string')
+});
+
+const readDeletePoolPayload = (command) => {
+  const name = normalizePoolName(command.payload?.name);
+  return name ? { name } : null;
+};
+
 const reduceSimpleCommand = {
   'set-split-portrait': buildFieldCommandReducer(
     (nextState) => nextState.config,
@@ -836,11 +885,36 @@ const reduceSimpleCommand = {
   })
 };
 
+const reduceFeedCommand = {
+  'select-categories': buildFeedCommandReducer({
+    readPayload: readSelectedCategoriesPayload,
+    apply: (nextState, { categories }) => {
+      nextState.playback.selectedCategories = [...categories];
+      return true;
+    },
+    forceReselect: true,
+    eventsFor: emitPhotoUpdate()
+  }),
+  'update-excluded-keywords': buildFeedCommandReducer({
+    readPayload: readExcludedKeywordsPayload,
+    apply: (nextState, { keywords }) => assignExcludedKeywords(nextState, keywords),
+    persist: true
+  }),
+  'delete-pool': buildFeedCommandReducer({
+    readPayload: readDeletePoolPayload,
+    apply: (nextState, { name }) => removePoolState(nextState, name),
+    forceReselect: true,
+    eventsFor: emitPhotoUpdate(),
+    persist: true
+  })
+};
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
   const reduceSharedCommand = reduceSimpleCommand[command.type];
   const reduceSharedPhotoCommand = reducePhotoCommand[command.type];
+  const reduceSharedFeedCommand = reduceFeedCommand[command.type];
 
   if (reduceSharedCommand) {
     return reduceSharedCommand(state, command);
@@ -850,34 +924,11 @@ function reduceDomainCommand(state, command, env = {}) {
     return reduceSharedPhotoCommand(state, command, { now, rng });
   }
 
+  if (reduceSharedFeedCommand) {
+    return reduceSharedFeedCommand(state, command, { now, rng });
+  }
+
   switch (command.type) {
-    case 'select-categories': {
-      const categories = normalizeCategorySelection(
-        command.payload?.categories,
-        Object.keys(state.library.collections),
-        state.playback.selectedCategories[0] || Object.keys(state.library.collections)[0] || 'Scenic Nature'
-      );
-      return reduceFeedMutation(state, {
-        apply: (nextState) => {
-          nextState.playback.selectedCategories = [...categories];
-          return true;
-        },
-        direction: 'next',
-        forceReselect: true,
-        eventsFor: emitPhotoUpdate()
-      }, { now, rng });
-    }
-
-    case 'update-excluded-keywords': {
-      const keywords = normalizeKeywordEntries(command.payload?.keywords)
-        .filter((keyword) => typeof keyword === 'string');
-      return reduceFeedMutation(state, {
-        apply: (nextState) => assignExcludedKeywords(nextState, keywords),
-        direction: 'next',
-        persist: true
-      }, { now, rng });
-    }
-
     case 'patch-state': {
       const patch = command.payload && typeof command.payload === 'object' ? command.payload : {};
       return reduceStatePatchCommand(state, patch, { now, rng });
@@ -959,21 +1010,6 @@ function reduceDomainCommand(state, command, env = {}) {
         apply: (nextState, poolName) => mergePoolSourceConfig(nextState, poolName, source, configPatch),
         persist: true
       });
-    }
-
-    case 'delete-pool': {
-      const name = normalizePoolName(command.payload?.name);
-      if (!name) {
-        return unchangedResult(state);
-      }
-
-      return reduceFeedMutation(state, {
-        apply: (nextState) => removePoolState(nextState, name),
-        direction: 'next',
-        forceReselect: true,
-        eventsFor: emitPhotoUpdate(),
-        persist: true
-      }, { now, rng });
     }
 
     default:
