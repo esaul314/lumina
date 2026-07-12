@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Declarative `patch-state` Reducer Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining hand-built `patch-state` reducer handler chain without widening the shared state contract or transport boundary.
+- **Implementation**:
+  - Refactored `server/domain/reducer.js` so `patch-state` now runs through declarative spec rows for scalar config fields, excluded keywords, widgets, `visionConfig`, `autoLocation`, and manual location.
+  - Added a small pure `read -> compare -> apply -> flag` interpreter in the reducer, preserving the existing recompute-photos and refresh-weather semantics while making the durable patch surface read as data instead of bespoke branching.
+  - Expanded `server/domain/tests.js` with regression coverage that proves the spec-driven reducer ignores unknown widget keys while still composing recompute and weather-refresh follow-up flags correctly.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repository records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was a reducer-local patch spec table, not another general command framework. Once `patch-state` became one tiny interpreter over shared spec rows, the durable config surface became easier to extend because new fields now fit the same explicit `read -> compare -> apply -> flag` shape.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-12: Continued Step 4 with a Shared `patch-state` Contract Module
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicated `patch-state` contract inventory and normalization logic without broadening the reducer or transport surface.
 - **Implementation**:

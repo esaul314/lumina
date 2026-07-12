@@ -855,6 +855,29 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('reducer patch-state specs ignore unknown widgets while composing recompute and weather-refresh flags', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'patch-state',
+      payload: {
+        widgets: {
+          clock: false,
+          unknownWidget: true
+        },
+        excludedKeywords: ['hallway'],
+        autoLocation: true
+      }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.strictEqual(result.nextState.config.widgets.clock, false);
+    assert.strictEqual(result.nextState.config.widgets.unknownWidget, undefined);
+    assert.deepStrictEqual(result.nextState.config.excludedKeywords, ['hallway']);
+    assert.strictEqual(result.nextState.config.autoLocation, true);
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist', 'refresh-weather']);
+  });
+
   assertTest('reducer excluded-keyword updates stay silent when the trimmed list is already active', () => {
     const state = createState({
       config: {

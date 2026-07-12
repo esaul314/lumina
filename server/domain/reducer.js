@@ -24,6 +24,7 @@ const {
   normalizeKeywordEntries
 } = require('../utils/keywordSpecs.js');
 const {
+  normalizeManualLocation,
   normalizeVisionConfig,
   STATE_PATCH_FIELDS
 } = require('./statePatch.js');
@@ -730,6 +731,8 @@ function shallowEqualObjects(left = {}, right = {}) {
     && leftKeys.every((key) => valuesEqual(left[key], right[key]));
 }
 
+const PATCH_SKIP = Symbol('patch-skip');
+
 function markPatchChange(context, flags = {}) {
   context.changed = true;
   context.recomputePhotos ||= Boolean(flags.recomputePhotos);
@@ -737,100 +740,128 @@ function markPatchChange(context, flags = {}) {
   return context;
 }
 
-function applyScalarConfigPatch(context, fields) {
-  const changed = fields.reduce((didChange, field) => (
-    assignIfChanged(context.nextState.config, field, context.patch[field]) || didChange
-  ), false);
+const hasPatchField = (patch, field) => patch?.[field] !== undefined;
 
-  return changed ? markPatchChange(context) : context;
+const readPatchField = (field, normalize = (value) => value) => (patch, nextState) => (
+  hasPatchField(patch, field)
+    ? normalize(patch[field], nextState, patch)
+    : PATCH_SKIP
+);
+
+const createPatchSpec = ({
+  readValue,
+  hasChanged,
+  applyValue,
+  flags = {}
+}) => ({
+  readValue,
+  hasChanged,
+  applyValue,
+  flags
+});
+
+function applyPatchSpec(context, spec) {
+  const value = spec.readValue(context.patch, context.nextState);
+
+  if (value === PATCH_SKIP || !spec.hasChanged(context.nextState, value)) {
+    return context;
+  }
+
+  spec.applyValue(context.nextState, value);
+  return markPatchChange(context, spec.flags);
 }
 
-function applyExcludedKeywordsPatch(context) {
-  if (!Array.isArray(context.patch.excludedKeywords)) {
-    return context;
+const createConfigPatchSpec = (field, {
+  readValue = readPatchField(field),
+  hasChanged = (nextState, value) => nextState.config[field] !== value,
+  applyValue = (nextState, value) => {
+    nextState.config[field] = value;
+  },
+  flags
+} = {}) => createPatchSpec({
+  readValue,
+  hasChanged,
+  applyValue,
+  flags
+});
+
+const readExcludedKeywordsPatch = readPatchField('excludedKeywords', (keywords) => (
+  Array.isArray(keywords)
+    ? normalizeKeywordEntries(keywords).filter((keyword) => typeof keyword === 'string')
+    : PATCH_SKIP
+));
+
+const readWidgetPatch = readPatchField('widgets', (widgets, nextState) => {
+  if (!isPlainObject(widgets)) {
+    return PATCH_SKIP;
   }
 
-  const keywords = normalizeKeywordEntries(context.patch.excludedKeywords)
-    .filter((keyword) => typeof keyword === 'string');
+  const normalizedEntries = Object.keys(widgets)
+    .filter((widgetName) => Object.prototype.hasOwnProperty.call(nextState.config.widgets, widgetName))
+    .map((widgetName) => [widgetName, Boolean(widgets[widgetName])]);
 
-  if (arraysEqual(keywords, context.nextState.config.excludedKeywords)) {
-    return context;
-  }
+  return normalizedEntries.length > 0 ? Object.fromEntries(normalizedEntries) : PATCH_SKIP;
+});
 
-  context.nextState.config.excludedKeywords = keywords;
-  return markPatchChange(context, { recomputePhotos: true });
-}
+const readVisionConfigPatch = readPatchField('visionConfig', (visionConfig) => (
+  isPlainObject(visionConfig) ? normalizeVisionConfig(visionConfig) : PATCH_SKIP
+));
 
-function applyWidgetPatch(context) {
-  const widgets = context.patch.widgets;
+const readAutoLocationPatch = readPatchField('autoLocation', Boolean);
 
-  if (!widgets || typeof widgets !== 'object' || Array.isArray(widgets)) {
-    return context;
-  }
+const readManualLocationPatch = readPatchField('manualLocation', (manualLocation) => (
+  isPlainObject(manualLocation) ? normalizeManualLocation(manualLocation) : PATCH_SKIP
+));
 
-  const changed = Object.keys(widgets).reduce((didChange, widgetName) => {
-    if (!Object.prototype.hasOwnProperty.call(context.nextState.config.widgets, widgetName)) {
-      return didChange;
+const PATCH_STATE_SPECS = [
+  ...STATE_PATCH_FIELDS.map((field) => createConfigPatchSpec(field)),
+  createConfigPatchSpec('excludedKeywords', {
+    readValue: readExcludedKeywordsPatch,
+    hasChanged: (nextState, keywords) => !arraysEqual(nextState.config.excludedKeywords, keywords),
+    applyValue: (nextState, keywords) => {
+      nextState.config.excludedKeywords = [...keywords];
+    },
+    flags: { recomputePhotos: true }
+  }),
+  createPatchSpec({
+    readValue: readWidgetPatch,
+    hasChanged: (nextState, widgets) => Object.entries(widgets)
+      .some(([widgetName, visible]) => nextState.config.widgets[widgetName] !== visible),
+    applyValue: (nextState, widgets) => {
+      Object.entries(widgets).forEach(([widgetName, visible]) => {
+        nextState.config.widgets[widgetName] = visible;
+      });
     }
-
-    const visible = Boolean(widgets[widgetName]);
-    return assignIfChanged(context.nextState.config.widgets, widgetName, visible) || didChange;
-  }, false);
-
-  return changed ? markPatchChange(context) : context;
-}
-
-function applyVisionConfigPatch(context) {
-  const visionConfig = context.patch.visionConfig;
-
-  if (!visionConfig || typeof visionConfig !== 'object' || Array.isArray(visionConfig)) {
-    return context;
-  }
-
-  const normalizedVisionConfig = normalizeVisionConfig(visionConfig);
-
-  if (shallowEqualObjects(normalizedVisionConfig, context.nextState.config.visionConfig || {})) {
-    return context;
-  }
-
-  context.nextState.config.visionConfig = normalizedVisionConfig;
-  return markPatchChange(context);
-}
-
-function applyAutoLocationPatch(context) {
-  return assignIfChanged(
-    context.nextState.config,
-    'autoLocation',
-    context.patch.autoLocation === undefined ? undefined : Boolean(context.patch.autoLocation)
-  )
-    ? markPatchChange(context, { refreshWeather: true })
-    : context;
-}
-
-function applyManualLocationPatch(context) {
-  const manualLocation = context.patch.manualLocation;
-
-  if (!manualLocation || typeof manualLocation !== 'object' || Array.isArray(manualLocation)) {
-    return context;
-  }
-
-  if (shallowEqualObjects(manualLocation, context.nextState.config.manualLocation || {})) {
-    return context;
-  }
-
-  context.nextState.config.manualLocation = { ...manualLocation };
-  return markPatchChange(context, { refreshWeather: true });
-}
+  }),
+  createConfigPatchSpec('visionConfig', {
+    readValue: readVisionConfigPatch,
+    hasChanged: (nextState, visionConfig) => !shallowEqualObjects(
+      visionConfig,
+      nextState.config.visionConfig || {}
+    ),
+    applyValue: (nextState, visionConfig) => {
+      nextState.config.visionConfig = { ...visionConfig };
+    }
+  }),
+  createConfigPatchSpec('autoLocation', {
+    readValue: readAutoLocationPatch,
+    flags: { refreshWeather: true }
+  }),
+  createConfigPatchSpec('manualLocation', {
+    readValue: readManualLocationPatch,
+    hasChanged: (nextState, manualLocation) => !shallowEqualObjects(
+      manualLocation,
+      nextState.config.manualLocation || {}
+    ),
+    applyValue: (nextState, manualLocation) => {
+      nextState.config.manualLocation = { ...manualLocation };
+    },
+    flags: { refreshWeather: true }
+  })
+];
 
 function reduceStatePatchCommand(state, patch, env) {
-  const context = [
-    (current) => applyScalarConfigPatch(current, STATE_PATCH_FIELDS),
-    applyExcludedKeywordsPatch,
-    applyWidgetPatch,
-    applyVisionConfigPatch,
-    applyAutoLocationPatch,
-    applyManualLocationPatch
-  ].reduce((current, applyPatch) => applyPatch(current), {
+  const context = PATCH_STATE_SPECS.reduce((current, spec) => applyPatchSpec(current, spec), {
     patch,
     nextState: cloneState(state),
     changed: false,
