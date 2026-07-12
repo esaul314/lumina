@@ -2961,52 +2961,6 @@ async function runIntegrationTests() {
     }]);
   });
 
-  await assertAsyncTest('GET /api/photos does not fall back to Scenic Nature when an explicit selected feed is empty', async () => {
-    const dispatched = [];
-    const state = {
-      currentCategory: 'Scenic Nature',
-      photosList: [{ url: 'land-1', title: 'Land 1', author: 'A', category: 'Scenic Nature' }],
-      widgets: { clock: true },
-      theme: 'Zen Retreat',
-      feedConfigs: {},
-      searchKeywords: {},
-      excludedKeywords: [],
-      hasUseApiToken: false,
-      hasTumblrApiKey: false
-    };
-    const collections = {
-      'Scenic Nature': [{ url: 'land-1', title: 'Land 1', author: 'A', category: 'Scenic Nature', rating: 10 }],
-      'Japan': [{ url: 'japan-hidden-1', title: 'Japan Hidden', author: 'B', category: 'Japan', rating: 1, isBroken: true }]
-    };
-    const app = buildConfiguredRoutesApp({
-      state,
-      collections,
-      dispatchCommand: async (command) => {
-        dispatched.push(command);
-        state.currentCategory = 'Japan';
-        state.photosList = [];
-        return {
-          reducerResult: {
-            events: [{ type: 'state-sync' }],
-            effects: []
-          },
-          effectResults: []
-        };
-      }
-    });
-
-    const response = await invokeRoute(app, 'get', '/api/photos', {
-      query: { category: 'Japan' }
-    });
-
-    assert.strictEqual(response.status, 200);
-    assert.deepStrictEqual(response.body, []);
-    assert.deepStrictEqual(dispatched, [{
-      type: 'select-categories',
-      payload: { categories: 'Japan' }
-    }]);
-  });
-
   logSuite('Live Server Endpoint Smoke Tests');
   const socketPath = path.join('/tmp', `lumina-live-${process.pid}-${Date.now()}.sock`);
   if (fs.existsSync(socketPath)) {

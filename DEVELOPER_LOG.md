@@ -5,15 +5,6 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
-### 2026-07-12: Stopped Explicit Empty Feed Requests from Falling Back to Scenic Nature
-- **Goal**: Keep the TV and remote surfaces honest when an operator explicitly selects a pool set that currently has zero visible photos.
-- **Implementation**:
-  - Updated `server/routes.js` so `GET /api/photos?category=...` no longer substitutes the default `Scenic Nature` feed when the requested selection resolves to an empty visible list.
-  - Kept the existing default-feed fallback for non-explicit reads, but made explicit category fetches return `[]` so the dashboard cannot accidentally preview a photo from the wrong pool.
-  - Added regression coverage in `run-tests.js` for an empty explicit pool request to ensure the route does not leak `Scenic Nature` items into a selected-but-empty feed.
-- **Learning**: The fallback was safe only for generic "give me something visible" reads. Once the TV bootstrap path reused that endpoint for an explicit category selection, the default-feed safety net became a data-integrity bug because it could make the display appear to come from the wrong pool.
-- **Verification**: `npm test` passed, and live host probes confirmed `GET /api/photos?category=Japan,Google%20Photos` no longer returns `Scenic Nature` items when the selected pools have zero visible photos.
-
 ### 2026-07-11: Extended Per-Image Crop Zoom Beyond Cover
 - **Goal**: Let operators zoom past the old cover ceiling for framed or matted images without loosening unrelated percentage fields like vertical crop position or split-balance controls.
 - **Implementation**:
