@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Implemented Local Offline Caching for Google Photos
+- **Goal**: Resolve the 7-day session expiration and 60-minute URL expiration limitations of Google's public APIs by caching selected photo files locally.
+- **Implementation**:
+  - Defined a local cache directory `server/config/google_photos_media/` to store image files.
+  - Implemented pure functional helpers `difference` and `getOrphanedFiles` in [googlePhotos.js](file:///home/alex/work/lumina/server/services/googlePhotos.js) to compute orphaned files when syncing new items.
+  - Added background downloader `downloadSyncMediaItems` and file cleanup `cleanOrphanedMediaFiles` in [googlePhotos.js](file:///home/alex/work/lumina/server/services/googlePhotos.js) to run on album sync.
+  - Modified `fetchMediaItemBytes` to serve files from local disk when available, and lazy-download and write to disk on success (self-healing cache).
+  - Added full unit and integration tests to [run-tests.js](file:///home/alex/work/lumina/run-tests.js) verifying local serving, lazy caching, set difference, and cleanup.
+- **Learning**: The 7-day Picker session limit is a hard security feature of Google's public APIs. Instead of attempting fragile API hacks, downloading only the user's selected photos locally on-demand provides permanent, offline-capable screensaver playback with minimal disk footprint.
+- **Verification**: `npm test` passed successfully with 189 assertions.
+
 ### 2026-07-11: Extended Per-Image Crop Zoom Beyond Cover
 - **Goal**: Let operators zoom past the old cover ceiling for framed or matted images without loosening unrelated percentage fields like vertical crop position or split-balance controls.
 - **Implementation**:
