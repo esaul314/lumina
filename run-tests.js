@@ -572,7 +572,11 @@ logSuite('System Screensaver State Reducer & Validators');
 
 assertTest('getNextScreensaverState transitions state and schedules actions correctly', () => {
   const { getNextScreensaverState } = require('./server/runtime/idleDaemon.js');
-  const { validateRating, validatePercent } = require('./server/utils/validation.js');
+  const {
+    validatePhotoCropPercent,
+    validateRating,
+    validatePercent
+  } = require('./server/utils/validation.js');
 
   // Test validators
   assert.strictEqual(validateRating(5), 5);
@@ -583,6 +587,9 @@ assertTest('getNextScreensaverState transitions state and schedules actions corr
   assert.strictEqual(validatePercent(0), 0);
   assert.strictEqual(validatePercent(100), 100);
   assert.strictEqual(validatePercent(-5), null);
+  assert.strictEqual(validatePhotoCropPercent(140), 140);
+  assert.strictEqual(validatePhotoCropPercent(200), 200);
+  assert.strictEqual(validatePhotoCropPercent(240), null);
 
   // Test state transition reducer
   let state = { idleCounter: 0, isBrowserRunning: false };
@@ -2835,12 +2842,12 @@ async function runIntegrationTests() {
     const response = await invokeRoute(app, 'patch', '/api/photos', {
       body: {
         url: 'land-1',
-        cropPercent: 140
+        cropPercent: 240
       }
     });
 
     assert.strictEqual(response.status, 400);
-    assert.strictEqual(response.body.error, 'Invalid parameter: "cropPercent" and "cropPositionY" must be integers between 0 and 100.');
+    assert.strictEqual(response.body.error, 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.');
     assert.strictEqual(dispatched, false);
   });
 
@@ -3223,13 +3230,13 @@ async function runIntegrationTests() {
 
       const patchCropRes = await liveRequestJson('/api/photos', 'PATCH', {
         url: samplePhotoUrl,
-        cropPercent: 75,
+        cropPercent: 140,
         cropPositionY: 30
       });
       assertTest('PATCH /api/photos updates photo zoom/crop percentages', () => {
         assert.strictEqual(patchCropRes.status, 200);
         assert.strictEqual(patchCropRes.body.success, true);
-        assert.strictEqual(patchCropRes.body.photo.cropPercent, 75);
+        assert.strictEqual(patchCropRes.body.photo.cropPercent, 140);
         assert.strictEqual(patchCropRes.body.photo.cropPositionY, 30);
       });
 
@@ -3246,14 +3253,14 @@ async function runIntegrationTests() {
       const patchCombinedRes = await liveRequestJson('/api/photos', 'PATCH', {
         url: samplePhotoUrl,
         rating: 8,
-        cropPercent: 61,
+        cropPercent: 161,
         cropPositionY: 27
       });
       assertTest('PATCH /api/photos batches rating and crop updates through the shared command path', () => {
         assert.strictEqual(patchCombinedRes.status, 200);
         assert.strictEqual(patchCombinedRes.body.success, true);
         assert.strictEqual(patchCombinedRes.body.photo.rating, 8);
-        assert.strictEqual(patchCombinedRes.body.photo.cropPercent, 61);
+        assert.strictEqual(patchCombinedRes.body.photo.cropPercent, 161);
         assert.strictEqual(patchCombinedRes.body.photo.cropPositionY, 27);
       });
 

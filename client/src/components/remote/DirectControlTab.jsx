@@ -1,4 +1,8 @@
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import {
+  DEFAULT_COVER_CROP_PERCENT,
+  MAX_PHOTO_CROP_PERCENT
+} from '../../state/photoCrop';
 
 function DirectControlTab({
   state,
@@ -246,13 +250,16 @@ function DirectControlTab({
               <input
                 type="range"
                 min="0"
-                max="100"
+                max={MAX_PHOTO_CROP_PERCENT}
                 value={activePhotoCrop}
                 onChange={(e) => handlePhotoCropChange(e.target.value)}
                 className="split-crop-slider"
                 style={{ flex: 1 }}
               />
-              <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>Cover</span>
+              <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>Zoom+</span>
+            </div>
+            <div style={{ fontSize: '0.68rem', opacity: 0.42, marginTop: '6px', textAlign: 'center' }}>
+              Cover lands at {DEFAULT_COVER_CROP_PERCENT}%.
             </div>
           </div>
         )}

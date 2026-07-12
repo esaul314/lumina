@@ -22,8 +22,15 @@ const validateRating = validateRange(1, 10, (v) => parseInt(v, 10));
  */
 const validatePercent = validateRange(0, 100, (v) => parseInt(v, 10));
 
+/**
+ * 🔎 validatePhotoCropPercent
+ * Validates per-photo zoom percentages (0-200 integer).
+ */
+const validatePhotoCropPercent = validateRange(0, 200, (v) => parseInt(v, 10));
+
 module.exports = {
   validateRange,
   validateRating,
-  validatePercent
+  validatePercent,
+  validatePhotoCropPercent
 };

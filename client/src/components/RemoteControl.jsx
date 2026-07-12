@@ -24,6 +24,10 @@ import {
   getPhotoCropState,
   isSplitFrameActive
 } from '../state/frameSelectors';
+import {
+  getDefaultPhotoCropPercent,
+  getPhotoCropBlend
+} from '../state/photoCrop';
 import { toCssImageUrl } from '../state/cssImage.js';
 import {
   getSelectedCategories,
@@ -135,7 +139,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       } else if (isSplitLayoutActive) {
         setActivePhotoCrop(state.splitCropPercent !== undefined ? state.splitCropPercent : 50);
       } else {
-        setActivePhotoCrop(state.scaleMode === 'contain' ? 0 : 100);
+        setActivePhotoCrop(getDefaultPhotoCropPercent(state.scaleMode));
       }
     }
   }, [selectedPhoto?.url, selectedPhoto?.cropPercent, state.splitCropPercent, state.scaleMode, isSplitLayoutActive, selectedPhotoSide]);
@@ -520,12 +524,12 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     if (R_i < R_c) {
       const hContain = halfHeight;
       const hCover = halfWidth / R_i;
-      hDisp = hContain + (hCover - hContain) * (P / 100);
+      hDisp = hContain + (hCover - hContain) * getPhotoCropBlend(P);
       wDisp = hDisp * R_i;
     } else {
       const wContain = halfWidth;
       const wCover = halfHeight * R_i;
-      wDisp = wContain + (wCover - wContain) * (P / 100);
+      wDisp = wContain + (wCover - wContain) * getPhotoCropBlend(P);
       hDisp = wDisp / R_i;
     }
 
@@ -557,7 +561,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
 
     const P = activePhotoCrop;
 
-    const { cropPositionY } = getPhotoCropState(state, url, state.scaleMode === 'contain' ? 0 : 100, 50);
+    const { cropPositionY } = getPhotoCropState(state, url, getDefaultPhotoCropPercent(state.scaleMode), 50);
 
     const P_y = (dragState.isDragging && dragState.photoUrl === url && currentDragY !== null)
       ? currentDragY
@@ -567,12 +571,12 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     if (R_i < R_c) {
       const hContain = padHeight;
       const hCover = padWidth / R_i;
-      hDisp = hContain + (hCover - hContain) * (P / 100);
+      hDisp = hContain + (hCover - hContain) * getPhotoCropBlend(P);
       wDisp = hDisp * R_i;
     } else {
       const wContain = padWidth;
       const wCover = padHeight * R_i;
-      wDisp = wContain + (wCover - wContain) * (P / 100);
+      wDisp = wContain + (wCover - wContain) * getPhotoCropBlend(P);
       hDisp = wDisp / R_i;
     }
 
@@ -601,7 +605,7 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
 
     const R_c = padWidth / padHeight;
 
-    const defaultP = state.scaleMode === 'contain' ? 0 : 100;
+    const defaultP = getDefaultPhotoCropPercent(state.scaleMode);
     const P = photo.cropPercent !== undefined ? photo.cropPercent : defaultP;
     const P_y = (dragState.isDragging && dragState.photoUrl === photo.url && currentDragY !== null)
       ? currentDragY
@@ -611,12 +615,12 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     if (R_i < R_c) {
       const hContain = padHeight;
       const hCover = padWidth / R_i;
-      hDisp = hContain + (hCover - hContain) * (P / 100);
+      hDisp = hContain + (hCover - hContain) * getPhotoCropBlend(P);
       wDisp = hDisp * R_i;
     } else {
       const wContain = padWidth;
       const wCover = padHeight * R_i;
-      wDisp = wContain + (wCover - wContain) * (P / 100);
+      wDisp = wContain + (wCover - wContain) * getPhotoCropBlend(P);
       hDisp = wDisp / R_i;
     }
 

@@ -9,7 +9,11 @@ const {
   normalizeKeywordEntries,
   normalizeKeywordTerms
 } = require('../utils/keywordSpecs.js');
-const { validatePercent, validateRating } = require('../utils/validation.js');
+const {
+  validatePercent,
+  validatePhotoCropPercent,
+  validateRating
+} = require('../utils/validation.js');
 
 const STATE_PATCH_FIELDS = [
   'theme',
@@ -89,7 +93,7 @@ function decodePhotoCropCommand(payload) {
     return null;
   }
 
-  const cropPercent = payload.cropPercent !== undefined ? validatePercent(payload.cropPercent) : undefined;
+  const cropPercent = payload.cropPercent !== undefined ? validatePhotoCropPercent(payload.cropPercent) : undefined;
   const cropPositionY = payload.cropPositionY !== undefined ? validatePercent(payload.cropPositionY) : undefined;
 
   if (payload.cropPercent !== undefined && cropPercent === null) {

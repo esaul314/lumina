@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
+import {
+  DEFAULT_COVER_CROP_PERCENT,
+  MAX_PHOTO_CROP_PERCENT,
+  getDefaultPhotoCropPercent
+} from '../../state/photoCrop';
 import { isCategorySelected } from '../../state/feedMutations';
 
 function ImageFeedsTab({
@@ -58,7 +63,7 @@ function ImageFeedsTab({
 
   useEffect(() => {
     if (activeGalleryPhoto) {
-      const defaultP = state.scaleMode === 'contain' ? 0 : 100;
+      const defaultP = getDefaultPhotoCropPercent(state.scaleMode);
       setLocalCrop(activeGalleryPhoto.cropPercent !== undefined ? activeGalleryPhoto.cropPercent : defaultP);
     }
   }, [activeGalleryPhoto?.url, activeGalleryPhoto?.cropPercent, state.scaleMode]);
@@ -622,7 +627,7 @@ function ImageFeedsTab({
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max={MAX_PHOTO_CROP_PERCENT}
                       value={localCrop}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10);
@@ -645,7 +650,10 @@ function ImageFeedsTab({
                         cursor: 'pointer'
                       }}
                     />
-                    <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>Cover</span>
+                    <span style={{ fontSize: '0.72rem', opacity: 0.5 }}>Zoom+</span>
+                  </div>
+                  <div style={{ fontSize: '0.68rem', opacity: 0.42, textAlign: 'center' }}>
+                    Cover lands at {DEFAULT_COVER_CROP_PERCENT}%.
                   </div>
                 </div>
 

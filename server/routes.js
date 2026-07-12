@@ -421,7 +421,7 @@ module.exports = function configureRoutes({
           cropPercent: body?.cropPercent,
           cropPositionY: body?.cropPositionY
         }),
-        error: 'Invalid parameter: "cropPercent" and "cropPositionY" must be integers between 0 and 100.',
+        error: 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.',
         responsePatch: (command) => ({
           ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
           ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})

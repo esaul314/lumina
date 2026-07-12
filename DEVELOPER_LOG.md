@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-11: Extended Per-Image Crop Zoom Beyond Cover
+- **Goal**: Let operators zoom past the old cover ceiling for framed or matted images without loosening unrelated percentage fields like vertical crop position or split-balance controls.
+- **Implementation**:
+  - Added a dedicated server-side `cropPercent` validator so per-photo zoom now accepts `0..200` while `cropPositionY` and other true percentages remain `0..100`.
+  - Raised the Direct Control and Image Feeds rating-deck crop sliders to the new per-photo max and clarified the UI copy so `100%` is understood as the cover point rather than the maximum zoom.
+  - Centralized the client-side photo-crop defaults/blend math in `client/src/state/photoCrop.js` so the remote preview surfaces keep the same contain/cover baseline while allowing extra zoom headroom.
+  - Expanded regression coverage so route decoding now rejects only values above the new max and live photo patch tests explicitly verify crop values greater than `100`.
+- **Learning**: The old limit was not in the render math; it was the contract. The slideshow and preview code already extrapolated cleanly past cover, so the real fix was to widen the persisted `cropPercent` range without broadening every other percentage validator in the system.
+- **Verification**: `npm test` and `npm --prefix client run build` passed.
+
 ### 2026-07-11: Continued Step 4 with Shared Reducer Specs for Photo Library Commands
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining inline reducer ceremony across the shared photo-library command branches without hiding their distinct playback rules.
 - **Implementation**:
