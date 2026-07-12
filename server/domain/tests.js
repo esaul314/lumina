@@ -934,6 +934,33 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(deleted.nextState.library.collections['Moody Rooms'], undefined);
   });
 
+  assertTest('shared pool reducer specs preserve duplicate-add and invalid feed-config no-op semantics', () => {
+    const initialState = createState();
+    const added = reduceDomainCommand(initialState, {
+      type: 'add-pool',
+      payload: { name: 'Moody Rooms', keywords: ['moody', 'rooms'] }
+    });
+    const duplicateAdd = reduceDomainCommand(added.nextState, {
+      type: 'add-pool',
+      payload: { name: 'Moody Rooms', keywords: ['moody', 'rooms'] }
+    });
+    const invalidFeedConfig = reduceDomainCommand(initialState, {
+      type: 'merge-pool-feed-config',
+      payload: {
+        name: 'Scenic Nature',
+        source: '   ',
+        config: ['not-an-object']
+      }
+    });
+
+    [duplicateAdd, invalidFeedConfig].forEach((result, index) => {
+      const expectedState = index === 0 ? added.nextState : initialState;
+      assert.strictEqual(result.nextState, expectedState);
+      assert.deepStrictEqual(result.events, []);
+      assert.deepStrictEqual(result.effects, []);
+    });
+  });
+
   assertTest('reducer manual recrawl requests stay effect-only and keep state pure', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {

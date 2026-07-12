@@ -437,6 +437,36 @@ function buildFeedCommandReducer({
   };
 }
 
+function buildPoolCommandReducer({
+  readPayload,
+  apply,
+  effects,
+  persist = false,
+  requireExistingPool = true
+}) {
+  return (state, command) => {
+    const payload = readPayload(command, state);
+
+    if (payload === null) {
+      return unchangedResult(state);
+    }
+
+    const options = {
+      persist: resolveReducerValue(persist, payload, command, state),
+      ...(effects === undefined
+        ? {}
+        : { effects: resolveReducerValue(effects, payload, command, state) }),
+      apply: requireExistingPool
+        ? (nextState, poolName) => apply(nextState, { ...payload, name: poolName }, command, state)
+        : (nextState) => apply(nextState, payload, command, state)
+    };
+
+    return requireExistingPool
+      ? reducePoolMutation(state, payload.name, options)
+      : reduceStateMutation(state, options);
+  };
+}
+
 const reducePhotoCommand = {
   'rate-photo': buildPhotoCommandReducer({
     buildUpdater: ({ rating }, photo) => ({
@@ -820,9 +850,34 @@ const readExcludedKeywordsPayload = (command) => ({
     .filter((keyword) => typeof keyword === 'string')
 });
 
+const readAddPoolPayload = (command) => {
+  const name = normalizePoolName(command.payload?.name);
+  const keywords = normalizeKeywordEntries(command.payload?.keywords)
+    .filter((keyword) => typeof keyword === 'string');
+
+  return name && keywords.length > 0 ? { name, keywords } : null;
+};
+
 const readDeletePoolPayload = (command) => {
   const name = normalizePoolName(command.payload?.name);
   return name ? { name } : null;
+};
+
+const readPoolKeywordsPayload = (command) => {
+  const name = normalizePoolName(command.payload?.name);
+  const keywords = normalizeKeywordEntries(command.payload?.keywords);
+
+  return name && keywords.length > 0 ? { name, keywords } : null;
+};
+
+const readPoolFeedConfigPayload = (command) => {
+  const name = normalizePoolName(command.payload?.name);
+  const source = normalizePoolName(command.payload?.source);
+  const config = command.payload?.config;
+
+  return name && source && isPlainObject(config)
+    ? { name, source, config }
+    : null;
 };
 
 const reduceSimpleCommand = {
@@ -909,12 +964,36 @@ const reduceFeedCommand = {
   })
 };
 
+const reducePoolCommand = {
+  'add-pool': buildPoolCommandReducer({
+    readPayload: readAddPoolPayload,
+    requireExistingPool: false,
+    persist: true,
+    effects: ({ name }) => [{
+      type: 'run-crawler',
+      payload: { categories: [name] }
+    }],
+    apply: (nextState, { name, keywords }) => addPoolState(nextState, name, keywords)
+  }),
+  'set-pool-keywords': buildPoolCommandReducer({
+    readPayload: readPoolKeywordsPayload,
+    persist: true,
+    apply: (nextState, { name, keywords }) => assignPoolKeywords(nextState, name, keywords)
+  }),
+  'merge-pool-feed-config': buildPoolCommandReducer({
+    readPayload: readPoolFeedConfigPayload,
+    persist: true,
+    apply: (nextState, { name, source, config }) => mergePoolSourceConfig(nextState, name, source, config)
+  })
+};
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
   const reduceSharedCommand = reduceSimpleCommand[command.type];
   const reduceSharedPhotoCommand = reducePhotoCommand[command.type];
   const reduceSharedFeedCommand = reduceFeedCommand[command.type];
+  const reduceSharedPoolCommand = reducePoolCommand[command.type];
 
   if (reduceSharedCommand) {
     return reduceSharedCommand(state, command);
@@ -926,6 +1005,10 @@ function reduceDomainCommand(state, command, env = {}) {
 
   if (reduceSharedFeedCommand) {
     return reduceSharedFeedCommand(state, command, { now, rng });
+  }
+
+  if (reduceSharedPoolCommand) {
+    return reduceSharedPoolCommand(state, command);
   }
 
   switch (command.type) {
@@ -968,48 +1051,6 @@ function reduceDomainCommand(state, command, env = {}) {
       }
       const nextState = updateActivePhotoUrl(cloneState(state), nextPhoto, direction);
       return photoUpdateResult(nextState.state);
-    }
-
-    case 'add-pool': {
-      const name = normalizePoolName(command.payload?.name);
-      const keywords = normalizeKeywordEntries(command.payload?.keywords)
-        .filter((keyword) => typeof keyword === 'string');
-      if (!name || keywords.length === 0) {
-        return unchangedResult(state);
-      }
-
-      return reduceStateMutation(state, {
-        apply: (nextState) => addPoolState(nextState, name, keywords),
-        persist: true,
-        effects: [{ type: 'run-crawler', payload: { categories: [name] } }]
-      });
-    }
-
-    case 'set-pool-keywords': {
-      const name = normalizePoolName(command.payload?.name);
-      const keywords = normalizeKeywordEntries(command.payload?.keywords);
-      if (keywords.length === 0) {
-        return unchangedResult(state);
-      }
-
-      return reducePoolMutation(state, name, {
-        apply: (nextState, poolName) => assignPoolKeywords(nextState, poolName, keywords),
-        persist: true
-      });
-    }
-
-    case 'merge-pool-feed-config': {
-      const name = normalizePoolName(command.payload?.name);
-      const source = normalizePoolName(command.payload?.source);
-      const configPatch = command.payload?.config;
-      if (!source || !isPlainObject(configPatch)) {
-        return unchangedResult(state);
-      }
-
-      return reducePoolMutation(state, name, {
-        apply: (nextState, poolName) => mergePoolSourceConfig(nextState, poolName, source, configPatch),
-        persist: true
-      });
     }
 
     default:
