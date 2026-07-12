@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with a Shared `patch-state` Contract Module
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicated `patch-state` contract inventory and normalization logic without broadening the reducer or transport surface.
+- **Implementation**:
+  - Added `server/domain/statePatch.js` as one pure boundary for the shared scalar `patch-state` field list plus the canonical `visionConfig` and manual-location normalization helpers.
+  - Refactored `server/domain/commands.js` to build `patch-state` commands through that shared contract instead of carrying its own scalar field reducer and duplicate normalizers.
+  - Refactored `server/domain/reducer.js` to apply scalar `patch-state` updates through the same shared field inventory, removing the last parallel scalar list from the reducer boundary.
+  - Expanded `server/domain/tests.js` with regression coverage that proves the shared scalar `patch-state` fields decode and apply consistently through the command and reducer path.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was one small contract module, not another reducer framework. Once `patch-state` stopped carrying parallel field inventories and normalizers in separate modules, the decode and reducer stages became easier to trust because their shared durable surface is now explicit in one place.
+- **Verification**: `npm test` and `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-12: Continued Step 4 with Shared Durable Socket Command Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining durable socket command-registration tables from `server/sockets.js` without hiding the transport-only fallback and acknowledgement behavior.
 - **Implementation**:
