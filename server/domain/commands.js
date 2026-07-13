@@ -86,6 +86,63 @@ const createRestEffectRouteSpec = (path, effectType, decode, extra = {}) => ({
   decode,
   ...extra
 });
+const createEnvSecretTransportSpec = ({
+  secretName,
+  envKey,
+  runtimeFlag
+}) => {
+  const decode = createEnvSecretCommandDecoder(envKey, runtimeFlag);
+
+  return {
+    secretName,
+    envKey,
+    runtimeFlag,
+    decode,
+    socketEvent: `save-${secretName}`,
+    successEvent: `${secretName}-saved`,
+    restPath: `/api/admin/secrets/${secretName}`
+  };
+};
+const createAsyncJobTransportSpec = ({
+  socketEvent,
+  routePath,
+  commandType,
+  effectType,
+  invalidLabel,
+  unavailableLabel,
+  unavailableEvent,
+  unavailablePayload,
+  logMessage
+}) => {
+  const decode = (payload) => decodeScopedJobCommand(payload, commandType);
+
+  return {
+    socketEvent,
+    routePath,
+    decode,
+    effectType,
+    logMessage,
+    unavailableEvent,
+    unavailablePayload,
+    invalidMessage: `Invalid ${invalidLabel} payload.`,
+    unavailableMessage: `${unavailableLabel} dispatcher unavailable.`,
+    missingSubmissionMessage: `${unavailableLabel} job service unavailable.`
+  };
+};
+const createAdvancePhotoTransportSpec = ({
+  direction,
+  socketEvent,
+  routePath,
+  notFoundMessage
+}) => ({
+  direction,
+  socketEvent,
+  routePath,
+  notFoundMessage,
+  fallbackArgs: [direction],
+  decodeSocket: () => decodeAdvancePhotoCommand(direction),
+  decodeRest: () => decodeAdvancePhotoCommand(direction, 'sequence')
+});
 
 function decodeCategorySelectionFromHttp(query) {
   const { category, categories: rawCategories } = query || {};
@@ -347,14 +404,6 @@ const decodePoolFeedConfigCommand = createPoolCommandDecoder('merge-pool-feed-co
   };
 });
 
-function decodeRecrawlCommand(payload) {
-  return decodeScopedJobCommand(payload, 'trigger-recrawl');
-}
-
-function decodeVisionAnalysisCommand(payload) {
-  return decodeScopedJobCommand(payload, 'trigger-vision-analysis');
-}
-
 function decodeScopedJobCommand(payload, type) {
   if (payload === undefined || payload === null) {
     return createCommand(type, {});
@@ -388,8 +437,81 @@ const decodePhotoMetadataCommand = createPhotoCommandDecoder('report-photo-metad
   };
 });
 
-const decodeUseApiTokenCommand = createEnvSecretCommandDecoder('USEAPI_TOKEN', 'hasUseApiToken');
-const decodeTumblrApiKeyCommand = createEnvSecretCommandDecoder('TUMBLR_API_KEY', 'hasTumblrApiKey');
+const ENV_SECRET_TRANSPORT_SPECS = [
+  createEnvSecretTransportSpec({
+    secretName: 'useapi-token',
+    envKey: 'USEAPI_TOKEN',
+    runtimeFlag: 'hasUseApiToken'
+  }),
+  createEnvSecretTransportSpec({
+    secretName: 'tumblr-api-key',
+    envKey: 'TUMBLR_API_KEY',
+    runtimeFlag: 'hasTumblrApiKey'
+  })
+];
+
+const [
+  USE_API_TOKEN_SECRET_SPEC,
+  TUMBLR_API_KEY_SECRET_SPEC
+] = ENV_SECRET_TRANSPORT_SPECS;
+
+const decodeUseApiTokenCommand = USE_API_TOKEN_SECRET_SPEC.decode;
+const decodeTumblrApiKeyCommand = TUMBLR_API_KEY_SECRET_SPEC.decode;
+
+const ASYNC_JOB_TRANSPORT_SPECS = [
+  createAsyncJobTransportSpec({
+    socketEvent: 'trigger-recrawl',
+    routePath: '/api/jobs/recrawl',
+    commandType: 'trigger-recrawl',
+    effectType: 'start-recrawl-job',
+    invalidLabel: 'recrawl',
+    unavailableLabel: 'Recrawl',
+    unavailableEvent: 'recrawl-complete',
+    unavailablePayload: {
+      success: false,
+      error: 'Recrawl dispatcher unavailable.'
+    },
+    logMessage: '[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...'
+  }),
+  createAsyncJobTransportSpec({
+    socketEvent: 'trigger-vision-analysis',
+    routePath: '/api/jobs/vision-analysis',
+    commandType: 'trigger-vision-analysis',
+    effectType: 'start-vision-analysis-job',
+    invalidLabel: 'vision-analysis',
+    unavailableLabel: 'Vision-analysis',
+    unavailableEvent: 'job-status',
+    unavailablePayload: {
+      type: 'vision-analysis',
+      status: 'failed',
+      error: 'Vision-analysis dispatcher unavailable.'
+    },
+    logMessage: '[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...'
+  })
+];
+
+const [
+  RECRAWL_JOB_TRANSPORT_SPEC,
+  VISION_ANALYSIS_JOB_TRANSPORT_SPEC
+] = ASYNC_JOB_TRANSPORT_SPECS;
+
+const decodeRecrawlCommand = RECRAWL_JOB_TRANSPORT_SPEC.decode;
+const decodeVisionAnalysisCommand = VISION_ANALYSIS_JOB_TRANSPORT_SPEC.decode;
+
+const ADVANCE_PHOTO_TRANSPORT_SPECS = [
+  createAdvancePhotoTransportSpec({
+    direction: 'next',
+    socketEvent: 'next-photo',
+    routePath: '/api/photos/next',
+    notFoundMessage: 'Could not transition to next photo.'
+  }),
+  createAdvancePhotoTransportSpec({
+    direction: 'prev',
+    socketEvent: 'prev-photo',
+    routePath: '/api/photos/prev',
+    notFoundMessage: 'Could not transition to previous photo.'
+  })
+];
 
 const SOCKET_DURABLE_COMMAND_SPECS = [
   createSocketCommandSpec('change-category', decodeCategorySelectionFromSocket, {
@@ -426,14 +548,14 @@ const SOCKET_DURABLE_COMMAND_SPECS = [
   createSocketCommandSpec('delete-category', decodeDeletePoolCommand, {
     fallbackKey: 'deletePool'
   }),
-  createSocketCommandSpec('next-photo', () => decodeAdvancePhotoCommand('next'), {
-    fallbackKey: 'advancePhoto',
-    fallbackArgs: ['next']
-  }),
-  createSocketCommandSpec('prev-photo', () => decodeAdvancePhotoCommand('prev'), {
-    fallbackKey: 'advancePhoto',
-    fallbackArgs: ['prev']
-  }),
+  ...ADVANCE_PHOTO_TRANSPORT_SPECS.map(({ socketEvent, decodeSocket, fallbackArgs }) => createSocketCommandSpec(
+    socketEvent,
+    decodeSocket,
+    {
+      fallbackKey: 'advancePhoto',
+      fallbackArgs
+    }
+  )),
   createSocketCommandSpec('set-screensaver-active', decodeScreensaverActiveFromSocket, {
     fallbackKey: 'screensaverActive'
   }),
@@ -443,78 +565,65 @@ const SOCKET_DURABLE_COMMAND_SPECS = [
   })
 ];
 
-const SOCKET_ASYNC_JOB_COMMAND_SPECS = [
-  createSocketCommandSpec('trigger-recrawl', decodeRecrawlCommand, {
-    logMessage: '[SOCKET EVENT] trigger-recrawl received. Initiating manual crawl...',
-    unavailableEvent: 'recrawl-complete',
-    unavailablePayload: {
-      success: false,
-      error: 'Recrawl dispatcher unavailable.'
-    }
-  }),
-  createSocketCommandSpec('trigger-vision-analysis', decodeVisionAnalysisCommand, {
-    logMessage: '[SOCKET EVENT] trigger-vision-analysis received. Initiating manual vision analysis...',
-    unavailableEvent: 'job-status',
-    unavailablePayload: {
-      type: 'vision-analysis',
-      status: 'failed',
-      error: 'Vision-analysis dispatcher unavailable.'
-    }
-  })
-];
+const SOCKET_ASYNC_JOB_COMMAND_SPECS = ASYNC_JOB_TRANSPORT_SPECS.map(({
+  socketEvent,
+  decode,
+  logMessage,
+  unavailableEvent,
+  unavailablePayload
+}) => createSocketCommandSpec(socketEvent, decode, {
+  logMessage,
+  unavailableEvent,
+  unavailablePayload
+}));
 
-const SOCKET_SECRET_COMMAND_SPECS = [
-  createSocketCommandSpec('save-useapi-token', decodeUseApiTokenCommand, {
-    envKey: 'USEAPI_TOKEN',
-    runtimeFlag: 'hasUseApiToken',
-    successEvent: 'useapi-token-saved'
-  }),
-  createSocketCommandSpec('save-tumblr-api-key', decodeTumblrApiKeyCommand, {
-    envKey: 'TUMBLR_API_KEY',
-    runtimeFlag: 'hasTumblrApiKey',
-    successEvent: 'tumblr-api-key-saved'
-  })
-];
+const SOCKET_SECRET_COMMAND_SPECS = ENV_SECRET_TRANSPORT_SPECS.map(({
+  socketEvent,
+  decode,
+  envKey,
+  runtimeFlag,
+  successEvent
+}) => createSocketCommandSpec(socketEvent, decode, {
+  envKey,
+  runtimeFlag,
+  successEvent
+}));
 
-const REST_ADMIN_SECRET_ROUTE_SPECS = [
-  createRestCommandRouteSpec('/api/admin/secrets/useapi-token', decodeUseApiTokenCommand, {
-    secretName: 'useapi-token'
-  }),
-  createRestCommandRouteSpec('/api/admin/secrets/tumblr-api-key', decodeTumblrApiKeyCommand, {
-    secretName: 'tumblr-api-key'
-  })
-];
+const REST_ADMIN_SECRET_ROUTE_SPECS = ENV_SECRET_TRANSPORT_SPECS.map(({
+  restPath,
+  decode,
+  secretName
+}) => createRestCommandRouteSpec(restPath, decode, {
+  secretName
+}));
 
 const buildAcceptedJobResponse = (submission) => ({
   job: submission.job,
   reused: Boolean(submission.reused)
 });
 
-const REST_ASYNC_JOB_ROUTE_SPECS = [
-  createRestEffectRouteSpec('/api/jobs/recrawl', 'start-recrawl-job', decodeRecrawlCommand, {
-    invalidMessage: 'Invalid recrawl payload.',
-    unavailableMessage: 'Recrawl dispatcher unavailable.',
-    missingSubmissionMessage: 'Recrawl job service unavailable.',
-    present: ({ submission }) => buildAcceptedJobResponse(submission)
-  }),
-  createRestEffectRouteSpec('/api/jobs/vision-analysis', 'start-vision-analysis-job', decodeVisionAnalysisCommand, {
-    invalidMessage: 'Invalid vision-analysis payload.',
-    unavailableMessage: 'Vision-analysis dispatcher unavailable.',
-    missingSubmissionMessage: 'Vision-analysis job service unavailable.',
-    present: ({ submission }) => buildAcceptedJobResponse(submission)
-  })
-];
+const REST_ASYNC_JOB_ROUTE_SPECS = ASYNC_JOB_TRANSPORT_SPECS.map(({
+  routePath,
+  effectType,
+  decode,
+  invalidMessage,
+  unavailableMessage,
+  missingSubmissionMessage
+}) => createRestEffectRouteSpec(routePath, effectType, decode, {
+  invalidMessage,
+  unavailableMessage,
+  missingSubmissionMessage,
+  present: ({ submission }) => buildAcceptedJobResponse(submission)
+}));
 
-const REST_ADVANCE_PHOTO_ROUTE_SPECS = [
-  createRestCommandRouteSpec('/api/photos/next', () => decodeAdvancePhotoCommand('next', 'sequence'), {
-    notFoundMessage: 'Could not transition to next photo.',
-    notFoundStatus: 500
-  }),
-  createRestCommandRouteSpec('/api/photos/prev', () => decodeAdvancePhotoCommand('prev', 'sequence'), {
-    notFoundMessage: 'Could not transition to previous photo.',
-    notFoundStatus: 500
-  })
-];
+const REST_ADVANCE_PHOTO_ROUTE_SPECS = ADVANCE_PHOTO_TRANSPORT_SPECS.map(({
+  routePath,
+  decodeRest,
+  notFoundMessage
+}) => createRestCommandRouteSpec(routePath, decodeRest, {
+  notFoundMessage,
+  notFoundStatus: 500
+}));
 
 module.exports = {
   decodeAddPoolCommand,

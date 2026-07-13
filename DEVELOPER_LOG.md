@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-13: Continued Step 4 with Shared Cross-Transport Command Family Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicated command-family metadata across REST and Socket.IO without widening the shared dispatch shell or changing wire behavior.
+- **Implementation**:
+  - Refactored `server/domain/commands.js` so the admin-secret, async-job, and next/prev-photo families now derive their REST and Socket.IO transport specs from one shared declarative source instead of parallel per-transport tables.
+  - Kept transport-owned behavior explicit by preserving route-only response shaping, socket-only fallback metadata, and the existing shared decoders while collapsing the repeated family facts into small spec builders.
+  - Expanded `server/domain/tests.js` to assert cross-transport parity directly, proving the shared family metadata yields the same admin-secret and async-job command shapes across REST and Socket.IO while keeping socket playback advance on `smart` strategy and REST advance routes on `sequence`.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repository records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was one transport-family source of truth, not another layer around the adapters. Once the family facts became shared data, the remaining REST and Socket.IO spec tables stayed explicit about transport-owned behavior while losing the parallel metadata drift risk.
+- **Verification**: `npm test` passed, with the usual live smoke skip under sandbox `listen EPERM`. `npm run lint` passed.
+
 ### 2026-07-12: Continued Step 4 with Shared REST Route Specs for Repeated Command Families
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated REST command-registration ceremony without widening the shared dispatch shell or changing route behavior.
 - **Implementation**:

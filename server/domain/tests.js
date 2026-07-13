@@ -437,6 +437,7 @@ function runDomainTests({ logSuite, assertTest }) {
     const recrawlSpec = findSocketAsyncJobSpec('trigger-recrawl');
     const visionSpec = findSocketAsyncJobSpec('trigger-vision-analysis');
     const useApiSpec = findSocketSecretSpec('save-useapi-token');
+    const useApiRouteSpec = findRestAdminSecretRouteSpec('/api/admin/secrets/useapi-token');
 
     assert.deepStrictEqual(recrawlSpec?.decode({ categories: [' Scenic Nature ', ''] }), {
       type: 'trigger-recrawl',
@@ -458,6 +459,7 @@ function runDomainTests({ logSuite, assertTest }) {
         value: 'secret-123'
       }
     });
+    assert.deepStrictEqual(useApiSpec?.decode({ token: ' secret-123 ' }), useApiRouteSpec?.decode({ token: ' secret-123 ' }));
     assert.strictEqual(useApiSpec?.successEvent, 'useapi-token-saved');
   });
 
@@ -1474,6 +1476,7 @@ function runDomainTests({ logSuite, assertTest }) {
   assertTest('shared REST async-job route specs preserve effect types and accepted-job presenters', () => {
     const recrawlSpec = findRestAsyncJobRouteSpec('/api/jobs/recrawl');
     const visionSpec = findRestAsyncJobRouteSpec('/api/jobs/vision-analysis');
+    const recrawlSocketSpec = findSocketAsyncJobSpec('trigger-recrawl');
     const submission = {
       job: {
         id: 'job-1',
@@ -1489,6 +1492,7 @@ function runDomainTests({ logSuite, assertTest }) {
         categories: ['Scenic Nature']
       }
     });
+    assert.deepStrictEqual(recrawlSpec?.decode({ categories: [' Scenic Nature '] }), recrawlSocketSpec?.decode({ categories: [' Scenic Nature '] }));
     assert.deepStrictEqual(recrawlSpec?.present({ submission }), {
       job: { id: 'job-1', status: 'queued' },
       reused: true
@@ -1503,6 +1507,8 @@ function runDomainTests({ logSuite, assertTest }) {
   assertTest('shared REST advance-photo route specs keep both directions on the sequence command path', () => {
     const nextSpec = findRestAdvanceRouteSpec('/api/photos/next');
     const prevSpec = findRestAdvanceRouteSpec('/api/photos/prev');
+    const nextSocketSpec = findSocketCommandSpec('next-photo');
+    const prevSocketSpec = findSocketCommandSpec('prev-photo');
 
     assert.deepStrictEqual(nextSpec?.decode(), {
       type: 'advance-photo',
@@ -1511,6 +1517,8 @@ function runDomainTests({ logSuite, assertTest }) {
         strategy: 'sequence'
       }
     });
+    assert.strictEqual(nextSocketSpec?.decode()?.payload.direction, nextSpec?.decode()?.payload.direction);
+    assert.strictEqual(nextSocketSpec?.decode()?.payload.strategy, 'smart');
     assert.deepStrictEqual(prevSpec?.decode(), {
       type: 'advance-photo',
       payload: {
@@ -1518,6 +1526,8 @@ function runDomainTests({ logSuite, assertTest }) {
         strategy: 'sequence'
       }
     });
+    assert.strictEqual(prevSocketSpec?.decode()?.payload.direction, prevSpec?.decode()?.payload.direction);
+    assert.strictEqual(prevSocketSpec?.decode()?.payload.strategy, 'smart');
     assert.strictEqual(prevSpec?.notFoundMessage, 'Could not transition to previous photo.');
   });
 

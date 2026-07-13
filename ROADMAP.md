@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 ## Implementation Companion
 
@@ -20,7 +20,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
 - Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
 - Done: implementation companion Step 3. `server/app.js` now delegates active-feed refresh, environment refresh, kiosk/browser lifecycle, and idle-daemon orchestration to dedicated runtime modules.
-- Next: continue the Phase 1 implementation companion with Step 4, focused on extending the new reducer-local combinators, shared dispatch-route shell, dispatcher readability patterns, route-decode algebra, and declarative listener/command specs only where they remove real repeated command/effect ceremony. The latest slice moved the remaining repeated REST command registrations onto shared route specs, so the admin-secret, async-job, and advance-photo POST families now read as declarative metadata specialized through the same route shell instead of bespoke registration calls. The broader Step 4 readability pass remains active and intentionally selective.
+- Next: continue the Phase 1 implementation companion with Step 4, focused on extending the new reducer-local combinators, shared dispatch-route shell, dispatcher readability patterns, route-decode algebra, and declarative listener/command specs only where they remove real repeated command/effect ceremony. The latest slice centralized the remaining cross-transport command-family metadata in one shared source, so REST and Socket.IO now derive the admin-secret, async-job, and next/prev-photo families from the same declarative transport specs instead of re-declaring those command facts in parallel tables. The broader Step 4 readability pass remains active and intentionally selective.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 3 are complete and Step 4 is the active refactor checkpoint.
 
 ## Architectural Rule
@@ -58,7 +58,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: Steps 1 through 3 of the implementation companion are complete; the active companion work is now Step 4's command/effect readability pass across the shared reducer, shared dispatch-route shell, dispatcher boundaries, route-decode composition layer, and socket listener registration boundary, with photo/config/pool/feed/playback helpers, guarded REST shells, decode-aware photo routes, keyword-spec normalization, dispatcher-local effect sequencing, shared route-decode combinators, declarative socket listener specs, reducer specs for simple setters/effects, photo-library mutations, feed mutations, shared transport command-decoder specs, shared photo/pool patch decoder-spec pipelines, shared pool-command reducer specs, shared playback-selection reducer specs, shared durable socket state-patch specs, shared durable socket command/async-job/secret spec tables, shared REST admin-secret/async-job/advance route specs, a shared `patch-state` contract module, and declarative `patch-state` reducer applier specs already standardized. The remaining work should stay limited to future seams that still show real repeated ceremony.
+  - Next focus: Steps 1 through 3 of the implementation companion are complete; the active companion work is now Step 4's command/effect readability pass across the shared reducer, shared dispatch-route shell, dispatcher boundaries, route-decode composition layer, and socket listener registration boundary, with photo/config/pool/feed/playback helpers, guarded REST shells, decode-aware photo routes, keyword-spec normalization, dispatcher-local effect sequencing, shared route-decode combinators, declarative socket listener specs, reducer specs for simple setters/effects, photo-library mutations, feed mutations, shared transport command-decoder specs, shared photo/pool patch decoder-spec pipelines, shared pool-command reducer specs, shared playback-selection reducer specs, shared durable socket state-patch specs, shared durable socket command/async-job/secret spec tables, shared REST admin-secret/async-job/advance route specs, shared cross-transport family spec generators for those same admin-secret/async-job/advance families, a shared `patch-state` contract module, and declarative `patch-state` reducer applier specs already standardized. The remaining work should stay limited to future seams that still show real repeated ceremony.
 
 ### Shared domain flow
 

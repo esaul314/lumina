@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 ## Purpose
 
@@ -222,6 +222,7 @@ Progress note:
 - The latest Step 4 slice centralized the shared `patch-state` contract in `server/domain/statePatch.js`, so the decoder, reducer, and legacy socket fallback now reuse one scalar field inventory plus one pure normalization boundary for `visionConfig` and manual location instead of carrying parallel state-patch lists and normalizers.
 - The latest Step 4 slice standardized `patch-state` reducer application through declarative spec rows, so scalar config fields, excluded keywords, widgets, vision config, and location settings now share one explicit `read -> compare -> apply -> flag` interpreter instead of a hand-built chain of patch handlers.
 - The latest Step 4 slice moved the remaining repeated REST command registrations onto shared route specs, so admin-secret, async-job, and advance-photo POST families now specialize declarative metadata through the same `decode -> dispatch -> present` shell instead of repeating route registration ceremony inline.
+- The latest Step 4 slice centralized the remaining cross-transport command-family metadata, so REST and Socket.IO now derive the admin-secret, async-job, and next/prev-photo families from one shared declarative source instead of re-declaring parallel transport-specific tables with the same command facts.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity.
 
 ### Step 5: Align the client control surface with the same functional boundaries
