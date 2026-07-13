@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-12: Continued Step 4 with Shared REST Route Specs for Repeated Command Families
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated REST command-registration ceremony without widening the shared dispatch shell or changing route behavior.
+- **Implementation**:
+  - Added declarative shared REST route specs in `server/domain/commands.js` for the admin-secret, async-job, and sequence-advance photo POST families.
+  - Refactored `server/routes.js` to register those route families through small shared helpers, so the transport layer now specializes route metadata through the existing `createCommandRoute(...)` and `createEffectSubmissionRoute(...)` shells instead of repeating inline `app.post(...)` command setup.
+  - Expanded `server/domain/tests.js` with direct assertions against the new REST route specs, covering both admin-secret endpoints, both async job families, and both advance-photo directions through the shared command shape.
+  - Expanded `run-tests.js` with route regressions for `POST /api/admin/secrets/tumblr-api-key` and `POST /api/photos/prev`, proving the spec-driven registration still dispatches the expected shared commands and response shapes.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repository records this as the latest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was a tiny route-spec table, not another HTTP framework. Once the repeated POST families became plain metadata plus one registration helper, `server/routes.js` got shorter without hiding the existing decode/guard/dispatch/present boundary that still matters operationally.
+- **Verification**: `npm test` passed with 176 assertions. `npm run lint` passed. The existing sandbox-only live smoke skip still reports `listen EPERM` when the temporary Unix socket bind is attempted.
+
 ### 2026-07-12: Continued Step 4 with Declarative `patch-state` Reducer Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining hand-built `patch-state` reducer handler chain without widening the shared state contract or transport boundary.
 - **Implementation**:

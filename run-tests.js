@@ -3031,6 +3031,57 @@ async function runIntegrationTests() {
     }]);
   });
 
+  await assertAsyncTest('POST /api/admin/secrets/tumblr-api-key dispatches the shared admin secret route spec and returns the Tumblr configured flag', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.hasTumblrApiKey = true;
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'persist-env-vars' }]
+          },
+          effectResults: [{
+            effect: { type: 'persist-env-vars' },
+            value: {
+              entries: { TUMBLR_API_KEY: 'tumblr-secret' },
+              runtimeFlags: { hasTumblrApiKey: true }
+            }
+          }]
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/admin/secrets/tumblr-api-key', {
+      body: { value: ' tumblr-secret ' }
+    });
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.secret, 'tumblr-api-key');
+    assert.strictEqual(response.body.configured, true);
+    assert.strictEqual(response.body.state.hasTumblrApiKey, true);
+    assert.deepStrictEqual(dispatched, [{
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'TUMBLR_API_KEY',
+        runtimeFlag: 'hasTumblrApiKey',
+        value: 'tumblr-secret'
+      }
+    }]);
+  });
+
   logSuite('REST Photo Patch Routes');
   await assertAsyncTest('PATCH /api/photos rejects an empty url before dispatching the shared photo batch route', async () => {
     let dispatched = false;
@@ -3216,6 +3267,44 @@ async function runIntegrationTests() {
       payload: {
         url: 'preview-photo-route',
         photo: previewPhoto
+      }
+    }]);
+  });
+
+  logSuite('REST Advance Photo Routes');
+  await assertAsyncTest('POST /api/photos/prev dispatches the shared sequence-advance route spec and returns the updated active photo', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      activePhoto: { url: 'land-2', title: 'Land 2', author: 'B' },
+      photosList: [{ url: 'land-2', title: 'Land 2', author: 'B', category: 'Scenic Nature' }],
+      widgets: { clock: true },
+      theme: 'Zen Retreat'
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.activePhoto = { url: 'land-1', title: 'Land 1', author: 'A' };
+        return {
+          reducerResult: {
+            events: [{ type: 'photo-update' }, { type: 'state-sync' }],
+            effects: []
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/photos/prev');
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.activePhoto.url, 'land-1');
+    assert.deepStrictEqual(dispatched, [{
+      type: 'advance-photo',
+      payload: {
+        direction: 'prev',
+        strategy: 'sequence'
       }
     }]);
   });

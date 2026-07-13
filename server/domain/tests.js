@@ -6,6 +6,9 @@ const {
   SOCKET_DURABLE_COMMAND_SPECS,
   SOCKET_SECRET_COMMAND_SPECS,
   SOCKET_STATE_PATCH_SPECS,
+  REST_ADMIN_SECRET_ROUTE_SPECS,
+  REST_ASYNC_JOB_ROUTE_SPECS,
+  REST_ADVANCE_PHOTO_ROUTE_SPECS,
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
   decodeAddPoolCommand,
@@ -46,6 +49,9 @@ const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spe
 const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
 const findSocketAsyncJobSpec = (event) => SOCKET_ASYNC_JOB_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
 const findSocketSecretSpec = (event) => SOCKET_SECRET_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
+const findRestAdminSecretRouteSpec = (path) => REST_ADMIN_SECRET_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
+const findRestAsyncJobRouteSpec = (path) => REST_ASYNC_JOB_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
+const findRestAdvanceRouteSpec = (path) => REST_ADVANCE_PHOTO_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
 
 function createState(overrides = {}) {
   const baseState = {
@@ -1439,6 +1445,80 @@ function runDomainTests({ logSuite, assertTest }) {
     });
 
     assert.strictEqual(decodeUseApiTokenCommand({}), null);
+  });
+
+  assertTest('shared REST admin-secret route specs cover both secret endpoints through the same command shape', () => {
+    const useApiSpec = findRestAdminSecretRouteSpec('/api/admin/secrets/useapi-token');
+    const tumblrSpec = findRestAdminSecretRouteSpec('/api/admin/secrets/tumblr-api-key');
+
+    assert.strictEqual(useApiSpec?.secretName, 'useapi-token');
+    assert.deepStrictEqual(useApiSpec?.decode({ token: ' api-secret ' }), {
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'USEAPI_TOKEN',
+        runtimeFlag: 'hasUseApiToken',
+        value: 'api-secret'
+      }
+    });
+    assert.strictEqual(tumblrSpec?.secretName, 'tumblr-api-key');
+    assert.deepStrictEqual(tumblrSpec?.decode({ value: 'tumblr-secret' }), {
+      type: 'save-env-secret',
+      payload: {
+        envKey: 'TUMBLR_API_KEY',
+        runtimeFlag: 'hasTumblrApiKey',
+        value: 'tumblr-secret'
+      }
+    });
+  });
+
+  assertTest('shared REST async-job route specs preserve effect types and accepted-job presenters', () => {
+    const recrawlSpec = findRestAsyncJobRouteSpec('/api/jobs/recrawl');
+    const visionSpec = findRestAsyncJobRouteSpec('/api/jobs/vision-analysis');
+    const submission = {
+      job: {
+        id: 'job-1',
+        status: 'queued'
+      },
+      reused: 1
+    };
+
+    assert.strictEqual(recrawlSpec?.effectType, 'start-recrawl-job');
+    assert.deepStrictEqual(recrawlSpec?.decode({ categories: [' Scenic Nature '] }), {
+      type: 'trigger-recrawl',
+      payload: {
+        categories: ['Scenic Nature']
+      }
+    });
+    assert.deepStrictEqual(recrawlSpec?.present({ submission }), {
+      job: { id: 'job-1', status: 'queued' },
+      reused: true
+    });
+    assert.strictEqual(visionSpec?.effectType, 'start-vision-analysis-job');
+    assert.deepStrictEqual(visionSpec?.decode(undefined), {
+      type: 'trigger-vision-analysis',
+      payload: {}
+    });
+  });
+
+  assertTest('shared REST advance-photo route specs keep both directions on the sequence command path', () => {
+    const nextSpec = findRestAdvanceRouteSpec('/api/photos/next');
+    const prevSpec = findRestAdvanceRouteSpec('/api/photos/prev');
+
+    assert.deepStrictEqual(nextSpec?.decode(), {
+      type: 'advance-photo',
+      payload: {
+        direction: 'next',
+        strategy: 'sequence'
+      }
+    });
+    assert.deepStrictEqual(prevSpec?.decode(), {
+      type: 'advance-photo',
+      payload: {
+        direction: 'prev',
+        strategy: 'sequence'
+      }
+    });
+    assert.strictEqual(prevSpec?.notFoundMessage, 'Could not transition to previous photo.');
   });
 
   assertTest('category selection keeps Google Photos active pools populated from external cache state', () => {

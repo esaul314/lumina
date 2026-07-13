@@ -79,6 +79,13 @@ const readActivePhotoUrl = (payload) => readRequiredString(
     : payload?.url
 );
 const createSocketCommandSpec = (event, decode, extra = {}) => ({ event, decode, ...extra });
+const createRestCommandRouteSpec = (path, decode, extra = {}) => ({ path, decode, ...extra });
+const createRestEffectRouteSpec = (path, effectType, decode, extra = {}) => ({
+  path,
+  effectType,
+  decode,
+  ...extra
+});
 
 function decodeCategorySelectionFromHttp(query) {
   const { category, categories: rawCategories } = query || {};
@@ -469,6 +476,46 @@ const SOCKET_SECRET_COMMAND_SPECS = [
   })
 ];
 
+const REST_ADMIN_SECRET_ROUTE_SPECS = [
+  createRestCommandRouteSpec('/api/admin/secrets/useapi-token', decodeUseApiTokenCommand, {
+    secretName: 'useapi-token'
+  }),
+  createRestCommandRouteSpec('/api/admin/secrets/tumblr-api-key', decodeTumblrApiKeyCommand, {
+    secretName: 'tumblr-api-key'
+  })
+];
+
+const buildAcceptedJobResponse = (submission) => ({
+  job: submission.job,
+  reused: Boolean(submission.reused)
+});
+
+const REST_ASYNC_JOB_ROUTE_SPECS = [
+  createRestEffectRouteSpec('/api/jobs/recrawl', 'start-recrawl-job', decodeRecrawlCommand, {
+    invalidMessage: 'Invalid recrawl payload.',
+    unavailableMessage: 'Recrawl dispatcher unavailable.',
+    missingSubmissionMessage: 'Recrawl job service unavailable.',
+    present: ({ submission }) => buildAcceptedJobResponse(submission)
+  }),
+  createRestEffectRouteSpec('/api/jobs/vision-analysis', 'start-vision-analysis-job', decodeVisionAnalysisCommand, {
+    invalidMessage: 'Invalid vision-analysis payload.',
+    unavailableMessage: 'Vision-analysis dispatcher unavailable.',
+    missingSubmissionMessage: 'Vision-analysis job service unavailable.',
+    present: ({ submission }) => buildAcceptedJobResponse(submission)
+  })
+];
+
+const REST_ADVANCE_PHOTO_ROUTE_SPECS = [
+  createRestCommandRouteSpec('/api/photos/next', () => decodeAdvancePhotoCommand('next', 'sequence'), {
+    notFoundMessage: 'Could not transition to next photo.',
+    notFoundStatus: 500
+  }),
+  createRestCommandRouteSpec('/api/photos/prev', () => decodeAdvancePhotoCommand('prev', 'sequence'), {
+    notFoundMessage: 'Could not transition to previous photo.',
+    notFoundStatus: 500
+  })
+];
+
 module.exports = {
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
@@ -493,6 +540,9 @@ module.exports = {
   decodeTumblrApiKeyCommand,
   decodeStatePatchCommand,
   decodeUseApiTokenCommand,
+  REST_ADMIN_SECRET_ROUTE_SPECS,
+  REST_ASYNC_JOB_ROUTE_SPECS,
+  REST_ADVANCE_PHOTO_ROUTE_SPECS,
   SOCKET_STATE_PATCH_SPECS,
   STATE_PATCH_FIELDS,
   createStatePatchCommandDecoder,

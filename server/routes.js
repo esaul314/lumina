@@ -6,7 +6,6 @@ const googlePhotos = require('./services/googlePhotos.js');
 const {
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
-  decodeAdvancePhotoCommand,
   decodeCategorySelectionFromHttp,
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
@@ -15,10 +14,9 @@ const {
   decodePhotoCropCommand,
   decodePhotoPreventPairingCommand,
   decodePhotoRatingCommand,
-  decodeRecrawlCommand,
-  decodeTumblrApiKeyCommand,
-  decodeUseApiTokenCommand,
-  decodeVisionAnalysisCommand,
+  REST_ADMIN_SECRET_ROUTE_SPECS,
+  REST_ASYNC_JOB_ROUTE_SPECS,
+  REST_ADVANCE_PHOTO_ROUTE_SPECS,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand
 } = require('./domain/commands.js');
@@ -266,6 +264,11 @@ module.exports = function configureRoutes({
   const runRouteGuards = (guards, context) => (
     guards.reduce((failure, guard) => failure || guard(context), null)
   );
+  const registerPostRouteSpecs = (specs, buildRoute) => {
+    specs.forEach((spec) => {
+      app.post(spec.path, buildRoute(spec));
+    });
+  };
   const createDispatchRoute = ({
     decode,
     present,
@@ -768,43 +771,33 @@ module.exports = function configureRoutes({
     })
   }));
 
-  const createAdminSecretRoute = (path, secretName, decode) => app.post(path, createCommandRoute({
+  const createAdminSecretRoute = ({ decode, secretName, unavailableMessage = 'Admin secret dispatcher unavailable.' }) => createCommandRoute({
     decode: (req) => decode(req.body),
     invalidMessage: 'Invalid admin secret payload.',
-    unavailableMessage: 'Admin secret dispatcher unavailable.',
+    unavailableMessage,
     present: ({ command }) => ({
       secret: secretName,
       configured: Boolean(command.payload?.value),
       state: buildStateResponse()
     })
-  }));
-
-  createAdminSecretRoute('/api/admin/secrets/useapi-token', 'useapi-token', decodeUseApiTokenCommand);
-  createAdminSecretRoute('/api/admin/secrets/tumblr-api-key', 'tumblr-api-key', decodeTumblrApiKeyCommand);
-
-  app.post('/api/jobs/recrawl', createEffectSubmissionRoute({
-    decode: (req) => decodeRecrawlCommand(req.body),
-    effectType: 'start-recrawl-job',
-    invalidMessage: 'Invalid recrawl payload.',
-    unavailableMessage: 'Recrawl dispatcher unavailable.',
-    missingSubmissionMessage: 'Recrawl job service unavailable.',
-    present: ({ submission }) => ({
-      job: submission.job,
-      reused: Boolean(submission.reused)
-    })
-  }));
-
-  app.post('/api/jobs/vision-analysis', createEffectSubmissionRoute({
-    decode: (req) => decodeVisionAnalysisCommand(req.body),
-    effectType: 'start-vision-analysis-job',
-    invalidMessage: 'Invalid vision-analysis payload.',
-    unavailableMessage: 'Vision-analysis dispatcher unavailable.',
-    missingSubmissionMessage: 'Vision-analysis job service unavailable.',
-    present: ({ submission }) => ({
-      job: submission.job,
-      reused: Boolean(submission.reused)
-    })
-  }));
+  });
+  const createAsyncJobRoute = ({
+    decode,
+    effectType,
+    present,
+    invalidMessage,
+    unavailableMessage,
+    missingSubmissionMessage
+  }) => createEffectSubmissionRoute({
+    decode: (req) => decode(req.body),
+    effectType,
+    invalidMessage,
+    unavailableMessage,
+    missingSubmissionMessage,
+    present
+  });
+  registerPostRouteSpecs(REST_ADMIN_SECRET_ROUTE_SPECS, createAdminSecretRoute);
+  registerPostRouteSpecs(REST_ASYNC_JOB_ROUTE_SPECS, createAsyncJobRoute);
 
   app.get('/api/pools', (_req, res) => {
     res.json(Object.keys(collections).map(buildPoolResponse));
@@ -925,15 +918,14 @@ module.exports = function configureRoutes({
     })
   }));
 
-  const createAdvanceRoute = (direction) => createCommandRoute({
-    decode: () => decodeAdvancePhotoCommand(direction, 'sequence'),
-    notFoundMessage: `Could not transition to ${direction === 'next' ? 'next' : 'previous'} photo.`,
-    notFoundStatus: 500,
+  const createAdvanceRoute = ({ decode, notFoundMessage, notFoundStatus }) => createCommandRoute({
+    decode,
+    notFoundMessage,
+    notFoundStatus,
     present: () => ({
       activePhoto: state.activePhoto
     })
   });
 
-  app.post('/api/photos/next', createAdvanceRoute('next'));
-  app.post('/api/photos/prev', createAdvanceRoute('prev'));
+  registerPostRouteSpecs(REST_ADVANCE_PHOTO_ROUTE_SPECS, createAdvanceRoute);
 };
