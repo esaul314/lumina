@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 ## Purpose
 
@@ -25,6 +25,7 @@ Current checkpoint:
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
 - The active work has moved into Step 4: make the shared command/effect pipeline more composable and legible without hiding straightforward reducer updates.
+- The latest Step 4 slice centralized the remaining photo/pool REST patch command metadata in `server/domain/commands.js`, so `server/routes.js` now consumes shared mutation-spec rows for photo patches, pool patches, and pool-scoped recrawl command decoding instead of carrying those command facts inline.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -223,6 +224,7 @@ Progress note:
 - The latest Step 4 slice standardized `patch-state` reducer application through declarative spec rows, so scalar config fields, excluded keywords, widgets, vision config, and location settings now share one explicit `read -> compare -> apply -> flag` interpreter instead of a hand-built chain of patch handlers.
 - The latest Step 4 slice moved the remaining repeated REST command registrations onto shared route specs, so admin-secret, async-job, and advance-photo POST families now specialize declarative metadata through the same `decode -> dispatch -> present` shell instead of repeating route registration ceremony inline.
 - The latest Step 4 slice centralized the remaining cross-transport command-family metadata, so REST and Socket.IO now derive the admin-secret, async-job, and next/prev-photo families from one shared declarative source instead of re-declaring parallel transport-specific tables with the same command facts.
+- The latest Step 4 slice centralized the remaining photo/pool REST patch command facts in the shared command module, so the route shell now consumes exported photo-patch spec rows, pool-patch spec builders, and pool-scoped recrawl decoding instead of restating those command details inline.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity.
 
 ### Step 5: Align the client control surface with the same functional boundaries

@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-14: Continued Step 4 with Shared REST Patch Command Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining inline photo/pool REST patch command facts from `server/routes.js` without widening the route shell or changing wire behavior.
+- **Implementation**:
+  - Refactored `server/domain/commands.js` so photo patch mutations, pool patch mutations, and pool-scoped recrawl command decoding now live in shared pure spec data and helpers instead of route-local arrays.
+  - Rewired `server/routes.js` to consume those exported spec rows through the existing `decode -> guard -> dispatch -> present` shell, leaving the route module focused on transport orchestration rather than command metadata inventory.
+  - Expanded `server/domain/tests.js` with direct regression coverage for the shared photo patch specs, pool patch spec builder, and scoped recrawl decoder.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repository records this as the latest Step 4 slice while keeping the broader checkpoint intentionally open.
+- **Learning**: The useful abstraction here was another small spec boundary, not a broader HTTP DSL. Once the remaining REST patch command facts became shared data, the route layer kept its explicit failure/guard/presentation behavior while dropping another pocket of transport-local command inventory.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-13: Continued Step 4 with Shared Cross-Transport Command Family Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicated command-family metadata across REST and Socket.IO without widening the shared dispatch shell or changing wire behavior.
 - **Implementation**:

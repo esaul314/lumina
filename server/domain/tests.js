@@ -17,6 +17,7 @@ const {
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodePoolScopedRecrawlCommand,
   decodeBrokenPhotoCommand,
   decodePhotoCropCommand,
   decodePhotoMetadataCommand,
@@ -27,7 +28,9 @@ const {
   decodeStatePatchCommand,
   decodeTumblrApiKeyCommand,
   decodeUseApiTokenCommand,
-  decodeVisionAnalysisCommand
+  decodeVisionAnalysisCommand,
+  PHOTO_PATCH_COMMAND_ROUTE_SPECS,
+  createPoolPatchCommandRouteSpecs
 } = require('./commands.js');
 const {
   buildBalancedFeed,
@@ -52,6 +55,8 @@ const findSocketSecretSpec = (event) => SOCKET_SECRET_COMMAND_SPECS.find((spec) 
 const findRestAdminSecretRouteSpec = (path) => REST_ADMIN_SECRET_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
 const findRestAsyncJobRouteSpec = (path) => REST_ASYNC_JOB_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
 const findRestAdvanceRouteSpec = (path) => REST_ADVANCE_PHOTO_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
+const findPhotoPatchRouteSpec = (key) => PHOTO_PATCH_COMMAND_ROUTE_SPECS.find((spec) => spec.key === key) ?? null;
+const findPoolPatchRouteSpec = (specs, key) => specs.find((spec) => spec.key === key) ?? null;
 
 function createState(overrides = {}) {
   const baseState = {
@@ -1529,6 +1534,92 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(prevSocketSpec?.decode()?.payload.direction, prevSpec?.decode()?.payload.direction);
     assert.strictEqual(prevSocketSpec?.decode()?.payload.strategy, 'smart');
     assert.strictEqual(prevSpec?.notFoundMessage, 'Could not transition to previous photo.');
+  });
+
+  assertTest('shared photo patch route specs keep photo mutation command facts declarative', () => {
+    const ratingSpec = findPhotoPatchRouteSpec('rating');
+    const cropSpec = findPhotoPatchRouteSpec('crop');
+    const pairingSpec = findPhotoPatchRouteSpec('prevent-pairing');
+
+    assert.strictEqual(ratingSpec?.active({ body: { rating: 9 } }), true);
+    assert.deepStrictEqual(ratingSpec?.decode({
+      url: 'photo-1',
+      body: { rating: 9 }
+    }), {
+      type: 'rate-photo',
+      payload: {
+        url: 'photo-1',
+        rating: 9
+      }
+    });
+    assert.deepStrictEqual(ratingSpec?.responsePatch({
+      command: ratingSpec.decode({
+        url: 'photo-1',
+        body: { rating: 9 }
+      })
+    }), {
+      rating: 9
+    });
+
+    assert.deepStrictEqual(cropSpec?.decode({
+      url: 'photo-2',
+      body: { cropPercent: 135 }
+    }), {
+      type: 'set-photo-crop',
+      payload: {
+        url: 'photo-2',
+        cropPercent: 135
+      }
+    });
+    assert.deepStrictEqual(pairingSpec?.responsePatch({
+      command: pairingSpec.decode({
+        url: 'photo-3',
+        body: { preventPairing: 1, preserveActive: true }
+      })
+    }), {
+      preventPairing: true
+    });
+  });
+
+  assertTest('shared pool patch route specs and scoped recrawl decoding keep pool route command facts centralized', () => {
+    const specs = createPoolPatchCommandRouteSpecs({
+      feedConfigs: {
+        reddit: { enabled: false },
+        unsplash: { enabled: true, keywords: ['forest'] }
+      }
+    });
+    const keywordsSpec = findPoolPatchRouteSpec(specs, 'keywords');
+    const redditSpec = findPoolPatchRouteSpec(specs, 'feed-config:reddit');
+
+    assert.strictEqual(keywordsSpec?.active({
+      body: { keywords: ['forest'] }
+    }), true);
+    assert.deepStrictEqual(keywordsSpec?.decode({
+      name: 'Scenic Nature',
+      body: { keywords: ['forest'] }
+    }), {
+      type: 'set-pool-keywords',
+      payload: {
+        name: 'Scenic Nature',
+        keywords: ['forest']
+      }
+    });
+    assert.deepStrictEqual(redditSpec?.decode({
+      name: 'Scenic Nature'
+    }), {
+      type: 'merge-pool-feed-config',
+      payload: {
+        name: 'Scenic Nature',
+        source: 'reddit',
+        config: { enabled: false }
+      }
+    });
+    assert.deepStrictEqual(decodePoolScopedRecrawlCommand(' Scenic Nature '), {
+      type: 'trigger-recrawl',
+      payload: {
+        categories: ['Scenic Nature']
+      }
+    });
   });
 
   assertTest('category selection keeps Google Photos active pools populated from external cache state', () => {

@@ -10,13 +10,13 @@ const {
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
-  decodeBrokenPhotoCommand,
-  decodePhotoCropCommand,
-  decodePhotoPreventPairingCommand,
   decodePhotoRatingCommand,
+  decodePoolScopedRecrawlCommand,
+  PHOTO_PATCH_COMMAND_ROUTE_SPECS,
   REST_ADMIN_SECRET_ROUTE_SPECS,
   REST_ASYNC_JOB_ROUTE_SPECS,
   REST_ADVANCE_PHOTO_ROUTE_SPECS,
+  createPoolPatchCommandRouteSpecs,
   decodeScreensaverActiveCommand,
   decodeStatePatchCommand
 } = require('./domain/commands.js');
@@ -395,50 +395,6 @@ module.exports = function configureRoutes({
       )
     })
   });
-  const createPhotoPatchSpecs = () => [
-    {
-      active: ({ body }) => body?.rating !== undefined,
-      decode: ({ url, body }) => decodePhotoRatingCommand({ url, rating: body?.rating }),
-      error: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
-      responsePatch: ({ command }) => ({
-        rating: command.payload.rating
-      })
-    },
-    {
-      active: ({ body }) => body?.isBroken === true,
-      decode: ({ url }) => decodeBrokenPhotoCommand({ url }),
-      error: 'Invalid parameter: "url" must be a non-empty string.',
-      responsePatch: () => ({
-        isBroken: true,
-        rating: 1
-      })
-    },
-    {
-      active: ({ body }) => body?.cropPercent !== undefined || body?.cropPositionY !== undefined,
-      decode: ({ url, body }) => decodePhotoCropCommand({
-        url,
-        cropPercent: body?.cropPercent,
-        cropPositionY: body?.cropPositionY
-      }),
-      error: 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.',
-      responsePatch: ({ command }) => ({
-        ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
-        ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})
-      })
-    },
-    {
-      active: ({ body }) => body?.preventPairing !== undefined,
-      decode: ({ url, body }) => decodePhotoPreventPairingCommand({
-        url,
-        preventPairing: body?.preventPairing,
-        preserveActive: body?.preserveActive
-      }),
-      error: 'Invalid parameter: "preventPairing" must be a boolean-compatible value.',
-      responsePatch: ({ command }) => ({
-        preventPairing: command.payload.preventPairing
-      })
-    }
-  ];
   const decodePhotoPatchRequest = (req) => {
     const body = isObject(req.body) ? req.body : null;
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
@@ -452,20 +408,8 @@ module.exports = function configureRoutes({
         url,
         ...responsePatch
       }
-    }))(decodeCommandSpecs({ body, url }, createPhotoPatchSpecs()));
+    }))(decodeCommandSpecs({ body, url }, PHOTO_PATCH_COMMAND_ROUTE_SPECS));
   };
-  const createPoolPatchSpecs = ({ name, body, feedConfigs }) => [
-    {
-      active: () => body?.keywords !== undefined,
-      decode: () => decodePoolKeywordsCommand({ name, keywords: body?.keywords }),
-      error: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
-    },
-    ...Object.entries(feedConfigs || {}).map(([source, config]) => ({
-      active: true,
-      decode: () => decodePoolFeedConfigCommand({ name, source, config }),
-      error: `Invalid feed config payload for source "${source}".`
-    }))
-  ];
   const decodePoolPatchRequest = (req) => {
     const name = req.params.name.trim();
     const feedConfigs = req.body?.feedConfigs;
@@ -483,7 +427,7 @@ module.exports = function configureRoutes({
       commands
     }))(decodeCommandSpecs(
       { body: req.body, feedConfigs, name },
-      createPoolPatchSpecs({ name, body: req.body, feedConfigs })
+      createPoolPatchCommandRouteSpecs({ feedConfigs })
     ));
   };
   const decodeKeywordConfigRequest = (req) => {
@@ -867,12 +811,7 @@ module.exports = function configureRoutes({
   }));
 
   app.post('/api/pools/:name/crawl', createEffectSubmissionRoute({
-    decode: (req) => ({
-      type: 'trigger-recrawl',
-      payload: {
-        categories: [req.params.name.trim()]
-      }
-    }),
+    decode: (req) => decodePoolScopedRecrawlCommand(req.params.name),
     effectType: 'start-recrawl-job',
     unavailableMessage: 'Recrawl dispatcher unavailable.',
     missingSubmissionMessage: 'Recrawl job service unavailable.',

@@ -86,6 +86,7 @@ const createRestEffectRouteSpec = (path, effectType, decode, extra = {}) => ({
   decode,
   ...extra
 });
+const createOptionalCommandRouteSpec = (key, extra = {}) => ({ key, ...extra });
 const createEnvSecretTransportSpec = ({
   secretName,
   envKey,
@@ -424,6 +425,13 @@ function decodeScopedJobCommand(payload, type) {
   return createCommand(type, categories.length > 0 ? { categories } : {});
 }
 
+function decodePoolScopedRecrawlCommand(name) {
+  const category = trimString(name);
+  return category
+    ? decodeScopedJobCommand({ categories: [category] }, 'trigger-recrawl')
+    : null;
+}
+
 const decodePhotoMetadataCommand = createPhotoCommandDecoder('report-photo-metadata', (url, payload) => {
   if (payload.orientation !== 'portrait' && payload.orientation !== 'landscape') {
     return null;
@@ -436,6 +444,67 @@ const decodePhotoMetadataCommand = createPhotoCommandDecoder('report-photo-metad
     ...(payload.height !== undefined ? { height: Number(payload.height) } : {})
   };
 });
+
+const PHOTO_PATCH_COMMAND_ROUTE_SPECS = [
+  createOptionalCommandRouteSpec('rating', {
+    active: ({ body }) => body?.rating !== undefined,
+    decode: ({ url, body }) => decodePhotoRatingCommand({ url, rating: body?.rating }),
+    error: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
+    responsePatch: ({ command }) => ({
+      rating: command.payload.rating
+    })
+  }),
+  createOptionalCommandRouteSpec('broken', {
+    active: ({ body }) => body?.isBroken === true,
+    decode: ({ url }) => decodeBrokenPhotoCommand({ url }),
+    error: 'Invalid parameter: "url" must be a non-empty string.',
+    responsePatch: () => ({
+      isBroken: true,
+      rating: 1
+    })
+  }),
+  createOptionalCommandRouteSpec('crop', {
+    active: ({ body }) => body?.cropPercent !== undefined || body?.cropPositionY !== undefined,
+    decode: ({ url, body }) => decodePhotoCropCommand({
+      url,
+      cropPercent: body?.cropPercent,
+      cropPositionY: body?.cropPositionY
+    }),
+    error: 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.',
+    responsePatch: ({ command }) => ({
+      ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
+      ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})
+    })
+  }),
+  createOptionalCommandRouteSpec('prevent-pairing', {
+    active: ({ body }) => body?.preventPairing !== undefined,
+    decode: ({ url, body }) => decodePhotoPreventPairingCommand({
+      url,
+      preventPairing: body?.preventPairing,
+      preserveActive: body?.preserveActive
+    }),
+    error: 'Invalid parameter: "preventPairing" must be a boolean-compatible value.',
+    responsePatch: ({ command }) => ({
+      preventPairing: command.payload.preventPairing
+    })
+  })
+];
+
+const createPoolPatchCommandRouteSpecs = ({ feedConfigs } = {}) => [
+  createOptionalCommandRouteSpec('keywords', {
+    active: ({ body }) => body?.keywords !== undefined,
+    decode: ({ name, body }) => decodePoolKeywordsCommand({ name, keywords: body?.keywords }),
+    error: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
+  }),
+  ...Object.entries(feedConfigs || {}).map(([source, config]) => createOptionalCommandRouteSpec(
+    `feed-config:${source}`,
+    {
+      active: () => true,
+      decode: ({ name }) => decodePoolFeedConfigCommand({ name, source, config }),
+      error: `Invalid feed config payload for source "${source}".`
+    }
+  ))
+];
 
 const ENV_SECRET_TRANSPORT_SPECS = [
   createEnvSecretTransportSpec({
@@ -635,6 +704,7 @@ module.exports = {
   decodeExcludedKeywordsCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodePoolScopedRecrawlCommand,
   decodePhotoCropCommand,
   decodePhotoPreventPairingCommand,
   decodeRecrawlCommand,
@@ -643,6 +713,8 @@ module.exports = {
   decodeBrokenPhotoCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
+  PHOTO_PATCH_COMMAND_ROUTE_SPECS,
+  createPoolPatchCommandRouteSpecs,
   SOCKET_ASYNC_JOB_COMMAND_SPECS,
   SOCKET_DURABLE_COMMAND_SPECS,
   SOCKET_SECRET_COMMAND_SPECS,
