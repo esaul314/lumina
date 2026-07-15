@@ -1607,6 +1607,7 @@ function runDomainTests({ logSuite, assertTest }) {
 
   assertTest('shared photo patch route specs keep photo mutation command facts declarative', () => {
     const ratingSpec = findPhotoPatchRouteSpec('rating');
+    const brokenSpec = findPhotoPatchRouteSpec('broken');
     const cropSpec = findPhotoPatchRouteSpec('crop');
     const pairingSpec = findPhotoPatchRouteSpec('prevent-pairing');
     const lovedSpec = findPhotoPatchRouteSpec('loved');
@@ -1641,6 +1642,15 @@ function runDomainTests({ logSuite, assertTest }) {
         cropPercent: 135
       }
     });
+    assert.deepStrictEqual(brokenSpec?.responsePatch({
+      command: brokenSpec.decode({
+        url: 'photo-2b',
+        body: { isBroken: true }
+      })
+    }), {
+      isBroken: true,
+      rating: 1
+    });
     assert.deepStrictEqual(pairingSpec?.responsePatch({
       command: pairingSpec.decode({
         url: 'photo-3',
@@ -1667,6 +1677,49 @@ function runDomainTests({ logSuite, assertTest }) {
     }), {
       loved: false
     });
+  });
+
+  assertTest('shared photo transport specs keep overlapping REST patch and socket photo commands in one declarative family', () => {
+    const ratingRouteSpec = findPhotoPatchRouteSpec('rating');
+    const cropRouteSpec = findPhotoPatchRouteSpec('crop');
+    const pairingRouteSpec = findPhotoPatchRouteSpec('prevent-pairing');
+    const brokenRouteSpec = findPhotoPatchRouteSpec('broken');
+    const ratingSocketSpec = findSocketCommandSpec('rate-photo');
+    const cropSocketSpec = findSocketCommandSpec('set-photo-crop');
+    const pairingSocketSpec = findSocketCommandSpec('set-photo-prevent-pairing');
+    const brokenSocketSpec = findSocketCommandSpec('mark-photo-broken');
+    const metadataSocketSpec = findSocketCommandSpec('report-photo-metadata');
+    const lovedSocketSpec = findSocketCommandSpec('set-photo-loved');
+
+    assert.deepStrictEqual(
+      ratingRouteSpec?.decode({ url: 'photo-1', body: { rating: 6 } }),
+      ratingSocketSpec?.decode({ url: 'photo-1', rating: 6 })
+    );
+    assert.deepStrictEqual(
+      cropRouteSpec?.decode({ url: 'photo-2', body: { cropPercent: 144, cropPositionY: 28 } }),
+      cropSocketSpec?.decode({ url: 'photo-2', cropPercent: 144, cropPositionY: 28 })
+    );
+    assert.deepStrictEqual(
+      pairingRouteSpec?.decode({ url: 'photo-3', body: { preventPairing: true, preserveActive: true } }),
+      pairingSocketSpec?.decode({ url: 'photo-3', preventPairing: true, preserveActive: true })
+    );
+    assert.deepStrictEqual(
+      brokenRouteSpec?.decode({ url: 'photo-4' }),
+      brokenSocketSpec?.decode({ url: 'photo-4' })
+    );
+    assert.deepStrictEqual(metadataSocketSpec?.decode({
+      url: 'photo-5',
+      orientation: 'portrait',
+      width: 1080
+    }), {
+      type: 'report-photo-metadata',
+      payload: {
+        url: 'photo-5',
+        orientation: 'portrait',
+        width: 1080
+      }
+    });
+    assert.strictEqual(lovedSocketSpec, null);
   });
 
   assertTest('shared pool patch route specs and scoped recrawl decoding keep pool route command facts centralized', () => {
