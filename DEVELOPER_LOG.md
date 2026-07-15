@@ -942,6 +942,15 @@ The screensaver automatically maps live conditions and global sentiment to activ
 - **Learning**:
   - Using native HTML `<details>` and `<summary>` elements allows clean, state-free collapsible layout adjustments without introducing extra React state variables.
 
+### 2026-07-14 (Phase 21): Resolved Stuck Permanent Collection Toggle
+- **Goal**: Resolve the issue where the "Permanent Collection" loved photo toggle on the Remote Control remained stuck in the off position.
+- **Changes**:
+  - Identified that the backend daemon running in the background was executing an outdated process from July 12th, prior to the loved-photo feature implementation.
+  - Restarted the system-wide systemd user daemon using `systemctl --user restart lumina` to pick up the latest code.
+  - Verified that PATCH requests to `/api/photos` for `loved: true` and `loved: false` succeed and are written correctly to `curated_collections.json` on disk.
+- **Learning**:
+  - Always remember to restart background daemons and system-wide services when deploying new backend code or REST endpoints to ensure runtime compatibility.
+
 ---
 
 ## 🧪 Verification & Diagnostics
