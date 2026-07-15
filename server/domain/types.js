@@ -22,6 +22,7 @@
  * @property {number=} rating
  * @property {boolean=} isBroken
  * @property {boolean=} preventPairing
+ * @property {boolean=} loved
  * @property {number=} cropPercent
  * @property {number=} cropPositionY
  * @property {PhotoOrientation=} orientation
@@ -125,6 +126,7 @@
  *     | 'mark-photo-broken'
  *     | 'set-photo-crop'
  *     | 'set-photo-prevent-pairing'
+ *     | 'set-photo-loved'
  *     | 'report-photo-metadata'
  *     | 'set-split-portrait'
  *     | 'set-split-crop'

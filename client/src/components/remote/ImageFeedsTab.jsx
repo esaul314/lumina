@@ -674,6 +674,20 @@ function ImageFeedsTab({
                   </div>
                 )}
 
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>Permanent Collection</div>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>Loved photos will never be pruned during crawls</div>
+                  </div>
+                  <div
+                    className="switch-wrapper"
+                    onClick={() => actions.setLoved(photo.url, !photo.loved)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className={`switch-slider ${photo.loved ? 'checked' : ''}`}></span>
+                  </div>
+                </div>
+
                 <div style={{ fontSize: '0.72rem', opacity: 0.4, textAlign: 'center' }}>
                   Card {galleryIndex + 1} of {state.photosList.length} in active pool
                 </div>

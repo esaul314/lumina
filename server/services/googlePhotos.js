@@ -127,7 +127,8 @@ function buildCachedMediaItem(item, sessionId, existing = {}) {
     rating: existing.rating !== undefined ? existing.rating : 10,
     cropPercent: existing.cropPercent,
     cropPositionY: existing.cropPositionY,
-    preventPairing: existing.preventPairing
+    preventPairing: existing.preventPairing,
+    loved: existing.loved
   };
 }
 
@@ -149,7 +150,8 @@ function normalizeCachedMediaItem(item) {
     googleBaseUrl: googleBaseUrl || undefined,
     width: safeWidth,
     height: safeHeight,
-    rating: item.rating !== undefined ? item.rating : 10
+    rating: item.rating !== undefined ? item.rating : 10,
+    loved: item.loved === true
   };
 }
 
@@ -198,6 +200,7 @@ function buildGooglePhotoMetadataPatch(metadata = {}) {
       cropPercent: metadata.cropPercent,
       cropPositionY: metadata.cropPositionY,
       preventPairing: metadata.preventPairing,
+      loved: metadata.loved,
       orientation: metadata.orientation,
       width: metadata.width,
       height: metadata.height

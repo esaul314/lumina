@@ -283,6 +283,24 @@ function DirectControlTab({
         )}
 
         {selectedPhoto && (
+          <div style={{ marginTop: '16px', padding: '0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                Permanent Collection ({selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})
+              </div>
+              <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>Loved photos will never be pruned during crawls</div>
+            </div>
+            <div
+              className="switch-wrapper"
+              onClick={() => actions.setLoved(selectedPhoto.url, !selectedPhoto.loved)}
+              style={{ cursor: 'pointer' }}
+            >
+              <span className={`switch-slider ${selectedPhoto.loved ? 'checked' : ''}`}></span>
+            </div>
+          </div>
+        )}
+
+        {selectedPhoto && (
           <div style={{ marginTop: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
               <span style={{ opacity: 0.6 }}>

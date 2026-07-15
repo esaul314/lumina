@@ -76,6 +76,12 @@ export function useLuminaActions(socket, setState) {
         applyPhotoPatch(url, { preventPairing });
       });
     },
+    setLoved: (url, loved) => {
+      void runAction(async () => {
+        await patchPhoto({ url, loved });
+        applyPhotoPatch(url, { loved });
+      });
+    },
     ratePhoto: (url, rating) => {
       void runAction(async () => {
         await patchPhoto({ url, rating });

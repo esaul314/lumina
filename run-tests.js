@@ -1591,6 +1591,33 @@ assertTest('crawler consumes custom searchKeywords instead of static defaults', 
   assert.ok(typeof crawlAllCollections === 'function', 'crawlAllCollections must be a function');
 });
 
+assertTest('crawler cap preserves loved photos without reducing the standard dynamic pool size', () => {
+  const { capCollectionLimit } = require('./server/services/crawler.js');
+  const originals = Array.from({ length: 12 }, (_, index) => ({ url: `original-${index}` }));
+  const olderStandard = Array.from({ length: 1988 }, (_, index) => ({ url: `standard-old-${index}` }));
+  const lovedDynamic = [
+    { url: 'loved-1', loved: true },
+    { url: 'loved-2', loved: true }
+  ];
+  const newestStandard = Array.from({ length: 10 }, (_, index) => ({ url: `standard-new-${index}` }));
+  const initialLength = originals.length + olderStandard.length + lovedDynamic.length;
+
+  const capped = capCollectionLimit(
+    originals.concat(olderStandard, lovedDynamic, newestStandard),
+    initialLength,
+    2000
+  );
+
+  assert.strictEqual(capped.length, 2002);
+  assert.deepStrictEqual(capped.slice(0, 12).map((photo) => photo.url), originals.map((photo) => photo.url));
+  assert.deepStrictEqual(
+    capped.filter((photo) => photo.loved === true).map((photo) => photo.url),
+    ['loved-1', 'loved-2']
+  );
+  assert.strictEqual(capped.some((photo) => photo.url === 'standard-old-0'), false);
+  assert.strictEqual(capped.some((photo) => photo.url === 'standard-new-9'), true);
+});
+
 runDomainTests({ logSuite, assertTest });
 
 logSuite('Domain Dispatch');
@@ -3161,7 +3188,7 @@ async function runIntegrationTests() {
     assert.strictEqual(dispatched, false);
   });
 
-  await assertAsyncTest('PATCH /api/photos routes Google Photos crop and pairing updates through the shared photo command batch', async () => {
+  await assertAsyncTest('PATCH /api/photos routes Google Photos crop, pairing, and loved updates through the shared photo command batch', async () => {
     const dispatched = [];
     const googleUrl = buildGooglePhotoProxyUrl('picker-route');
     const state = {
@@ -3196,7 +3223,8 @@ async function runIntegrationTests() {
         url: googleUrl,
         cropPercent: 44,
         preventPairing: true,
-        preserveActive: true
+        preserveActive: true,
+        loved: true
       }
     });
 
@@ -3205,7 +3233,8 @@ async function runIntegrationTests() {
     assert.deepStrictEqual(response.body.photo, {
       url: googleUrl,
       cropPercent: 44,
-      preventPairing: true
+      preventPairing: true,
+      loved: true
     });
     assert.deepStrictEqual(dispatched, [
       {
@@ -3221,6 +3250,13 @@ async function runIntegrationTests() {
           url: googleUrl,
           preventPairing: true,
           preserveActive: true
+        }
+      },
+      {
+        type: 'set-photo-loved',
+        payload: {
+          url: googleUrl,
+          loved: true
         }
       }
     ]);
@@ -3598,18 +3634,30 @@ async function runIntegrationTests() {
         assert.strictEqual(patchPairingRes.body.photo.preventPairing, true);
       });
 
+      const patchLovedRes = await liveRequestJson('/api/photos', 'PATCH', {
+        url: samplePhotoUrl,
+        loved: true
+      });
+      assertTest('PATCH /api/photos updates photo permanent-collection loved flag', () => {
+        assert.strictEqual(patchLovedRes.status, 200);
+        assert.strictEqual(patchLovedRes.body.success, true);
+        assert.strictEqual(patchLovedRes.body.photo.loved, true);
+      });
+
       const patchCombinedRes = await liveRequestJson('/api/photos', 'PATCH', {
         url: samplePhotoUrl,
         rating: 8,
         cropPercent: 161,
-        cropPositionY: 27
+        cropPositionY: 27,
+        loved: false
       });
-      assertTest('PATCH /api/photos batches rating and crop updates through the shared command path', () => {
+      assertTest('PATCH /api/photos batches rating, crop, and loved updates through the shared command path', () => {
         assert.strictEqual(patchCombinedRes.status, 200);
         assert.strictEqual(patchCombinedRes.body.success, true);
         assert.strictEqual(patchCombinedRes.body.photo.rating, 8);
         assert.strictEqual(patchCombinedRes.body.photo.cropPercent, 161);
         assert.strictEqual(patchCombinedRes.body.photo.cropPositionY, 27);
+        assert.strictEqual(patchCombinedRes.body.photo.loved, false);
       });
 
       const previewPhotoRes = await liveRequestJson('/api/photos/preview', 'POST', {

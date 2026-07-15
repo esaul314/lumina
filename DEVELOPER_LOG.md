@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-14: Added Permanent Collection Loved Photos Through the Shared Photo Mutation Path
+- **Goal**: Implement the permanent-collection idea without inventing another transport or persistence branch, so loved photos can survive crawler pruning while the active Step 4 shared-command architecture stays intact.
+- **Implementation**:
+  - Extended `server/domain/commands.js` and `server/domain/reducer.js` with a new `set-photo-loved` mutation that rides the same shared photo patch spec/reducer path already used for ratings, crop, pairing, and metadata.
+  - Updated `server/services/crawler.js` so `capCollectionLimit(...)` now partitions originals, loved dynamic photos, and standard dynamic photos, preserving loved items while still keeping the rotating standard pool capped relative to the original curated seed set.
+  - Wired `client/src/hooks/useLuminaActions.js`, `DirectControlTab.jsx`, and `ImageFeedsTab.jsx` to expose a REST-first "Permanent Collection" toggle with immediate optimistic snapshot patching in the initiating client.
+  - Extended Google Photos metadata persistence helpers so loved flags survive the source-local external metadata path too, even though crawler pruning primarily matters for curated crawled feeds.
+  - Added regression coverage in `server/domain/tests.js` and `run-tests.js` for loved command decoding, reducer persistence behavior, Google Photos metadata persistence, shared photo patch route decoding, live photo patch responses, and crawler-cap loved-photo preservation.
+- **Learning**: The right abstraction was another tiny photo metadata command, not a separate “favorites” subsystem. Once loved became just one more shared photo patch plus one pure crawler partition rule, the feature fit the existing reducer/route/action composition cleanly and stayed easy to test.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` are the verification gate for this slice.
+
 ### 2026-07-14: Continued Step 4 with Shared REST Patch Command Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining inline photo/pool REST patch command facts from `server/routes.js` without widening the route shell or changing wire behavior.
 - **Implementation**:

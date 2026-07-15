@@ -20,6 +20,7 @@ const {
   decodePoolScopedRecrawlCommand,
   decodeBrokenPhotoCommand,
   decodePhotoCropCommand,
+  decodePhotoLovedCommand,
   decodePhotoMetadataCommand,
   decodePhotoRatingCommand,
   decodePhotoPreventPairingCommand,
@@ -203,7 +204,7 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
-  assertTest('photo command decoders normalize prevent-pairing and broken-photo payloads', () => {
+  assertTest('photo command decoders normalize prevent-pairing, loved, and broken-photo payloads', () => {
     assert.deepStrictEqual(decodePhotoPreventPairingCommand({
       url: ' https://example.com/photo.jpg ',
       preventPairing: 1,
@@ -216,6 +217,16 @@ function runDomainTests({ logSuite, assertTest }) {
         preserveActive: true
       }
     });
+    assert.deepStrictEqual(decodePhotoLovedCommand({
+      url: ' https://example.com/photo.jpg ',
+      loved: 'yes'
+    }), {
+      type: 'set-photo-loved',
+      payload: {
+        url: ' https://example.com/photo.jpg ',
+        loved: true
+      }
+    });
     assert.deepStrictEqual(decodeBrokenPhotoCommand({ url: 'broken-photo' }), {
       type: 'mark-photo-broken',
       payload: {
@@ -223,6 +234,7 @@ function runDomainTests({ logSuite, assertTest }) {
       }
     });
     assert.strictEqual(decodePhotoPreventPairingCommand({ preventPairing: true }), null);
+    assert.strictEqual(decodePhotoLovedCommand({ loved: true }), null);
     assert.strictEqual(decodeBrokenPhotoCommand({ url: '   ' }), null);
   });
 
@@ -577,6 +589,63 @@ function runDomainTests({ logSuite, assertTest }) {
       payload: {
         url: googleUrl,
         metadata: { preventPairing: true }
+      }
+    }]);
+  });
+
+  assertTest('loved photo updates flow through the shared reducer and persistence path', () => {
+    const result = reduceDomainCommand(createState(), {
+      type: 'set-photo-loved',
+      payload: { url: 'port-1', loved: true }
+    });
+    const frame = deriveCurrentFrame(result.nextState);
+
+    assert.strictEqual(result.nextState.library.collections['Liminal Spaces'][0].loved, true);
+    assert.strictEqual(result.nextState.library.photosList.find((photo) => photo.url === 'port-1')?.loved, true);
+    assert.strictEqual(frame.primary?.loved, true);
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(result.effects, [{ type: 'persist' }]);
+  });
+
+  assertTest('loved Google Photos metadata emits a source-local persistence effect through the shared reducer path', () => {
+    const googleUrl = '/api/google-photos/media/picker-loved?w=2560&h=1440';
+    const state = createState({
+      library: {
+        collections: createState().library.collections,
+        externalCollections: {
+          'Google Photos': [{
+            url: googleUrl,
+            title: 'Loved Picker Photo',
+            category: 'Google Photos',
+            loved: false
+          }]
+        },
+        photosList: [{
+          url: googleUrl,
+          title: 'Loved Picker Photo',
+          category: 'Google Photos',
+          loved: false
+        }]
+      },
+      playback: {
+        selectedCategories: ['Google Photos'],
+        activePhotoUrl: googleUrl,
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    });
+
+    const result = reduceDomainCommand(state, {
+      type: 'set-photo-loved',
+      payload: { url: googleUrl, loved: true }
+    });
+
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].loved, true);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'persist-external-photo-metadata',
+      payload: {
+        url: googleUrl,
+        metadata: { loved: true }
       }
     }]);
   });
@@ -1540,6 +1609,7 @@ function runDomainTests({ logSuite, assertTest }) {
     const ratingSpec = findPhotoPatchRouteSpec('rating');
     const cropSpec = findPhotoPatchRouteSpec('crop');
     const pairingSpec = findPhotoPatchRouteSpec('prevent-pairing');
+    const lovedSpec = findPhotoPatchRouteSpec('loved');
 
     assert.strictEqual(ratingSpec?.active({ body: { rating: 9 } }), true);
     assert.deepStrictEqual(ratingSpec?.decode({
@@ -1578,6 +1648,24 @@ function runDomainTests({ logSuite, assertTest }) {
       })
     }), {
       preventPairing: true
+    });
+    assert.deepStrictEqual(lovedSpec?.decode({
+      url: 'photo-4',
+      body: { loved: 1 }
+    }), {
+      type: 'set-photo-loved',
+      payload: {
+        url: 'photo-4',
+        loved: true
+      }
+    });
+    assert.deepStrictEqual(lovedSpec?.responsePatch({
+      command: lovedSpec.decode({
+        url: 'photo-4',
+        body: { loved: false }
+      })
+    }), {
+      loved: false
     });
   });
 

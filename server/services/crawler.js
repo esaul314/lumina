@@ -908,15 +908,36 @@ function buildFeedConfigsFromKeywords(keywordsMap) {
 /**
  * 🔒 capCollectionLimit
  * Helper function to cap category collections to a maximum size (default 2000),
- * keeping up to 12 of the original curated items and pruning older dynamic entries.
+ * keeping up to 12 of the original curated items, preserving loved photos,
+ * and pruning only older standard dynamic entries.
  */
 function capCollectionLimit(list, initialLength, limit = 2000) {
-  if (list.length <= limit) return list;
-  const originalCuratedCount = Math.min(12, list.length);
+  const originalCuratedCount = Math.min(12, Math.max(0, initialLength), list.length);
   const originals = list.slice(0, originalCuratedCount);
-  const dynamicAdded = list.slice(initialLength);
+  const dynamicPhotos = list.slice(originalCuratedCount);
+
+  if (dynamicPhotos.length + originalCuratedCount <= limit) {
+    return list;
+  }
+
+  const {
+    lovedDynamic,
+    standardDynamic
+  } = dynamicPhotos.reduce((partitioned, photo) => {
+    if (photo?.loved === true) {
+      partitioned.lovedDynamic.push(photo);
+      return partitioned;
+    }
+
+    partitioned.standardDynamic.push(photo);
+    return partitioned;
+  }, {
+    lovedDynamic: [],
+    standardDynamic: []
+  });
+
   const allowedDynamic = limit - originalCuratedCount;
-  return originals.concat(dynamicAdded.slice(-allowedDynamic));
+  return originals.concat(lovedDynamic, standardDynamic.slice(-allowedDynamic));
 }
 
 /**
@@ -1131,5 +1152,6 @@ module.exports = {
   fetchMetMuseumImages,
   fetchAicImages,
   fetchUnsplashImages,
+  capCollectionLimit,
   crawlAllCollections
 };

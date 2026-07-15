@@ -198,6 +198,14 @@ const decodePhotoPreventPairingCommand = createPhotoCommandDecoder(
   })
 );
 
+const decodePhotoLovedCommand = createPhotoCommandDecoder(
+  'set-photo-loved',
+  (url, payload) => ({
+    url,
+    loved: Boolean(payload.loved)
+  })
+);
+
 const decodeBrokenPhotoCommand = createPhotoCommandDecoder(
   'mark-photo-broken',
   (url) => ({ url })
@@ -487,6 +495,17 @@ const PHOTO_PATCH_COMMAND_ROUTE_SPECS = [
     responsePatch: ({ command }) => ({
       preventPairing: command.payload.preventPairing
     })
+  }),
+  createOptionalCommandRouteSpec('loved', {
+    active: ({ body }) => body?.loved !== undefined,
+    decode: ({ url, body }) => decodePhotoLovedCommand({
+      url,
+      loved: body?.loved
+    }),
+    error: 'Invalid parameter: "loved" must be a boolean-compatible value.',
+    responsePatch: ({ command }) => ({
+      loved: command.payload.loved
+    })
   })
 ];
 
@@ -706,6 +725,7 @@ module.exports = {
   decodePoolKeywordsCommand,
   decodePoolScopedRecrawlCommand,
   decodePhotoCropCommand,
+  decodePhotoLovedCommand,
   decodePhotoPreventPairingCommand,
   decodeRecrawlCommand,
   decodeScreensaverActiveCommand,

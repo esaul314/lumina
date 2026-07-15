@@ -580,6 +580,15 @@ const reducePhotoCommand = {
         : keepUpdatedPhotoState
     )
   }),
+  'set-photo-loved': buildPhotoCommandReducer({
+    buildUpdater: ({ loved }, photo) => ({
+      ...photo,
+      loved: Boolean(loved)
+    }),
+    buildMetadata: ({ loved }) => ({
+      loved: Boolean(loved)
+    })
+  }),
   'report-photo-metadata': buildPhotoCommandReducer({
     buildUpdater: ({ orientation, width, height }, photo) => ({
       ...photo,
