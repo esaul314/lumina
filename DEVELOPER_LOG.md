@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-14: Continued Step 4 with Shared Photo-Mutation Transport Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last overlapping photo-mutation command inventory across the REST photo patch route and the durable socket photo listener table without hiding the intentional transport differences.
+- **Implementation**:
+  - Refactored `server/domain/commands.js` around one shared declarative photo-transport family, then derived the REST photo patch specs and the durable socket photo command specs from that same source instead of restating the decoder/fallback inventory in parallel.
+  - Kept transport-owned behavior explicit by preserving route-only response shaping for rating, crop, pairing, broken, and loved patches, while leaving metadata reporting socket-only and loved-photo updates REST-only where those boundaries are intentional.
+  - Expanded `server/domain/tests.js` with direct parity coverage proving that the overlapping REST and Socket.IO photo commands still decode to the same shared command shapes, while the route-only loved patch and socket-only metadata report remain explicit exceptions.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repository records this as the latest Step 4 slice and names the next likely seam explicitly.
+- **Learning**: The useful abstraction here was one small cross-transport photo family, not another route or socket framework. Once the overlapping photo command facts became shared data, the transport differences that actually matter became easier to see because the accidental duplication disappeared.
+- **Verification**: `npm test`, `npm run lint`, and `git diff --check` are the verification gate for this slice.
+
 ### 2026-07-14: Added Permanent Collection Loved Photos Through the Shared Photo Mutation Path
 - **Goal**: Implement the permanent-collection idea without inventing another transport or persistence branch, so loved photos can survive crawler pruning while the active Step 4 shared-command architecture stays intact.
 - **Implementation**:
