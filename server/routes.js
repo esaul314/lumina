@@ -264,9 +264,9 @@ module.exports = function configureRoutes({
   const runRouteGuards = (guards, context) => (
     guards.reduce((failure, guard) => failure || guard(context), null)
   );
-  const registerPostRouteSpecs = (specs, buildRoute) => {
+  const registerRouteSpecs = (specs, buildRoute, defaultMethod = 'post') => {
     specs.forEach((spec) => {
-      app.post(spec.path, buildRoute(spec));
+      app[spec.method || defaultMethod](spec.path, buildRoute(spec));
     });
   };
   const createDispatchRoute = ({
@@ -596,29 +596,6 @@ module.exports = function configureRoutes({
     res.json(getVisibleFeed());
   }));
 
-  app.post('/api/photos/rate', createCommandRoute({
-    decode: (req) => decodePhotoRatingCommand(req.body),
-    invalidMessage: 'Invalid parameter: "url" must be a non-empty string and "rating" must be an integer between 1 and 10.',
-    notFoundMessage: 'Photo URL not found in curated collections.',
-    present: ({ command }) => ({
-      url: command.payload.url,
-      rating: command.payload.rating
-    })
-  }));
-
-  app.post('/api/config/keywords', createCommandRoute({
-    decode: decodeKeywordConfigRequest,
-    unavailableMessage: 'Keyword dispatcher unavailable.',
-    allowNoop: true,
-    guards: [
-      ({ command }) => ensurePoolExists(command.payload.name)
-    ],
-    present: ({ command }) => ({
-      category: command.payload.name,
-      keywords: state.searchKeywords?.[command.payload.name] || []
-    })
-  }));
-
   app.post('/api/auth/google/credentials', createAsyncRoute(async (req, res) => {
     const { clientId, clientSecret } = req.body;
     if (!clientId || !clientSecret) {
@@ -689,32 +666,6 @@ module.exports = function configureRoutes({
     res.json(buildStateResponse());
   });
 
-  app.post('/api/state/categories', createCommandRoute({
-    decode: (req) => decodeCategorySelectionFromHttp(req.body),
-    invalidMessage: 'Invalid parameter: "categories" must be a non-empty string or array.',
-    unavailableMessage: 'Category selection dispatcher unavailable.',
-    present: () => ({
-      state: buildStateResponse()
-    })
-  }));
-
-  app.patch('/api/state', createCommandRoute({
-    decode: (req) => decodeStatePatchCommand(req.body),
-    invalidMessage: 'Invalid state patch payload.',
-    allowNoop: true,
-    send: (res, _status, body) => res.json(body),
-    present: () => buildStateResponse()
-  }));
-
-  app.post('/api/state/screensaver', createCommandRoute({
-    decode: (req) => decodeScreensaverActiveCommand(req.body),
-    invalidMessage: 'Invalid parameter: "active" must be a boolean.',
-    present: () => ({
-      screensaverActive: state.screensaverActive,
-      state: buildStateResponse()
-    })
-  }));
-
   const createAdminSecretRoute = ({ decode, secretName, unavailableMessage = 'Admin secret dispatcher unavailable.' }) => createCommandRoute({
     decode: (req) => decode(req.body),
     invalidMessage: 'Invalid admin secret payload.',
@@ -740,41 +691,12 @@ module.exports = function configureRoutes({
     missingSubmissionMessage,
     present
   });
-  registerPostRouteSpecs(REST_ADMIN_SECRET_ROUTE_SPECS, createAdminSecretRoute);
-  registerPostRouteSpecs(REST_ASYNC_JOB_ROUTE_SPECS, createAsyncJobRoute);
+  registerRouteSpecs(REST_ADMIN_SECRET_ROUTE_SPECS, createAdminSecretRoute);
+  registerRouteSpecs(REST_ASYNC_JOB_ROUTE_SPECS, createAsyncJobRoute);
 
   app.get('/api/pools', (_req, res) => {
     res.json(Object.keys(collections).map(buildPoolResponse));
   });
-
-  app.post('/api/pools', createCommandRoute({
-    decode: (req) => decodeAddPoolCommand(req.body),
-    invalidMessage: 'Invalid pool payload. Provide a non-empty "name" and at least one keyword.',
-    unavailableMessage: 'Pool dispatcher unavailable.',
-    status: 201,
-    guards: [
-      ({ command }) => ensurePoolMissing(command.payload.name)
-    ],
-    notFoundMessage: ({ command }) => `Pool "${command.payload.name}" could not be created.`,
-    send: respondWithState,
-    present: ({ command }) => ({
-      pool: buildPoolResponse(command.payload.name)
-    })
-  }));
-
-  app.delete('/api/pools/:name', createCommandRoute({
-    decode: (req) => decodeDeletePoolCommand({ name: req.params.name }),
-    invalidMessage: 'Invalid pool name.',
-    unavailableMessage: 'Pool dispatcher unavailable.',
-    guards: [
-      ({ command }) => ensurePoolKnown(command.payload.name)
-    ],
-    notFoundMessage: ({ command }) => `Pool "${command.payload.name}" not found.`,
-    send: respondWithState,
-    present: ({ command }) => ({
-      message: `Pool "${command.payload.name}" deleted successfully.`
-    })
-  }));
 
   app.patch('/api/pools/:name', createBatchCommandRoute({
     decode: decodePoolPatchRequest,
@@ -788,25 +710,6 @@ module.exports = function configureRoutes({
     present: ({ decoded }) => ({
       state: buildStateResponse(),
       pool: buildPoolResponse(decoded.name)
-    })
-  }));
-
-  app.patch('/api/pools/:name/feed-sources/:source', createCommandRoute({
-    decode: (req) => decodePoolFeedConfigCommand({
-      name: req.params.name,
-      source: req.params.source,
-      config: req.body
-    }),
-    invalidMessage: 'Invalid feed source patch payload.',
-    unavailableMessage: 'Pool dispatcher unavailable.',
-    guards: [
-      ({ command }) => ensurePoolExists(command.payload.name)
-    ],
-    notFoundMessage: ({ command }) => `Pool "${command.payload.name}" not found.`,
-    send: respondWithState,
-    present: ({ command }) => ({
-      pool: buildPoolResponse(command.payload.name),
-      feedSource: command.payload.source
     })
   }));
 
@@ -849,14 +752,6 @@ module.exports = function configureRoutes({
     })
   }));
 
-  app.post('/api/photos/preview', createCommandRoute({
-    decode: decodePreviewPhotoRequest,
-    unavailableMessage: 'Preview dispatcher unavailable.',
-    present: () => ({
-      activePhoto: state.activePhoto
-    })
-  }));
-
   const createAdvanceRoute = ({ decode, notFoundMessage, notFoundStatus }) => createCommandRoute({
     decode,
     notFoundMessage,
@@ -866,5 +761,123 @@ module.exports = function configureRoutes({
     })
   });
 
-  registerPostRouteSpecs(REST_ADVANCE_PHOTO_ROUTE_SPECS, createAdvanceRoute);
+  const REST_SINGLE_COMMAND_ROUTE_SPECS = [
+    {
+      method: 'post',
+      path: '/api/photos/rate',
+      decode: (req) => decodePhotoRatingCommand(req.body),
+      invalidMessage: 'Invalid parameter: "url" must be a non-empty string and "rating" must be an integer between 1 and 10.',
+      notFoundMessage: 'Photo URL not found in curated collections.',
+      present: ({ command }) => ({
+        url: command.payload.url,
+        rating: command.payload.rating
+      })
+    },
+    {
+      method: 'post',
+      path: '/api/config/keywords',
+      decode: decodeKeywordConfigRequest,
+      unavailableMessage: 'Keyword dispatcher unavailable.',
+      allowNoop: true,
+      guards: [
+        ({ command }) => ensurePoolExists(command.payload.name)
+      ],
+      present: ({ command }) => ({
+        category: command.payload.name,
+        keywords: state.searchKeywords?.[command.payload.name] || []
+      })
+    },
+    {
+      method: 'post',
+      path: '/api/state/categories',
+      decode: (req) => decodeCategorySelectionFromHttp(req.body),
+      invalidMessage: 'Invalid parameter: "categories" must be a non-empty string or array.',
+      unavailableMessage: 'Category selection dispatcher unavailable.',
+      present: () => ({
+        state: buildStateResponse()
+      })
+    },
+    {
+      method: 'patch',
+      path: '/api/state',
+      decode: (req) => decodeStatePatchCommand(req.body),
+      invalidMessage: 'Invalid state patch payload.',
+      allowNoop: true,
+      send: (res, _status, body) => res.json(body),
+      present: () => buildStateResponse()
+    },
+    {
+      method: 'post',
+      path: '/api/state/screensaver',
+      decode: (req) => decodeScreensaverActiveCommand(req.body),
+      invalidMessage: 'Invalid parameter: "active" must be a boolean.',
+      present: () => ({
+        screensaverActive: state.screensaverActive,
+        state: buildStateResponse()
+      })
+    },
+    {
+      method: 'post',
+      path: '/api/pools',
+      decode: (req) => decodeAddPoolCommand(req.body),
+      invalidMessage: 'Invalid pool payload. Provide a non-empty "name" and at least one keyword.',
+      unavailableMessage: 'Pool dispatcher unavailable.',
+      status: 201,
+      guards: [
+        ({ command }) => ensurePoolMissing(command.payload.name)
+      ],
+      notFoundMessage: ({ command }) => `Pool "${command.payload.name}" could not be created.`,
+      send: respondWithState,
+      present: ({ command }) => ({
+        pool: buildPoolResponse(command.payload.name)
+      })
+    },
+    {
+      method: 'delete',
+      path: '/api/pools/:name',
+      decode: (req) => decodeDeletePoolCommand({ name: req.params.name }),
+      invalidMessage: 'Invalid pool name.',
+      unavailableMessage: 'Pool dispatcher unavailable.',
+      guards: [
+        ({ command }) => ensurePoolKnown(command.payload.name)
+      ],
+      notFoundMessage: ({ command }) => `Pool "${command.payload.name}" not found.`,
+      send: respondWithState,
+      present: ({ command }) => ({
+        message: `Pool "${command.payload.name}" deleted successfully.`
+      })
+    },
+    {
+      method: 'patch',
+      path: '/api/pools/:name/feed-sources/:source',
+      decode: (req) => decodePoolFeedConfigCommand({
+        name: req.params.name,
+        source: req.params.source,
+        config: req.body
+      }),
+      invalidMessage: 'Invalid feed source patch payload.',
+      unavailableMessage: 'Pool dispatcher unavailable.',
+      guards: [
+        ({ command }) => ensurePoolExists(command.payload.name)
+      ],
+      notFoundMessage: ({ command }) => `Pool "${command.payload.name}" not found.`,
+      send: respondWithState,
+      present: ({ command }) => ({
+        pool: buildPoolResponse(command.payload.name),
+        feedSource: command.payload.source
+      })
+    },
+    {
+      method: 'post',
+      path: '/api/photos/preview',
+      decode: decodePreviewPhotoRequest,
+      unavailableMessage: 'Preview dispatcher unavailable.',
+      present: () => ({
+        activePhoto: state.activePhoto
+      })
+    }
+  ];
+
+  registerRouteSpecs(REST_SINGLE_COMMAND_ROUTE_SPECS, createCommandRoute);
+  registerRouteSpecs(REST_ADVANCE_PHOTO_ROUTE_SPECS, createAdvanceRoute);
 };

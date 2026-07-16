@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-16: Continued Step 4 with Shared Route-Local Specs for Remaining REST Single-Command Registrations
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated `createCommandRoute(...)` registration ceremony in `server/routes.js` without exporting route-only presentation policy into the shared domain layer.
+- **Implementation**:
+  - Refactored `server/routes.js` around one small mixed-method route-spec registrar, then moved the remaining standalone REST single-command endpoints onto one local declarative table while keeping the existing `decode -> guard -> dispatch -> present` shell, custom senders, and route-specific guard/presentation behavior intact.
+  - Left intentionally unique handlers such as Google auth/media routes, pool batch patches, async submissions, and live preview/photo batch flows explicit, so the new abstraction stops at the real repetition seam instead of becoming another route framework.
+  - Expanded `run-tests.js` with direct regression coverage for the newly spec-driven `POST /api/photos/rate`, `POST /api/state/categories`, and `POST /api/state/screensaver` routes, so the refactor is verified through route invocation rather than only through broader live smoke coverage.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repository records this Step 4 slice and tightens the forward guidance to continue only where shared helpers are genuinely smaller and clearer than the explicit code they replace.
+- **Learning**: The useful abstraction here was route-local metadata, not another command-module export. These handlers still own route presentation and guard behavior, so keeping the spec table inside `server/routes.js` preserves the imperative shell boundary while still removing the repeated registration ceremony.
+- **Verification**: `npm test`, `npm run lint`, and `git diff --check` are the verification gate for this slice.
+
 ### 2026-07-14: Continued Step 4 with Shared Photo-Mutation Transport Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last overlapping photo-mutation command inventory across the REST photo patch route and the durable socket photo listener table without hiding the intentional transport differences.
 - **Implementation**:

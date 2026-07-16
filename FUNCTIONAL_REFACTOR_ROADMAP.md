@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-14
+Last updated: 2026-07-16
 
 ## Purpose
 
@@ -25,7 +25,7 @@ Current checkpoint:
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
 - The active work has moved into Step 4: make the shared command/effect pipeline more composable and legible without hiding straightforward reducer updates.
-- The latest Step 4 slice centralized overlapping photo-mutation transport specs, so `server/domain/commands.js` now derives the REST photo patch table and the durable socket photo command table from one shared declarative family while preserving the intentional route-only loved-photo path and socket-only metadata-reporting path.
+- The latest Step 4 slice collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, so the route shell keeps its explicit `decode -> guard -> dispatch -> present` behavior while dropping another pocket of repeated registration ceremony.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -227,7 +227,8 @@ Progress note:
 - The latest Step 4 slice centralized the remaining photo/pool REST patch command facts in the shared command module, so the route shell now consumes exported photo-patch spec rows, pool-patch spec builders, and pool-scoped recrawl decoding instead of restating those command details inline.
 - The latest Step 4 slice extended that shared photo-patch path with permanent-collection loved metadata, so the reducer and remote controls gained one more declarative photo mutation while crawler capping became a pure partition of originals, loved dynamic photos, and standard dynamic photos.
 - The latest Step 4 slice centralized overlapping photo-mutation transport specs, so the REST photo patch route specs and durable socket photo command specs now specialize one shared declarative family while keeping loved-photo patches route-only and metadata-reporting socket-only where those transport boundaries are intentional.
-- The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity. The next likely seam is the remaining standalone REST single-command registrations in `server/routes.js`, but only if a shared spec boundary stays smaller than the explicit routes it replaces.
+- The latest Step 4 slice collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, so the route shell keeps its explicit `decode -> guard -> dispatch -> present` behavior while dropping another pocket of repeated registration ceremony without exporting route-only presentation policy into the domain layer.
+- The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity. Future work should continue only when a shared spec or helper is genuinely smaller and clearer than the explicit route or reducer code it replaces.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

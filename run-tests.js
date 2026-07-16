@@ -2959,6 +2959,96 @@ async function runIntegrationTests() {
   });
 
   logSuite('REST State Mutation Routes');
+  await assertAsyncTest('POST /api/state/categories dispatches the shared single-command route spec and returns the updated state snapshot', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.currentCategory = command.payload.categories;
+        return {
+          reducerResult: {
+            events: [{ type: 'photo-update' }, { type: 'state-sync' }],
+            effects: [{ type: 'persist' }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/state/categories', {
+      body: {
+        categories: ['Scenic Nature', 'Liminal Spaces']
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.state.currentCategory, 'Scenic Nature,Liminal Spaces');
+    assert.deepStrictEqual(dispatched, [{
+      type: 'select-categories',
+      payload: {
+        categories: 'Scenic Nature,Liminal Spaces'
+      }
+    }]);
+  });
+
+  await assertAsyncTest('POST /api/state/screensaver dispatches the shared single-command route spec and returns the updated active flag', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: [],
+      screensaverActive: false,
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.screensaverActive = command.payload.active;
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'launch-kiosk' }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/state/screensaver', {
+      body: {
+        active: true
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.screensaverActive, true);
+    assert.strictEqual(response.body.state.screensaverActive, true);
+    assert.deepStrictEqual(dispatched, [{
+      type: 'set-screensaver-active',
+      payload: {
+        active: true
+      }
+    }]);
+  });
+
   await assertAsyncTest('PATCH /api/state preserves the raw state response shape when the shared command route is a no-op', async () => {
     const dispatched = [];
     const state = {
@@ -3110,6 +3200,43 @@ async function runIntegrationTests() {
   });
 
   logSuite('REST Photo Patch Routes');
+  await assertAsyncTest('POST /api/photos/rate dispatches the shared single-command route spec and returns the normalized rating payload', async () => {
+    const dispatched = [];
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'persist' }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/photos/rate', {
+      body: {
+        url: 'land-1',
+        rating: 7
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.deepStrictEqual(response.body, {
+      success: true,
+      url: 'land-1',
+      rating: 7
+    });
+    assert.deepStrictEqual(dispatched, [{
+      type: 'rate-photo',
+      payload: {
+        url: 'land-1',
+        rating: 7
+      }
+    }]);
+  });
+
   await assertAsyncTest('PATCH /api/photos rejects an empty url before dispatching the shared photo batch route', async () => {
     let dispatched = false;
     const app = buildConfiguredRoutesApp({
