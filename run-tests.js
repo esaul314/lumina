@@ -31,6 +31,7 @@ const { updatePhotoCrop } = require('./server/config/collections.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const { createDomainDispatcher } = require('./server/domain/dispatch.js');
+const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const configureSockets = require('./server/sockets.js');
@@ -2122,6 +2123,14 @@ async function runClientStateTests() {
       dispatchHarness.socketEmits.find(([event]) => event === 'useapi-token-saved'),
       ['useapi-token-saved', { success: true }]
     );
+  });
+
+  assertTest('socket shared listener-spec table registers every shared command handler', () => {
+    const missingEvents = SOCKET_COMMAND_LISTENER_SPECS
+      .map(({ event }) => event)
+      .filter((event) => typeof dispatchHarness.socketHandlers[event] !== 'function');
+
+    assert.deepStrictEqual(missingEvents, []);
   });
 
   const statePatchCommands = [];

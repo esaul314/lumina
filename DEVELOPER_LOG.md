@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-16: Continued Step 4 with a Shared Socket Listener-Family Table
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated socket command-listener registration ceremony in `server/sockets.js` without widening the transport layer or hiding the intentionally imperative telemetry and signed-URL handlers.
+- **Implementation**:
+  - Added `SOCKET_COMMAND_LISTENER_SPECS` in `server/domain/commands.js`, deriving one declarative listener-family table from the existing state-patch, durable-command, async-job, and secret-save socket metadata instead of leaving `server/sockets.js` to loop those families separately.
+  - Refactored `server/sockets.js` around one small interpreter that specializes each listener family into the existing `createCommandListener(...)` shell, preserving explicit fallback resolution, async-job unavailable acknowledgements, and secret-save success/failure acknowledgements as transport-owned behavior.
+  - Expanded `server/domain/tests.js` to assert that the unified listener-family table stays aligned with the underlying socket spec families, and expanded `run-tests.js` to prove every shared listener spec still registers a live socket handler through the integration harness.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repository records this Step 4 slice and makes the current socket-readability checkpoint explicit for the next agent.
+- **Learning**: The useful abstraction here was one tiny listener-family table, not another socket framework. Once the remaining registration ceremony became shared data plus one interpreter, `server/sockets.js` got shorter while the real transport-owned policies stayed explicit at the edge.
+- **Verification**: `npm test`, `npm run lint`, and `npm --prefix client run build` are the verification gate for this slice.
+
 ### 2026-07-16: Fixed Side Designation Labels in Remote Direct Control Tab when Single Photo Layout is Active
 - **Goal**: Ensure "Permanent Collection", "Allow Side-by-Side Pairing", and "Image Display Weight" labels in the Remote Control interface omit "(Left Photo)" / "(Right Photo)" suffixes when only a single photo is displayed on screen.
 - **Implementation**:

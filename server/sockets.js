@@ -5,10 +5,7 @@ const googlePhotos = require('./services/googlePhotos.js');
 const { getHostDisplayInfo } = require('./services/system.js');
 const { createSocketLegacyCompatibility } = require('./socketLegacyCompatibility.js');
 const {
-  SOCKET_ASYNC_JOB_COMMAND_SPECS,
-  SOCKET_DURABLE_COMMAND_SPECS,
-  SOCKET_SECRET_COMMAND_SPECS,
-  SOCKET_STATE_PATCH_SPECS,
+  SOCKET_COMMAND_LISTENER_SPECS,
 } = require('./domain/commands.js');
 const buildSocketErrorLogger = (label) => (error) => {
   console.error(`Socket Event: ${label} failed:`, error.message);
@@ -42,6 +39,9 @@ const registerCommandSpecs = (listenForCommand) => (specs) => specs.forEach(({
 }) => {
   listenForCommand(event, decode, fallback, intercept, afterDispatch, onError);
 });
+const createSocketEmitFallback = (socket, eventName, payload) => () => {
+  socket.emit(eventName, payload);
+};
 const toViewportDimensions = (payload) => ({
   width: Number(payload?.width),
   height: Number(payload?.height)
@@ -144,6 +144,57 @@ function createTelemetryListener({ label, handler }) {
 const registerSocketListeners = (socket, listeners) => listeners.forEach(({ event, handler }) => {
   socket.on(event, handler);
 });
+const createSecretSaveResultEmitter = (socket) => (eventName, success, error) => {
+  socket.emit(eventName, success ? { success: true } : { success: false, error });
+};
+const createSecretSaveListenerSpec = ({ compatibility, emitSecretSaveResult }) => ({
+  event,
+  decode,
+  envKey,
+  runtimeFlag,
+  successEvent
+}) => ({
+  event,
+  decode: resolveCommandDecode({ decode }),
+  fallback: compatibility?.envSecret({ envKey, runtimeFlag }),
+  afterDispatch: () => {
+    console.log(`[SOCKET EVENT] Successfully persisted ${envKey} through the shared admin command path`);
+    emitSecretSaveResult(successEvent, true);
+  },
+  onError: (error) => {
+    console.error(`[SOCKET EVENT] Failed to save ${envKey}:`, error.message);
+    emitSecretSaveResult(successEvent, false, error.message);
+  }
+});
+const createSocketCommandSpecInterpreter = ({ compatibility, emitSecretSaveResult, socket }) => {
+  const interpretSecretSave = createSecretSaveListenerSpec({ compatibility, emitSecretSaveResult });
+
+  return ({ family, ...spec }) => {
+    switch (family) {
+      case 'state-patch':
+        return {
+          ...spec,
+          fallback: compatibility?.statePatch
+        };
+      case 'durable-command':
+        return {
+          ...spec,
+          decode: resolveCommandDecode(spec),
+          fallback: resolveCompatibilityFallback(compatibility, spec)
+        };
+      case 'async-job':
+        return {
+          ...spec,
+          decode: resolveCommandDecode(spec),
+          fallback: createSocketEmitFallback(socket, spec.unavailableEvent, spec.unavailablePayload)
+        };
+      case 'secret-save':
+        return interpretSecretSave(spec);
+      default:
+        return spec;
+    }
+  };
+};
 
 /**
  * 🛰️ configureSockets
@@ -221,9 +272,6 @@ module.exports = function configureSockets({
       }));
     };
 
-    const listenForStatePatch = (eventName, decode) => {
-      listenForCommand(eventName, decode, compatibility?.statePatch);
-    };
     const registerCommands = registerCommandSpecs(listenForCommand);
 
     registerSocketListeners(socket, [
@@ -296,48 +344,13 @@ module.exports = function configureSockets({
       }
     ]);
 
-    const emitSecretSaveResult = (eventName, success, error) => {
-      socket.emit(eventName, success ? { success: true } : { success: false, error });
-    };
-
-    const createSecretSaveSpec = ({
-      event,
-      decode,
-      envKey,
-      runtimeFlag,
-      successEvent
-    }) => ({
-      event,
-      decode: resolveCommandDecode({ decode }),
-      fallback: compatibility?.envSecret({ envKey, runtimeFlag }),
-      afterDispatch: () => {
-        console.log(`[SOCKET EVENT] Successfully persisted ${envKey} through the shared admin command path`);
-        emitSecretSaveResult(successEvent, true);
-      },
-      onError: (error) => {
-        console.error(`[SOCKET EVENT] Failed to save ${envKey}:`, error.message);
-        emitSecretSaveResult(successEvent, false, error.message);
-      }
+    const emitSecretSaveResult = createSecretSaveResultEmitter(socket);
+    const interpretSocketCommandSpec = createSocketCommandSpecInterpreter({
+      compatibility,
+      emitSecretSaveResult,
+      socket
     });
 
-    SOCKET_STATE_PATCH_SPECS.forEach(({ event, decode }) => {
-      listenForStatePatch(event, decode);
-    });
-
-    registerCommands([
-      ...SOCKET_DURABLE_COMMAND_SPECS.map((spec) => ({
-        event: spec.event,
-        decode: resolveCommandDecode(spec),
-        fallback: resolveCompatibilityFallback(compatibility, spec)
-      })),
-      ...SOCKET_ASYNC_JOB_COMMAND_SPECS.map((spec) => ({
-        event: spec.event,
-        decode: resolveCommandDecode(spec),
-        fallback: () => {
-          socket.emit(spec.unavailableEvent, spec.unavailablePayload);
-        }
-      })),
-      ...SOCKET_SECRET_COMMAND_SPECS.map(createSecretSaveSpec)
-    ]);
+    registerCommands(SOCKET_COMMAND_LISTENER_SPECS.map(interpretSocketCommandSpec));
   });
 };

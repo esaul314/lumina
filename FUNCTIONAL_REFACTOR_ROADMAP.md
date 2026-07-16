@@ -25,7 +25,7 @@ Current checkpoint:
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
 - The active work has moved into Step 4: make the shared command/effect pipeline more composable and legible without hiding straightforward reducer updates.
-- The latest Step 4 slice collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, so the route shell keeps its explicit `decode -> guard -> dispatch -> present` behavior while dropping another pocket of repeated registration ceremony.
+- The latest Step 4 slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, then collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, so the route shell keeps its explicit `decode -> guard -> dispatch -> present` behavior while `server/sockets.js` now reads as one small interpreter over shared listener metadata plus the explicit transport-only tail.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -228,6 +228,7 @@ Progress note:
 - The latest Step 4 slice extended that shared photo-patch path with permanent-collection loved metadata, so the reducer and remote controls gained one more declarative photo mutation while crawler capping became a pure partition of originals, loved dynamic photos, and standard dynamic photos.
 - The latest Step 4 slice centralized overlapping photo-mutation transport specs, so the REST photo patch route specs and durable socket photo command specs now specialize one shared declarative family while keeping loved-photo patches route-only and metadata-reporting socket-only where those transport boundaries are intentional.
 - The latest Step 4 slice collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, so the route shell keeps its explicit `decode -> guard -> dispatch -> present` behavior while dropping another pocket of repeated registration ceremony without exporting route-only presentation policy into the domain layer.
+- The latest Step 4 slice collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, so `server/sockets.js` now interprets state-patch, durable-command, async-job, and secret-save listeners through one explicit registration pipeline while keeping telemetry, viewport updates, signed-URL refresh, and disconnect lifecycle behavior outside that shared command boundary.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity. Future work should continue only when a shared spec or helper is genuinely smaller and clearer than the explicit route or reducer code it replaces.
 
 ### Step 5: Align the client control surface with the same functional boundaries

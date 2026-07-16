@@ -3,6 +3,7 @@
 const assert = require('assert');
 const {
   SOCKET_ASYNC_JOB_COMMAND_SPECS,
+  SOCKET_COMMAND_LISTENER_SPECS,
   SOCKET_DURABLE_COMMAND_SPECS,
   SOCKET_SECRET_COMMAND_SPECS,
   SOCKET_STATE_PATCH_SPECS,
@@ -52,6 +53,7 @@ const {
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
 const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
 const findSocketAsyncJobSpec = (event) => SOCKET_ASYNC_JOB_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
+const findSocketListenerSpec = (event) => SOCKET_COMMAND_LISTENER_SPECS.find((spec) => spec.event === event) ?? null;
 const findSocketSecretSpec = (event) => SOCKET_SECRET_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
 const findRestAdminSecretRouteSpec = (path) => REST_ADMIN_SECRET_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
 const findRestAsyncJobRouteSpec = (path) => REST_ASYNC_JOB_ROUTE_SPECS.find((spec) => spec.path === path) ?? null;
@@ -478,6 +480,22 @@ function runDomainTests({ logSuite, assertTest }) {
     });
     assert.deepStrictEqual(useApiSpec?.decode({ token: ' secret-123 ' }), useApiRouteSpec?.decode({ token: ' secret-123 ' }));
     assert.strictEqual(useApiSpec?.successEvent, 'useapi-token-saved');
+  });
+
+  assertTest('shared socket listener specs collapse registration families onto one declarative table', () => {
+    const listenerEvents = SOCKET_COMMAND_LISTENER_SPECS.map(({ event }) => event);
+    const expectedEvents = [
+      ...SOCKET_STATE_PATCH_SPECS,
+      ...SOCKET_DURABLE_COMMAND_SPECS,
+      ...SOCKET_ASYNC_JOB_COMMAND_SPECS,
+      ...SOCKET_SECRET_COMMAND_SPECS
+    ].map(({ event }) => event);
+
+    assert.deepStrictEqual(listenerEvents, expectedEvents);
+    assert.strictEqual(findSocketListenerSpec('change-theme')?.family, 'state-patch');
+    assert.strictEqual(findSocketListenerSpec('next-photo')?.family, 'durable-command');
+    assert.strictEqual(findSocketListenerSpec('trigger-recrawl')?.family, 'async-job');
+    assert.strictEqual(findSocketListenerSpec('save-useapi-token')?.family, 'secret-save');
   });
 
   assertTest('screensaver decoder requires an explicit boolean active flag', () => {

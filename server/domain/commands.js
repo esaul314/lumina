@@ -750,6 +750,18 @@ const REST_ADVANCE_PHOTO_ROUTE_SPECS = ADVANCE_PHOTO_TRANSPORT_SPECS.map(({
   notFoundStatus: 500
 }));
 
+const createSocketListenerSpec = curry((family, spec) => ({
+  family,
+  ...spec
+}));
+
+const SOCKET_COMMAND_LISTENER_SPECS = [
+  ...SOCKET_STATE_PATCH_SPECS.map(createSocketListenerSpec('state-patch')),
+  ...SOCKET_DURABLE_COMMAND_SPECS.map(createSocketListenerSpec('durable-command')),
+  ...SOCKET_ASYNC_JOB_COMMAND_SPECS.map(createSocketListenerSpec('async-job')),
+  ...SOCKET_SECRET_COMMAND_SPECS.map(createSocketListenerSpec('secret-save'))
+];
+
 module.exports = {
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
@@ -773,6 +785,7 @@ module.exports = {
   PHOTO_PATCH_COMMAND_ROUTE_SPECS,
   createPoolPatchCommandRouteSpecs,
   SOCKET_ASYNC_JOB_COMMAND_SPECS,
+  SOCKET_COMMAND_LISTENER_SPECS,
   SOCKET_DURABLE_COMMAND_SPECS,
   SOCKET_SECRET_COMMAND_SPECS,
   decodeTumblrApiKeyCommand,
