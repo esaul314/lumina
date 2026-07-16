@@ -268,7 +268,7 @@ function DirectControlTab({
           <div style={{ marginTop: '16px', padding: '0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>
-                Allow Side-by-Side Pairing ({selectedPhotoSide === 'left' ? 'Left' : 'Right'})
+                Allow Side-by-Side Pairing{isSplitLayoutActive ? ` (${selectedPhotoSide === 'left' ? 'Left' : 'Right'})` : ''}
               </div>
               <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>Pair this portrait with another side-by-side</div>
             </div>
@@ -286,7 +286,7 @@ function DirectControlTab({
           <div style={{ marginTop: '16px', padding: '0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>
-                Permanent Collection ({selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})
+                Permanent Collection{isSplitLayoutActive ? ` (${selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})` : ''}
               </div>
               <div style={{ fontSize: '0.72rem', opacity: 0.5 }}>Loved photos will never be pruned during crawls</div>
             </div>
@@ -304,7 +304,7 @@ function DirectControlTab({
           <div style={{ marginTop: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
               <span style={{ opacity: 0.6 }}>
-                Image Display Weight ({selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})
+                Image Display Weight{isSplitLayoutActive ? ` (${selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})` : ''}
               </span>
               <span style={{ color: 'var(--accent-color)' }}>
                 {selectedPhoto.rating === 1 ? '🛑 1 (Banned / Blocked)' :
