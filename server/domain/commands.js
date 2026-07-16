@@ -475,6 +475,26 @@ const createPhotoSocketSpec = ({
   fallbackKey,
   ...(logMessage ? { logMessage } : {})
 });
+const createPoolTransportSpec = (extra = {}) => ({ ...extra });
+const createPoolRouteSpec = ({
+  routeKey,
+  routeActive = () => true,
+  decodeRoute,
+  routeError
+}) => createOptionalCommandRouteSpec(routeKey, {
+  active: routeActive,
+  decode: decodeRoute,
+  error: routeError
+});
+const createPoolSocketSpec = ({
+  socketEvent,
+  decodeSocket,
+  fallbackKey,
+  logMessage
+}) => createSocketCommandSpec(socketEvent, decodeSocket, {
+  fallbackKey,
+  ...(logMessage ? { logMessage } : {})
+});
 
 const PHOTO_TRANSPORT_SPECS = [
   createPhotoTransportSpec({
@@ -559,21 +579,37 @@ const PHOTO_PATCH_COMMAND_ROUTE_SPECS = PHOTO_TRANSPORT_SPECS
   .filter(({ routeKey }) => Boolean(routeKey))
   .map(createPhotoRouteSpec);
 
-const createPoolPatchCommandRouteSpecs = ({ feedConfigs } = {}) => [
-  createOptionalCommandRouteSpec('keywords', {
-    active: ({ body }) => body?.keywords !== undefined,
-    decode: ({ name, body }) => decodePoolKeywordsCommand({ name, keywords: body?.keywords }),
-    error: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
+const POOL_PATCH_TRANSPORT_SPECS = [
+  createPoolTransportSpec({
+    createRouteSpecs: () => [
+      createPoolRouteSpec({
+        routeKey: 'keywords',
+        routeActive: ({ body }) => body?.keywords !== undefined,
+        decodeRoute: ({ name, body }) => decodePoolKeywordsCommand({ name, keywords: body?.keywords }),
+        routeError: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
+      })
+    ],
+    socketEvent: 'update-keywords',
+    decodeSocket: decodePoolKeywordsCommand,
+    fallbackKey: 'poolKeywords'
   }),
-  ...Object.entries(feedConfigs || {}).map(([source, config]) => createOptionalCommandRouteSpec(
-    `feed-config:${source}`,
-    {
-      active: () => true,
-      decode: ({ name }) => decodePoolFeedConfigCommand({ name, source, config }),
-      error: `Invalid feed config payload for source "${source}".`
-    }
-  ))
+  createPoolTransportSpec({
+    createRouteSpecs: ({ feedConfigs } = {}) => Object.entries(feedConfigs || {}).map(([source, config]) => (
+      createPoolRouteSpec({
+        routeKey: `feed-config:${source}`,
+        decodeRoute: ({ name }) => decodePoolFeedConfigCommand({ name, source, config }),
+        routeError: `Invalid feed config payload for source "${source}".`
+      })
+    )),
+    socketEvent: 'update-feed-config',
+    decodeSocket: decodePoolFeedConfigCommand,
+    fallbackKey: 'poolFeedConfig'
+  })
 ];
+
+const createPoolPatchCommandRouteSpecs = (context = {}) => POOL_PATCH_TRANSPORT_SPECS.flatMap((spec) => (
+  typeof spec.createRouteSpecs === 'function' ? spec.createRouteSpecs(context) : []
+));
 
 const ENV_SECRET_TRANSPORT_SPECS = [
   createEnvSecretTransportSpec({
@@ -662,12 +698,7 @@ const SOCKET_DURABLE_COMMAND_SPECS = [
   ...PHOTO_TRANSPORT_SPECS
     .filter(({ socketEvent }) => Boolean(socketEvent))
     .map(createPhotoSocketSpec),
-  createSocketCommandSpec('update-keywords', decodePoolKeywordsCommand, {
-    fallbackKey: 'poolKeywords'
-  }),
-  createSocketCommandSpec('update-feed-config', decodePoolFeedConfigCommand, {
-    fallbackKey: 'poolFeedConfig'
-  }),
+  ...POOL_PATCH_TRANSPORT_SPECS.map(createPoolSocketSpec),
   createSocketCommandSpec('update-excluded-keywords', decodeExcludedKeywordsCommand, {
     fallbackKey: 'excludedKeywords'
   }),

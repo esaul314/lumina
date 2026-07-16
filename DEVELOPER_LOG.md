@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-16: Continued Step 4 with Shared Pool-Mutation Transport Specs
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicated pool-mutation command inventory across REST patch decoding and durable socket listeners without widening the pool transport boundary into a framework.
+- **Implementation**:
+  - Refactored `server/domain/commands.js` around one shared declarative pool-transport family for keyword and feed-config mutations, then derived both the `PATCH /api/pools/:name` decode specs and the durable `update-keywords` / `update-feed-config` socket specs from that same source.
+  - Kept transport-owned differences explicit by leaving pool-scoped recrawl submission and pool create/delete routes outside the new shared family, since those commands do not actually share the same patch-style transport shape.
+  - Expanded `server/domain/tests.js` to assert direct REST/Socket.IO parity for pool keyword and feed-config decoding, and expanded `run-tests.js` so the live socket harness now proves `update-feed-config` dispatches the shared `merge-pool-feed-config` command path.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repository records this Step 4 slice and names the current pool-transport checkpoint explicitly for the next agent.
+- **Learning**: The useful abstraction here was another small cross-transport family, not a generalized pool DSL. Once the overlapping pool mutation facts became shared data, the route/socket differences that still matter became clearer because only the intentional transport-specific cases stayed outside the family.
+- **Verification**: `npm test`, `npm run lint`, `npm --prefix client run build`, and `git diff --check` are the verification gate for this slice.
+
 ### 2026-07-16: Continued Step 4 with a Shared Socket Listener-Family Table
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last repeated socket command-listener registration ceremony in `server/sockets.js` without widening the transport layer or hiding the intentionally imperative telemetry and signed-URL handlers.
 - **Implementation**:

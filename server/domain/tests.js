@@ -1740,7 +1740,7 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(lovedSocketSpec, null);
   });
 
-  assertTest('shared pool patch route specs and scoped recrawl decoding keep pool route command facts centralized', () => {
+  assertTest('shared pool transport specs keep overlapping REST patch and socket pool commands in one declarative family', () => {
     const specs = createPoolPatchCommandRouteSpecs({
       feedConfigs: {
         reddit: { enabled: false },
@@ -1749,22 +1749,24 @@ function runDomainTests({ logSuite, assertTest }) {
     });
     const keywordsSpec = findPoolPatchRouteSpec(specs, 'keywords');
     const redditSpec = findPoolPatchRouteSpec(specs, 'feed-config:reddit');
+    const keywordsSocketSpec = findSocketCommandSpec('update-keywords');
+    const feedConfigSocketSpec = findSocketCommandSpec('update-feed-config');
 
     assert.strictEqual(keywordsSpec?.active({
       body: { keywords: ['forest'] }
     }), true);
-    assert.deepStrictEqual(keywordsSpec?.decode({
-      name: 'Scenic Nature',
-      body: { keywords: ['forest'] }
-    }), {
-      type: 'set-pool-keywords',
-      payload: {
+    assert.deepStrictEqual(
+      keywordsSpec?.decode({
         name: 'Scenic Nature',
+        body: { keywords: ['forest'] }
+      }),
+      keywordsSocketSpec?.decode({
+        category: 'Scenic Nature',
         keywords: ['forest']
-      }
-    });
+      })
+    );
     assert.deepStrictEqual(redditSpec?.decode({
-      name: 'Scenic Nature'
+      name: 'Scenic Nature',
     }), {
       type: 'merge-pool-feed-config',
       payload: {
@@ -1773,6 +1775,16 @@ function runDomainTests({ logSuite, assertTest }) {
         config: { enabled: false }
       }
     });
+    assert.deepStrictEqual(
+      redditSpec?.decode({
+        name: 'Scenic Nature'
+      }),
+      feedConfigSocketSpec?.decode({
+        category: 'Scenic Nature',
+        source: 'reddit',
+        config: { enabled: false }
+      })
+    );
     assert.deepStrictEqual(decodePoolScopedRecrawlCommand(' Scenic Nature '), {
       type: 'trigger-recrawl',
       payload: {

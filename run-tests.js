@@ -2066,6 +2066,14 @@ async function runClientStateTests() {
     cropPercent: 62
   });
   await dispatchHarness.socketHandlers['update-keywords']({ category: 'Scenic Nature', keywords: ['forest', 'mist'] });
+  await dispatchHarness.socketHandlers['update-feed-config']({
+    category: 'Scenic Nature',
+    source: 'reddit',
+    config: {
+      enabled: false,
+      subreddits: ['CityPorn']
+    }
+  });
   await dispatchHarness.socketHandlers['update-excluded-keywords'](['forest', ' mist ']);
   await dispatchHarness.socketHandlers['save-useapi-token']({ token: 'secret-123' });
 
@@ -2102,6 +2110,17 @@ async function runClientStateTests() {
         payload: {
           name: 'Scenic Nature',
           keywords: ['forest', 'mist']
+        }
+      },
+      {
+        type: 'merge-pool-feed-config',
+        payload: {
+          name: 'Scenic Nature',
+          source: 'reddit',
+          config: {
+            enabled: false,
+            subreddits: ['CityPorn']
+          }
         }
       },
       {
