@@ -5,6 +5,13 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-16: Fixed Side Designation Labels in Remote Direct Control Tab when Single Photo Layout is Active
+- **Goal**: Ensure "Permanent Collection", "Allow Side-by-Side Pairing", and "Image Display Weight" labels in the Remote Control interface omit "(Left Photo)" / "(Right Photo)" suffixes when only a single photo is displayed on screen.
+- **Implementation**:
+  - Updated `client/src/components/remote/DirectControlTab.jsx` to check `isSplitLayoutActive` before appending side indicators (`(Left Photo)` / `(Right Photo)` / `(Left)` / `(Right)`).
+  - Preserved side indicators when `isSplitLayoutActive` is `true` so side-by-side split screen view still clearly indicates which photo side is being modified.
+- **Verification**: Verified via `npm test` (214 passing tests) and built client production bundle cleanly via `npm run build --prefix client`.
+
 ### 2026-07-16: Continued Step 4 with Shared Route-Local Specs for Remaining REST Single-Command Registrations
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining repeated `createCommandRoute(...)` registration ceremony in `server/routes.js` without exporting route-only presentation policy into the shared domain layer.
 - **Implementation**:
