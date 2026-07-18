@@ -43,6 +43,7 @@ const {
 } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const { analyzeSentiment } = require('./services/sentiment.js');
+const { createEcowittRuntime } = require('./services/ecowitt.js');
 const { crawlAllCollections } = require('./services/crawler.js');
 const {
   curry,
@@ -57,6 +58,7 @@ const {
 let serverWeatherData = null;
 const getWeatherData = () => serverWeatherData;
 const setWeatherData = (data) => { serverWeatherData = data; };
+const ecowittRuntime = createEcowittRuntime({ settings: config.ecowitt });
 const ANALYSIS_PROGRESS_INTERVAL = 25;
 
 const app = express();
@@ -548,6 +550,7 @@ require('./routes.js')({
   collections: curatedCollections,
   getWeatherData,
   setWeatherData,
+  getEnvironmentData: ecowittRuntime.readEnvironment,
   io,
   port: PORT,
   dispatchCommand,
@@ -594,6 +597,7 @@ server.on('error', (err) => {
 // Bootstrapper initialization handler
 function startServer() {
   if (process.env.NODE_ENV !== 'test') {
+    ecowittRuntime.start();
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`Lumina Core backend running at http://localhost:${PORT}`);
       console.log('Mobile Remote accessible at your local network IPs:');

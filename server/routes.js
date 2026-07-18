@@ -58,6 +58,7 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
  *   collections: Record<string, any[]>,
  *   getWeatherData: () => any,
  *   setWeatherData: (data: any) => void,
+ *   getEnvironmentData?: () => Promise<Record<string, unknown>>,
  *   io: { emit: (event: string, payload: any) => void },
  *   port: number,
  *   dispatchCommand?: (command: Record<string, any>) => Promise<DispatchResult | null>,
@@ -97,6 +98,7 @@ module.exports = function configureRoutes({
   collections,
   getWeatherData,
   setWeatherData,
+  getEnvironmentData = async () => ({ indoor: null, source: 'ecowitt-gw1200', observedAt: null, stale: false, enabled: false }),
   io,
   port,
   dispatchCommand,
@@ -562,6 +564,14 @@ module.exports = function configureRoutes({
       res.json(finalData);
     } catch (error) {
       sendError(res, 500, 'Failed to fetch weather data', { message: toErrorMessage(error) });
+    }
+  });
+
+  app.get('/api/environment', async (_req, res) => {
+    try {
+      res.json(await getEnvironmentData());
+    } catch (error) {
+      sendError(res, 503, 'Failed to fetch indoor environment data', { message: toErrorMessage(error) });
     }
   });
 
