@@ -37,6 +37,7 @@ const loadImageMeta = (url) => new Promise((resolve, reject) => {
 function Dashboard({ state, socket, connectionInfo }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
+  const [environment, setEnvironment] = useState(null);
   const [isScreensaverActive, setIsScreensaverActive] = useState(true);
   const [activeSlides, setActiveSlides] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -62,6 +63,25 @@ function Dashboard({ state, socket, connectionInfo }) {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchEnvironment = async () => {
+      try {
+        const res = await fetch('/api/environment');
+        const data = await res.json();
+        if (!cancelled && data && !data.error) setEnvironment(data);
+      } catch (error) {
+        console.error('Failed to load indoor environment data', error);
+      }
+    };
+    fetchEnvironment();
+    const environmentTimer = setInterval(fetchEnvironment, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(environmentTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -831,6 +851,14 @@ function Dashboard({ state, socket, connectionInfo }) {
                   <MapPin size={10} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
                   {weather.location.city}, {weather.location.regionName}
                 </div>
+                {state.widgets.indoorEnvironment && environment?.enabled && environment.indoor && (
+                  <div className={`indoor-environment ${environment.stale ? 'stale' : ''}`}>
+                    <span>Indoor</span>
+                    {environment.indoor.temperatureC !== null && ` ${environment.indoor.temperatureC.toFixed(1)}°C`}
+                    {environment.indoor.humidityPercent !== null && ` · ${environment.indoor.humidityPercent}% humidity`}
+                    {environment.indoor.pressureRelativeHpa !== null && ` · ${Math.round(environment.indoor.pressureRelativeHpa)} hPa`}
+                  </div>
+                )}
               </div>
               <div className="weather-divider" />
               <div className="weather-forecast">

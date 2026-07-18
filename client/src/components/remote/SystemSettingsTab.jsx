@@ -1,6 +1,6 @@
 import { 
   Clock, Sun, Sliders, Palette, Sparkles, Maximize, Layout, Moon, 
-  CloudRain, MapPin, Trash2, RefreshCw, QrCode 
+  CloudRain, MapPin, Trash2, RefreshCw, QrCode, Thermometer
 } from 'lucide-react';
 
 function SystemSettingsTab({
@@ -55,6 +55,22 @@ function SystemSettingsTab({
               onClick={() => handleToggleWidget('clock', state.widgets.clock)}
             >
               <span className={`switch-slider ${state.widgets.clock ? 'checked' : ''}`}></span>
+            </div>
+          </div>
+
+          <div className="widget-toggle-item">
+            <div className="toggle-info">
+              <Thermometer size={18} style={{ color: '#fb923c' }} />
+              <div>
+                <div className="toggle-label">Indoor Environment</div>
+                <div className="toggle-desc">Quietly show temperature, humidity, and pressure</div>
+              </div>
+            </div>
+            <div
+              className="switch-wrapper"
+              onClick={() => handleToggleWidget('indoorEnvironment', state.widgets.indoorEnvironment)}
+            >
+              <span className={`switch-slider ${state.widgets.indoorEnvironment ? 'checked' : ''}`}></span>
             </div>
           </div>
 
