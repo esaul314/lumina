@@ -238,6 +238,7 @@ body {
   flex-direction: column;
   gap: 8px;
   width: fit-content;
+  padding-right: 36px;
 }
 
 .clock-time {
