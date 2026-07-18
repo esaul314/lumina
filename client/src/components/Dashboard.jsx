@@ -875,7 +875,6 @@ function Dashboard({ state, socket, connectionInfo }) {
             </div>
           )}
         </div>
-      )}
 
       {/* 7. Floating Settings Button & Drawer (only pointer-events allowed on hover/click) */}
       <>
