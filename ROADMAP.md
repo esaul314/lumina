@@ -135,6 +135,7 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
 - Initial Ecowitt GW1200 adapter slice is implemented: normalized indoor readings are available through a read-only API and an intentionally subordinate weather-card presentation, with stale fallback and independent outdoor-weather behavior.
 - Add a normalized local sensor platform with Ecowitt as the first adapter.
 - Ingest local-device readings through a general adapter model rather than device-specific UI wiring.
+- Record hourly sensor snapshots in a lightweight local SQLite database, exposed via REST endpoints (`GET /api/environment/history` and `/export`) for Grafana integration (Infinity or SQLite plugin) and direct JSON/CSV downloads.
 - Have widgets consume normalized sensor records plus source/device capability metadata.
 
 ## Phase 3
@@ -191,6 +192,7 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Shared ratings, descriptions, and analysis round-trip cleanly between local instance and the public service.
 - Publish flows omit non-shareable assets such as Google Photos.
 - Ecowitt-class devices ingest into normalized sensor records that the UI can render without device-specific logic.
+- Hourly sensor snapshots are recorded into local SQLite database and served via REST query/export API for Grafana.
 
 ### Phase 3
 

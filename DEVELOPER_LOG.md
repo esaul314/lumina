@@ -5,6 +5,15 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Added SQLite Sensor Data Recording & REST Export API to Phase 2 Roadmap
+- **Goal**: Define the storage and API export strategy for hourly IoT sensor readings (Ecowitt GW1200 + outdoor weather) as part of Phase 2's Local Sensor Platform.
+- **Implementation**:
+  - Evaluated storage and telemetry architectures (SQLite + REST export API vs. Prometheus `/metrics` endpoint).
+  - Selected **Option A (SQLite DB + REST Export API)** for minimal complexity, zero external server dependencies, full offline self-containment, and adherence to Lumina's strict hardware memory (<80MB RAM) and CPU footprint constraints.
+  - Updated `ROADMAP.md` Phase 2 (Local sensor platform) and Phase 2 Acceptance Plan to specify hourly sensor recording to a local SQLite database (`sensor_history.db`) exposed via `GET /api/environment/history` and `/export` REST endpoints for Grafana (Infinity/SQLite plugin) and direct JSON/CSV downloads.
+- **Learning**: Self-contained SQLite persistence using Node.js built-in `node:sqlite` or lightweight SQLite allows Lumina to act as a zero-dependency telemetry source that integrates cleanly into Grafana without forcing the user to host a separate Prometheus server stack.
+- **Verification**: Updated `ROADMAP.md` and `DEVELOPER_LOG.md`, verified formatting and repository standards.
+
 ### 2026-07-18: Add the First Ecowitt GW1200 Indoor Environment Slice
 - **Goal**: Introduce local indoor observations without turning Lumina's picture-gallery view into a dashboard or coupling indoor telemetry to outdoor weather selection.
 - **Implementation**:
