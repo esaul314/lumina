@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Continued Step 4 with One Shared Patch-Transport Builder for Photo and Pool Mutations
+- **Goal**: Keep the active Step 4 readability pass moving by removing the last duplicated route/socket transport-shaping helpers in `server/domain/commands.js` without flattening the intentional route-only and socket-only exceptions in those families.
+- **Implementation**:
+  - Refactored `server/domain/commands.js` around one small patch-transport builder plus shared route/socket interpreters, then rewired both the photo and pool mutation families to specialize that same boundary instead of carrying parallel `createPhoto*` and `createPool*` shaping helpers.
+  - Kept transport-owned differences explicit by preserving route-only loved-photo patches, socket-only metadata reporting, and dynamic pool feed-config route expansion as plain spec data flowing through the shared builder instead of hiding them behind imperative branching.
+  - Expanded `server/domain/tests.js` with direct regression coverage that asserts the shared builder still expands the expected photo and pool route keys while keeping the intentional route-only/socket-only cases explicit.
+  - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the July 18, 2026 checkpoint names this Step 4 slice directly for the next agent.
+- **Learning**: The useful abstraction here was one tiny transport-family interpreter, not separate photo and pool helper clusters. Once the route/socket shaping shell became shared, the only remaining differences were the real policy facts, which now stay visible as data instead of duplicated helper code.
+- **Verification**: `npm test`, `npm run lint`, `npm --prefix client run build`, and `git diff --check` are the verification gate for this slice.
+
 ### 2026-07-16: Continued Step 4 with Shared Pool-Mutation Transport Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining duplicated pool-mutation command inventory across REST patch decoding and durable socket listeners without widening the pool transport boundary into a framework.
 - **Implementation**:
