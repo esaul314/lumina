@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Persisted Hourly GW1200 Sensor Snapshots
+- **Goal**: Complete the Phase 2 local sensor-platform storage slice without introducing a database server or coupling UI widgets to Ecowitt.
+- **Implementation**:
+  - Added `server/services/sensorHistory.js`, separating pure sensor normalization and CSV projection from a small injected `node:sqlite` storage adapter.
+  - Successful GW1200 reads now upsert one row per UTC hour, retaining the newest reading in that hour and combining indoor gateway metrics with the latest outdoor Open-Meteo snapshot.
+  - Added `GET /api/environment/history`, `GET /api/environment/history/export?format=csv`, and the short `/api/environment/export` alias. The default database path is the local ignored `sensor_history.db`; tests use an in-memory database.
+  - Added configuration defaults, route tests, normalization tests, hourly deduplication tests, and CSV export coverage.
+- **Learning**: The useful abstraction is a pure normalized record plus a narrow persistence port. The hourly key is a domain projection, so idempotent upsert behavior stays deterministic and independent of SQLite details.
+- **Verification**: `npm test` passed 198/198 assertions.
+
 ### 2026-07-18: Extended Clock Widget Glass Container Right Padding
 - **Goal**: Prevent the top-right rounded corner of the blurry glass container behind the clock from clipping the letter "m" in "am" / "pm".
 - **Implementation**:

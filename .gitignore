@@ -9,6 +9,7 @@ curated_collections.json
 .env.*
 !.env.example
 analysis_cache.json
+sensor_history.db
 server/config/.google_credentials.json
 server/config/google_photos_cache.json
 config.json
