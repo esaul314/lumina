@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Added a Discoverable Environment Admin Surface
+- **Goal**: Make the new IoT-ready sensor capabilities visible without adding another top-level navigation tab or turning the remote into a telemetry dashboard.
+- **Implementation**:
+  - Split the System panel into lightweight `General` and `Environment` subtabs.
+  - Added a Local Sensor Bay card for Ecowitt GW1200 status, indoor readings, stale-state visibility, and the existing TV visibility toggle.
+  - Added 24-hour history refresh, latest stored snapshot context, and a direct CSV export action for Grafana or archival use.
+  - Kept the device presentation adapter-agnostic in naming and data shaping; the current GW1200 is shown as the first local adapter, not as a UI-wide special case.
+- **Learning**: The right information architecture was a sub-navigation within System: environment telemetry is operational context, while direct photo/display controls remain separate top-level workflows.
+- **Verification**: Client helper tests, `npm test` (199 passing assertions, zero failures), production client build, and lint completed successfully.
+
 ### 2026-07-18: Persisted Hourly GW1200 Sensor Snapshots
 - **Goal**: Complete the Phase 2 local sensor-platform storage slice without introducing a database server or coupling UI widgets to Ecowitt.
 - **Implementation**:

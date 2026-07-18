@@ -2001,6 +2001,21 @@ async function runClientStateTests() {
   logSuite('Remote Feed Control Snapshot Mutations');
 
   const {
+    formatEnvironmentMetric,
+    getEnvironmentStatus
+  } = await importClientModule('./client/src/state/environmentHistory.js');
+
+  assertTest('environment UI helpers present normalized sensor status and safe metric fallbacks', () => {
+    assert.strictEqual(formatEnvironmentMetric(24.75, '°C'), '24.8°C');
+    assert.strictEqual(formatEnvironmentMetric(null, '%'), '—');
+    assert.deepStrictEqual(getEnvironmentStatus({ enabled: true, stale: false, indoor: { temperatureC: 22 } }), {
+      label: 'Online',
+      color: '#10b981'
+    });
+    assert.strictEqual(getEnvironmentStatus({ enabled: true, stale: true }).label, 'Stale fallback');
+  });
+
+  const {
     normalizeSnapshot: normalizeClientSnapshot
   } = await importClientModule('./client/src/state/frameSelectors.js');
 
