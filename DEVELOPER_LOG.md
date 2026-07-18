@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Continued Step 4 with a Shared Field-Entry Reducer Shell for Simple Setters
+- **Goal**: Keep the active Step 4 readability pass moving by removing the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` without hiding the explicit kiosk side effects or widening the reducer into another framework.
+- **Implementation**:
+  - Added one small field-entry reducer helper in `server/domain/reducer.js`, then rewired the remaining simple setters to specialize that same shell instead of mixing one-off `assignIfChanged(...)` and multi-field runtime updates inline.
+  - Moved `set-split-portrait`, `set-split-crop`, `set-scale-mode`, `change-theme`, `change-interval`, and `set-screensaver-active` onto the shared `read entries -> assign changed fields -> maybe persist/effect` boundary while keeping the `launch-kiosk` / `kill-kiosk` effect choice explicit in the command table.
+  - Expanded `server/domain/tests.js` so the reducer regression suite now covers the deactivation path too, proving the shared shell flips `screensaverActive`, `manualOverride`, and `browserRunning` together while still emitting `kill-kiosk`.
+  - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repository records this July 18, 2026 Step 4 slice directly for the next agent.
+- **Learning**: The useful abstraction here was another tiny reducer-local interpreter, not a generalized command framework. Once the remaining setter branches became field-entry readers plus one shared shell, the only code left in each branch was the actual policy: which fields change, whether they persist, and whether a kiosk effect should fire.
+- **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.
+
 ### 2026-07-18: Continued Step 4 with One Shared Patch-Transport Builder for Photo and Pool Mutations
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last duplicated route/socket transport-shaping helpers in `server/domain/commands.js` without flattening the intentional route-only and socket-only exceptions in those families.
 - **Implementation**:
@@ -127,8 +137,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ### 2026-07-12: Continued Step 4 with Shared Durable Socket Command Specs
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining durable socket command-registration tables from `server/sockets.js` without hiding the transport-only fallback and acknowledgement behavior.
+### 2026-07-17: Dynamic Fit-Content Sizing for Clock Widget Glass Backdrop
+- **Goal**: Prevent the glassmorphic blurry background container beneath the clock widget from occupying an oversized 450px rectangular area when time digits take little horizontal space (e.g. 1:11 vs 12:58).
 - **Implementation**:
-  - Added declarative shared socket command spec tables in `server/domain/commands.js` for durable category/photo/pool/playback handlers, async job triggers, and admin secret saves.
+  - Replaced fixed `min-width: 450px` on `.clock-widget` in `client/src/index.css` with `width: fit-content`, allowing the glass container to shrink-wrap snugly around the clock time and date with standard padding.
+  - Added `font-variant-numeric: tabular-nums` and `white-space: nowrap` on `.clock-time` and `white-space: nowrap` on `.clock-date` to keep clock digits steady and clean across layout changes.
+- **Learning**: Fixed minimum width rules on glass container cards create awkward empty translucent space when content dynamically varies in size. Shrink-wrapping with `width: fit-content` preserves aesthetics across all digit variations.
+- **Verification**: `npm test` passed 217 diagnostic assertions. `npm --prefix client run build` built successfully.
+
+### 2026-07-12: Continued Step 4 with Shared Socket Command Specs
   - Refactored `server/sockets.js` to register those specs through small shared decode/fallback helpers, leaving the socket layer with only transport-owned compatibility resolution, unavailable-job acknowledgements, secret-save acknowledgements, telemetry, and Google Photos URL refresh behavior.
   - Expanded `server/domain/tests.js` to assert the shared durable socket command, async-job, and secret-save specs directly, so the regression coverage now targets the actual event/decode metadata instead of another local registration copy.
   - Updated `ROADMAP.md`, `FUNCTIONAL_REFACTOR_ROADMAP.md`, and `AGENTS.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.

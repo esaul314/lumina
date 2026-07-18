@@ -266,7 +266,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 450px;
+  width: fit-content;
 }
 
 .clock-time {
@@ -279,6 +279,8 @@ body {
   -webkit-text-fill-color: transparent;
   display: flex;
   align-items: baseline;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .clock-seconds {
@@ -295,6 +297,7 @@ body {
   letter-spacing: 0.05em;
   margin-top: 8px;
   text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
 }
 
 /* --- LIVE WEATHER FORECAST WIDGET (Top Right) --- */
