@@ -453,10 +453,9 @@ const decodePhotoMetadataCommand = createPhotoCommandDecoder('report-photo-metad
   };
 });
 
-const createPhotoTransportSpec = (extra = {}) => ({ ...extra });
-const createPhotoRouteSpec = ({
+const createPatchRouteSpec = ({
   routeKey,
-  routeActive,
+  routeActive = () => true,
   decodeRoute,
   routeError,
   responsePatch = () => ({})
@@ -466,7 +465,7 @@ const createPhotoRouteSpec = ({
   error: routeError,
   responsePatch: ({ command }) => responsePatch(command)
 });
-const createPhotoSocketSpec = ({
+const createPatchSocketSpec = ({
   socketEvent,
   decodeSocket,
   fallbackKey,
@@ -475,141 +474,158 @@ const createPhotoSocketSpec = ({
   fallbackKey,
   ...(logMessage ? { logMessage } : {})
 });
-const createPoolTransportSpec = (extra = {}) => ({ ...extra });
-const createPoolRouteSpec = ({
-  routeKey,
-  routeActive = () => true,
-  decodeRoute,
-  routeError
-}) => createOptionalCommandRouteSpec(routeKey, {
-  active: routeActive,
-  decode: decodeRoute,
-  error: routeError
+const createPatchTransportSpec = ({
+  route = null,
+  createRoutes = null,
+  socket = null
+} = {}) => ({
+  createRouteSpecs: (context = {}) => {
+    const routes = route
+      ? [route]
+      : (typeof createRoutes === 'function' ? createRoutes(context) : []);
+    return routes.map(createPatchRouteSpec);
+  },
+  socketSpec: socket ? createPatchSocketSpec(socket) : null
 });
-const createPoolSocketSpec = ({
-  socketEvent,
-  decodeSocket,
-  fallbackKey,
-  logMessage
-}) => createSocketCommandSpec(socketEvent, decodeSocket, {
-  fallbackKey,
-  ...(logMessage ? { logMessage } : {})
-});
+const buildPatchRouteSpecs = (transportSpecs, context = {}) => (
+  transportSpecs.flatMap(({ createRouteSpecs }) => createRouteSpecs(context))
+);
+const buildPatchSocketSpecs = (transportSpecs) => (
+  transportSpecs.flatMap(({ socketSpec }) => (socketSpec ? [socketSpec] : []))
+);
 
 const PHOTO_TRANSPORT_SPECS = [
-  createPhotoTransportSpec({
-    routeKey: 'rating',
-    routeActive: ({ body }) => body?.rating !== undefined,
-    decodeRoute: ({ url, body }) => decodePhotoRatingCommand({ url, rating: body?.rating }),
-    routeError: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
-    responsePatch: (command) => ({
-      rating: command.payload.rating
-    }),
-    socketEvent: 'rate-photo',
-    decodeSocket: decodePhotoRatingCommand,
-    fallbackKey: 'photoRating'
+  createPatchTransportSpec({
+    route: {
+      routeKey: 'rating',
+      routeActive: ({ body }) => body?.rating !== undefined,
+      decodeRoute: ({ url, body }) => decodePhotoRatingCommand({ url, rating: body?.rating }),
+      routeError: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
+      responsePatch: (command) => ({
+        rating: command.payload.rating
+      })
+    },
+    socket: {
+      socketEvent: 'rate-photo',
+      decodeSocket: decodePhotoRatingCommand,
+      fallbackKey: 'photoRating'
+    }
   }),
-  createPhotoTransportSpec({
-    routeKey: 'broken',
-    routeActive: ({ body }) => body?.isBroken === true,
-    decodeRoute: ({ url }) => decodeBrokenPhotoCommand({ url }),
-    routeError: 'Invalid parameter: "url" must be a non-empty string.',
-    responsePatch: () => ({
-      isBroken: true,
-      rating: 1
-    }),
-    socketEvent: 'mark-photo-broken',
-    decodeSocket: decodeBrokenPhotoCommand,
-    fallbackKey: 'brokenPhoto',
-    logMessage: (payload) => `[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`
+  createPatchTransportSpec({
+    route: {
+      routeKey: 'broken',
+      routeActive: ({ body }) => body?.isBroken === true,
+      decodeRoute: ({ url }) => decodeBrokenPhotoCommand({ url }),
+      routeError: 'Invalid parameter: "url" must be a non-empty string.',
+      responsePatch: () => ({
+        isBroken: true,
+        rating: 1
+      })
+    },
+    socket: {
+      socketEvent: 'mark-photo-broken',
+      decodeSocket: decodeBrokenPhotoCommand,
+      fallbackKey: 'brokenPhoto',
+      logMessage: (payload) => `[SOCKET EVENT] mark-photo-broken received for URL: ${payload?.url}`
+    }
   }),
-  createPhotoTransportSpec({
-    routeKey: 'crop',
-    routeActive: ({ body }) => body?.cropPercent !== undefined || body?.cropPositionY !== undefined,
-    decodeRoute: ({ url, body }) => decodePhotoCropCommand({
-      url,
-      cropPercent: body?.cropPercent,
-      cropPositionY: body?.cropPositionY
-    }),
-    routeError: 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.',
-    responsePatch: (command) => ({
-      ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
-      ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})
-    }),
-    socketEvent: 'set-photo-crop',
-    decodeSocket: decodePhotoCropCommand,
-    fallbackKey: 'photoCrop'
+  createPatchTransportSpec({
+    route: {
+      routeKey: 'crop',
+      routeActive: ({ body }) => body?.cropPercent !== undefined || body?.cropPositionY !== undefined,
+      decodeRoute: ({ url, body }) => decodePhotoCropCommand({
+        url,
+        cropPercent: body?.cropPercent,
+        cropPositionY: body?.cropPositionY
+      }),
+      routeError: 'Invalid parameter: "cropPercent" must be an integer between 0 and 200, and "cropPositionY" must be an integer between 0 and 100.',
+      responsePatch: (command) => ({
+        ...(command.payload.cropPercent !== undefined ? { cropPercent: command.payload.cropPercent } : {}),
+        ...(command.payload.cropPositionY !== undefined ? { cropPositionY: command.payload.cropPositionY } : {})
+      })
+    },
+    socket: {
+      socketEvent: 'set-photo-crop',
+      decodeSocket: decodePhotoCropCommand,
+      fallbackKey: 'photoCrop'
+    }
   }),
-  createPhotoTransportSpec({
-    routeKey: 'prevent-pairing',
-    routeActive: ({ body }) => body?.preventPairing !== undefined,
-    decodeRoute: ({ url, body }) => decodePhotoPreventPairingCommand({
-      url,
-      preventPairing: body?.preventPairing,
-      preserveActive: body?.preserveActive
-    }),
-    routeError: 'Invalid parameter: "preventPairing" must be a boolean-compatible value.',
-    responsePatch: (command) => ({
-      preventPairing: command.payload.preventPairing
-    }),
-    socketEvent: 'set-photo-prevent-pairing',
-    decodeSocket: decodePhotoPreventPairingCommand,
-    fallbackKey: 'photoPreventPairing'
+  createPatchTransportSpec({
+    route: {
+      routeKey: 'prevent-pairing',
+      routeActive: ({ body }) => body?.preventPairing !== undefined,
+      decodeRoute: ({ url, body }) => decodePhotoPreventPairingCommand({
+        url,
+        preventPairing: body?.preventPairing,
+        preserveActive: body?.preserveActive
+      }),
+      routeError: 'Invalid parameter: "preventPairing" must be a boolean-compatible value.',
+      responsePatch: (command) => ({
+        preventPairing: command.payload.preventPairing
+      })
+    },
+    socket: {
+      socketEvent: 'set-photo-prevent-pairing',
+      decodeSocket: decodePhotoPreventPairingCommand,
+      fallbackKey: 'photoPreventPairing'
+    }
   }),
-  createPhotoTransportSpec({
-    routeKey: 'loved',
-    routeActive: ({ body }) => body?.loved !== undefined,
-    decodeRoute: ({ url, body }) => decodePhotoLovedCommand({
-      url,
-      loved: body?.loved
-    }),
-    routeError: 'Invalid parameter: "loved" must be a boolean-compatible value.',
-    responsePatch: (command) => ({
-      loved: command.payload.loved
-    })
+  createPatchTransportSpec({
+    route: {
+      routeKey: 'loved',
+      routeActive: ({ body }) => body?.loved !== undefined,
+      decodeRoute: ({ url, body }) => decodePhotoLovedCommand({
+        url,
+        loved: body?.loved
+      }),
+      routeError: 'Invalid parameter: "loved" must be a boolean-compatible value.',
+      responsePatch: (command) => ({
+        loved: command.payload.loved
+      })
+    }
   }),
-  createPhotoTransportSpec({
-    socketEvent: 'report-photo-metadata',
-    decodeSocket: decodePhotoMetadataCommand,
-    fallbackKey: 'photoMetadata'
+  createPatchTransportSpec({
+    socket: {
+      socketEvent: 'report-photo-metadata',
+      decodeSocket: decodePhotoMetadataCommand,
+      fallbackKey: 'photoMetadata'
+    }
   })
 ];
 
-const PHOTO_PATCH_COMMAND_ROUTE_SPECS = PHOTO_TRANSPORT_SPECS
-  .filter(({ routeKey }) => Boolean(routeKey))
-  .map(createPhotoRouteSpec);
+const PHOTO_PATCH_COMMAND_ROUTE_SPECS = buildPatchRouteSpecs(PHOTO_TRANSPORT_SPECS);
+const PHOTO_SOCKET_COMMAND_SPECS = buildPatchSocketSpecs(PHOTO_TRANSPORT_SPECS);
 
 const POOL_PATCH_TRANSPORT_SPECS = [
-  createPoolTransportSpec({
-    createRouteSpecs: () => [
-      createPoolRouteSpec({
-        routeKey: 'keywords',
-        routeActive: ({ body }) => body?.keywords !== undefined,
-        decodeRoute: ({ name, body }) => decodePoolKeywordsCommand({ name, keywords: body?.keywords }),
-        routeError: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
-      })
-    ],
-    socketEvent: 'update-keywords',
-    decodeSocket: decodePoolKeywordsCommand,
-    fallbackKey: 'poolKeywords'
+  createPatchTransportSpec({
+    route: {
+      routeKey: 'keywords',
+      routeActive: ({ body }) => body?.keywords !== undefined,
+      decodeRoute: ({ name, body }) => decodePoolKeywordsCommand({ name, keywords: body?.keywords }),
+      routeError: 'Invalid parameter: "keywords" must be an array of strings or time-based keyword objects.'
+    },
+    socket: {
+      socketEvent: 'update-keywords',
+      decodeSocket: decodePoolKeywordsCommand,
+      fallbackKey: 'poolKeywords'
+    }
   }),
-  createPoolTransportSpec({
-    createRouteSpecs: ({ feedConfigs } = {}) => Object.entries(feedConfigs || {}).map(([source, config]) => (
-      createPoolRouteSpec({
+  createPatchTransportSpec({
+    createRoutes: ({ feedConfigs } = {}) => Object.entries(feedConfigs || {}).map(([source, config]) => ({
         routeKey: `feed-config:${source}`,
         decodeRoute: ({ name }) => decodePoolFeedConfigCommand({ name, source, config }),
         routeError: `Invalid feed config payload for source "${source}".`
-      })
-    )),
-    socketEvent: 'update-feed-config',
-    decodeSocket: decodePoolFeedConfigCommand,
-    fallbackKey: 'poolFeedConfig'
+      })),
+    socket: {
+      socketEvent: 'update-feed-config',
+      decodeSocket: decodePoolFeedConfigCommand,
+      fallbackKey: 'poolFeedConfig'
+    }
   })
 ];
 
-const createPoolPatchCommandRouteSpecs = (context = {}) => POOL_PATCH_TRANSPORT_SPECS.flatMap((spec) => (
-  typeof spec.createRouteSpecs === 'function' ? spec.createRouteSpecs(context) : []
-));
+const createPoolPatchCommandRouteSpecs = (context = {}) => buildPatchRouteSpecs(POOL_PATCH_TRANSPORT_SPECS, context);
+const POOL_PATCH_SOCKET_COMMAND_SPECS = buildPatchSocketSpecs(POOL_PATCH_TRANSPORT_SPECS);
 
 const ENV_SECRET_TRANSPORT_SPECS = [
   createEnvSecretTransportSpec({
@@ -695,10 +711,8 @@ const SOCKET_DURABLE_COMMAND_SPECS = [
   createSocketCommandSpec('set-active-photo', decodeActivePhotoCommand, {
     fallbackKey: 'activePhoto'
   }),
-  ...PHOTO_TRANSPORT_SPECS
-    .filter(({ socketEvent }) => Boolean(socketEvent))
-    .map(createPhotoSocketSpec),
-  ...POOL_PATCH_TRANSPORT_SPECS.map(createPoolSocketSpec),
+  ...PHOTO_SOCKET_COMMAND_SPECS,
+  ...POOL_PATCH_SOCKET_COMMAND_SPECS,
   createSocketCommandSpec('update-excluded-keywords', decodeExcludedKeywordsCommand, {
     fallbackKey: 'excludedKeywords'
   }),

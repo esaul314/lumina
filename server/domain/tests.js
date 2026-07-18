@@ -1740,6 +1740,32 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(lovedSocketSpec, null);
   });
 
+  assertTest('shared patch transport builder keeps route-only, socket-only, and dynamic route expansions explicit', () => {
+    const photoRouteKeys = PHOTO_PATCH_COMMAND_ROUTE_SPECS.map(({ key }) => key);
+    const poolRouteKeys = createPoolPatchCommandRouteSpecs({
+      feedConfigs: {
+        reddit: { enabled: false },
+        unsplash: { enabled: true }
+      }
+    }).map(({ key }) => key);
+
+    assert.deepStrictEqual(photoRouteKeys, [
+      'rating',
+      'broken',
+      'crop',
+      'prevent-pairing',
+      'loved'
+    ]);
+    assert.deepStrictEqual(poolRouteKeys, [
+      'keywords',
+      'feed-config:reddit',
+      'feed-config:unsplash'
+    ]);
+    assert.strictEqual(findSocketCommandSpec('set-photo-loved'), null);
+    assert.ok(findSocketCommandSpec('report-photo-metadata'));
+    assert.ok(findSocketCommandSpec('update-feed-config'));
+  });
+
   assertTest('shared pool transport specs keep overlapping REST patch and socket pool commands in one declarative family', () => {
     const specs = createPoolPatchCommandRouteSpecs({
       feedConfigs: {
