@@ -5,6 +5,15 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Removed Pitch-Black Dimmer Overlay to Keep TV View Desktop Visible
+- **Goal**: Prevent the TV View from flashing for a moment on page load/mount and then fading to a pitch-black screen.
+- **Implementation**:
+  - Removed `.screensaver-dimmer` pitch-black overlay and `.stealth-dim-clock` elements from `client/src/components/Dashboard.jsx` and `client/src/index.css`.
+  - Updated `Dashboard.jsx` to render the TV dashboard UI (clock, weather, widgets, wallpaper slideshow, particle effects, weather overlay animations) directly without dimming to black.
+  - Simplified mouse interaction in `Dashboard.jsx` so mouse movement manages smooth 3-second cursor auto-hiding without dismissing or fading the TV View to pitch black.
+- **Learning**: Gating ambient smart display rendering behind an active/inactive idle state can create unintended black-screen states when viewing the dashboard from web browsers or remote controllers. Keeping the TV dashboard elements rendered directly while managing cursor visibility provides a seamless ambient display experience.
+- **Verification**: `npm run build --prefix client` and `npm test` passed 225/225 diagnostic test assertions cleanly.
+
 ### 2026-07-18: Added SQLite Sensor Data Recording & REST Export API to Phase 2 Roadmap
 - **Goal**: Define the storage and API export strategy for hourly IoT sensor readings (Ecowitt GW1200 + outdoor weather) as part of Phase 2's Local Sensor Platform.
 - **Implementation**:
