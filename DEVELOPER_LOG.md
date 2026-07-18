@@ -5,6 +5,12 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Extended Clock Widget Glass Container Right Padding
+- **Goal**: Prevent the top-right rounded corner of the blurry glass container behind the clock from clipping the letter "m" in "am" / "pm".
+- **Implementation**:
+  - Added `padding-right: 36px` to `.clock-widget` in `client/src/index.css` (up from default `24px`), extending the backdrop-blur glass container rightward so top-right corner radius curves clear the AM/PM text.
+- **Verification**: `npm test` passed 225/225 diagnostic assertions.
+
 ### 2026-07-18: Removed Pitch-Black Dimmer Overlay to Keep TV View Desktop Visible
 - **Goal**: Prevent the TV View from flashing for a moment on page load/mount and then fading to a pitch-black screen.
 - **Implementation**:
