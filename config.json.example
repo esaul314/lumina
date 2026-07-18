@@ -13,5 +13,10 @@
     "baseUrl": "http://ecowitt.local",
     "pollIntervalMs": 60000,
     "timeoutMs": 3000
+  },
+  "sensorHistory": {
+    "enabled": true,
+    "databasePath": "sensor_history.db",
+    "limit": 168
   }
 }

@@ -44,6 +44,7 @@ const {
 const googlePhotos = require('./services/googlePhotos.js');
 const { analyzeSentiment } = require('./services/sentiment.js');
 const { createEcowittRuntime } = require('./services/ecowitt.js');
+const { createSensorHistoryStore } = require('./services/sensorHistory.js');
 const { crawlAllCollections } = require('./services/crawler.js');
 const {
   curry,
@@ -58,7 +59,31 @@ const {
 let serverWeatherData = null;
 const getWeatherData = () => serverWeatherData;
 const setWeatherData = (data) => { serverWeatherData = data; };
-const ecowittRuntime = createEcowittRuntime({ settings: config.ecowitt });
+const rootDir = path.join(__dirname, '..');
+let sensorHistoryStore = null;
+if (config.sensorHistory?.enabled !== false) {
+  try {
+    sensorHistoryStore = createSensorHistoryStore({
+      databasePath: process.env.NODE_ENV === 'test'
+        ? ':memory:'
+        : path.resolve(rootDir, config.sensorHistory?.databasePath || 'sensor_history.db')
+    });
+  } catch (error) {
+    console.warn(`Sensor history disabled: ${error.message}`);
+  }
+}
+const recordSensorReading = (environment) => {
+  try {
+    return sensorHistoryStore?.record({ environment, weather: getWeatherData() });
+  } catch (error) {
+    console.warn(`Sensor history write skipped: ${error.message}`);
+    return null;
+  }
+};
+const persistedEcowittRuntime = createEcowittRuntime({
+  settings: config.ecowitt,
+  onReading: recordSensorReading
+});
 const ANALYSIS_PROGRESS_INTERVAL = 25;
 
 const app = express();
@@ -74,7 +99,6 @@ app.use(cors());
 app.use(express.json());
 
 // Serve client built static production files
-const rootDir = path.join(__dirname, '..');
 app.use(express.static(path.join(rootDir, 'client/dist')));
 
 // Curated collections persistence loader
@@ -550,7 +574,9 @@ require('./routes.js')({
   collections: curatedCollections,
   getWeatherData,
   setWeatherData,
-  getEnvironmentData: ecowittRuntime.readEnvironment,
+  getEnvironmentData: persistedEcowittRuntime.readEnvironment,
+  getEnvironmentHistory: query => sensorHistoryStore?.history(query) || [],
+  exportEnvironmentHistory: query => sensorHistoryStore?.exportCsv(query) || '',
   io,
   port: PORT,
   dispatchCommand,
@@ -597,7 +623,7 @@ server.on('error', (err) => {
 // Bootstrapper initialization handler
 function startServer() {
   if (process.env.NODE_ENV !== 'test') {
-    ecowittRuntime.start();
+    persistedEcowittRuntime.start();
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`Lumina Core backend running at http://localhost:${PORT}`);
       console.log('Mobile Remote accessible at your local network IPs:');

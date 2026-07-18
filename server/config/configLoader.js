@@ -38,6 +38,10 @@ if (fs.existsSync(configPath)) {
       ecowitt: {
         ...config.ecowitt,
         ...(sanitizedConfig.ecowitt || {})
+      },
+      sensorHistory: {
+        ...config.sensorHistory,
+        ...(sanitizedConfig.sensorHistory || {})
       }
     };
   } catch (err) {

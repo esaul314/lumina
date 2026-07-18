@@ -59,6 +59,8 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
  *   getWeatherData: () => any,
  *   setWeatherData: (data: any) => void,
  *   getEnvironmentData?: () => Promise<Record<string, unknown>>,
+ *   getEnvironmentHistory?: (query?: Record<string, unknown>) => Array<Record<string, unknown>>,
+ *   exportEnvironmentHistory?: (query?: Record<string, unknown>) => string,
  *   io: { emit: (event: string, payload: any) => void },
  *   port: number,
  *   dispatchCommand?: (command: Record<string, any>) => Promise<DispatchResult | null>,
@@ -99,6 +101,8 @@ module.exports = function configureRoutes({
   getWeatherData,
   setWeatherData,
   getEnvironmentData = async () => ({ indoor: null, source: 'ecowitt-gw1200', observedAt: null, stale: false, enabled: false }),
+  getEnvironmentHistory = async () => [],
+  exportEnvironmentHistory = async () => '',
   io,
   port,
   dispatchCommand,
@@ -574,6 +578,29 @@ module.exports = function configureRoutes({
       sendError(res, 503, 'Failed to fetch indoor environment data', { message: toErrorMessage(error) });
     }
   });
+
+  app.get('/api/environment/history', async (req, res) => {
+    try {
+      res.json({ readings: await getEnvironmentHistory(req.query) });
+    } catch (error) {
+      sendError(res, 503, 'Failed to read environment history', { message: toErrorMessage(error) });
+    }
+  });
+
+  const exportEnvironmentHistoryRoute = async (req, res) => {
+    try {
+      const format = String(req.query.format || 'json').toLowerCase();
+      if (format === 'csv') {
+        res.type('text/csv').send(await exportEnvironmentHistory(req.query));
+        return;
+      }
+      res.json({ readings: await getEnvironmentHistory(req.query) });
+    } catch (error) {
+      sendError(res, 503, 'Failed to export environment history', { message: toErrorMessage(error) });
+    }
+  };
+  app.get('/api/environment/history/export', exportEnvironmentHistoryRoute);
+  app.get('/api/environment/export', exportEnvironmentHistoryRoute);
 
   app.get('/api/google-photos/media/:mediaItemId', async (req, res) => {
     try {
