@@ -68,7 +68,7 @@ function createState(overrides = {}) {
       scaleMode: 'cover',
       splitPortrait: true,
       splitCropPercent: 50,
-      widgets: { clock: true },
+      widgets: { clock: true, qrcode: true },
       inactivityTimeout: 600000,
       slideshowInterval: 120000,
       alignTimeOfDay: false,
@@ -962,6 +962,7 @@ function runDomainTests({ logSuite, assertTest }) {
       payload: {
         widgets: {
           clock: false,
+          qrcode: false,
           unknownWidget: true
         },
         excludedKeywords: ['hallway'],
@@ -970,6 +971,7 @@ function runDomainTests({ logSuite, assertTest }) {
     }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
 
     assert.strictEqual(result.nextState.config.widgets.clock, false);
+    assert.strictEqual(result.nextState.config.widgets.qrcode, false);
     assert.strictEqual(result.nextState.config.widgets.unknownWidget, undefined);
     assert.deepStrictEqual(result.nextState.config.excludedKeywords, ['hallway']);
     assert.strictEqual(result.nextState.config.autoLocation, true);
@@ -1044,6 +1046,14 @@ function runDomainTests({ logSuite, assertTest }) {
 
   assertTest('simple shared setter reducers keep config persistence and kiosk effects explicit', () => {
     const state = createState();
+    const activeScreensaverState = createState({
+      runtime: {
+        ...createState().runtime,
+        screensaverActive: true,
+        manualOverride: true,
+        browserRunning: true
+      }
+    });
 
     const splitPortraitResult = reduceDomainCommand(state, {
       type: 'set-split-portrait',
@@ -1069,6 +1079,10 @@ function runDomainTests({ logSuite, assertTest }) {
       type: 'set-screensaver-active',
       payload: { active: true }
     });
+    const screensaverOffResult = reduceDomainCommand(activeScreensaverState, {
+      type: 'set-screensaver-active',
+      payload: { active: false }
+    });
 
     assert.strictEqual(splitPortraitResult.nextState.config.splitPortrait, false);
     assert.deepStrictEqual(splitPortraitResult.effects.map((effect) => effect.type), ['persist']);
@@ -1082,6 +1096,13 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(intervalResult.effects, []);
     assert.strictEqual(screensaverResult.nextState.runtime.screensaverActive, true);
     assert.deepStrictEqual(screensaverResult.effects.map((effect) => effect.type), ['launch-kiosk']);
+    assert.deepStrictEqual(screensaverOffResult.nextState.runtime, {
+      ...activeScreensaverState.runtime,
+      screensaverActive: false,
+      manualOverride: false,
+      browserRunning: false
+    });
+    assert.deepStrictEqual(screensaverOffResult.effects.map((effect) => effect.type), ['kill-kiosk']);
   });
 
   assertTest('simple config and runtime setter commands now no-op when the requested value is already active', () => {

@@ -75,7 +75,7 @@ The server manages a centralized `screensaverState` object, which is broadcasted
 * `activePhoto`: `{ url, title, author }` (Current background image)
 * `currentCategory`: `"Scenic Nature" | "Cosmic Space" | "Abstract Art" | "Liminal Spaces" | "AI Creations"`
 * `theme`: `"Zen Retreat" | "Cosmic Night" | "Art Museum" | "Cyberpunk Rain"`
-* `widgets`: `{ clock, weather, particles, auraglow, animations }` (Booleans)
+* `widgets`: `{ clock, weather, qrcode, particles, auraglow, animations }` (Booleans)
 * `photosList`: Array of photo objects within the current category.
 * `inactivityTimeout`: Time in milliseconds before screensaver launches (default `600000` / 10 minutes).
 * `screensaverActive`: Boolean showing if screensaver mode is engaged.

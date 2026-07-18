@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-16
+Last updated: 2026-07-18
 
 ## Purpose
 
@@ -25,7 +25,7 @@ Current checkpoint:
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
 - The active work has moved into Step 4: make the shared command/effect pipeline more composable and legible without hiding straightforward reducer updates.
-- The latest Step 4 slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, then collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, then aligned the overlapping pool keyword/feed-config REST patch specs with their durable socket command specs through one shared pool transport family, and now collapse the remaining photo/pool patch transport shapers in `server/domain/commands.js` onto one shared builder so the route shell keeps its explicit `decode -> guard -> dispatch -> present` behavior while the shared command metadata reads as one small interpreter over route/socket spec families plus the explicit transport-only tail.
+- The latest Step 4 slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, then collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, then aligned the overlapping pool keyword/feed-config REST patch specs with their durable socket command specs through one shared pool transport family, then collapsed the remaining photo/pool patch transport shapers in `server/domain/commands.js` onto one shared builder, and now collapse the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` onto one shared field-entry interpreter so those commands read as small specializations of the same `assign fields -> maybe persist -> maybe emit effect` shell while kiosk launch/kill policy stays explicit.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -231,6 +231,7 @@ Progress note:
 - The latest Step 4 slice collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, so `server/sockets.js` now interprets state-patch, durable-command, async-job, and secret-save listeners through one explicit registration pipeline while keeping telemetry, viewport updates, signed-URL refresh, and disconnect lifecycle behavior outside that shared command boundary.
 - The latest Step 4 slice centralized overlapping pool-mutation transport specs, so the REST pool patch specs and durable socket pool command specs now specialize one shared declarative family while keeping pool-scoped recrawl submission and pool create/delete routes outside that boundary where those transport differences are intentional.
 - The latest Step 4 slice collapsed the remaining photo/pool patch transport shapers onto one shared builder, so the shared command module now derives both families' route specs and socket specs through the same declarative `route/socket transport family -> interpreter` boundary while preserving route-only loved-photo patches, socket-only metadata reporting, and dynamic feed-config route expansion where those differences are intentional.
+- The latest Step 4 slice collapsed the remaining ad hoc simple config/runtime setter branches onto one shared field-entry reducer shell, so `set-split-portrait`, `set-split-crop`, `set-scale-mode`, `change-theme`, `change-interval`, and `set-screensaver-active` now specialize the same `read entries -> assign changed fields -> maybe persist/effect` boundary while the kiosk launch/kill effect remains explicit in the command table.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity. Future work should continue only when a shared spec or helper is genuinely smaller and clearer than the explicit route or reducer code it replaces.
 
 ### Step 5: Align the client control surface with the same functional boundaries

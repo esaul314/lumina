@@ -5,12 +5,24 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Made QR Code & IP Address Widget Optional to Display
+- **Goal**: Allow users to toggle the QR code and IP address rectangle on the TV view, so it doesn't block image titles in paired mode or clutter the screen when unneeded.
+- **Implementation**:
+  - Added `qrcode: true` to the default `widgets` object state in `server/config/state.js`.
+  - Updated `client/src/components/Dashboard.jsx` to conditionally render the bottom-left `connection-widget` based on `state.widgets.qrcode` and added "QR & IP Badge" to the Desktop settings toggle list.
+  - Updated `client/src/components/remote/SystemSettingsTab.jsx` with a new `QrCode` switch item under the TV Widgets Switchboard so users can toggle the QR & IP Badge from the mobile remote.
+  - Updated `AGENTS.md` documentation to list `qrcode` as an official widget key in `widgets`.
+  - Added test assertions in `server/domain/tests.js` for `qrcode` widget state patching and updated client build bundle.
+- **Learning**: Because the domain reducer and socket compatibility adapters evaluate `widgets` patches dynamically against the keys on `state.widgets`, adding a new widget key to `state.js` automatically enables seamless validation and dispatch without requiring extra transport boilerplate.
+- **Verification**: `npm test` passed 218/218 tests cleanly, and `npm run build --prefix client` built the production React bundle without issues.
+
 ### 2026-07-18: Continued Step 4 with a Shared Field-Entry Reducer Shell for Simple Setters
 - **Goal**: Keep the active Step 4 readability pass moving by removing the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` without hiding the explicit kiosk side effects or widening the reducer into another framework.
 - **Implementation**:
   - Added one small field-entry reducer helper in `server/domain/reducer.js`, then rewired the remaining simple setters to specialize that same shell instead of mixing one-off `assignIfChanged(...)` and multi-field runtime updates inline.
   - Moved `set-split-portrait`, `set-split-crop`, `set-scale-mode`, `change-theme`, `change-interval`, and `set-screensaver-active` onto the shared `read entries -> assign changed fields -> maybe persist/effect` boundary while keeping the `launch-kiosk` / `kill-kiosk` effect choice explicit in the command table.
   - Expanded `server/domain/tests.js` so the reducer regression suite now covers the deactivation path too, proving the shared shell flips `screensaverActive`, `manualOverride`, and `browserRunning` together while still emitting `kill-kiosk`.
+  - Expanded `run-tests.js` so the REST route suite now covers both screensaver activation and deactivation through `POST /api/state/screensaver`, pinning the shared setter shell at the transport boundary as well as in the pure reducer.
   - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repository records this July 18, 2026 Step 4 slice directly for the next agent.
 - **Learning**: The useful abstraction here was another tiny reducer-local interpreter, not a generalized command framework. Once the remaining setter branches became field-entry readers plus one shared shell, the only code left in each branch was the actual policy: which fields change, whether they persist, and whether a kiosk effect should fire.
 - **Verification**: `npm test` and `npm run lint` are the verification gate for this slice.

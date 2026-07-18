@@ -83,6 +83,7 @@ const screensaverState = {
   widgets: {
     clock: true,
     weather: true,
+    qrcode: true,
     particles: false,  // Default: Low Power Mode
     auraglow: false,   // Default: Low Power Mode
     animations: false  // Default: Low Power Mode (0% CPU)

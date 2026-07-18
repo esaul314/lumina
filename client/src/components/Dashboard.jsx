@@ -855,13 +855,15 @@ function Dashboard({ state, socket, connectionInfo }) {
           )}
 
           {/* C. Mobile Remote portal (Bottom Left) */}
-          <div className="glass-widget connection-widget">
-            <img src={qrCodeSrc} alt="Link QR Code" className="qr-code-img" />
-            <div className="connection-info">
-              <span className="connection-title">Remote Control</span>
-              <span className="connection-ip">{localIp}:{connectionInfo.port}</span>
+          {state.widgets?.qrcode && (
+            <div className="glass-widget connection-widget">
+              <img src={qrCodeSrc} alt="Link QR Code" className="qr-code-img" />
+              <div className="connection-info">
+                <span className="connection-title">Remote Control</span>
+                <span className="connection-ip">{localIp}:{connectionInfo.port}</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* D. Wallpaper Credits widget (Bottom Right) */}
           {activeSlides.find(s => s.active) && !activeSlides.find(s => s.active).isSplit && (
@@ -995,6 +997,7 @@ function Dashboard({ state, socket, connectionInfo }) {
                 {[
                   { label: 'Cinematic Clock', name: 'clock' },
                   { label: 'Live Weather Info', name: 'weather' },
+                  { label: 'QR & IP Badge', name: 'qrcode' },
                   { label: 'Particles Engine', name: 'particles' },
                   { label: 'Atmospheric Aura Glow', name: 'auraglow' },
                   { label: 'Cinematic Pan & Zoom', name: 'animations' }

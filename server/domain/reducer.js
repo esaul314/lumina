@@ -153,15 +153,28 @@ function reduceCommandMutation(state, command, {
   });
 }
 
-function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) {
+function buildEntriesCommandReducer(selectTarget, readEntries, options = {}) {
   return (state, command) => reduceCommandMutation(state, command, {
     ...options,
-    apply: (nextState, currentCommand) => assignIfChanged(
-      selectTarget(nextState),
-      field,
-      readValue(currentCommand)
-    )
+    apply: (nextState, currentCommand) => {
+      const target = selectTarget(nextState);
+      const entries = typeof readEntries === 'function'
+        ? readEntries(currentCommand, nextState, target)
+        : readEntries;
+
+      return Array.isArray(entries) && entries.length > 0
+        ? assignFields(target, entries)
+        : false;
+    }
   });
+}
+
+function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) {
+  return buildEntriesCommandReducer(
+    selectTarget,
+    (currentCommand, nextState) => [[field, readValue(currentCommand, nextState)]],
+    options
+  );
 }
 
 function finalizeFeedMutation(nextState, {
@@ -972,51 +985,55 @@ const readAdvancePlaybackPayload = (command) => ({
   strategy: command.payload?.strategy === 'sequence' ? 'sequence' : 'smart'
 });
 
+const selectConfig = (nextState) => nextState.config;
+const selectRuntime = (nextState) => nextState.runtime;
+
 const reduceSimpleCommand = {
   'set-split-portrait': buildFieldCommandReducer(
-    (nextState) => nextState.config,
+    selectConfig,
     'splitPortrait',
     (command) => Boolean(command.payload?.enabled),
     { persist: true }
   ),
   'set-split-crop': buildFieldCommandReducer(
-    (nextState) => nextState.config,
+    selectConfig,
     'splitCropPercent',
     (command) => Number(command.payload?.percent),
     { persist: true }
   ),
   'set-scale-mode': buildFieldCommandReducer(
-    (nextState) => nextState.config,
+    selectConfig,
     'scaleMode',
     (command) => /** @type {'cover' | 'contain'} */ (command.payload?.mode),
     { persist: true }
   ),
-  'change-theme': (state, command) => reduceCommandMutation(state, command, {
-    apply: (nextState, currentCommand) => assignIfChanged(
-      nextState.config,
-      'theme',
-      String(currentCommand.payload?.theme || state.config.theme)
-    )
-  }),
+  'change-theme': buildFieldCommandReducer(
+    selectConfig,
+    'theme',
+    (command, nextState) => String(command.payload?.theme || nextState.config.theme)
+  ),
   'change-interval': buildFieldCommandReducer(
-    (nextState) => nextState.config,
+    selectConfig,
     'slideshowInterval',
     (command) => Number(command.payload?.intervalMs)
   ),
-  'set-screensaver-active': (state, command) => reduceCommandMutation(state, command, {
-    apply: (nextState, currentCommand) => {
+  'set-screensaver-active': buildEntriesCommandReducer(
+    selectRuntime,
+    (currentCommand) => {
       const active = Boolean(currentCommand.payload?.active);
 
-      return assignFields(nextState.runtime, [
+      return [
         ['screensaverActive', active],
         ['manualOverride', active],
         ['browserRunning', active]
-      ]);
+      ];
     },
-    effects: (_nextState, currentCommand) => [{
-      type: currentCommand.payload?.active ? 'launch-kiosk' : 'kill-kiosk'
-    }]
-  }),
+    {
+      effects: (_nextState, currentCommand) => [{
+        type: currentCommand.payload?.active ? 'launch-kiosk' : 'kill-kiosk'
+      }]
+    }
+  ),
   'save-env-secret': buildEffectResultReducer({
     effectType: 'persist-env-vars',
     result: stateSyncResult,

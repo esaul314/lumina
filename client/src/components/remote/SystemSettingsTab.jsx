@@ -1,6 +1,6 @@
 import { 
   Clock, Sun, Sliders, Palette, Sparkles, Maximize, Layout, Moon, 
-  CloudRain, MapPin, Trash2, RefreshCw 
+  CloudRain, MapPin, Trash2, RefreshCw, QrCode 
 } from 'lucide-react';
 
 function SystemSettingsTab({
@@ -71,6 +71,22 @@ function SystemSettingsTab({
               onClick={() => handleToggleWidget('weather', state.widgets.weather)}
             >
               <span className={`switch-slider ${state.widgets.weather ? 'checked' : ''}`}></span>
+            </div>
+          </div>
+
+          <div className="widget-toggle-item">
+            <div className="toggle-info">
+              <QrCode size={18} style={{ color: '#38bdf8' }} />
+              <div>
+                <div className="toggle-label">QR & IP Badge</div>
+                <div className="toggle-desc">Show QR code and connection IP for remote</div>
+              </div>
+            </div>
+            <div 
+              className="switch-wrapper"
+              onClick={() => handleToggleWidget('qrcode', state.widgets.qrcode)}
+            >
+              <span className={`switch-slider ${state.widgets.qrcode ? 'checked' : ''}`}></span>
             </div>
           </div>
 

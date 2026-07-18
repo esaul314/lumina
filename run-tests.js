@@ -3077,6 +3077,52 @@ async function runIntegrationTests() {
     }]);
   });
 
+  await assertAsyncTest('POST /api/state/screensaver also keeps the shared deactivation path explicit at the route boundary', async () => {
+    const dispatched = [];
+    const state = {
+      currentCategory: 'Scenic Nature',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      excludedKeywords: [],
+      screensaverActive: true,
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.screensaverActive = command.payload.active;
+        return {
+          reducerResult: {
+            events: [{ type: 'state-sync' }],
+            effects: [{ type: 'kill-kiosk' }]
+          },
+          effectResults: []
+        };
+      }
+    });
+    const response = await invokeRoute(app, 'post', '/api/state/screensaver', {
+      body: {
+        active: false
+      }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.success, true);
+    assert.strictEqual(response.body.screensaverActive, false);
+    assert.strictEqual(response.body.state.screensaverActive, false);
+    assert.deepStrictEqual(dispatched, [{
+      type: 'set-screensaver-active',
+      payload: {
+        active: false
+      }
+    }]);
+  });
+
   await assertAsyncTest('PATCH /api/state preserves the raw state response shape when the shared command route is a no-op', async () => {
     const dispatched = [];
     const state = {
