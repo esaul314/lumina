@@ -2,8 +2,10 @@ import {
   Clock, Sun, Sliders, Palette, Sparkles, Maximize, Layout, Moon, 
   CloudRain, MapPin, Trash2, RefreshCw, QrCode, Thermometer
 } from 'lucide-react';
+import { useState } from 'react';
+import EnvironmentSettingsTab from './EnvironmentSettingsTab';
 
-function SystemSettingsTab({
+function GeneralSettingsTab({
   state,
   actions,
   connectionInfo,
@@ -912,6 +914,34 @@ function SystemSettingsTab({
           </div>
         </div>
       </div>
+    </>
+  );
+}
+
+function SystemSettingsTab(props) {
+  const [section, setSection] = useState('general');
+  const sections = [
+    ['general', 'General'],
+    ['environment', 'Environment']
+  ];
+
+  return (
+    <>
+      <div className="system-subtabs" role="tablist" aria-label="System settings sections">
+        {sections.map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={section === value}
+            className={section === value ? 'active' : ''}
+            onClick={() => setSection(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {section === 'general' ? <GeneralSettingsTab {...props} /> : <EnvironmentSettingsTab {...props} />}
     </>
   );
 }
