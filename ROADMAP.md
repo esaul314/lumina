@@ -132,6 +132,7 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
 
 ### Local sensor platform
 
+- Initial Ecowitt GW1200 adapter slice is implemented: normalized indoor readings are available through a read-only API and an intentionally subordinate weather-card presentation, with stale fallback and independent outdoor-weather behavior.
 - Add a normalized local sensor platform with Ecowitt as the first adapter.
 - Ingest local-device readings through a general adapter model rather than device-specific UI wiring.
 - Have widgets consume normalized sensor records plus source/device capability metadata.

@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-18: Add the First Ecowitt GW1200 Indoor Environment Slice
+- **Goal**: Introduce local indoor observations without turning Lumina's picture-gallery view into a dashboard or coupling indoor telemetry to outdoor weather selection.
+- **Implementation**:
+  - Added `server/services/ecowitt.js` with pure payload parsing and metric normalization for the verified GW1200 `wh25[0]` response, including Fahrenheit-to-Celsius and inHg-to-hPa conversion.
+  - Added a resilient in-memory runtime and read-only `GET /api/environment` contract with last-known-good stale fallback and availability-transition logging.
+  - Added ignored local Ecowitt configuration, a quiet subordinate indoor line inside the existing weather card, and an independent remote visibility toggle.
+  - Kept Open-Meteo as the outdoor weather and forecast source; the GW1200 endpoint currently provides no outdoor observation.
+  - Added parser, normalization, disabled-mode, stale-fallback, and API-shape regression coverage, plus the captured payload as an anonymized test fixture.
+- **Learning**: The useful functional boundary is a pure vendor-to-domain normalization pipeline followed by a small imperative polling shell. A generalized sensor framework or Fantasy Land wrapper would add ceremony without improving this first adapter.
+- **Verification**: `npm test` passed 195/195 assertions, `npm run lint` passed, and the client production build completed successfully.
+
 ### 2026-07-18: Made QR Code & IP Address Widget Optional to Display
 - **Goal**: Allow users to toggle the QR code and IP address rectangle on the TV view, so it doesn't block image titles in paired mode or clutter the screen when unneeded.
 - **Implementation**:
