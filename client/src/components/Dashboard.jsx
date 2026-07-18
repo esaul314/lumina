@@ -160,13 +160,10 @@ function Dashboard({ state, socket, connectionInfo }) {
   useEffect(() => {
     const intervalMs = state.slideshowInterval || 120000; // Default 2 minutes
     const rotateInterval = setInterval(() => {
-      // Only change if the screensaver is active
-      if (isScreensaverActive) {
-        socket.emit('next-photo');
-      }
+      socket.emit('next-photo');
     }, intervalMs);
     return () => clearInterval(rotateInterval);
-  }, [isScreensaverActive, state.slideshowInterval]);
+  }, [state.slideshowInterval, socket]);
 
   // Memory optimization: Dynamically keep at most TWO slides in the DOM at any given time.
   // One is the currently active slide, and one is the previous slide transitioning out.
@@ -420,25 +417,10 @@ function Dashboard({ state, socket, connectionInfo }) {
       lastMousePosRef.current = { x, y };
     }
 
-    // 1. If currently inactive (screensaver running), dismiss it instantly
-    if (isScreensaverActive) {
-      console.log('User interaction detected: Dismissing screensaver');
-      setIsScreensaverActive(false);
-      socket.emit('set-screensaver-active', false);
-    }
-
-    // 2. Clear existing timer
+    // Inactivity timer reset logic
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
-
-    // 3. Start a new 10-minute timer (600,000ms)
-    // For testing and beautiful immediate validation, we will also let it run.
-    inactivityTimerRef.current = setTimeout(() => {
-      console.log('10 minutes of inactivity: Entering Screensaver Mode');
-      setIsScreensaverActive(true);
-      socket.emit('set-screensaver-active', true);
-    }, state.inactivityTimeout || 600000);
   };
 
   useEffect(() => {
@@ -503,7 +485,7 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   // 5. Bokeh HTML5 Canvas Particle Engine
   useEffect(() => {
-    if (!state.widgets.particles || !isScreensaverActive) return;
+    if (!state.widgets.particles) return;
 
     const canvas = particleCanvasRef.current;
     if (!canvas) return;
@@ -747,7 +729,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       )}
 
       {/* 4. Live Atmospheric Weather Animations */}
-      {isScreensaverActive && weather && state.widgets.animations && (
+      {weather && state.widgets.animations && (
         <div className="weather-overlay-effect">
           {/* Drifting Clouds effect */}
           {[1, 2, 3].includes(weather.current.weather_code) && (
@@ -796,23 +778,8 @@ function Dashboard({ state, socket, connectionInfo }) {
       {/* 5. Vignette Shadow Overlay */}
       <div className="tv-vignette" />
 
-      {/* 6. ScreensaverDimmer (Pure pitch black cover when screen is 'Active' or in use, fades out to show screensaver after inactivity) */}
-      <div className={`screensaver-dimmer ${isScreensaverActive ? 'active' : ''}`} />
-
-      {/* 7. Faint clock displayed when dimmer is active (TV in regular idle mode, shows tiny info in bottom right) */}
-      {!isScreensaverActive && (
-        <div className="stealth-dim-clock">
-          <Clock size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
-          {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          <span style={{ fontSize: '0.8rem', opacity: 0.5, marginLeft: '12px' }}>
-            PRESS ANY KEY FOR SCENIC MODE
-          </span>
-        </div>
-      )}
-
-      {/* 8. TV Dashboard Glassmorphic UI overlays */}
-      {isScreensaverActive && (
-        <div className="tv-dashboard-ui">
+      {/* 6. TV Dashboard Glassmorphic UI overlays */}
+      <div className="tv-dashboard-ui">
           {/* A. Time & Date (Top Left) */}
           {state.widgets.clock && (
             <div className="glass-widget clock-widget">
@@ -910,9 +877,8 @@ function Dashboard({ state, socket, connectionInfo }) {
         </div>
       )}
 
-      {/* 9. Floating Settings Button & Drawer (only pointer-events allowed on hover/click) */}
-      {isScreensaverActive && (
-        <>
+      {/* 7. Floating Settings Button & Drawer (only pointer-events allowed on hover/click) */}
+      <>
           <button 
             className="desktop-settings-btn"
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
@@ -1145,8 +1111,7 @@ function Dashboard({ state, socket, connectionInfo }) {
               </div>
             </div>
           </div>
-        </>
-      )}
+      </>
     </div>
   );
 }
