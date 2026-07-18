@@ -7,5 +7,11 @@
     "city": "Verdun",
     "regionName": "Quebec",
     "country": "Canada"
+  },
+  "ecowitt": {
+    "enabled": false,
+    "baseUrl": "http://ecowitt.local",
+    "pollIntervalMs": 60000,
+    "timeoutMs": 3000
   }
 }

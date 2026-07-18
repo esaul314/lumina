@@ -27,6 +27,11 @@ const {
 } = require('./server/app.js');
 const { analyzeSentiment } = require('./server/services/sentiment.js');
 const { classifyWeatherCode } = require('./server/services/weather.js');
+const {
+  createEcowittRuntime,
+  parseEcowittPayload,
+  buildEnvironmentResponse
+} = require('./server/services/ecowitt.js');
 const { updatePhotoCrop } = require('./server/config/collections.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
@@ -1377,6 +1382,95 @@ assertTest('createActiveFeedRuntime falls back to the default visible feed when 
 // ============================================================================
 // 4d. UNIT TEST SUITE: Environment Refresh Runtime
 // ============================================================================
+logSuite('Ecowitt Environment Adapter');
+
+const ecowittFixture = {
+  common_list: [],
+  debug: [],
+  wh25: [{ intemp: '76.5', unit: 'F', inhumi: '63%', abs: '29.39 inHg', rel: '29.39 inHg' }]
+};
+
+assertTest('parses and normalizes the captured GW1200 indoor payload to metric units', () => {
+  assert.deepStrictEqual(parseEcowittPayload(ecowittFixture), {
+    temperatureC: 24.7,
+    humidityPercent: 63,
+    pressureAbsoluteHpa: 995.3,
+    pressureRelativeHpa: 995.3
+  });
+});
+
+assertTest('normalizes metric Celsius and hPa payloads without vendor suffixes', () => {
+  assert.deepStrictEqual(parseEcowittPayload({
+    wh25: [{ intemp: '22.8', unit: 'C', inhumi: '47%', abs: '1001.4 hPa', rel: '1018.7 hPa' }]
+  }), {
+    temperatureC: 22.8,
+    humidityPercent: 47,
+    pressureAbsoluteHpa: 1001.4,
+    pressureRelativeHpa: 1018.7
+  });
+});
+
+assertTest('returns null measurements for missing or malformed sensor fields', () => {
+  assert.deepStrictEqual(parseEcowittPayload({ wh25: [{}] }), {
+    temperatureC: null,
+    humidityPercent: null,
+    pressureAbsoluteHpa: null,
+    pressureRelativeHpa: null
+  });
+  assert.deepStrictEqual(parseEcowittPayload({}), {
+    temperatureC: null,
+    humidityPercent: null,
+    pressureAbsoluteHpa: null,
+    pressureRelativeHpa: null
+  });
+});
+
+assertTest('builds a stable disabled environment response', () => {
+  assert.deepStrictEqual(buildEnvironmentResponse({ indoor: null, enabled: false }), {
+    indoor: null,
+    source: 'ecowitt-gw1200',
+    observedAt: null,
+    stale: false,
+    enabled: false
+  });
+});
+
+assertAsyncTest('Ecowitt runtime retains the last good reading as stale after a network failure', async () => {
+  let shouldFail = false;
+  const runtime = createEcowittRuntime({
+    settings: { enabled: true, baseUrl: 'http://gateway', timeoutMs: 50 },
+    fetchImpl: async () => {
+      if (shouldFail) throw new Error('gateway offline');
+      return { ok: true, json: async () => ecowittFixture };
+    },
+    now: () => '2026-07-18T21:30:00.000Z',
+    log: { log() {}, warn() {} }
+  });
+
+  const fresh = await runtime.readEnvironment();
+  shouldFail = true;
+  const stale = await runtime.readEnvironment();
+
+  assert.strictEqual(fresh.stale, false);
+  assert.strictEqual(stale.stale, true);
+  assert.strictEqual(stale.observedAt, fresh.observedAt);
+  assert.deepStrictEqual(stale.indoor, fresh.indoor);
+});
+
+assertAsyncTest('Ecowitt runtime remains disabled without making a network request', async () => {
+  let fetchCount = 0;
+  const runtime = createEcowittRuntime({
+    settings: { enabled: false, baseUrl: 'http://gateway' },
+    fetchImpl: async () => { fetchCount += 1; return { ok: true, json: async () => ({}) }; }
+  });
+
+  assert.deepStrictEqual(await runtime.readEnvironment(), buildEnvironmentResponse({ indoor: null, enabled: false }));
+  assert.strictEqual(fetchCount, 0);
+});
+
+// ============================================================================
+// 4e. UNIT TEST SUITE: Environment Refresh Runtime
+// ============================================================================
 logSuite('Environment Refresh Runtime');
 
 assertTest('shouldSkipDailyFeedUpdate only skips when the last refresh is still within the interval', () => {
@@ -2543,6 +2637,27 @@ async function runIntegrationTests() {
       type: 'trigger-recrawl',
       payload: {}
     }]);
+  });
+
+  await assertAsyncTest('GET /api/environment returns the stable normalized indoor contract', async () => {
+    const environment = {
+      indoor: {
+        temperatureC: 24.7,
+        humidityPercent: 63,
+        pressureAbsoluteHpa: 995.3,
+        pressureRelativeHpa: 995.3
+      },
+      source: 'ecowitt-gw1200',
+      observedAt: '2026-07-18T21:30:00.000Z',
+      stale: false,
+      enabled: true
+    };
+    const response = await invokeRoute(buildConfiguredRoutesApp({
+      getEnvironmentData: async () => environment
+    }), 'get', '/api/environment');
+
+    assert.strictEqual(response.status, 200);
+    assert.deepStrictEqual(response.body, environment);
   });
 
   await assertAsyncTest('POST /api/pools/:name/crawl scopes the recrawl effect to the requested pool', async () => {

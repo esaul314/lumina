@@ -34,6 +34,10 @@ if (fs.existsSync(configPath)) {
       location: {
         ...config.location,
         ...(sanitizedConfig.location || {})
+      },
+      ecowitt: {
+        ...config.ecowitt,
+        ...(sanitizedConfig.ecowitt || {})
       }
     };
   } catch (err) {
