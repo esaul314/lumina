@@ -32,6 +32,10 @@ const {
   parseEcowittPayload,
   buildEnvironmentResponse
 } = require('./server/services/ecowitt.js');
+const {
+  createSensorHistoryStore,
+  normalizeSensorSnapshot
+} = require('./server/services/sensorHistory.js');
 const { updatePhotoCrop } = require('./server/config/collections.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
@@ -367,6 +371,13 @@ async function invokeRoute(app, method, routePath, { body = undefined, params = 
       return this;
     },
     json(payload) {
+      responseBody = payload;
+      return this;
+    },
+    type() {
+      return this;
+    },
+    send(payload) {
       responseBody = payload;
       return this;
     }
@@ -1433,6 +1444,57 @@ assertTest('builds a stable disabled environment response', () => {
     stale: false,
     enabled: false
   });
+});
+
+assertTest('normalizes GW1200 and outdoor weather into one hourly sensor record', () => {
+  assert.deepStrictEqual(normalizeSensorSnapshot({
+    environment: {
+      source: 'ecowitt-gw1200',
+      observedAt: '2026-07-18T21:45:12.000Z',
+      indoor: { temperatureC: 24.7, humidityPercent: 63, pressureRelativeHpa: 995.3 }
+    },
+    weather: {
+      location: { lat: 45.45, lon: -73.56 },
+      current: { temperature_2m: 20.1, weather_code: 2, precipitation: 0 }
+    }
+  }), {
+    hourKey: '2026-07-18T21',
+    observedAt: '2026-07-18T21:45:12.000Z',
+    source: 'ecowitt-gw1200',
+    device: 'GW1200',
+    indoorTemperatureC: 24.7,
+    indoorHumidityPercent: 63,
+    indoorPressureAbsoluteHpa: null,
+    indoorPressureRelativeHpa: 995.3,
+    outdoorTemperatureC: 20.1,
+    outdoorHumidityPercent: null,
+    outdoorApparentTemperatureC: null,
+    outdoorPrecipitationMm: 0,
+    outdoorRainMm: null,
+    outdoorSnowfallMm: null,
+    outdoorWeatherCode: 2,
+    outdoorWindSpeedKmh: null,
+    latitude: 45.45,
+    longitude: -73.56
+  });
+});
+
+assertTest('stores one latest reading per hour and exports queryable CSV', () => {
+  const store = createSensorHistoryStore();
+  const reading = observedAt => ({
+    environment: {
+      observedAt,
+      indoor: { temperatureC: 22, humidityPercent: 50 }
+    }
+  });
+  store.record(reading('2026-07-18T21:05:00.000Z'));
+  store.record(reading('2026-07-18T21:55:00.000Z'));
+  const rows = store.history({ limit: 10 });
+  assert.strictEqual(rows.length, 1);
+  assert.strictEqual(rows[0].observed_at, '2026-07-18T21:55:00.000Z');
+  assert.match(store.exportCsv({ limit: 10 }), /hour_key,observed_at,source/);
+  assert.match(store.exportCsv({ limit: 10 }), /2026-07-18T21,2026-07-18T21:55:00.000Z/);
+  store.close();
 });
 
 assertAsyncTest('Ecowitt runtime retains the last good reading as stale after a network failure', async () => {
@@ -2658,6 +2720,19 @@ async function runIntegrationTests() {
 
     assert.strictEqual(response.status, 200);
     assert.deepStrictEqual(response.body, environment);
+  });
+
+  await assertAsyncTest('GET environment history and CSV export use the injected storage boundary', async () => {
+    const readings = [{ hour_key: '2026-07-18T21', indoor_temperature_c: 24.7 }];
+    const responseApp = buildConfiguredRoutesApp({
+      getEnvironmentHistory: async () => readings,
+      exportEnvironmentHistory: async () => 'hour_key,indoor_temperature_c\n2026-07-18T21,24.7\n'
+    });
+    const history = await invokeRoute(responseApp, 'get', '/api/environment/history', { query: { limit: '1' } });
+    const csv = await invokeRoute(responseApp, 'get', '/api/environment/history/export', { query: { format: 'csv' } });
+    assert.deepStrictEqual(history.body, { readings });
+    assert.strictEqual(csv.status, 200);
+    assert.match(csv.body, /hour_key,indoor_temperature_c/);
   });
 
   await assertAsyncTest('POST /api/pools/:name/crawl scopes the recrawl effect to the requested pool', async () => {

@@ -65,7 +65,8 @@ function createEcowittRuntime({
   now = () => new Date().toISOString(),
   setIntervalImpl = setInterval,
   clearIntervalImpl = clearInterval,
-  log = console
+  log = console,
+  onReading = () => {}
 } = {}) {
   const enabled = settings.enabled === true;
   const baseUrl = String(settings.baseUrl || '').replace(/\/$/, '');
@@ -99,6 +100,7 @@ function createEcowittRuntime({
       const indoor = parseEcowittPayload(await response.json());
       const observedAt = now();
       lastGood = buildEnvironmentResponse({ indoor, observedAt, enabled: true });
+      onReading(lastGood);
       logTransition(availability === 'unavailable' ? 'recovered' : 'available');
       return lastGood;
     } catch (error) {
