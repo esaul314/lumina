@@ -156,10 +156,26 @@ const buildEnvironmentResponse = ({ indoor, metrics = {}, units = DEFAULT_UNITS,
   enabled
 });
 
+const activeSourceKey = ({ enabled, baseUrl }) => (
+  enabled && baseUrl ? baseUrl : null
+);
+
+const updateResponseUnits = (response, units) => (
+  response ? { ...response, units: normalizeUnits(units) } : null
+);
+
 function createTimeoutSignal(timeoutMs, AbortControllerImpl = AbortController) {
   const controller = new AbortControllerImpl();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  return { signal: controller.signal, clear: () => clearTimeout(timeoutId) };
+  const clear = () => clearTimeout(timeoutId);
+  return {
+    signal: controller.signal,
+    clear,
+    abort: () => {
+      clear();
+      controller.abort();
+    }
+  };
 }
 
 function createEcowittRuntime({
@@ -175,6 +191,15 @@ function createEcowittRuntime({
   let lastGood = null;
   let availability = activeSettings.enabled ? 'unknown' : 'disabled';
   let intervalId = null;
+  let settingsGeneration = 0;
+  const inFlightRequests = new Set();
+
+  const buildEmptyResponse = ({ stale = false } = {}) => buildEnvironmentResponse({
+    indoor: null,
+    units: activeSettings.units,
+    enabled: activeSettings.enabled && Boolean(activeSettings.baseUrl),
+    stale
+  });
 
   const logTransition = (nextAvailability, error) => {
     if (availability === nextAvailability) return;
@@ -185,24 +210,27 @@ function createEcowittRuntime({
   };
 
   const readEnvironment = async () => {
-    const { enabled, baseUrl, timeoutMs, units } = activeSettings;
+    const { enabled, baseUrl, timeoutMs } = activeSettings;
+    const readGeneration = settingsGeneration;
     if (!enabled || !baseUrl) {
-      return buildEnvironmentResponse({ indoor: null, units, enabled: false });
+      return buildEnvironmentResponse({ indoor: null, units: activeSettings.units, enabled: false });
     }
 
     let timeout = null;
     try {
       timeout = createTimeoutSignal(timeoutMs);
+      inFlightRequests.add(timeout);
       const response = await fetchImpl(`${baseUrl}${ECOWITT_LOCAL_HTTP_ADAPTER.endpoint}`, { signal: timeout.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const payload = await response.json();
+      if (readGeneration !== settingsGeneration) return buildEmptyResponse();
       const indoor = parseEcowittPayload(payload);
       const observedAt = now();
       lastGood = buildEnvironmentResponse({
         indoor,
         metrics: clonePayload(payload),
-        units,
+        units: activeSettings.units,
         observedAt,
         enabled: true
       });
@@ -210,11 +238,13 @@ function createEcowittRuntime({
       logTransition(availability === 'unavailable' ? 'recovered' : 'available');
       return lastGood;
     } catch (error) {
+      if (readGeneration !== settingsGeneration) return buildEmptyResponse();
       logTransition('unavailable', error);
       return lastGood
         ? { ...lastGood, stale: true }
-        : buildEnvironmentResponse({ indoor: null, units, enabled: true, stale: true });
+        : buildEnvironmentResponse({ indoor: null, units: activeSettings.units, enabled: true, stale: true });
     } finally {
+      inFlightRequests.delete(timeout);
       timeout?.clear();
     }
   };
@@ -240,9 +270,16 @@ function createEcowittRuntime({
   const updateSettings = (nextSettings) => {
     const result = validateEcowittSettings(nextSettings);
     if (!result.valid) return result;
+    const sourceChanged = activeSourceKey(activeSettings) !== activeSourceKey(result.settings);
     stop();
+    if (sourceChanged) {
+      settingsGeneration += 1;
+      inFlightRequests.forEach(request => request.abort());
+      inFlightRequests.clear();
+    }
     activeSettings = result.settings;
-    availability = activeSettings.enabled ? 'unknown' : 'disabled';
+    lastGood = sourceChanged ? null : updateResponseUnits(lastGood, activeSettings.units);
+    if (sourceChanged) availability = activeSettings.enabled ? 'unknown' : 'disabled';
     start();
     return result;
   };

@@ -745,8 +745,7 @@ body {
 
 .environment-switch:focus-visible,
 .environment-device-main:focus-visible,
-.environment-text-action:focus-visible,
-.environment-icon-button:focus-visible {
+.environment-text-action:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: 2px;
 }
@@ -938,7 +937,6 @@ body {
 
 .environment-text-action,
 .environment-danger-action,
-.environment-icon-button,
 .environment-remove-confirmation button {
   border: 0;
   background: transparent;
@@ -967,14 +965,6 @@ body {
 .environment-detail-heading h4 {
   margin-top: 4px;
   font-size: 1rem;
-}
-
-.environment-icon-button {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.045);
-  justify-content: center;
 }
 
 .environment-editor-note {

@@ -29,8 +29,11 @@ This document serves as a public-facing, generic history of technical developmen
   - Kept several named profiles while retaining one active poller, so changing sources does not introduce concurrent timers, data fusion, or history migrations.
   - Rebuilt System → Environment around current conditions, a contained device list, an explicit **Add device** action, and a persistent editor that renders beside the list on expanded windows and below it on compact windows.
   - Replaced the ambiguous polling switch with **Use device** / **Stop polling** actions. The only switch on the page is the semantic, keyboard-operable **Show indoor readings on TV** presentation preference.
+  - Hardened active-device changes so they clear the previous source's last-good reading, abort outstanding reads, and reject late completions before they can update the cache or history.
+  - Preserved cached and in-flight readings for non-source edits such as polling timing or display units, refreshing cached presentation-unit metadata without treating those edits as a device switch.
+  - Removed the device editor's misleading close icon. The editor is intentionally persistent in the list–detail layout, so a dismiss action had no coherent state to represent.
   - Recorded the research, trade-offs, target model, rubber-duck transcript, and acceptance criteria in `SENSOR_DEVICE_MANAGEMENT_PLAN.md`.
-- **Learning**: A protocol adapter, a saved physical-device profile, and a running poller are three different concepts. Making those distinctions explicit simplified both the runtime and the interface; multiple profiles do not require multiple simultaneous ingestion pipelines.
+- **Learning**: A protocol adapter, a saved physical-device profile, and a running poller are three different concepts. Making those distinctions explicit simplified both the runtime and the interface; multiple profiles do not require multiple simultaneous ingestion pipelines. Cached and in-flight observations also belong to the active-source generation, not to the adapter runtime globally.
 - **Verification**: Focused server and client-state regressions were added. Source parsing, ESLint, CSS parsing, and public-diff checks passed in the contribution workspace; the repository-mandated `npm test`, client build, and live responsive checks remain to be run on Playwright before the draft PR is marked ready.
 
 ### 2026-07-19: Documented Ecowitt Compatibility API

@@ -11,8 +11,7 @@ import {
   RefreshCw,
   Thermometer,
   Trash2,
-  Tv2,
-  X
+  Tv2
 } from 'lucide-react';
 import {
   convertPressure,
@@ -429,14 +428,6 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
                     <span className="environment-eyebrow">{isNewDevice ? 'New source' : 'Device settings'}</span>
                     <h4>{isNewDevice ? 'Add sensor device' : `Edit ${selectedDevice?.name || deviceDraft.name}`}</h4>
                   </div>
-                  <button
-                    type="button"
-                    className="environment-icon-button"
-                    aria-label="Close device editor"
-                    onClick={() => showDeviceEditor(draft, draft.activeDeviceId || draft.devices[0]?.id)}
-                  >
-                    <X size={17} />
-                  </button>
                 </div>
 
                 {isNewDevice && draft.devices.length > 0 && (
