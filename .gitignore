@@ -13,3 +13,4 @@ sensor_history.db
 server/config/.google_credentials.json
 server/config/google_photos_cache.json
 config.json
+.agents/MEMORY.md
