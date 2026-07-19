@@ -1,6 +1,6 @@
 // @ts-check
 
-const freezeList = (values = []) => Object.freeze([...values]);
+const freezeList = (values = []) => Object.freeze([...new Set(values)]);
 
 const createSensorAdapter = ({
   id,
@@ -16,21 +16,31 @@ const createSensorAdapter = ({
   start = () => {},
   stop = () => {},
   updateSettings = () => ({ valid: false, error: 'This adapter is not configurable.' })
-}) => Object.freeze({
-  id,
-  aliases: freezeList(aliases),
-  label,
-  description,
-  protocol,
-  transport,
-  endpoint,
-  compatibility,
-  capabilities: freezeList(capabilities),
-  read,
-  start,
-  stop,
-  updateSettings
-});
+}) => {
+  const descriptor = read?.adapterDescriptor || {};
+  const canonicalId = descriptor.id || id;
+  const resolvedAliases = [
+    ...(descriptor.aliases || []),
+    ...aliases,
+    ...(id && id !== canonicalId ? [id] : [])
+  ];
+
+  return Object.freeze({
+    id: canonicalId,
+    aliases: freezeList(resolvedAliases),
+    label: descriptor.label || label,
+    description: descriptor.description || description,
+    protocol: descriptor.protocol || protocol,
+    transport: descriptor.transport || transport,
+    endpoint: descriptor.endpoint || endpoint,
+    compatibility: descriptor.compatibility || compatibility,
+    capabilities: freezeList(descriptor.capabilities || capabilities),
+    read,
+    start,
+    stop,
+    updateSettings
+  });
+};
 
 const describeAdapter = ({
   id,
@@ -62,7 +72,7 @@ function createSensorPlatform({ adapters = [], primaryAdapterId = adapters[0]?.i
   )));
 
   const getAdapter = id => adapterMap.get(id) || null;
-  const getPrimaryAdapter = () => getAdapter(primaryAdapterId);
+  const getPrimaryAdapter = () => getAdapter(primaryAdapterId) || registeredAdapters[0] || null;
   const describe = () => [...canonicalAdapters.values()].map(describeAdapter);
   const read = id => {
     const adapter = getAdapter(id);
