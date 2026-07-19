@@ -54,14 +54,14 @@ const describeAdapter = ({
   capabilities
 }) => ({
   id,
-  aliases: [...aliases],
   label,
-  description,
-  protocol,
-  transport,
-  endpoint,
-  compatibility,
-  capabilities: [...capabilities]
+  capabilities: [...capabilities],
+  ...(aliases.length > 0 ? { aliases: [...aliases] } : {}),
+  ...(description ? { description } : {}),
+  ...(protocol ? { protocol } : {}),
+  ...(transport ? { transport } : {}),
+  ...(endpoint ? { endpoint } : {}),
+  ...(compatibility ? { compatibility } : {})
 });
 
 function createSensorPlatform({ adapters = [], primaryAdapterId = adapters[0]?.id } = {}) {
