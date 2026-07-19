@@ -1,6 +1,21 @@
 // @ts-check
 
 const freezeList = (values = []) => Object.freeze([...new Set(values)]);
+const isMetadataObject = value => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const cloneMetadata = value => (
+  Array.isArray(value)
+    ? value.map(cloneMetadata)
+    : isMetadataObject(value)
+      ? Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, cloneMetadata(nested)]))
+      : value
+);
+const freezeMetadata = value => (
+  Array.isArray(value)
+    ? Object.freeze(value.map(freezeMetadata))
+    : isMetadataObject(value)
+      ? Object.freeze(Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, freezeMetadata(nested)])))
+      : value
+);
 
 const createSensorAdapter = ({
   id,
@@ -33,7 +48,7 @@ const createSensorAdapter = ({
     protocol: descriptor.protocol || protocol,
     transport: descriptor.transport || transport,
     endpoint: descriptor.endpoint || endpoint,
-    compatibility: descriptor.compatibility || compatibility,
+    compatibility: freezeMetadata(descriptor.compatibility ?? compatibility),
     capabilities: freezeList(descriptor.capabilities || capabilities),
     read,
     start,
@@ -61,7 +76,7 @@ const describeAdapter = ({
   ...(protocol ? { protocol } : {}),
   ...(transport ? { transport } : {}),
   ...(endpoint ? { endpoint } : {}),
-  ...(compatibility ? { compatibility } : {})
+  ...(compatibility ? { compatibility: cloneMetadata(compatibility) } : {})
 });
 
 function createSensorPlatform({ adapters = [], primaryAdapterId = adapters[0]?.id } = {}) {
