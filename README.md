@@ -85,6 +85,8 @@ Lumina uses two local configuration files:
 
 The Ecowitt adapter is configured in the local `config.json` under `ecowitt`: set the gateway `baseUrl`, enable polling, and choose presentation units there. Lumina stores canonical sensor values in metric units, while the configured units control the TV and remote displays. The example file contains placeholders only; no device address or personal location is committed.
 
+The same values can be changed from Remote Control → System → Environment → Gateway Configuration. Changes are validated, saved locally, and applied to the running adapter immediately.
+
 Initialize default configurations:
 ```bash
 cp config.json.example config.json

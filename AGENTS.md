@@ -140,6 +140,7 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
 * `GET /api/config`: Exposes local IP addresses and ports to allow QR coupling of mobile screens.
 * `GET /api/environment/history`: Returns persisted hourly normalized GW1200/environment snapshots, newest first. Supports `from`, `to`, and `limit` query parameters.
 * `GET /api/environment/history/export?format=csv`: Exports the same history projection as CSV for Grafana Infinity, spreadsheets, or direct archival. JSON export is also available without `format=csv`.
+* `GET /api/environment/settings` / `POST /api/environment/settings`: Read or update the local Ecowitt gateway URL, polling settings, enablement, and display units. This is the REST boundary used by Remote Control → System → Environment.
 
 ### 6. Safe Read-Merge-Write Persistence & Ratings Engine
 Lumina implements a highly robust database persistence and rating system located under `server/config/collections.js` to manage wallpapers without losing user preferences:

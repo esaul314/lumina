@@ -22,18 +22,24 @@ const readJson = async (path) => {
 function EnvironmentSettingsTab({ state, handleToggleWidget }) {
   const [environment, setEnvironment] = useState(null);
   const [history, setHistory] = useState([]);
+  const [settings, setSettings] = useState(null);
+  const [draft, setDraft] = useState({});
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [environmentResponse, historyResponse] = await Promise.all([
+      const [environmentResponse, historyResponse, settingsResponse] = await Promise.all([
         readJson('/api/environment'),
-        readJson('/api/environment/history?limit=24')
+        readJson('/api/environment/history?limit=24'),
+        readJson('/api/environment/settings')
       ]);
       setEnvironment(environmentResponse);
       setHistory(historyResponse.readings || []);
+      setSettings(settingsResponse);
       setError(null);
     } catch (requestError) {
       setError(requestError.message);
@@ -48,6 +54,45 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
     return () => clearInterval(refreshTimer);
   }, [refresh]);
 
+  useEffect(() => {
+    if (settings) {
+      setDraft({
+        ...settings,
+        units: { ...settings.units }
+      });
+    }
+  }, [settings]);
+
+  const updateDraft = (field, value) => setDraft(current => ({ ...current, [field]: value }));
+  const updateUnit = (field, value) => setDraft(current => ({
+    ...current,
+    units: { ...current.units, [field]: value }
+  }));
+  const saveSettings = async () => {
+    setSaving(true);
+    setSaveMessage('');
+    try {
+      const response = await fetch('/api/environment/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...draft,
+          pollIntervalMs: Number(draft.pollIntervalMs),
+          timeoutMs: Number(draft.timeoutMs)
+        })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error || 'Could not save gateway settings');
+      setSettings(body.settings);
+      setSaveMessage('Saved and applied.');
+      await refresh();
+    } catch (saveError) {
+      setSaveMessage(saveError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const status = getEnvironmentStatus(environment);
   const indoor = environment?.indoor;
   const latest = history[0];
@@ -58,6 +103,50 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
 
   return (
     <>
+      <div className="remote-card">
+        <span className="remote-section-title" style={{ display: 'block', marginBottom: '0' }}>Gateway Configuration</span>
+        <div style={{ fontSize: '0.75rem', opacity: 0.55, lineHeight: 1.5 }}>
+          Configure the local Ecowitt gateway for this Lumina instance. These settings are stored in the gitignored <code>config.json</code>.
+        </div>
+        <div className="widget-toggle-item">
+          <div className="toggle-info">
+            <RadioTower size={18} style={{ color: '#fb923c' }} />
+            <div>
+              <div className="toggle-label">Enable Ecowitt polling</div>
+              <div className="toggle-desc">Read the gateway on the configured interval</div>
+            </div>
+          </div>
+          <div className="switch-wrapper" onClick={() => updateDraft('enabled', !draft.enabled)}>
+            <span className={`switch-slider ${draft.enabled ? 'checked' : ''}`}></span>
+          </div>
+        </div>
+        <label style={{ fontSize: '0.72rem', opacity: 0.65 }}>GATEWAY URL
+          <input value={draft.baseUrl || ''} onChange={event => updateDraft('baseUrl', event.target.value)} placeholder="http://ecowitt.local" style={{ display: 'block', width: '100%', marginTop: '5px', boxSizing: 'border-box', padding: '10px', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }} />
+        </label>
+        <label style={{ fontSize: '0.72rem', opacity: 0.65 }}>POLL INTERVAL (SECONDS)
+          <input type="number" min="10" value={Math.round(Number(draft.pollIntervalMs || 60000) / 1000)} onChange={event => updateDraft('pollIntervalMs', Number(event.target.value) * 1000)} style={{ display: 'block', width: '100%', marginTop: '5px', boxSizing: 'border-box', padding: '10px', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }} />
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          {[
+            ['temperature', 'Temperature', ['C', 'F']],
+            ['pressure', 'Pressure', ['hPa', 'inHg']],
+            ['wind', 'Wind', ['km/h', 'm/s', 'mph']],
+            ['rain', 'Rain', ['mm', 'in']],
+            ['light', 'Light', ['lux', 'W/m²']]
+          ].map(([key, label, options]) => (
+            <label key={key} style={{ fontSize: '0.72rem', opacity: 0.65 }}>{label.toUpperCase()}
+              <select value={draft.units?.[key] || options[0]} onChange={event => updateUnit(key, event.target.value)} style={{ display: 'block', width: '100%', marginTop: '5px', padding: '9px', background: '#17151d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}>
+                {options.map(option => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+          ))}
+        </div>
+        <button className="remote-btn" onClick={saveSettings} disabled={saving || !settings}>
+          {saving ? 'Saving…' : 'Save Gateway Configuration'}
+        </button>
+        {saveMessage && <div style={{ fontSize: '0.75rem', color: saveMessage.includes('Saved') ? '#86efac' : '#fca5a5' }}>{saveMessage}</div>}
+      </div>
+
       <div className="remote-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
           <div>

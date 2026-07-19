@@ -31,7 +31,8 @@ const {
   createEcowittRuntime,
   parseEcowittPayload,
   buildEnvironmentResponse,
-  normalizeUnits
+  normalizeUnits,
+  validateEcowittSettings
 } = require('./server/services/ecowitt.js');
 const {
   createSensorHistoryStore,
@@ -1459,6 +1460,8 @@ assertTest('keeps display units configurable while retaining canonical metric pa
   assert.deepStrictEqual(normalizeUnits({ temperature: 'F' }), {
     temperature: 'F', pressure: 'hPa', wind: 'km/h', rain: 'mm', light: 'lux'
   });
+  assert.strictEqual(validateEcowittSettings({ enabled: true, baseUrl: 'ftp://gateway' }).valid, false);
+  assert.strictEqual(validateEcowittSettings({ enabled: true, baseUrl: 'http://gateway', pollIntervalMs: 60000 }).valid, true);
 });
 
 assertTest('normalizes GW1200 and outdoor weather into one hourly sensor record', () => {
@@ -1546,6 +1549,27 @@ assertAsyncTest('Ecowitt runtime remains disabled without making a network reque
 
   assert.deepStrictEqual(await runtime.readEnvironment(), buildEnvironmentResponse({ indoor: null, enabled: false }));
   assert.strictEqual(fetchCount, 0);
+});
+
+assertAsyncTest('Ecowitt runtime applies validated admin settings without a process restart', async () => {
+  const runtime = createEcowittRuntime({
+    settings: { enabled: false },
+    fetchImpl: async () => ({ ok: true, json: async () => ecowittFixture }),
+    log: { log() {}, warn() {} }
+  });
+  const result = runtime.updateSettings({
+    enabled: true,
+    baseUrl: 'http://gateway',
+    pollIntervalMs: 60_000,
+    timeoutMs: 3_000,
+    units: { temperature: 'F' }
+  });
+  assert.strictEqual(result.valid, true);
+  const reading = await runtime.readEnvironment();
+  assert.strictEqual(reading.units.temperature, 'F');
+  assert.strictEqual(reading.indoor.temperatureC, 24.7);
+  assert.strictEqual(runtime.updateSettings({ enabled: true, baseUrl: 'ftp://gateway' }).valid, false);
+  runtime.stop();
 });
 
 // ============================================================================
@@ -2767,6 +2791,24 @@ async function runIntegrationTests() {
     assert.deepStrictEqual(history.body, { readings });
     assert.strictEqual(csv.status, 200);
     assert.match(csv.body, /hour_key,indoor_temperature_c/);
+  });
+
+  await assertAsyncTest('GET and POST environment settings expose a validated admin configuration boundary', async () => {
+    let savedSettings = { enabled: false, baseUrl: 'http://ecowitt.local', units: { temperature: 'C' } };
+    const responseApp = buildConfiguredRoutesApp({
+      getEnvironmentSettings: () => savedSettings,
+      updateEnvironmentSettings: settings => {
+        savedSettings = settings;
+        return { valid: true, settings };
+      }
+    });
+    const current = await invokeRoute(responseApp, 'get', '/api/environment/settings');
+    const saved = await invokeRoute(responseApp, 'post', '/api/environment/settings', {
+      body: { enabled: true, baseUrl: 'http://gateway', units: { temperature: 'F' } }
+    });
+    assert.strictEqual(current.body.baseUrl, 'http://ecowitt.local');
+    assert.strictEqual(saved.body.success, true);
+    assert.strictEqual(saved.body.settings.units.temperature, 'F');
   });
 
   await assertAsyncTest('POST /api/pools/:name/crawl scopes the recrawl effect to the requested pool', async () => {
