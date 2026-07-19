@@ -45,6 +45,7 @@ const googlePhotos = require('./services/googlePhotos.js');
 const { analyzeSentiment } = require('./services/sentiment.js');
 const { createEcowittRuntime } = require('./services/ecowitt.js');
 const { createSensorHistoryStore } = require('./services/sensorHistory.js');
+const { saveLocalConfigPatch } = require('./config/localSettings.js');
 const { crawlAllCollections } = require('./services/crawler.js');
 const {
   curry,
@@ -84,6 +85,13 @@ const persistedEcowittRuntime = createEcowittRuntime({
   settings: config.ecowitt,
   onReading: recordSensorReading
 });
+const updateEcowittSettings = (settings) => {
+  const result = persistedEcowittRuntime.updateSettings(settings);
+  if (!result.valid) return result;
+  config.ecowitt = result.settings;
+  saveLocalConfigPatch({ configPath: path.join(rootDir, 'config.json'), patch: { ecowitt: result.settings } });
+  return result;
+};
 const ANALYSIS_PROGRESS_INTERVAL = 25;
 
 const app = express();
@@ -577,6 +585,8 @@ require('./routes.js')({
   getEnvironmentData: persistedEcowittRuntime.readEnvironment,
   getEnvironmentHistory: query => sensorHistoryStore?.history(query) || [],
   exportEnvironmentHistory: query => sensorHistoryStore?.exportCsv(query) || '',
+  getEnvironmentSettings: () => config.ecowitt,
+  updateEnvironmentSettings: updateEcowittSettings,
   io,
   port: PORT,
   dispatchCommand,

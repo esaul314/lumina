@@ -38,6 +38,34 @@ const normalizeUnits = (units = {}) => ({
   ...units
 });
 
+const normalizeEcowittSettings = (settings = {}) => ({
+  enabled: settings.enabled === true,
+  baseUrl: String(settings.baseUrl || '').replace(/\/$/, ''),
+  pollIntervalMs: Number.isFinite(Number(settings.pollIntervalMs)) ? Number(settings.pollIntervalMs) : DEFAULT_POLL_INTERVAL_MS,
+  timeoutMs: Number.isFinite(Number(settings.timeoutMs)) ? Number(settings.timeoutMs) : DEFAULT_TIMEOUT_MS,
+  units: normalizeUnits(settings.units)
+});
+
+const validateEcowittSettings = (settings = {}) => {
+  const normalized = normalizeEcowittSettings(settings);
+  let url = null;
+  try {
+    url = normalized.baseUrl ? new URL(normalized.baseUrl) : null;
+  } catch (_error) {
+    return { valid: false, error: 'Gateway URL must be a valid http or https URL.' };
+  }
+  if (url && !['http:', 'https:'].includes(url.protocol)) {
+    return { valid: false, error: 'Gateway URL must use http or https.' };
+  }
+  if (normalized.enabled && !url) {
+    return { valid: false, error: 'A gateway URL is required when Ecowitt polling is enabled.' };
+  }
+  if (normalized.pollIntervalMs < 10_000 || normalized.timeoutMs < 500) {
+    return { valid: false, error: 'Polling must be at least 10 seconds and timeout at least 500 milliseconds.' };
+  }
+  return { valid: true, settings: normalized };
+};
+
 const clonePayload = (payload) => (
   payload && typeof payload === 'object' ? JSON.parse(JSON.stringify(payload)) : {}
 );
@@ -86,15 +114,9 @@ function createEcowittRuntime({
   log = console,
   onReading = () => {}
 } = {}) {
-  const enabled = settings.enabled === true;
-  const baseUrl = String(settings.baseUrl || '').replace(/\/$/, '');
-  const timeoutMs = Number.isFinite(settings.timeoutMs) ? settings.timeoutMs : DEFAULT_TIMEOUT_MS;
-  const pollIntervalMs = Number.isFinite(settings.pollIntervalMs)
-    ? settings.pollIntervalMs
-    : DEFAULT_POLL_INTERVAL_MS;
-  const units = normalizeUnits(settings.units);
+  let activeSettings = normalizeEcowittSettings(settings);
   let lastGood = null;
-  let availability = enabled ? 'unknown' : 'disabled';
+  let availability = activeSettings.enabled ? 'unknown' : 'disabled';
   let intervalId = null;
 
   const logTransition = (nextAvailability, error) => {
@@ -106,6 +128,7 @@ function createEcowittRuntime({
   };
 
   const readEnvironment = async () => {
+    const { enabled, baseUrl, timeoutMs, units } = activeSettings;
     if (!enabled || !baseUrl) {
       return buildEnvironmentResponse({ indoor: null, units, enabled: false });
     }
@@ -140,8 +163,8 @@ function createEcowittRuntime({
   };
 
   const start = () => {
-    if (!enabled || intervalId) return;
-    intervalId = setIntervalImpl(() => { readEnvironment(); }, pollIntervalMs);
+    if (!activeSettings.enabled || intervalId) return;
+    intervalId = setIntervalImpl(() => { readEnvironment(); }, activeSettings.pollIntervalMs);
   };
 
   const stop = () => {
@@ -150,7 +173,17 @@ function createEcowittRuntime({
     intervalId = null;
   };
 
-  return { readEnvironment, start, stop };
+  const updateSettings = (nextSettings) => {
+    const result = validateEcowittSettings(nextSettings);
+    if (!result.valid) return result;
+    stop();
+    activeSettings = result.settings;
+    availability = activeSettings.enabled ? 'unknown' : 'disabled';
+    start();
+    return result;
+  };
+
+  return { readEnvironment, start, stop, updateSettings };
 }
 
 module.exports = {
@@ -161,8 +194,10 @@ module.exports = {
   buildEnvironmentResponse,
   createEcowittRuntime,
   normalizePressureHpa,
+  normalizeEcowittSettings,
   normalizeTemperatureC,
   normalizeUnits,
   parseEcowittPayload,
-  toFiniteNumber
+  toFiniteNumber,
+  validateEcowittSettings
 };

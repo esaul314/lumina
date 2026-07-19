@@ -61,6 +61,8 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
  *   getEnvironmentData?: () => Promise<Record<string, unknown>>,
  *   getEnvironmentHistory?: (query?: Record<string, unknown>) => Array<Record<string, unknown>>,
  *   exportEnvironmentHistory?: (query?: Record<string, unknown>) => string,
+ *   getEnvironmentSettings?: () => Record<string, unknown>,
+ *   updateEnvironmentSettings?: (settings: Record<string, unknown>) => Record<string, unknown>,
  *   io: { emit: (event: string, payload: any) => void },
  *   port: number,
  *   dispatchCommand?: (command: Record<string, any>) => Promise<DispatchResult | null>,
@@ -103,6 +105,8 @@ module.exports = function configureRoutes({
   getEnvironmentData = async () => ({ indoor: null, source: 'ecowitt-gw1200', observedAt: null, stale: false, enabled: false }),
   getEnvironmentHistory = async () => [],
   exportEnvironmentHistory = async () => '',
+  getEnvironmentSettings = () => ({}),
+  updateEnvironmentSettings = () => ({ valid: false, error: 'Environment settings unavailable.' }),
   io,
   port,
   dispatchCommand,
@@ -584,6 +588,21 @@ module.exports = function configureRoutes({
       res.json({ readings: await getEnvironmentHistory(req.query) });
     } catch (error) {
       sendError(res, 503, 'Failed to read environment history', { message: toErrorMessage(error) });
+    }
+  });
+
+  app.get('/api/environment/settings', (_req, res) => res.json(getEnvironmentSettings()));
+
+  app.post('/api/environment/settings', async (req, res) => {
+    try {
+      const result = await updateEnvironmentSettings(req.body || {});
+      if (!result?.valid) {
+        sendError(res, 400, result?.error || 'Invalid environment settings.');
+        return;
+      }
+      res.json({ success: true, settings: result.settings });
+    } catch (error) {
+      sendError(res, 500, 'Failed to save environment settings', { message: toErrorMessage(error) });
     }
   });
 
