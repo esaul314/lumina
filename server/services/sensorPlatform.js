@@ -30,6 +30,7 @@ const createSensorAdapter = ({
   read,
   start = () => {},
   stop = () => {},
+  validateSettings = () => ({ valid: false, error: 'This adapter is not configurable.' }),
   updateSettings = () => ({ valid: false, error: 'This adapter is not configurable.' })
 }) => {
   const descriptor = read?.adapterDescriptor || {};
@@ -53,6 +54,7 @@ const createSensorAdapter = ({
     read,
     start,
     stop,
+    validateSettings,
     updateSettings
   });
 };
@@ -99,6 +101,12 @@ function createSensorPlatform({ adapters = [], primaryAdapterId = adapters[0]?.i
   };
   const start = () => [...canonicalAdapters.values()].forEach(adapter => adapter.start());
   const stop = () => [...canonicalAdapters.values()].forEach(adapter => adapter.stop());
+  const validateSettings = (id, settings) => {
+    const adapter = getAdapter(id);
+    return adapter
+      ? adapter.validateSettings(settings)
+      : { valid: false, error: `Unknown sensor adapter: ${id}` };
+  };
   const updateSettings = (id, settings) => {
     const adapter = getAdapter(id);
     return adapter
@@ -120,6 +128,7 @@ function createSensorPlatform({ adapters = [], primaryAdapterId = adapters[0]?.i
     readPrimary,
     start,
     stop,
+    validateSettings,
     updateSettings,
     updatePrimarySettings
   };

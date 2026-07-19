@@ -2061,8 +2061,14 @@ async function runClientStateTests() {
   logSuite('Remote Feed Control Snapshot Mutations');
 
   const {
+    createEnvironmentDevice,
     formatEnvironmentMetric,
+    getActiveEnvironmentDevice,
     getEnvironmentStatus,
+    normalizeEnvironmentSettingsDraft,
+    removeEnvironmentDevice,
+    selectEnvironmentDevice,
+    upsertEnvironmentDevice,
     parseEnvironmentSettingsJson
   } = await importClientModule('./client/src/state/environmentHistory.js');
 
@@ -2080,6 +2086,22 @@ async function runClientStateTests() {
     });
     assert.strictEqual(parseEnvironmentSettingsJson('[]').valid, false);
     assert.strictEqual(getEnvironmentStatus({ enabled: true, stale: true }).label, 'Stale fallback');
+  });
+
+  assertTest('environment device helpers add, select, edit, and remove saved profiles immutably', () => {
+    const empty = normalizeEnvironmentSettingsDraft({ devices: [], units: { temperature: 'C' } });
+    const first = createEnvironmentDevice(empty, { name: 'Living room', baseUrl: 'http://living.local' });
+    const withFirst = upsertEnvironmentDevice(empty, first);
+    const selected = selectEnvironmentDevice(withFirst, first.id);
+    const renamed = upsertEnvironmentDevice(selected, { ...first, name: 'Main room' });
+    const removed = removeEnvironmentDevice(renamed, first.id);
+
+    assert.deepStrictEqual(empty.devices, []);
+    assert.strictEqual(first.id, 'living-room');
+    assert.strictEqual(getActiveEnvironmentDevice(selected).baseUrl, 'http://living.local');
+    assert.strictEqual(renamed.devices[0].name, 'Main room');
+    assert.strictEqual(removed.activeDeviceId, null);
+    assert.deepStrictEqual(removed.devices, []);
   });
 
   const {

@@ -1,6 +1,6 @@
 # Sensor Adapter Redesign Plan
 
-Status: implementation in progress on `refactor/sensor-adapter-family-ui`
+Status: completed and merged through PRs #1 and #2; device-profile UX continues in `SENSOR_DEVICE_MANAGEMENT_PLAN.md`
 
 ## Problem statement
 

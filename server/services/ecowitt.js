@@ -247,7 +247,13 @@ function createEcowittRuntime({
     return result;
   };
 
-  return { readEnvironment, start, stop, updateSettings };
+  return {
+    readEnvironment,
+    start,
+    stop,
+    validateSettings: validateEcowittSettings,
+    updateSettings
+  };
 }
 
 module.exports = {

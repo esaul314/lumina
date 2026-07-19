@@ -927,7 +927,7 @@ function SystemSettingsTab(props) {
 
   return (
     <>
-      <div className="system-subtabs" role="tablist" aria-label="System settings sections">
+      <div className={`system-subtabs ${section === 'environment' ? 'environment-width' : ''}`} role="tablist" aria-label="System settings sections">
         {sections.map(([value, label]) => (
           <button
             key={value}

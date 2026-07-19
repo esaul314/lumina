@@ -16,6 +16,66 @@ export const convertPressure = (value, unit = 'hPa') => {
   return unit === 'inHg' ? numericValue / 33.8638866667 : numericValue;
 };
 
+export const DEFAULT_ENVIRONMENT_DEVICE = Object.freeze({
+  name: 'New sensor device',
+  adapterId: 'ecowitt-local-http',
+  baseUrl: '',
+  pollIntervalMs: 60_000,
+  timeoutMs: 3_000
+});
+
+const slugifyDeviceId = value => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '')
+  .slice(0, 48);
+
+export const createEnvironmentDeviceId = (name, devices = []) => {
+  const base = slugifyDeviceId(name) || 'sensor-device';
+  const usedIds = new Set(devices.map(({ id }) => id));
+  return [base, ...Array.from({ length: usedIds.size + 1 }, (_, index) => `${base}-${index + 1}`)]
+    .find(candidate => !usedIds.has(candidate));
+};
+
+export const normalizeEnvironmentSettingsDraft = (settings = {}) => ({
+  ...settings,
+  activeDeviceId: settings.activeDeviceId ?? null,
+  devices: Array.isArray(settings.devices) ? settings.devices.map(device => ({ ...device })) : [],
+  units: { ...(settings.units || {}) }
+});
+
+export const createEnvironmentDevice = (settings, overrides = {}) => ({
+  ...DEFAULT_ENVIRONMENT_DEVICE,
+  ...overrides,
+  id: createEnvironmentDeviceId(
+    overrides.name || DEFAULT_ENVIRONMENT_DEVICE.name,
+    settings.devices
+  )
+});
+
+export const getActiveEnvironmentDevice = settings => (
+  settings.devices.find(({ id }) => id === settings.activeDeviceId) || null
+);
+
+export const upsertEnvironmentDevice = (settings, device) => ({
+  ...settings,
+  devices: settings.devices.some(({ id }) => id === device.id)
+    ? settings.devices.map(current => current.id === device.id ? { ...current, ...device } : current)
+    : [...settings.devices, device]
+});
+
+export const removeEnvironmentDevice = (settings, deviceId) => ({
+  ...settings,
+  activeDeviceId: settings.activeDeviceId === deviceId ? null : settings.activeDeviceId,
+  devices: settings.devices.filter(({ id }) => id !== deviceId)
+});
+
+export const selectEnvironmentDevice = (settings, deviceId) => ({
+  ...settings,
+  activeDeviceId: settings.devices.some(({ id }) => id === deviceId) ? deviceId : null
+});
+
 export const parseEnvironmentSettingsJson = (value) => {
   try {
     const parsed = JSON.parse(value);

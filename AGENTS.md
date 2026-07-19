@@ -35,7 +35,7 @@ graph TD
     B -->|Toggles CPU Governor| F["⚡ System CPU Power scaling_governor"]
     B -->|Crawl Daily Feeds| G["🖼️ Unsplash Search NAPI"]
     B -->|Weather Forecast| H["🌦️ Open-Meteo API"]
-    I["🌡️ Ecowitt GW1200 Gateway"] -->|HTTP Polling 60s| B
+    I["🌡️ Active local sensor device"] -->|Protocol adapter polling| B
     B -->|Logs Hourly Snapshots| J["🗄️ SQLite sensor_history.db"]
     E <-->|Real-Time State Sync| B
 ```
@@ -140,22 +140,24 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
       - Otherwise, the room's mood is set by **today's global news sentiment** (prioritizing Sunny, Cloudy, or Rainy/Moody wallpapers accordingly).
     - Photos matching these atmospheric filters are served with an **80% preference weight** to preserve surprise while aligning the living space with the emotional and physical state of the world outside. Under night hours, this integrates with the user's evening/night photo ratio slider.
 
-### 5. Ecowitt Local Environment & Sensor Telemetry Platform
-* **Gateway Adapter (`server/domain/ecowitt.js`)**:
-  - Polls local Ecowitt GW1200 gateways at configurable intervals (default 60s) for indoor temperature, humidity, and barometric pressure.
+### 5. Local Environment & Sensor Telemetry Platform
+* **Gateway Adapter (`server/services/ecowitt.js`)**:
+  - Polls gateways and consoles exposing Ecowitt's generic local HTTP API at configurable intervals (default 60s) for indoor temperature, humidity, and barometric pressure. GW1200 is the first verified device.
   - Normalizes metric units (`temperatureC`, `humidityPercent`, `pressureAbsoluteHpa`, `pressureRelativeHpa`) while handling missing fields or stale network states defensively without interrupting Open-Meteo outdoor weather calculations.
+* **Saved Device Profiles (`server/domain/environmentSettings.js`)**:
+  - Retains named sources with a registered adapter, address, polling interval, and timeout while running exactly one active source. Existing flat `config.ecowitt` settings migrate automatically and remain available as a compatibility projection.
 * **Persistent SQLite Sensor Storage (`sensor_history.db`)**:
   - Stores hourly environmental snapshots in SQLite, persisting full raw `gateway_metrics` payloads to retain optional multichannel, air quality (PM2.5), rain, wind, and leaf sensor blocks without requiring schema migrations.
 * **Grafana & CSV Export API**:
   - `GET /api/environment/history/export?format=csv` projects sensor history directly into CSV format for Grafana Infinity plugin integration, spreadsheet analysis, and archival downloads.
 * **Display Units & Remote Controls**:
-  - Presentation display units (`temperatureUnit`: `F`|`C`, `pressureUnit`: `inHg`|`hPa`) are configurable from Remote Control → System → Environment. Sensor readings are rendered as a quiet, subordinate indoor telemetry line inside the weather widget on TV View.
+  - Presentation display units are configurable from Remote Control → System → Environment. The adaptive admin uses a list–detail manager on expanded windows and a stacked phone layout. Polling is represented by the mutually exclusive active source; the separate semantic switch only controls whether indoor readings appear on the TV.
 
 ### 6. API Endpoints
 * `GET /api/environment`: Resolves current normalized indoor environment readings, observation timestamp, and gateway availability status.
 * `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, and `limit` query parameters).
 * `GET /api/environment/history/export`: Exports environment history as CSV (`?format=csv`) or JSON for Grafana Infinity plugin and direct downloads.
-* `GET /api/environment/settings` / `POST /api/environment/settings`: Reads or updates local Ecowitt gateway URL, polling interval, enablement, and display unit preferences over REST.
+* `GET /api/environment/settings` / `POST /api/environment/settings`: Reads or updates saved device profiles, the active source, connection timing, and display unit preferences. Legacy flat Ecowitt payloads remain accepted.
 * `GET /api/environment/adapters`: Lists registered sensor adapters and capabilities. Ecowitt is the first adapter; new protocols should implement the shared sensor-platform contract instead of changing storage or widget consumers.
 
 Ecowitt compatibility uses the vendor’s published local HTTP API endpoint `GET /get_livedata_info`; refer users to the [official Ecowitt HTTP API protocol](https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf) when evaluating gateway or sensor compatibility.
