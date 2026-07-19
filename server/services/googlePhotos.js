@@ -192,6 +192,20 @@ function updateCachedMediaItem(item) {
   return item;
 }
 
+/**
+ * Keep loved items in the source-local permanent collection when a later
+ * Picker session selects a different working set. The Picker response is the
+ * replaceable pool; loved cache rows are durable display choices.
+ */
+function mergeSyncedMediaItems(syncedItems, cachedItems = []) {
+  const syncedIds = new Set(syncedItems.map((item) => item?.id).filter(Boolean));
+  const preservedLovedItems = cachedItems.filter((item) => (
+    item?.loved === true && item.id && !syncedIds.has(item.id)
+  ));
+
+  return [...syncedItems, ...preservedLovedItems];
+}
+
 function buildGooglePhotoMetadataPatch(metadata = {}) {
   return Object.fromEntries(
     Object.entries({
@@ -506,7 +520,8 @@ async function syncGoogleAlbum(sessionId) {
     console.log(`Google Photos Service: Syncing selected items from session ${sessionId}...`);
     const { mediaItems } = await listPickerMediaItems(sessionId);
 
-    const existingById = new Map(getCachedMediaItems().map((item) => [item.id, item]));
+    const cachedItems = getCachedMediaItems();
+    const existingById = new Map(cachedItems.map((item) => [item.id, item]));
 
     const syncedItems = [];
     if (mediaItems && Array.isArray(mediaItems)) {
@@ -520,12 +535,13 @@ async function syncGoogleAlbum(sessionId) {
       }
     }
 
-    writeCachedMediaItems(syncedItems);
-    console.log(`Google Photos Service: Synced and cached ${syncedItems.length} selected items successfully for session ${sessionId}.`);
+    const cachedItemsToKeep = mergeSyncedMediaItems(syncedItems, cachedItems);
+    writeCachedMediaItems(cachedItemsToKeep);
+    console.log(`Google Photos Service: Synced and cached ${syncedItems.length} selected items plus ${cachedItemsToKeep.length - syncedItems.length} loved permanent items for session ${sessionId}.`);
 
     // Clean orphaned files and kick off background download of new files
-    cleanOrphanedMediaFiles(syncedItems);
-    downloadSyncMediaItems(syncedItems).catch((err) => {
+    cleanOrphanedMediaFiles(cachedItemsToKeep);
+    downloadSyncMediaItems(cachedItemsToKeep).catch((err) => {
       console.error('Google Photos Service: Error in background downloader:', err.message);
     });
 
@@ -922,6 +938,7 @@ module.exports = {
   mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
   isUsableCachedMediaItem,
+  mergeSyncedMediaItems,
   updateCachedMediaItemMetadata,
   difference,
   getOrphanedFiles,

@@ -64,6 +64,7 @@ const {
   mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
   isUsableCachedMediaItem,
+  mergeSyncedMediaItems,
   difference,
   getOrphanedFiles,
   getLocalMediaFilePath,
@@ -966,6 +967,27 @@ assertTest('legacy Google Photos cache rows without baseUrl or picker session ar
   });
 
   assert.strictEqual(isUsableCachedMediaItem(healthy), true, 'Rows with picker session metadata should remain eligible');
+});
+
+assertTest('Google Photos resync preserves loved cache rows outside the new Picker working set', () => {
+  const syncedItems = [
+    { id: 'selected-now', loved: false },
+    { id: 'loved-still-selected', loved: true }
+  ];
+  const cachedItems = [
+    { id: 'selected-now', loved: false },
+    { id: 'loved-still-selected', loved: true },
+    { id: 'loved-from-previous-session', loved: true },
+    { id: 'ordinary-from-previous-session', loved: false }
+  ];
+
+  const merged = mergeSyncedMediaItems(syncedItems, cachedItems);
+
+  assert.deepStrictEqual(merged.map((item) => item.id), [
+    'selected-now',
+    'loved-still-selected',
+    'loved-from-previous-session'
+  ]);
 });
 
 assertTest('difference functional helper computes set difference correctly', () => {

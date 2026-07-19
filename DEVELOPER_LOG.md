@@ -5,6 +5,15 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Preserve Loved Google Photos Across Picker Resyncs
+- **Goal**: Keep Google Photos consistent with the other feeds’ permanent-collection behavior while retaining offline playback during authentication or Picker outages.
+- **Implementation**:
+  - Kept the Picker response as the replaceable working pool, but merge previously cached `loved` items into the next source-local cache snapshot.
+  - Include preserved loved items in local-file cleanup and background download bookkeeping so their downloaded bytes are not treated as orphaned.
+  - Leave the existing failure boundary intact: a failed Picker/auth sync throws before cache replacement or cleanup, so the last good cache and local files remain available.
+  - Added regression coverage for preserving a loved item that is absent from a later Picker selection.
+- **Learning**: External feed refreshes need the same distinction as crawler refreshes: ordinary items may be replaced, while explicit permanent-collection metadata must outlive a working-set update.
+
 ### 2026-07-19: Synchronized Comprehensive Project Documentation
 - **Goal**: Update `README.md`, `AGENTS.md`, and project guides to fully accurately reflect all recently implemented major features, architecture shifts, and REST API expansions.
 - **Implementation**:
