@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Made Ecowitt Units Configurable and Preserved Full Gateway Telemetry
+- **Goal**: Remove implicit local assumptions from the public adapter and ensure the history contract does not discard GW1200 sensor families that are not needed by the first widget.
+- **Implementation**:
+  - Documented `config.json` as the local source of the Ecowitt gateway URL and presentation units; the tracked example uses placeholders and no household IP or location.
+  - Kept database values canonical in Celsius, hPa, and other metric units, then converted the TV/remote presentation according to `ecowitt.units`.
+  - Added a backwards-compatible SQLite migration and persisted the complete `get_livedata_info` JSON payload as `gateway_metrics_json`, exposed as parsed `gateway_metrics` in JSON history and included in CSV export.
+  - The live GW1200 currently reports `common_list`, `wh25`, and `debug`; future paired blocks such as rain, wind, lightning, air quality, soil, leaf, leak, distance, and multichannel sensors now flow through without a schema change.
+- **Learning**: A fixed column set is appropriate for canonical widgets, but it is not an adequate representation of a vendor gateway with optional sensor families. Preserve the source payload at the storage boundary and derive stable fields only where Lumina has a semantic consumer.
+- **Verification**: Live port-5000 API returned current GW1200 data and history with `gateway_metrics`; client build and lint passed, and the full regression suite passed.
+
 ### 2026-07-18: Added a Discoverable Environment Admin Surface
 - **Goal**: Make the new IoT-ready sensor capabilities visible without adding another top-level navigation tab or turning the remote into a telemetry dashboard.
 - **Implementation**:

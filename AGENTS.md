@@ -135,7 +135,7 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
 ### 5. API Endpoints
 * `GET /api/weather`: Resolves location weather from the free Open-Meteo API. 
   > [!NOTE]
-  > The server geolocates weather coordinates. To ensure absolute correctness for the user, coordinates are hardcoded to Verdun, Montreal, Canada.
+  > The server uses the location configured in the local gitignored `config.json`, with optional automatic IP geolocation when enabled.
 * `GET /api/photos?category=...`: Returns current photos list for the category, and updates the active photo selection if needed.
 * `GET /api/config`: Exposes local IP addresses and ports to allow QR coupling of mobile screens.
 * `GET /api/environment/history`: Returns persisted hourly normalized GW1200/environment snapshots, newest first. Supports `from`, `to`, and `limit` query parameters.
@@ -286,7 +286,7 @@ If you are an AI agent or developer modifying this codebase, you **MUST** strict
 ## 🔮 Active Backlog & Future Developer Roadmap
 
 If you are an AI agent or a developer tasked with extending Lumina, here are excellent planned features you could implement:
-* **Dynamic Geolocation API**: Instead of hardcoding weather coordinates to Verdun, Montreal, replace `getIpLocation()` with a live IP-lookup JSON query (e.g. `ip-api.com` or `ipinfo.io`) to automate forecast setups for any household.
+* **Dynamic Geolocation API**: Improve the optional IP-lookup location flow (e.g. `ip-api.com` or `ipinfo.io`) while keeping explicit local `config.json` coordinates authoritative when selected.
 * **OAuth Google Photos integration**: Implement the actual server-side token storage and Google OAuth redirect handler in `server.js` to back the existing credentials input forms in `RemoteControl.jsx`.
 * **Smart Home Integrations**: Add an Express webhook (e.g. `POST /api/alert`) that temporarily overlays push notification bubbles on the TV view (e.g. "Front door bell rang") using standard Socket.io events.
 * **Audio Spectrum Visualizer Widget**: Connect to a local browser audio node when screensaver animations are active to draw a matching organic visualizer bar at the bottom screen borders.

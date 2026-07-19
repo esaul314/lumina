@@ -83,6 +83,8 @@ Lumina uses two local configuration files:
 1. `config.json` for non-secret runtime overrides (port, geolocated coordinates, etc.).
 2. `.env` for secrets and API keys.
 
+The Ecowitt adapter is configured in the local `config.json` under `ecowitt`: set the gateway `baseUrl`, enable polling, and choose presentation units there. Lumina stores canonical sensor values in metric units, while the configured units control the TV and remote displays. The example file contains placeholders only; no device address or personal location is committed.
+
 Initialize default configurations:
 ```bash
 cp config.json.example config.json
