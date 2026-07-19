@@ -2012,6 +2012,7 @@ async function runClientStateTests() {
       label: 'Online',
       color: '#10b981'
     });
+    assert.strictEqual(getEnvironmentStatus(null).label, 'Backend unavailable');
     assert.strictEqual(getEnvironmentStatus({ enabled: true, stale: true }).label, 'Stale fallback');
   });
 

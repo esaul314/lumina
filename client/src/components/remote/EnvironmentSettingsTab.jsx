@@ -8,6 +8,10 @@ import {
 
 const readJson = async (path) => {
   const response = await fetch(path);
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Environment API unavailable (${response.status})`);
+  }
   const body = await response.json();
   if (!response.ok) throw new Error(body?.error || 'Environment request failed');
   return body;
