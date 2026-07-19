@@ -46,6 +46,7 @@ const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js')
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const configureSockets = require('./server/sockets.js');
+const { createSensorPlatform } = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
 const {
@@ -1570,6 +1571,23 @@ assertAsyncTest('Ecowitt runtime applies validated admin settings without a proc
   assert.strictEqual(reading.indoor.temperatureC, 24.7);
   assert.strictEqual(runtime.updateSettings({ enabled: true, baseUrl: 'ftp://gateway' }).valid, false);
   runtime.stop();
+});
+
+assertTest('sensor platform composes adapters behind one capability-aware contract', () => {
+  const reads = [];
+  const platform = createSensorPlatform({
+    adapters: [{
+      id: 'test-device',
+      label: 'Test Device',
+      capabilities: ['temperature'],
+      read: async () => { reads.push('read'); return { source: 'test-device' }; },
+      updateSettings: settings => ({ valid: true, settings })
+    }]
+  });
+  assert.deepStrictEqual(platform.describe(), [{ id: 'test-device', label: 'Test Device', capabilities: ['temperature'] }]);
+  assert.strictEqual(platform.getAdapter('test-device').id, 'test-device');
+  assert.strictEqual(platform.updateSettings('test-device', { enabled: true }).valid, true);
+  assert.deepStrictEqual(reads, []);
 });
 
 // ============================================================================

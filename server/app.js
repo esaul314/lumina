@@ -46,6 +46,7 @@ const { analyzeSentiment } = require('./services/sentiment.js');
 const { createEcowittRuntime } = require('./services/ecowitt.js');
 const { createSensorHistoryStore } = require('./services/sensorHistory.js');
 const { saveLocalConfigPatch } = require('./config/localSettings.js');
+const { createSensorPlatform } = require('./services/sensorPlatform.js');
 const { crawlAllCollections } = require('./services/crawler.js');
 const {
   curry,
@@ -85,8 +86,19 @@ const persistedEcowittRuntime = createEcowittRuntime({
   settings: config.ecowitt,
   onReading: recordSensorReading
 });
+const sensorPlatform = createSensorPlatform({
+  adapters: [{
+    id: 'ecowitt-gw1200',
+    label: 'Ecowitt GW1200',
+    capabilities: ['temperature', 'humidity', 'pressure', 'gateway-payload'],
+    read: persistedEcowittRuntime.readEnvironment,
+    start: persistedEcowittRuntime.start,
+    stop: persistedEcowittRuntime.stop,
+    updateSettings: persistedEcowittRuntime.updateSettings
+  }]
+});
 const updateEcowittSettings = (settings) => {
-  const result = persistedEcowittRuntime.updateSettings(settings);
+  const result = sensorPlatform.updateSettings('ecowitt-gw1200', settings);
   if (!result.valid) return result;
   config.ecowitt = result.settings;
   saveLocalConfigPatch({ configPath: path.join(rootDir, 'config.json'), patch: { ecowitt: result.settings } });
@@ -582,11 +594,12 @@ require('./routes.js')({
   collections: curatedCollections,
   getWeatherData,
   setWeatherData,
-  getEnvironmentData: persistedEcowittRuntime.readEnvironment,
+  getEnvironmentData: () => sensorPlatform.read('ecowitt-gw1200'),
   getEnvironmentHistory: query => sensorHistoryStore?.history(query) || [],
   exportEnvironmentHistory: query => sensorHistoryStore?.exportCsv(query) || '',
   getEnvironmentSettings: () => config.ecowitt,
   updateEnvironmentSettings: updateEcowittSettings,
+  getEnvironmentAdapters: sensorPlatform.describe,
   io,
   port: PORT,
   dispatchCommand,
@@ -633,7 +646,7 @@ server.on('error', (err) => {
 // Bootstrapper initialization handler
 function startServer() {
   if (process.env.NODE_ENV !== 'test') {
-    persistedEcowittRuntime.start();
+    sensorPlatform.start();
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`Lumina Core backend running at http://localhost:${PORT}`);
       console.log('Mobile Remote accessible at your local network IPs:');

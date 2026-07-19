@@ -63,6 +63,7 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
  *   exportEnvironmentHistory?: (query?: Record<string, unknown>) => string,
  *   getEnvironmentSettings?: () => Record<string, unknown>,
  *   updateEnvironmentSettings?: (settings: Record<string, unknown>) => Record<string, unknown>,
+ *   getEnvironmentAdapters?: () => Array<Record<string, unknown>>,
  *   io: { emit: (event: string, payload: any) => void },
  *   port: number,
  *   dispatchCommand?: (command: Record<string, any>) => Promise<DispatchResult | null>,
@@ -107,6 +108,7 @@ module.exports = function configureRoutes({
   exportEnvironmentHistory = async () => '',
   getEnvironmentSettings = () => ({}),
   updateEnvironmentSettings = () => ({ valid: false, error: 'Environment settings unavailable.' }),
+  getEnvironmentAdapters = () => [],
   io,
   port,
   dispatchCommand,
@@ -592,6 +594,7 @@ module.exports = function configureRoutes({
   });
 
   app.get('/api/environment/settings', (_req, res) => res.json(getEnvironmentSettings()));
+  app.get('/api/environment/adapters', (_req, res) => res.json({ adapters: getEnvironmentAdapters() }));
 
   app.post('/api/environment/settings', async (req, res) => {
     try {
