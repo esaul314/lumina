@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Database, Download, RefreshCw, RadioTower, Thermometer } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown, Database, Download, RadioTower, RefreshCw, Thermometer } from 'lucide-react';
 import {
   formatEnvironmentMetric,
   formatEnvironmentTimestamp,
@@ -20,9 +20,50 @@ const readJson = async (path) => {
   return body;
 };
 
+const UNIT_FIELDS = [
+  ['temperature', 'Temperature', ['C', 'F']],
+  ['pressure', 'Pressure', ['hPa', 'inHg']],
+  ['wind', 'Wind', ['km/h', 'm/s', 'mph']],
+  ['rain', 'Rain', ['mm', 'in']],
+  ['light', 'Light', ['lux', 'W/m²']]
+];
+
+const panelStyle = {
+  padding: '14px',
+  borderRadius: '14px',
+  background: 'rgba(255,255,255,0.025)',
+  border: '1px solid rgba(255,255,255,0.07)'
+};
+
+const fieldStyle = {
+  display: 'block',
+  width: '100%',
+  marginTop: '5px',
+  boxSizing: 'border-box',
+  padding: '10px',
+  background: 'rgba(0,0,0,0.32)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '8px',
+  color: '#fff'
+};
+
+const Section = ({ title, summary, children, open = false }) => (
+  <details open={open} style={panelStyle}>
+    <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <ChevronDown size={15} style={{ opacity: 0.55 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>{title}</div>
+        {summary && <div style={{ fontSize: '0.7rem', opacity: 0.48, marginTop: '2px' }}>{summary}</div>}
+      </div>
+    </summary>
+    <div style={{ display: 'grid', gap: '12px', marginTop: '14px' }}>{children}</div>
+  </details>
+);
+
 function EnvironmentSettingsTab({ state, handleToggleWidget }) {
   const [environment, setEnvironment] = useState(null);
   const [history, setHistory] = useState([]);
+  const [adapters, setAdapters] = useState([]);
   const [settings, setSettings] = useState(null);
   const [draft, setDraft] = useState({});
   const [loading, setLoading] = useState(true);
@@ -34,15 +75,16 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [environmentResponse, historyResponse, settingsResponse] = await Promise.all([
+      const [environmentResponse, historyResponse, settingsResponse, adaptersResponse] = await Promise.all([
         readJson('/api/environment'),
         readJson('/api/environment/history?limit=24'),
-        readJson('/api/environment/settings')
+        readJson('/api/environment/settings'),
+        readJson('/api/environment/adapters')
       ]);
       setEnvironment(environmentResponse);
       setHistory(historyResponse.readings || []);
       setSettings(settingsResponse);
-      setSettingsJson(JSON.stringify(settingsResponse, null, 2));
+      setAdapters(adaptersResponse.adapters || []);
       setError(null);
     } catch (requestError) {
       setError(requestError.message);
@@ -58,13 +100,9 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
   }, [refresh]);
 
   useEffect(() => {
-    if (settings) {
-      setDraft({
-        ...settings,
-        units: { ...settings.units }
-      });
-      setSettingsJson(JSON.stringify(settings, null, 2));
-    }
+    if (!settings) return;
+    setDraft({ ...settings, units: { ...settings.units } });
+    setSettingsJson(JSON.stringify(settings, null, 2));
   }, [settings]);
 
   const updateDraft = (field, value) => setDraft(current => ({ ...current, [field]: value }));
@@ -72,6 +110,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
     ...current,
     units: { ...current.units, [field]: value }
   }));
+
   const saveSettings = async () => {
     setSaving(true);
     setSaveMessage('');
@@ -86,7 +125,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
         })
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body?.error || 'Could not save gateway settings');
+      if (!response.ok) throw new Error(body?.error || 'Could not save sensor settings');
       setSettings(body.settings);
       setSaveMessage('Saved and applied.');
       await refresh();
@@ -96,6 +135,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
       setSaving(false);
     }
   };
+
   const applySettingsJson = () => {
     const result = parseEnvironmentSettingsJson(settingsJson);
     if (!result.valid) {
@@ -117,93 +157,52 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
   const metricCount = environment?.metrics && typeof environment.metrics === 'object'
     ? Object.keys(environment.metrics).length
     : 0;
+  const activeAdapter = useMemo(() => (
+    adapters.find(adapter => adapter.id === environment?.source || adapter.aliases?.includes(environment?.source))
+    || adapters[0]
+    || {
+      label: 'Ecowitt-compatible LAN gateway',
+      description: 'Local environmental telemetry',
+      protocol: 'Ecowitt LAN HTTP',
+      endpoint: '/get_livedata_info',
+      capabilities: ['temperature', 'humidity', 'pressure']
+    }
+  ), [adapters, environment?.source]);
+  const compatibility = activeAdapter.compatibility?.summary
+    || 'Compatible with gateways that expose Ecowitt’s generic local HTTP API; verified with GW1200.';
 
   return (
     <>
-      <div className="remote-card">
-        <span className="remote-section-title" style={{ display: 'block', marginBottom: '0' }}>Gateway Configuration</span>
-        <div style={{ fontSize: '0.75rem', opacity: 0.55, lineHeight: 1.5 }}>
-          Configure the local Ecowitt gateway for this Lumina instance. These settings are stored in the gitignored <code>config.json</code>.
-        </div>
-        <div style={{ fontSize: '0.72rem', opacity: 0.55, lineHeight: 1.5, padding: '10px 12px', borderRadius: '10px', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.14)' }}>
-          Compatibility uses Ecowitt&apos;s local HTTP API: <code>GET /get_livedata_info</code>. See the <a href="https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf" target="_blank" rel="noreferrer" style={{ color: '#7dd3fc' }}>official protocol</a> for supported gateway and sensor payloads.
-        </div>
-        <div className="widget-toggle-item">
-          <div className="toggle-info">
-            <RadioTower size={18} style={{ color: '#fb923c' }} />
-            <div>
-              <div className="toggle-label">Enable Ecowitt polling</div>
-              <div className="toggle-desc">Read the gateway on the configured interval</div>
-            </div>
-          </div>
-          <div className="switch-wrapper" onClick={() => updateDraft('enabled', !draft.enabled)}>
-            <span className={`switch-slider ${draft.enabled ? 'checked' : ''}`}></span>
-          </div>
-        </div>
-        <label style={{ fontSize: '0.72rem', opacity: 0.65 }}>GATEWAY URL
-          <input value={draft.baseUrl || ''} onChange={event => updateDraft('baseUrl', event.target.value)} placeholder="http://ecowitt.local" style={{ display: 'block', width: '100%', marginTop: '5px', boxSizing: 'border-box', padding: '10px', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }} />
-        </label>
-        <label style={{ fontSize: '0.72rem', opacity: 0.65 }}>POLL INTERVAL (SECONDS)
-          <input type="number" min="10" value={Math.round(Number(draft.pollIntervalMs || 60000) / 1000)} onChange={event => updateDraft('pollIntervalMs', Number(event.target.value) * 1000)} style={{ display: 'block', width: '100%', marginTop: '5px', boxSizing: 'border-box', padding: '10px', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }} />
-        </label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          {[
-            ['temperature', 'Temperature', ['C', 'F']],
-            ['pressure', 'Pressure', ['hPa', 'inHg']],
-            ['wind', 'Wind', ['km/h', 'm/s', 'mph']],
-            ['rain', 'Rain', ['mm', 'in']],
-            ['light', 'Light', ['lux', 'W/m²']]
-          ].map(([key, label, options]) => (
-            <label key={key} style={{ fontSize: '0.72rem', opacity: 0.65 }}>{label.toUpperCase()}
-              <select value={draft.units?.[key] || options[0]} onChange={event => updateUnit(key, event.target.value)} style={{ display: 'block', width: '100%', marginTop: '5px', padding: '9px', background: '#17151d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}>
-                {options.map(option => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </label>
-          ))}
-        </div>
-        <button className="remote-btn" onClick={saveSettings} disabled={saving || !settings}>
-          {saving ? 'Saving…' : 'Save Gateway Configuration'}
-        </button>
-        {saveMessage && <div style={{ fontSize: '0.75rem', color: saveMessage.includes('Saved') ? '#86efac' : '#fca5a5' }}>{saveMessage}</div>}
-        <details>
-          <summary style={{ cursor: 'pointer', fontSize: '0.75rem', opacity: 0.65 }}>Advanced: paste adapter JSON</summary>
-          <div style={{ fontSize: '0.7rem', opacity: 0.5, lineHeight: 1.5, margin: '8px 0' }}>
-            Useful for setup guides and future adapters. This imports configuration into the validated form; it does not execute code.
-          </div>
-          <textarea
-            value={settingsJson}
-            onChange={event => setSettingsJson(event.target.value)}
-            spellCheck="false"
-            rows={10}
-            aria-label="Adapter configuration JSON"
-            style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#dbeafe', fontFamily: 'monospace', fontSize: '0.7rem', outline: 'none' }}
-          />
-          <button type="button" className="remote-btn" onClick={applySettingsJson} style={{ marginTop: '8px' }}>
-            Apply JSON to Form
-          </button>
-        </details>
-      </div>
-
-      <div className="remote-card">
+      <div className="remote-card" style={{ gap: '14px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
           <div>
-            <span className="remote-section-title" style={{ display: 'block', marginBottom: '6px' }}>Local Sensor Bay</span>
-            <div style={{ fontSize: '0.78rem', opacity: 0.55 }}>IoT-ready devices, normalized for Lumina</div>
+            <span className="remote-section-title" style={{ display: 'block', marginBottom: '6px' }}>Local Sensors</span>
+            <div style={{ fontSize: '0.78rem', opacity: 0.55 }}>One normalized environment feed, independent of gateway model</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: status.color, fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: status.color, fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
             <span className="status-dot" style={{ backgroundColor: status.color, boxShadow: `0 0 10px ${status.color}` }} />
             {status.label}
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(251,146,60,0.14), rgba(56,189,248,0.08))', border: '1px solid rgba(251,146,60,0.16)' }}>
-          <RadioTower size={24} style={{ color: '#fb923c' }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700 }}>Ecowitt GW1200</div>
-            <div style={{ fontSize: '0.72rem', opacity: 0.55 }}>Indoor gateway adapter · {environment?.source || 'ecowitt-gw1200'}</div>
+        <div style={{ ...panelStyle, background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(56,189,248,0.055))', borderColor: 'rgba(16,185,129,0.16)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <RadioTower size={23} style={{ color: '#fb923c' }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 750 }}>{activeAdapter.label}</div>
+              <div style={{ fontSize: '0.7rem', opacity: 0.52, marginTop: '2px' }}>{activeAdapter.protocol} · {activeAdapter.endpoint}</div>
+            </div>
+            <div className="switch-wrapper" onClick={() => handleToggleWidget('indoorEnvironment', state.widgets.indoorEnvironment)} title="Show indoor readings on the TV">
+              <span className={`switch-slider ${state.widgets.indoorEnvironment ? 'checked' : ''}`}></span>
+            </div>
           </div>
-          <div className="switch-wrapper" onClick={() => handleToggleWidget('indoorEnvironment', state.widgets.indoorEnvironment)} title="Toggle the indoor reading on the TV">
-            <span className={`switch-slider ${state.widgets.indoorEnvironment ? 'checked' : ''}`}></span>
+          <div style={{ fontSize: '0.7rem', opacity: 0.52, lineHeight: 1.45, marginTop: '12px' }}>{compatibility}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+            {(activeAdapter.capabilities || []).map(capability => (
+              <span key={capability} style={{ fontSize: '0.64rem', padding: '4px 7px', borderRadius: '999px', background: 'rgba(255,255,255,0.055)', opacity: 0.68 }}>
+                {capability.replaceAll('-', ' ')}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -213,50 +212,91 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
             ['Humidity', formatEnvironmentMetric(indoor?.humidityPercent, '%')],
             ['Pressure', formatEnvironmentMetric(convertPressure(indoor?.pressureRelativeHpa, units.pressure), ` ${units.pressure || 'hPa'}`)]
           ].map(([label, value]) => (
-            <div key={label} style={{ padding: '12px 8px', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', textAlign: 'center' }}>
-              <div style={{ fontSize: '0.68rem', opacity: 0.5 }}>{label}</div>
-              <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: '4px' }}>{value}</div>
+            <div key={label} style={{ padding: '12px 7px', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', opacity: 0.46 }}>{label}</div>
+              <div style={{ fontSize: '0.94rem', fontWeight: 750, marginTop: '4px' }}>{value}</div>
             </div>
           ))}
         </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', opacity: 0.55 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', opacity: 0.48 }}>
           <span>{environment?.stale ? 'Last known good reading' : 'Last reading'}</span>
           <span>{formatEnvironmentTimestamp(environment?.observedAt)}</span>
         </div>
-        {error && <div style={{ color: '#fca5a5', fontSize: '0.78rem' }}>{error}</div>}
-        {loading && <div style={{ fontSize: '0.78rem', opacity: 0.55 }}>Refreshing sensor readings…</div>}
+        {error && <div style={{ color: '#fca5a5', fontSize: '0.76rem' }}>{error}</div>}
+        {loading && <div style={{ fontSize: '0.76rem', opacity: 0.5 }}>Refreshing sensor readings…</div>}
+
+        <Section title="Connection" summary="Gateway address, polling, and availability" open>
+          <div className="widget-toggle-item" style={{ margin: 0 }}>
+            <div className="toggle-info">
+              <RadioTower size={18} style={{ color: '#fb923c' }} />
+              <div>
+                <div className="toggle-label">Enable local sensor polling</div>
+                <div className="toggle-desc">Read the configured gateway on this interval</div>
+              </div>
+            </div>
+            <div className="switch-wrapper" onClick={() => updateDraft('enabled', !draft.enabled)}>
+              <span className={`switch-slider ${draft.enabled ? 'checked' : ''}`}></span>
+            </div>
+          </div>
+          <label style={{ fontSize: '0.7rem', opacity: 0.65 }}>GATEWAY ADDRESS
+            <input value={draft.baseUrl || ''} onChange={event => updateDraft('baseUrl', event.target.value)} placeholder="http://ecowitt.local" style={fieldStyle} />
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <label style={{ fontSize: '0.7rem', opacity: 0.65 }}>POLL EVERY (SECONDS)
+              <input type="number" min="10" value={Math.round(Number(draft.pollIntervalMs || 60000) / 1000)} onChange={event => updateDraft('pollIntervalMs', Number(event.target.value) * 1000)} style={fieldStyle} />
+            </label>
+            <label style={{ fontSize: '0.7rem', opacity: 0.65 }}>TIMEOUT (SECONDS)
+              <input type="number" min="0.5" step="0.5" value={Number(draft.timeoutMs || 3000) / 1000} onChange={event => updateDraft('timeoutMs', Number(event.target.value) * 1000)} style={fieldStyle} />
+            </label>
+          </div>
+          <button className="remote-btn" onClick={saveSettings} disabled={saving || !settings}>
+            {saving ? 'Saving…' : 'Save Sensor Source'}
+          </button>
+          {saveMessage && <div style={{ fontSize: '0.74rem', color: saveMessage.includes('Saved') ? '#86efac' : '#fca5a5' }}>{saveMessage}</div>}
+        </Section>
+
+        <Section title="Display units" summary="Presentation only; storage remains normalized">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {UNIT_FIELDS.map(([key, label, options]) => (
+              <label key={key} style={{ fontSize: '0.7rem', opacity: 0.65 }}>{label.toUpperCase()}
+                <select value={draft.units?.[key] || options[0]} onChange={event => updateUnit(key, event.target.value)} style={{ ...fieldStyle, padding: '9px' }}>
+                  {options.map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Advanced configuration" summary="Validated JSON import for adapter setup">
+          <textarea value={settingsJson} onChange={event => setSettingsJson(event.target.value)} spellCheck="false" rows={9} aria-label="Adapter configuration JSON" style={{ ...fieldStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: '0.68rem', color: '#dbeafe' }} />
+          <button type="button" className="remote-btn" onClick={applySettingsJson}>Apply JSON to Form</button>
+        </Section>
       </div>
 
       <div className="remote-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <span className="remote-section-title" style={{ display: 'block', marginBottom: '6px' }}>Sensor History</span>
-            <div style={{ fontSize: '0.75rem', opacity: 0.55 }}><Database size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />{history.length} hourly snapshots available</div>
+            <span className="remote-section-title" style={{ display: 'block', marginBottom: '6px' }}>History & Diagnostics</span>
+            <div style={{ fontSize: '0.74rem', opacity: 0.52 }}><Database size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />{history.length} hourly snapshots available</div>
           </div>
-          <button className="remote-btn" onClick={refresh} disabled={loading} style={{ width: 'auto', padding: '8px 12px', fontSize: '0.75rem' }}>
+          <button className="remote-btn" onClick={refresh} disabled={loading} style={{ width: 'auto', padding: '8px 11px', fontSize: '0.72rem' }}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
           </button>
         </div>
-
         {latest && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', fontSize: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', fontSize: '0.72rem' }}>
             <Thermometer size={16} style={{ color: '#fb923c' }} />
             <span style={{ flex: 1 }}>Latest stored snapshot</span>
             <strong>{formatEnvironmentMetric(convertTemperature(latest.indoor_temperature_c, units.temperature), `°${units.temperature || 'C'}`)}</strong>
-            <span style={{ opacity: 0.5 }}>{formatEnvironmentTimestamp(latest.observed_at)}</span>
+            <span style={{ opacity: 0.45 }}>{formatEnvironmentTimestamp(latest.observed_at)}</span>
           </div>
         )}
-
         <a className="remote-btn" href="/api/environment/history/export?format=csv" download="lumina-environment-history.csv" style={{ textDecoration: 'none' }}>
-          <Download size={15} /> Export CSV for Grafana
+          <Download size={15} /> Export CSV
         </a>
-        <div style={{ fontSize: '0.7rem', opacity: 0.42, lineHeight: 1.5 }}>
-          Lumina keeps the newest reading for each hour in its local SQLite history. Outdoor weather is included when available.
-        </div>
-        <details style={{ fontSize: '0.72rem', opacity: 0.62 }}>
-          <summary style={{ cursor: 'pointer' }}>Gateway metrics preserved ({metricCount} top-level blocks)</summary>
-          <pre style={{ maxHeight: '220px', overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: '0.65rem', marginTop: '10px', color: 'rgba(255,255,255,0.65)' }}>
+        <details style={{ fontSize: '0.7rem', opacity: 0.62 }}>
+          <summary style={{ cursor: 'pointer' }}>Raw gateway payload ({metricCount} top-level blocks)</summary>
+          <pre style={{ maxHeight: '220px', overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: '0.64rem', marginTop: '10px', color: 'rgba(255,255,255,0.65)' }}>
             {JSON.stringify(environment?.metrics || {}, null, 2)}
           </pre>
         </details>
