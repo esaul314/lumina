@@ -1,8 +1,16 @@
 // @ts-check
 
+const freezeList = (values = []) => Object.freeze([...values]);
+
 const createSensorAdapter = ({
   id,
+  aliases = [],
   label,
+  description = '',
+  protocol = '',
+  transport = '',
+  endpoint = '',
+  compatibility = null,
   capabilities = [],
   read,
   start = () => {},
@@ -10,37 +18,86 @@ const createSensorAdapter = ({
   updateSettings = () => ({ valid: false, error: 'This adapter is not configurable.' })
 }) => Object.freeze({
   id,
+  aliases: freezeList(aliases),
   label,
-  capabilities: [...capabilities],
+  description,
+  protocol,
+  transport,
+  endpoint,
+  compatibility,
+  capabilities: freezeList(capabilities),
   read,
   start,
   stop,
   updateSettings
 });
 
-function createSensorPlatform({ adapters = [] } = {}) {
-  const adapterMap = new Map(adapters.map(adapter => [adapter.id, createSensorAdapter(adapter)]));
+const describeAdapter = ({
+  id,
+  aliases,
+  label,
+  description,
+  protocol,
+  transport,
+  endpoint,
+  compatibility,
+  capabilities
+}) => ({
+  id,
+  aliases: [...aliases],
+  label,
+  description,
+  protocol,
+  transport,
+  endpoint,
+  compatibility,
+  capabilities: [...capabilities]
+});
+
+function createSensorPlatform({ adapters = [], primaryAdapterId = adapters[0]?.id } = {}) {
+  const registeredAdapters = adapters.map(createSensorAdapter);
+  const canonicalAdapters = new Map(registeredAdapters.map(adapter => [adapter.id, adapter]));
+  const adapterMap = new Map(registeredAdapters.flatMap(adapter => (
+    [adapter.id, ...adapter.aliases].map(id => [id, adapter])
+  )));
 
   const getAdapter = id => adapterMap.get(id) || null;
-  const describe = () => [...adapterMap.values()].map(({ id, label, capabilities }) => ({
-    id,
-    label,
-    capabilities
-  }));
+  const getPrimaryAdapter = () => getAdapter(primaryAdapterId);
+  const describe = () => [...canonicalAdapters.values()].map(describeAdapter);
   const read = id => {
     const adapter = getAdapter(id);
     return adapter ? adapter.read() : Promise.reject(new Error(`Unknown sensor adapter: ${id}`));
   };
-  const start = () => adapters.forEach(adapter => getAdapter(adapter.id)?.start());
-  const stop = () => adapters.forEach(adapter => getAdapter(adapter.id)?.stop());
+  const readPrimary = () => {
+    const adapter = getPrimaryAdapter();
+    return adapter ? adapter.read() : Promise.reject(new Error('No primary sensor adapter is configured.'));
+  };
+  const start = () => [...canonicalAdapters.values()].forEach(adapter => adapter.start());
+  const stop = () => [...canonicalAdapters.values()].forEach(adapter => adapter.stop());
   const updateSettings = (id, settings) => {
     const adapter = getAdapter(id);
     return adapter
       ? adapter.updateSettings(settings)
       : { valid: false, error: `Unknown sensor adapter: ${id}` };
   };
+  const updatePrimarySettings = settings => {
+    const adapter = getPrimaryAdapter();
+    return adapter
+      ? adapter.updateSettings(settings)
+      : { valid: false, error: 'No primary sensor adapter is configured.' };
+  };
 
-  return { describe, getAdapter, read, start, stop, updateSettings };
+  return {
+    describe,
+    getAdapter,
+    getPrimaryAdapter,
+    read,
+    readPrimary,
+    start,
+    stop,
+    updateSettings,
+    updatePrimarySettings
+  };
 }
 
-module.exports = { createSensorAdapter, createSensorPlatform };
+module.exports = { createSensorAdapter, createSensorPlatform, describeAdapter };
