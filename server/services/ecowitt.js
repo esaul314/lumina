@@ -4,6 +4,35 @@ const DEFAULT_SOURCE = 'ecowitt-gw1200';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 3_000;
 const INHG_TO_HPA = 33.8638866667;
+const ECOWITT_LOCAL_HTTP_ADAPTER = Object.freeze({
+  id: 'ecowitt-local-http',
+  aliases: Object.freeze([DEFAULT_SOURCE]),
+  label: 'Ecowitt-compatible LAN gateway',
+  description: 'Local weather telemetry through Ecowitt\'s generic HTTP API.',
+  protocol: 'Ecowitt LAN HTTP',
+  transport: 'http-poll',
+  endpoint: '/get_livedata_info',
+  capabilities: Object.freeze([
+    'temperature',
+    'humidity',
+    'pressure',
+    'gateway-payload'
+  ]),
+  compatibility: Object.freeze({
+    summary: 'GW1100, GW1200, GW2000, GW3000, and compatible WN/WS consoles exposing the generic LAN API.',
+    models: Object.freeze([
+      'GW1100', 'GW1200', 'GW2000', 'GW3000',
+      'WS6210', 'WN1700', 'WN1820', 'WN1821', 'WN1920', 'WN1980',
+      'WS3800', 'WS3820', 'WS3900', 'WS3910'
+    ])
+  })
+});
+const COMMON_METRIC_IDS = Object.freeze({
+  indoorTemperature: 0x01,
+  indoorHumidity: 0x06,
+  pressureAbsolute: 0x08,
+  pressureRelative: 0x09
+});
 const DEFAULT_UNITS = Object.freeze({
   temperature: 'C',
   pressure: 'hPa',
@@ -17,16 +46,26 @@ const toFiniteNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const firstNonNull = (values) => values.find(value => value !== null) ?? null;
+
+const normalizeMetricId = (value) => {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text) return null;
+  const parsed = Number.parseInt(text, text.startsWith('0x') ? 16 : 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const normalizeTemperatureC = (value, unit) => {
   const parsed = toFiniteNumber(value);
   if (parsed === null) return null;
-  return String(unit).toUpperCase() === 'F' ? (parsed - 32) * (5 / 9) : parsed;
+  const unitText = `${unit ?? ''} ${value ?? ''}`;
+  return /\bF\b/i.test(unitText) ? (parsed - 32) * (5 / 9) : parsed;
 };
 
-const normalizePressureHpa = (value) => {
+const normalizePressureHpa = (value, unit) => {
   const parsed = toFiniteNumber(value);
   if (parsed === null) return null;
-  return /INHG/i.test(String(value)) ? parsed * INHG_TO_HPA : parsed;
+  return /INHG/i.test(`${unit ?? ''} ${value ?? ''}`) ? parsed * INHG_TO_HPA : parsed;
 };
 
 const roundMetric = (value, decimals = 1) => (
@@ -58,7 +97,7 @@ const validateEcowittSettings = (settings = {}) => {
     return { valid: false, error: 'Gateway URL must use http or https.' };
   }
   if (normalized.enabled && !url) {
-    return { valid: false, error: 'A gateway URL is required when Ecowitt polling is enabled.' };
+    return { valid: false, error: 'A gateway URL is required when local sensor polling is enabled.' };
   }
   if (normalized.pollIntervalMs < 10_000 || normalized.timeoutMs < 500) {
     return { valid: false, error: 'Polling must be at least 10 seconds and timeout at least 500 milliseconds.' };
@@ -70,22 +109,40 @@ const clonePayload = (payload) => (
   payload && typeof payload === 'object' ? JSON.parse(JSON.stringify(payload)) : {}
 );
 
+const indexCommonMetrics = (payload) => new Map(
+  (Array.isArray(payload?.common_list) ? payload.common_list : [])
+    .filter(entry => entry && typeof entry === 'object')
+    .map(entry => [normalizeMetricId(entry.id), entry])
+    .filter(([id]) => id !== null)
+);
+
+const normalizeCommonMetric = (metric, normalize) => (
+  metric ? normalize(metric.val, metric.unit) : null
+);
+
 function parseEcowittPayload(payload) {
   const indoor = payload?.wh25?.[0];
-  if (!indoor || typeof indoor !== 'object') {
-    return {
-      temperatureC: null,
-      humidityPercent: null,
-      pressureAbsoluteHpa: null,
-      pressureRelativeHpa: null
-    };
-  }
+  const wh25 = indoor && typeof indoor === 'object' ? indoor : {};
+  const common = indexCommonMetrics(payload);
+  const commonMetric = id => common.get(id) || null;
 
   return {
-    temperatureC: roundMetric(normalizeTemperatureC(indoor.intemp, indoor.unit)),
-    humidityPercent: roundMetric(toFiniteNumber(indoor.inhumi)),
-    pressureAbsoluteHpa: roundMetric(normalizePressureHpa(indoor.abs)),
-    pressureRelativeHpa: roundMetric(normalizePressureHpa(indoor.rel))
+    temperatureC: roundMetric(firstNonNull([
+      normalizeTemperatureC(wh25.intemp, wh25.unit),
+      normalizeCommonMetric(commonMetric(COMMON_METRIC_IDS.indoorTemperature), normalizeTemperatureC)
+    ])),
+    humidityPercent: roundMetric(firstNonNull([
+      toFiniteNumber(wh25.inhumi),
+      normalizeCommonMetric(commonMetric(COMMON_METRIC_IDS.indoorHumidity), toFiniteNumber)
+    ])),
+    pressureAbsoluteHpa: roundMetric(firstNonNull([
+      normalizePressureHpa(wh25.abs),
+      normalizeCommonMetric(commonMetric(COMMON_METRIC_IDS.pressureAbsolute), normalizePressureHpa)
+    ])),
+    pressureRelativeHpa: roundMetric(firstNonNull([
+      normalizePressureHpa(wh25.rel),
+      normalizeCommonMetric(commonMetric(COMMON_METRIC_IDS.pressureRelative), normalizePressureHpa)
+    ]))
   };
 }
 
@@ -122,9 +179,9 @@ function createEcowittRuntime({
   const logTransition = (nextAvailability, error) => {
     if (availability === nextAvailability) return;
     availability = nextAvailability;
-    if (nextAvailability === 'available') log.log('Ecowitt gateway available.');
-    if (nextAvailability === 'recovered') log.log('Ecowitt gateway recovered.');
-    if (nextAvailability === 'unavailable') log.warn(`Ecowitt gateway unavailable: ${error?.message || 'request failed'}`);
+    if (nextAvailability === 'available') log.log('Ecowitt-compatible LAN gateway available.');
+    if (nextAvailability === 'recovered') log.log('Ecowitt-compatible LAN gateway recovered.');
+    if (nextAvailability === 'unavailable') log.warn(`Ecowitt-compatible LAN gateway unavailable: ${error?.message || 'request failed'}`);
   };
 
   const readEnvironment = async () => {
@@ -136,7 +193,7 @@ function createEcowittRuntime({
     let timeout = null;
     try {
       timeout = createTimeoutSignal(timeoutMs);
-      const response = await fetchImpl(`${baseUrl}/get_livedata_info`, { signal: timeout.signal });
+      const response = await fetchImpl(`${baseUrl}${ECOWITT_LOCAL_HTTP_ADAPTER.endpoint}`, { signal: timeout.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const payload = await response.json();
@@ -161,6 +218,13 @@ function createEcowittRuntime({
       timeout?.clear();
     }
   };
+
+  Object.defineProperty(readEnvironment, 'adapterDescriptor', {
+    value: ECOWITT_LOCAL_HTTP_ADAPTER,
+    writable: false,
+    enumerable: false,
+    configurable: false
+  });
 
   const start = () => {
     if (!activeSettings.enabled || intervalId) return;
@@ -187,12 +251,17 @@ function createEcowittRuntime({
 }
 
 module.exports = {
+  COMMON_METRIC_IDS,
   DEFAULT_POLL_INTERVAL_MS,
+  DEFAULT_SOURCE,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_UNITS,
+  ECOWITT_LOCAL_HTTP_ADAPTER,
   INHG_TO_HPA,
   buildEnvironmentResponse,
   createEcowittRuntime,
+  indexCommonMetrics,
+  normalizeMetricId,
   normalizePressureHpa,
   normalizeEcowittSettings,
   normalizeTemperatureC,
