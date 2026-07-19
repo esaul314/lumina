@@ -5,6 +5,14 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Synchronized Comprehensive Project Documentation
+- **Goal**: Update `README.md`, `AGENTS.md`, and project guides to fully accurately reflect all recently implemented major features, architecture shifts, and REST API expansions.
+- **Implementation**:
+  - Updated `README.md` features and architecture sections with adaptive sensor device management, pasteable JSON payload support, protocol-first adapter discovery (`GET /api/environment/adapters`), continuous TV kiosk presentation (with 3-second cursor auto-hiding), and full list of REST API endpoints (async jobs for recrawl and vision-analysis, pool mutations, state patches).
+  - Updated `AGENTS.md` to remove obsolete references to the legacy pitch-black stealth clock dimmer, replacing it with the continuous smart display presentation model, and expanded the REST API reference guide.
+  - Aligned system documentation across `README.md`, `AGENTS.md`, `ROADMAP.md`, and `DEVELOPER_LOG.md`.
+- **Learning**: Maintaining clear, synchronized documentation across user-facing `README.md`, developer `AGENTS.md`, and product `ROADMAP.md` prevents context drift and ensures future AI agents and human contributors have an exact, accurate picture of the system state.
+
 ### 2026-07-19: Added Adaptive Sensor Device Management
 - **Goal**: Make compatible local sensor setup a visible admin task instead of requiring users to reinterpret one flat GW1200 configuration.
 - **Implementation**:

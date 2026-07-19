@@ -167,6 +167,11 @@ Ecowitt compatibility uses the vendor’s published local HTTP API endpoint `GET
 * `GET /api/photos?category=...`: Returns current photos list for the category, updating active photo selection if needed.
 * `PATCH /api/photos`: REST mutation endpoint to update photo ratings, loved status, crops, and side-by-side pairing preferences.
 * `POST /api/photos/next` / `POST /api/photos/prev`: Advance or rewind photo selection through the balanced visible feed order.
+* `POST /api/jobs/recrawl`: Queue a background recrawl job with Socket.IO status reporting.
+* `POST /api/jobs/vision-analysis`: Queue a background vision-analysis job with Socket.IO status reporting.
+* `POST /api/pools` / `DELETE /api/pools/:name` / `PATCH /api/pools/:name`: Create, delete, or update pool configurations and feed sources.
+* `GET /api/state` / `PATCH /api/state`: Read or patch system state and widget settings.
+* `POST /api/state/categories`: Switch active photo category.
 * `POST /api/state/screensaver`: Kiosk screensaver activation toggle (`active: true|false`).
 * `GET /api/config`: Exposes local IP addresses and ports to allow QR coupling of mobile screens.
 
@@ -201,7 +206,7 @@ The client is built using React (Vite) and styled with raw vanilla CSS to enable
   > The frontend fixes this by keeping **at most two slide elements** in the DOM (one fading out, one active). In the background, it preloads the incoming image via a native `Image()` element, and only mounts it when loading is complete, dropping memory usage to **under 80MB**.
 * **Bokeh Canvas Particle Engine**: A lightweight HTML5 canvas rendering floating ambient dust motes. Resolution is downscaled internally by 0.25x and scaled back up via CSS GPU compositor. This adds a beautiful, soft natural blur to the bokeh circles and **halves CPU usage**.
 * **Weather Overlay animations**: Custom CSS animations trigger based on active weather codes (Drifting clouds, falling rain drops, and organic drifting snow flakes).
-* **Low Power Stealth Clock**: When the screensaver is *inactive* (user is using the PC), a pitch-black screen cover is active, and a tiny, faint stealth clock is visible in the bottom-right corner as a screen-saver placeholder.
+* **Continuous Ambient Display & Auto-Hiding Cursor**: Renders TV Dashboard elements directly (clock, weather, widgets, wallpaper slideshow, bokeh particles) without pitch-black dimming overlays. Mouse movement manages a smooth 3-second cursor auto-hiding mechanism for clean living room TV presentation.
 
 ### 3. Mobile Remote Control (`RemoteControl.jsx`)
 * **Direct Gesture Control**: Features an interactive swipe pad. Swiping left or right fires Socket.io pagination events. The pad background displays a darkened real-time preview of the active TV photo.

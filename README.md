@@ -34,7 +34,9 @@ It features a dynamically coupled mobile remote control web app that allows full
   * **Quiet TV Display Overlay**: Renders a subtle, non-intrusive indoor environmental data line inside the weather widget on the TV View.
   * **SQLite Persistent Sensor Storage**: Logs hourly sensor snapshots into `sensor_history.db`, retaining full raw telemetry payloads (`gateway_metrics`).
   * **Grafana & CSV Export API**: Exposes `GET /api/environment/history/export?format=csv` (as well as JSON endpoints) for seamless Grafana Infinity plugin integration, spreadsheet analytics, and long-term storage.
-  * **Adaptive Device Manager**: Admin controls under Remote Control → System → Environment provide a phone-friendly and expanded desktop layout for adding, naming, editing, retaining, and selecting compatible sources. Lumina polls one active device profile at a time.
+  * **Adaptive Device Manager & Pasteable JSON Setup**: Admin controls under Remote Control → System → Environment provide a phone-friendly and expanded desktop layout for adding, naming, editing, retaining, and selecting compatible sources with pasteable JSON payload support. Lumina polls one active device profile at a time, discoverable via `GET /api/environment/adapters`.
+* **📺 Continuous Ambient TV Smart Display**:
+  * Continuous smart display presentation with glassmorphic widgets, smooth slideshow cross-fades, particle effects, and weather animations, backed by an intelligent 3-second cursor auto-hiding mechanism for clean living room TV setups.
 * **❤️ Permanent Collection & Loved Photos**:
   * Flag favorite wallpapers into a permanent collection (`loved: true`). Loved items bypass standard rotating pool eviction caps, ensuring user favorites stay in active slideshow rotation permanently.
 * **🔳 Dynamic QR Code Badge Widget**:
@@ -77,6 +79,12 @@ Lumina uses a decoupled client-server architecture with a REST-first control sur
 * `GET /api/weather`: Outdoor weather forecast & conditions from Open-Meteo.
 * `GET /api/photos?category=...`: Returns current photos list for the category.
 * `PATCH /api/photos`: Batch update photo ratings, loved status, crops, or pairing rules.
+* `POST /api/photos/next` / `POST /api/photos/prev`: Advance or rewind photo selection.
+* `POST /api/jobs/recrawl`: Queue a background recrawl job with live Socket.IO progress status.
+* `POST /api/jobs/vision-analysis`: Queue a background vision-analysis job with live Socket.IO status updates.
+* `POST /api/pools` / `DELETE /api/pools/:name` / `PATCH /api/pools/:name`: Create, delete, or update pool configurations and feed sources.
+* `GET /api/state` / `PATCH /api/state`: Read or patch system state and widget settings.
+* `POST /api/state/categories`: Switch active photo category.
 * `POST /api/state/screensaver`: Remote trigger or dismissal of the screensaver kiosk.
 
 ## 🗺️ Roadmap
