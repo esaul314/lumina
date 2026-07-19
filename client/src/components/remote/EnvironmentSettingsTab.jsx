@@ -5,7 +5,8 @@ import {
   formatEnvironmentTimestamp,
   getEnvironmentStatus,
   convertPressure,
-  convertTemperature
+  convertTemperature,
+  parseEnvironmentSettingsJson
 } from '../../state/environmentHistory';
 
 const readJson = async (path) => {
@@ -27,6 +28,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [settingsJson, setSettingsJson] = useState('');
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
@@ -40,6 +42,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
       setEnvironment(environmentResponse);
       setHistory(historyResponse.readings || []);
       setSettings(settingsResponse);
+      setSettingsJson(JSON.stringify(settingsResponse, null, 2));
       setError(null);
     } catch (requestError) {
       setError(requestError.message);
@@ -60,6 +63,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
         ...settings,
         units: { ...settings.units }
       });
+      setSettingsJson(JSON.stringify(settings, null, 2));
     }
   }, [settings]);
 
@@ -91,6 +95,19 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
     } finally {
       setSaving(false);
     }
+  };
+  const applySettingsJson = () => {
+    const result = parseEnvironmentSettingsJson(settingsJson);
+    if (!result.valid) {
+      setSaveMessage(result.error);
+      return;
+    }
+    setDraft(current => ({
+      ...current,
+      ...result.value,
+      units: { ...current.units, ...(result.value.units || {}) }
+    }));
+    setSaveMessage('JSON applied to the form. Review and save.');
   };
 
   const status = getEnvironmentStatus(environment);
@@ -145,6 +162,23 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
           {saving ? 'Saving…' : 'Save Gateway Configuration'}
         </button>
         {saveMessage && <div style={{ fontSize: '0.75rem', color: saveMessage.includes('Saved') ? '#86efac' : '#fca5a5' }}>{saveMessage}</div>}
+        <details>
+          <summary style={{ cursor: 'pointer', fontSize: '0.75rem', opacity: 0.65 }}>Advanced: paste adapter JSON</summary>
+          <div style={{ fontSize: '0.7rem', opacity: 0.5, lineHeight: 1.5, margin: '8px 0' }}>
+            Useful for setup guides and future adapters. This imports configuration into the validated form; it does not execute code.
+          </div>
+          <textarea
+            value={settingsJson}
+            onChange={event => setSettingsJson(event.target.value)}
+            spellCheck="false"
+            rows={10}
+            aria-label="Adapter configuration JSON"
+            style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#dbeafe', fontFamily: 'monospace', fontSize: '0.7rem', outline: 'none' }}
+          />
+          <button type="button" className="remote-btn" onClick={applySettingsJson} style={{ marginTop: '8px' }}>
+            Apply JSON to Form
+          </button>
+        </details>
       </div>
 
       <div className="remote-card">

@@ -2062,7 +2062,8 @@ async function runClientStateTests() {
 
   const {
     formatEnvironmentMetric,
-    getEnvironmentStatus
+    getEnvironmentStatus,
+    parseEnvironmentSettingsJson
   } = await importClientModule('./client/src/state/environmentHistory.js');
 
   assertTest('environment UI helpers present normalized sensor status and safe metric fallbacks', () => {
@@ -2073,6 +2074,11 @@ async function runClientStateTests() {
       color: '#10b981'
     });
     assert.strictEqual(getEnvironmentStatus(null).label, 'Backend unavailable');
+    assert.deepStrictEqual(parseEnvironmentSettingsJson('{"enabled":true,"baseUrl":"http://gateway"}'), {
+      valid: true,
+      value: { enabled: true, baseUrl: 'http://gateway' }
+    });
+    assert.strictEqual(parseEnvironmentSettingsJson('[]').valid, false);
     assert.strictEqual(getEnvironmentStatus({ enabled: true, stale: true }).label, 'Stale fallback');
   });
 

@@ -16,6 +16,17 @@ export const convertPressure = (value, unit = 'hPa') => {
   return unit === 'inHg' ? numericValue / 33.8638866667 : numericValue;
 };
 
+export const parseEnvironmentSettingsJson = (value) => {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? { valid: true, value: parsed }
+      : { valid: false, error: 'Configuration JSON must contain an object.' };
+  } catch (error) {
+    return { valid: false, error: `Invalid configuration JSON: ${error.message}` };
+  }
+};
+
 export const formatEnvironmentTimestamp = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'No reading yet' : date.toLocaleString([], {
