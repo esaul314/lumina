@@ -12,4 +12,5 @@ analysis_cache.json
 sensor_history.db
 server/config/.google_credentials.json
 server/config/google_photos_cache.json
+server/config/google_photos_media/
 config.json
