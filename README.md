@@ -109,6 +109,8 @@ The Ecowitt adapter is configured in the local `config.json` under `ecowitt`: se
 
 The same values can be changed from Remote Control → System → Environment → Gateway Configuration. Changes are validated, saved locally, and applied to the running adapter immediately.
 
+The Advanced JSON editor in that panel accepts the same object shape, which is useful for copying setup snippets from a device guide or sharing a known-good configuration.
+
 Initialize default configurations:
 ```bash
 cp config.json.example config.json

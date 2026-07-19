@@ -5,6 +5,13 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Added Pasteable Adapter JSON to Environment Setup
+- **Goal**: Let a fresh GitHub user configure a device from a copied setup payload without manually editing local files.
+- **Implementation**:
+  - Added an Advanced JSON editor to Gateway Configuration with a safe parse-and-apply step before the existing validated save path.
+  - Added pure JSON parsing coverage, preserving the rule that pasted data is configuration only and never executable code.
+- **Learning**: Field controls are approachable for common setup, while a portable JSON representation is essential for repeatable onboarding and future adapter-specific settings.
+
 ### 2026-07-19: Introduced the General Sensor Adapter Platform Boundary
 - **Goal**: Prevent the local sensor platform from becoming an Ecowitt-only subsystem as additional device protocols are introduced.
 - **Implementation**:
