@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Introduced the General Sensor Adapter Platform Boundary
+- **Goal**: Prevent the local sensor platform from becoming an Ecowitt-only subsystem as additional device protocols are introduced.
+- **Implementation**:
+  - Added `server/services/sensorPlatform.js` with one capability-aware adapter contract for read, lifecycle, and settings operations.
+  - Registered the Ecowitt GW1200 as the first adapter and routed environment reads, startup, shutdown, and configuration updates through the platform.
+  - Added `GET /api/environment/adapters` so the admin/API layer can discover registered device capabilities rather than assuming one vendor forever.
+  - Kept Ecowitt HTTP parsing inside its adapter boundary; storage and normalized consumers remain source-agnostic.
+- **Learning**: There is no single universal local sensor wire protocol. The stable abstraction is a normalized platform envelope plus thin protocol adapters, not a universal vendor-shaped data object.
+- **Verification**: Added capability-aware platform composition coverage and retained the full existing regression gate.
+
 ### 2026-07-19: Added Admin Controls for Local Ecowitt Configuration
 - **Goal**: Make a fresh Lumina installation self-configurable for an IoT-ready Ecowitt gateway instead of requiring direct editing of `config.json`.
 - **Implementation**:
