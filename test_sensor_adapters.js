@@ -273,6 +273,47 @@ const tests = [
       assert.strictEqual(supersededResult.indoor, null);
       assert.strictEqual(readings.length, 1);
     }
+  },
+  {
+    name: 'preserves cached readings and refreshes units for non-source settings edits',
+    run: async () => {
+      let pendingSignal;
+      let resolvePendingRequest;
+      let requestCount = 0;
+      const payload = { wh25: [{ intemp: '24', inhumi: '40', abs: '1000', rel: '1010' }] };
+      const runtime = createEcowittRuntime({
+        settings: { enabled: true, baseUrl: 'http://same.local', units: { temperature: 'C' } },
+        fetchImpl: async (_url, options) => {
+          requestCount += 1;
+          if (requestCount === 1) return { ok: true, json: async () => payload };
+          if (requestCount === 2) {
+            pendingSignal = options.signal;
+            return new Promise(resolve => { resolvePendingRequest = resolve; });
+          }
+          throw new Error('Temporarily unavailable');
+        },
+        setIntervalImpl: () => Symbol('interval'),
+        clearIntervalImpl: () => {},
+        log: { log: () => {}, warn: () => {} }
+      });
+
+      assert.strictEqual((await runtime.readEnvironment()).units.temperature, 'C');
+      const pendingReading = runtime.readEnvironment();
+      assert.strictEqual(runtime.updateSettings({
+        enabled: true,
+        baseUrl: 'http://same.local',
+        pollIntervalMs: 120_000,
+        units: { temperature: 'F' }
+      }).valid, true);
+      assert.strictEqual(pendingSignal.aborted, false);
+      resolvePendingRequest({ ok: true, json: async () => payload });
+      assert.strictEqual((await pendingReading).units.temperature, 'F');
+      const staleReading = await runtime.readEnvironment();
+
+      assert.strictEqual(staleReading.indoor.temperatureC, 24);
+      assert.strictEqual(staleReading.units.temperature, 'F');
+      assert.strictEqual(staleReading.stale, true);
+    }
   }
 ];
 

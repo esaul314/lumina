@@ -156,6 +156,14 @@ const buildEnvironmentResponse = ({ indoor, metrics = {}, units = DEFAULT_UNITS,
   enabled
 });
 
+const activeSourceKey = ({ enabled, baseUrl }) => (
+  enabled && baseUrl ? baseUrl : null
+);
+
+const updateResponseUnits = (response, units) => (
+  response ? { ...response, units: normalizeUnits(units) } : null
+);
+
 function createTimeoutSignal(timeoutMs, AbortControllerImpl = AbortController) {
   const controller = new AbortControllerImpl();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -202,10 +210,10 @@ function createEcowittRuntime({
   };
 
   const readEnvironment = async () => {
-    const { enabled, baseUrl, timeoutMs, units } = activeSettings;
+    const { enabled, baseUrl, timeoutMs } = activeSettings;
     const readGeneration = settingsGeneration;
     if (!enabled || !baseUrl) {
-      return buildEnvironmentResponse({ indoor: null, units, enabled: false });
+      return buildEnvironmentResponse({ indoor: null, units: activeSettings.units, enabled: false });
     }
 
     let timeout = null;
@@ -222,7 +230,7 @@ function createEcowittRuntime({
       lastGood = buildEnvironmentResponse({
         indoor,
         metrics: clonePayload(payload),
-        units,
+        units: activeSettings.units,
         observedAt,
         enabled: true
       });
@@ -234,7 +242,7 @@ function createEcowittRuntime({
       logTransition('unavailable', error);
       return lastGood
         ? { ...lastGood, stale: true }
-        : buildEnvironmentResponse({ indoor: null, units, enabled: true, stale: true });
+        : buildEnvironmentResponse({ indoor: null, units: activeSettings.units, enabled: true, stale: true });
     } finally {
       inFlightRequests.delete(timeout);
       timeout?.clear();
@@ -262,13 +270,16 @@ function createEcowittRuntime({
   const updateSettings = (nextSettings) => {
     const result = validateEcowittSettings(nextSettings);
     if (!result.valid) return result;
+    const sourceChanged = activeSourceKey(activeSettings) !== activeSourceKey(result.settings);
     stop();
-    settingsGeneration += 1;
-    inFlightRequests.forEach(request => request.abort());
-    inFlightRequests.clear();
-    lastGood = null;
+    if (sourceChanged) {
+      settingsGeneration += 1;
+      inFlightRequests.forEach(request => request.abort());
+      inFlightRequests.clear();
+    }
     activeSettings = result.settings;
-    availability = activeSettings.enabled ? 'unknown' : 'disabled';
+    lastGood = sourceChanged ? null : updateResponseUnits(lastGood, activeSettings.units);
+    if (sourceChanged) availability = activeSettings.enabled ? 'unknown' : 'disabled';
     start();
     return result;
   };
