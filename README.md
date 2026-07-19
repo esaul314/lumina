@@ -30,11 +30,11 @@ It features a dynamically coupled mobile remote control web app that allows full
   * Integrates active weather conditions (via Open-Meteo) so that active precipitation (snow, rain) overrides news sentiment.
   * Wallpaper candidates matching these states are served with an **80% preference weight**.
 * **🌡️ Local Indoor Environment & Sensor Telemetry Platform**:
-  * **Ecowitt GW1200 Gateway Adapter**: Connects directly to local ambient weather gateways to read indoor temperature, humidity, barometric pressure, and sensor telemetry without third-party cloud dependencies.
+  * **Ecowitt-compatible Local HTTP Adapter**: Connects directly to a family of local weather gateways and consoles to read indoor temperature, humidity, barometric pressure, and sensor telemetry without third-party cloud dependencies. GW1200 is the first verified device, not the adapter boundary.
   * **Quiet TV Display Overlay**: Renders a subtle, non-intrusive indoor environmental data line inside the weather widget on the TV View.
   * **SQLite Persistent Sensor Storage**: Logs hourly sensor snapshots into `sensor_history.db`, retaining full raw telemetry payloads (`gateway_metrics`).
   * **Grafana & CSV Export API**: Exposes `GET /api/environment/history/export?format=csv` (as well as JSON endpoints) for seamless Grafana Infinity plugin integration, spreadsheet analytics, and long-term storage.
-  * **Remote Control Configuration**: Admin controls under Remote Control → System → Environment allow dynamic gateway URL configuration, polling interval adjustments, enablement toggles, and unit selectors (°F/°C, inHg/hPa).
+  * **Adaptive Device Manager**: Admin controls under Remote Control → System → Environment provide a phone-friendly and expanded desktop layout for adding, naming, editing, retaining, and selecting compatible sources. Lumina polls one active device profile at a time.
 * **❤️ Permanent Collection & Loved Photos**:
   * Flag favorite wallpapers into a permanent collection (`loved: true`). Loved items bypass standard rotating pool eviction caps, ensuring user favorites stay in active slideshow rotation permanently.
 * **🔳 Dynamic QR Code Badge Widget**:
@@ -72,7 +72,8 @@ Lumina uses a decoupled client-server architecture with a REST-first control sur
 * `GET /api/environment`: Current normalized indoor environment reading and gateway status.
 * `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, `limit`).
 * `GET /api/environment/history/export?format=csv`: Exports environment history as CSV (or JSON without `format=csv`) for Grafana or spreadsheets.
-* `GET /api/environment/settings` / `POST /api/environment/settings`: Read/update Ecowitt gateway URL, polling interval, enablement, and display unit preferences.
+* `GET /api/environment/settings` / `POST /api/environment/settings`: Read/update saved sensor device profiles, the active source, connection timing, and display unit preferences. Legacy flat Ecowitt settings remain accepted.
+* `GET /api/environment/adapters`: List registered protocol adapters and compatibility metadata for the device manager.
 * `GET /api/weather`: Outdoor weather forecast & conditions from Open-Meteo.
 * `GET /api/photos?category=...`: Returns current photos list for the category.
 * `PATCH /api/photos`: Batch update photo ratings, loved status, crops, or pairing rules.
@@ -105,13 +106,13 @@ Lumina uses two local configuration files:
 1. `config.json` for non-secret runtime overrides (port, geolocated coordinates, etc.).
 2. `.env` for secrets and API keys.
 
-The Ecowitt adapter is configured in the local `config.json` under `ecowitt`: set the gateway `baseUrl`, enable polling, and choose presentation units there. Lumina stores canonical sensor values in metric units, while the configured units control the TV and remote displays. The example file contains placeholders only; no device address or personal location is committed.
+The quickest setup path is Remote Control → System → Environment → **Add device**. Give the source a friendly name, choose **Ecowitt-compatible LAN gateway**, and enter its local address. Adding the first source makes it active; additional profiles remain saved so they can be selected without re-entering connection details. Lumina deliberately polls one active device at a time.
+
+The same settings are persisted locally under `ecowitt` in the gitignored `config.json`. Existing flat `enabled`/`baseUrl` configurations migrate into one device profile automatically, and the API continues projecting the active profile into those legacy fields for compatibility. Lumina stores canonical sensor values in metric units, while configured units control the TV and remote displays.
 
 Compatibility is based on Ecowitt’s published local HTTP API, specifically `GET /get_livedata_info`. Consult the [official Ecowitt HTTP API protocol](https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf) to check whether a gateway exposes the sensor payloads you need.
 
-The same values can be changed from Remote Control → System → Environment → Gateway Configuration. Changes are validated, saved locally, and applied to the running adapter immediately.
-
-The Advanced JSON editor in that panel accepts the same object shape, which is useful for copying setup snippets from a device guide or sharing a known-good configuration.
+The Advanced settings JSON disclosure exposes the same profile document for repeatable setup. JSON is validated configuration only; it cannot install or execute adapter code.
 
 Initialize default configurations:
 ```bash

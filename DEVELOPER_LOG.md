@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Added Adaptive Sensor Device Management
+- **Goal**: Make compatible local sensor setup a visible admin task instead of requiring users to reinterpret one flat GW1200 configuration.
+- **Implementation**:
+  - Added a pure saved-device catalog with automatic migration from existing flat `config.ecowitt` settings, registered-adapter validation, and a backwards-compatible active-device projection.
+  - Kept several named profiles while retaining one active poller, so changing sources does not introduce concurrent timers, data fusion, or history migrations.
+  - Rebuilt System → Environment around current conditions, a contained device list, an explicit **Add device** action, and a persistent editor that renders beside the list on expanded windows and below it on compact windows.
+  - Replaced the ambiguous polling switch with **Use device** / **Stop polling** actions. The only switch on the page is the semantic, keyboard-operable **Show indoor readings on TV** presentation preference.
+  - Recorded the research, trade-offs, target model, rubber-duck transcript, and acceptance criteria in `SENSOR_DEVICE_MANAGEMENT_PLAN.md`.
+- **Learning**: A protocol adapter, a saved physical-device profile, and a running poller are three different concepts. Making those distinctions explicit simplified both the runtime and the interface; multiple profiles do not require multiple simultaneous ingestion pipelines.
+- **Verification**: Focused server and client-state regressions were added. Source parsing, ESLint, CSS parsing, and public-diff checks passed in the contribution workspace; the repository-mandated `npm test`, client build, and live responsive checks remain to be run on Playwright before the draft PR is marked ready.
+
 ### 2026-07-19: Documented Ecowitt Compatibility API
 - **Goal**: Make hardware compatibility discoverable before setup.
 - **Implementation**: Documented the exact local API contract, `GET /get_livedata_info`, in the admin panel, README, and agent guide with a link to Ecowitt’s published protocol.

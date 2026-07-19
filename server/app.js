@@ -47,6 +47,13 @@ const { createEcowittRuntime } = require('./services/ecowitt.js');
 const { createSensorHistoryStore } = require('./services/sensorHistory.js');
 const { saveLocalConfigPatch } = require('./config/localSettings.js');
 const { createSensorPlatform } = require('./services/sensorPlatform.js');
+const {
+  decodeEnvironmentSettings,
+  normalizeEnvironmentSettings,
+  projectLegacySettings,
+  toRuntimeSettings,
+  validateEnvironmentSettings
+} = require('./domain/environmentSettings.js');
 const { crawlAllCollections } = require('./services/crawler.js');
 const {
   curry,
@@ -82,8 +89,9 @@ const recordSensorReading = (environment) => {
     return null;
   }
 };
+let environmentSettings = normalizeEnvironmentSettings(config.ecowitt);
 const persistedEcowittRuntime = createEcowittRuntime({
-  settings: config.ecowitt,
+  settings: toRuntimeSettings(environmentSettings),
   onReading: recordSensorReading
 });
 const sensorPlatform = createSensorPlatform({
@@ -94,15 +102,25 @@ const sensorPlatform = createSensorPlatform({
     read: persistedEcowittRuntime.readEnvironment,
     start: persistedEcowittRuntime.start,
     stop: persistedEcowittRuntime.stop,
+    validateSettings: persistedEcowittRuntime.validateSettings,
     updateSettings: persistedEcowittRuntime.updateSettings
   }]
 });
-const updateEcowittSettings = (settings) => {
-  const result = sensorPlatform.updateSettings('ecowitt-gw1200', settings);
-  if (!result.valid) return result;
-  config.ecowitt = result.settings;
-  saveLocalConfigPatch({ configPath: path.join(rootDir, 'config.json'), patch: { ecowitt: result.settings } });
-  return result;
+const updateEcowittSettings = (payload) => {
+  const nextSettings = decodeEnvironmentSettings(environmentSettings, payload);
+  const validation = validateEnvironmentSettings(nextSettings, {
+    adapterIds: sensorPlatform.describe().map(({ id }) => id),
+    validateDevice: sensorPlatform.validateSettings
+  });
+  if (!validation.valid) return validation;
+
+  const runtimeResult = sensorPlatform.updateSettings('ecowitt-gw1200', toRuntimeSettings(nextSettings));
+  if (!runtimeResult.valid) return runtimeResult;
+
+  environmentSettings = nextSettings;
+  config.ecowitt = projectLegacySettings(environmentSettings);
+  saveLocalConfigPatch({ configPath: path.join(rootDir, 'config.json'), patch: { ecowitt: config.ecowitt } });
+  return { valid: true, settings: config.ecowitt };
 };
 const ANALYSIS_PROGRESS_INTERVAL = 25;
 
@@ -597,7 +615,7 @@ require('./routes.js')({
   getEnvironmentData: () => sensorPlatform.read('ecowitt-gw1200'),
   getEnvironmentHistory: query => sensorHistoryStore?.history(query) || [],
   exportEnvironmentHistory: query => sensorHistoryStore?.exportCsv(query) || '',
-  getEnvironmentSettings: () => config.ecowitt,
+  getEnvironmentSettings: () => projectLegacySettings(environmentSettings),
   updateEnvironmentSettings: updateEcowittSettings,
   getEnvironmentAdapters: sensorPlatform.describe,
   io,
