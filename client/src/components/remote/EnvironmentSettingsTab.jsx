@@ -125,6 +125,9 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
         <div style={{ fontSize: '0.75rem', opacity: 0.55, lineHeight: 1.5 }}>
           Configure the local Ecowitt gateway for this Lumina instance. These settings are stored in the gitignored <code>config.json</code>.
         </div>
+        <div style={{ fontSize: '0.72rem', opacity: 0.55, lineHeight: 1.5, padding: '10px 12px', borderRadius: '10px', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.14)' }}>
+          Compatibility uses Ecowitt&apos;s local HTTP API: <code>GET /get_livedata_info</code>. See the <a href="https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf" target="_blank" rel="noreferrer" style={{ color: '#7dd3fc' }}>official protocol</a> for supported gateway and sensor payloads.
+        </div>
         <div className="widget-toggle-item">
           <div className="toggle-info">
             <RadioTower size={18} style={{ color: '#fb923c' }} />

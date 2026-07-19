@@ -5,6 +5,10 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Documented Ecowitt Compatibility API
+- **Goal**: Make hardware compatibility discoverable before setup.
+- **Implementation**: Documented the exact local API contract, `GET /get_livedata_info`, in the admin panel, README, and agent guide with a link to Ecowitt’s published protocol.
+
 ### 2026-07-19: Added Pasteable Adapter JSON to Environment Setup
 - **Goal**: Let a fresh GitHub user configure a device from a copied setup payload without manually editing local files.
 - **Implementation**:

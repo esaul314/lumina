@@ -157,6 +157,8 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
 * `GET /api/environment/history/export`: Exports environment history as CSV (`?format=csv`) or JSON for Grafana Infinity plugin and direct downloads.
 * `GET /api/environment/settings` / `POST /api/environment/settings`: Reads or updates local Ecowitt gateway URL, polling interval, enablement, and display unit preferences over REST.
 * `GET /api/environment/adapters`: Lists registered sensor adapters and capabilities. Ecowitt is the first adapter; new protocols should implement the shared sensor-platform contract instead of changing storage or widget consumers.
+
+Ecowitt compatibility uses the vendor’s published local HTTP API endpoint `GET /get_livedata_info`; refer users to the [official Ecowitt HTTP API protocol](https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf) when evaluating gateway or sensor compatibility.
 * `GET /api/weather`: Resolves location weather from the Open-Meteo API.
   > [!NOTE]
   > The server uses the location configured in the local gitignored `config.json`, with optional automatic IP geolocation when enabled.
