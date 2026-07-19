@@ -3,7 +3,9 @@ import { Database, Download, RefreshCw, RadioTower, Thermometer } from 'lucide-r
 import {
   formatEnvironmentMetric,
   formatEnvironmentTimestamp,
-  getEnvironmentStatus
+  getEnvironmentStatus,
+  convertPressure,
+  convertTemperature
 } from '../../state/environmentHistory';
 
 const readJson = async (path) => {
@@ -49,6 +51,10 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
   const status = getEnvironmentStatus(environment);
   const indoor = environment?.indoor;
   const latest = history[0];
+  const units = environment?.units || {};
+  const metricCount = environment?.metrics && typeof environment.metrics === 'object'
+    ? Object.keys(environment.metrics).length
+    : 0;
 
   return (
     <>
@@ -77,9 +83,9 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
           {[
-            ['Temperature', formatEnvironmentMetric(indoor?.temperatureC, '°C')],
+            ['Temperature', formatEnvironmentMetric(convertTemperature(indoor?.temperatureC, units.temperature), `°${units.temperature || 'C'}`)],
             ['Humidity', formatEnvironmentMetric(indoor?.humidityPercent, '%')],
-            ['Pressure', formatEnvironmentMetric(indoor?.pressureRelativeHpa, ' hPa')]
+            ['Pressure', formatEnvironmentMetric(convertPressure(indoor?.pressureRelativeHpa, units.pressure), ` ${units.pressure || 'hPa'}`)]
           ].map(([label, value]) => (
             <div key={label} style={{ padding: '12px 8px', borderRadius: '12px', background: 'rgba(0,0,0,0.2)', textAlign: 'center' }}>
               <div style={{ fontSize: '0.68rem', opacity: 0.5 }}>{label}</div>
@@ -111,7 +117,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', fontSize: '0.75rem' }}>
             <Thermometer size={16} style={{ color: '#fb923c' }} />
             <span style={{ flex: 1 }}>Latest stored snapshot</span>
-            <strong>{formatEnvironmentMetric(latest.indoor_temperature_c, '°C')}</strong>
+            <strong>{formatEnvironmentMetric(convertTemperature(latest.indoor_temperature_c, units.temperature), `°${units.temperature || 'C'}`)}</strong>
             <span style={{ opacity: 0.5 }}>{formatEnvironmentTimestamp(latest.observed_at)}</span>
           </div>
         )}
@@ -122,6 +128,12 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
         <div style={{ fontSize: '0.7rem', opacity: 0.42, lineHeight: 1.5 }}>
           Lumina keeps the newest reading for each hour in its local SQLite history. Outdoor weather is included when available.
         </div>
+        <details style={{ fontSize: '0.72rem', opacity: 0.62 }}>
+          <summary style={{ cursor: 'pointer' }}>Gateway metrics preserved ({metricCount} top-level blocks)</summary>
+          <pre style={{ maxHeight: '220px', overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: '0.65rem', marginTop: '10px', color: 'rgba(255,255,255,0.65)' }}>
+            {JSON.stringify(environment?.metrics || {}, null, 2)}
+          </pre>
+        </details>
       </div>
     </>
   );

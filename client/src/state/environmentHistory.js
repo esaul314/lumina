@@ -4,6 +4,18 @@ export const formatEnvironmentMetric = (value, suffix = '') => {
   return Number.isFinite(numericValue) ? `${numericValue.toFixed(1)}${suffix}` : '—';
 };
 
+export const convertTemperature = (value, unit = 'C') => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return null;
+  return unit === 'F' ? (numericValue * 9) / 5 + 32 : numericValue;
+};
+
+export const convertPressure = (value, unit = 'hPa') => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return null;
+  return unit === 'inHg' ? numericValue / 33.8638866667 : numericValue;
+};
+
 export const formatEnvironmentTimestamp = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'No reading yet' : date.toLocaleString([], {

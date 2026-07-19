@@ -30,7 +30,8 @@ const { classifyWeatherCode } = require('./server/services/weather.js');
 const {
   createEcowittRuntime,
   parseEcowittPayload,
-  buildEnvironmentResponse
+  buildEnvironmentResponse,
+  normalizeUnits
 } = require('./server/services/ecowitt.js');
 const {
   createSensorHistoryStore,
@@ -1439,10 +1440,24 @@ assertTest('returns null measurements for missing or malformed sensor fields', (
 assertTest('builds a stable disabled environment response', () => {
   assert.deepStrictEqual(buildEnvironmentResponse({ indoor: null, enabled: false }), {
     indoor: null,
+    metrics: {},
+    units: {
+      temperature: 'C',
+      pressure: 'hPa',
+      wind: 'km/h',
+      rain: 'mm',
+      light: 'lux'
+    },
     source: 'ecowitt-gw1200',
     observedAt: null,
     stale: false,
     enabled: false
+  });
+});
+
+assertTest('keeps display units configurable while retaining canonical metric parsing', () => {
+  assert.deepStrictEqual(normalizeUnits({ temperature: 'F' }), {
+    temperature: 'F', pressure: 'hPa', wind: 'km/h', rain: 'mm', light: 'lux'
   });
 });
 
@@ -1451,6 +1466,7 @@ assertTest('normalizes GW1200 and outdoor weather into one hourly sensor record'
     environment: {
       source: 'ecowitt-gw1200',
       observedAt: '2026-07-18T21:45:12.000Z',
+      metrics: { wh25: [{ intemp: '76.5', unit: 'F' }], lightning: [{ count: '2' }] },
       indoor: { temperatureC: 24.7, humidityPercent: 63, pressureRelativeHpa: 995.3 }
     },
     weather: {
@@ -1462,6 +1478,7 @@ assertTest('normalizes GW1200 and outdoor weather into one hourly sensor record'
     observedAt: '2026-07-18T21:45:12.000Z',
     source: 'ecowitt-gw1200',
     device: 'GW1200',
+    gatewayMetricsJson: '{"wh25":[{"intemp":"76.5","unit":"F"}],"lightning":[{"count":"2"}]}',
     indoorTemperatureC: 24.7,
     indoorHumidityPercent: 63,
     indoorPressureAbsoluteHpa: null,
@@ -1492,6 +1509,7 @@ assertTest('stores one latest reading per hour and exports queryable CSV', () =>
   const rows = store.history({ limit: 10 });
   assert.strictEqual(rows.length, 1);
   assert.strictEqual(rows[0].observed_at, '2026-07-18T21:55:00.000Z');
+  assert.deepStrictEqual(JSON.parse(rows[0].gateway_metrics_json), {});
   assert.match(store.exportCsv({ limit: 10 }), /hour_key,observed_at,source/);
   assert.match(store.exportCsv({ limit: 10 }), /2026-07-18T21,2026-07-18T21:55:00.000Z/);
   store.close();

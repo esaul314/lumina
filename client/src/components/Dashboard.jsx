@@ -14,6 +14,7 @@ import {
   isSplitFrameActive
 } from '../state/frameSelectors';
 import { toCssImageUrl } from '../state/cssImage.js';
+import { convertPressure, convertTemperature } from '../state/environmentHistory.js';
 
 /**
  * 🖼️ loadImageMeta
@@ -821,9 +822,9 @@ function Dashboard({ state, socket, connectionInfo }) {
                 {state.widgets.indoorEnvironment && environment?.enabled && environment.indoor && (
                   <div className={`indoor-environment ${environment.stale ? 'stale' : ''}`}>
                     <span>Indoor</span>
-                    {environment.indoor.temperatureC !== null && ` ${environment.indoor.temperatureC.toFixed(1)}°C`}
+                    {environment.indoor.temperatureC !== null && ` ${convertTemperature(environment.indoor.temperatureC, environment.units?.temperature).toFixed(1)}°${environment.units?.temperature || 'C'}`}
                     {environment.indoor.humidityPercent !== null && ` · ${environment.indoor.humidityPercent}% humidity`}
-                    {environment.indoor.pressureRelativeHpa !== null && ` · ${Math.round(environment.indoor.pressureRelativeHpa)} hPa`}
+                    {environment.indoor.pressureRelativeHpa !== null && ` · ${Math.round(convertPressure(environment.indoor.pressureRelativeHpa, environment.units?.pressure))} ${environment.units?.pressure || 'hPa'}`}
                   </div>
                 )}
               </div>
