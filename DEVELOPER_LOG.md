@@ -5,6 +5,15 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-19: Added Admin Controls for Local Ecowitt Configuration
+- **Goal**: Make a fresh Lumina installation self-configurable for an IoT-ready Ecowitt gateway instead of requiring direct editing of `config.json`.
+- **Implementation**:
+  - Added validated `GET/POST /api/environment/settings` endpoints for gateway URL, enablement, polling interval, timeout, and presentation units.
+  - Added the Gateway Configuration form under Remote Control → System → Environment. Saving writes only local non-secret settings to gitignored `config.json` and applies them to the running adapter immediately.
+  - Kept URL and unit validation in the backend boundary, with the existing placeholder-only public example retained.
+- **Learning**: Configuration belongs at the REST/admin boundary, while the adapter remains a small runtime interpreter. This keeps deployment-specific device details out of the public source and avoids requiring a restart for ordinary setup changes.
+- **Verification**: Live port-5000 settings and environment endpoints returned the configured gateway, units, and current GW1200 reading; regression suite passed.
+
 ### 2026-07-19: Made Ecowitt Units Configurable and Preserved Full Gateway Telemetry
 - **Goal**: Remove implicit local assumptions from the public adapter and ensure the history contract does not discard GW1200 sensor families that are not needed by the first widget.
 - **Implementation**:
