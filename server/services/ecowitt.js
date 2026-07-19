@@ -159,7 +159,15 @@ const buildEnvironmentResponse = ({ indoor, metrics = {}, units = DEFAULT_UNITS,
 function createTimeoutSignal(timeoutMs, AbortControllerImpl = AbortController) {
   const controller = new AbortControllerImpl();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  return { signal: controller.signal, clear: () => clearTimeout(timeoutId) };
+  const clear = () => clearTimeout(timeoutId);
+  return {
+    signal: controller.signal,
+    clear,
+    abort: () => {
+      clear();
+      controller.abort();
+    }
+  };
 }
 
 function createEcowittRuntime({
@@ -175,6 +183,15 @@ function createEcowittRuntime({
   let lastGood = null;
   let availability = activeSettings.enabled ? 'unknown' : 'disabled';
   let intervalId = null;
+  let settingsGeneration = 0;
+  const inFlightRequests = new Set();
+
+  const buildEmptyResponse = ({ stale = false } = {}) => buildEnvironmentResponse({
+    indoor: null,
+    units: activeSettings.units,
+    enabled: activeSettings.enabled && Boolean(activeSettings.baseUrl),
+    stale
+  });
 
   const logTransition = (nextAvailability, error) => {
     if (availability === nextAvailability) return;
@@ -186,6 +203,7 @@ function createEcowittRuntime({
 
   const readEnvironment = async () => {
     const { enabled, baseUrl, timeoutMs, units } = activeSettings;
+    const readGeneration = settingsGeneration;
     if (!enabled || !baseUrl) {
       return buildEnvironmentResponse({ indoor: null, units, enabled: false });
     }
@@ -193,10 +211,12 @@ function createEcowittRuntime({
     let timeout = null;
     try {
       timeout = createTimeoutSignal(timeoutMs);
+      inFlightRequests.add(timeout);
       const response = await fetchImpl(`${baseUrl}${ECOWITT_LOCAL_HTTP_ADAPTER.endpoint}`, { signal: timeout.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const payload = await response.json();
+      if (readGeneration !== settingsGeneration) return buildEmptyResponse();
       const indoor = parseEcowittPayload(payload);
       const observedAt = now();
       lastGood = buildEnvironmentResponse({
@@ -210,11 +230,13 @@ function createEcowittRuntime({
       logTransition(availability === 'unavailable' ? 'recovered' : 'available');
       return lastGood;
     } catch (error) {
+      if (readGeneration !== settingsGeneration) return buildEmptyResponse();
       logTransition('unavailable', error);
       return lastGood
         ? { ...lastGood, stale: true }
         : buildEnvironmentResponse({ indoor: null, units, enabled: true, stale: true });
     } finally {
+      inFlightRequests.delete(timeout);
       timeout?.clear();
     }
   };
@@ -241,6 +263,10 @@ function createEcowittRuntime({
     const result = validateEcowittSettings(nextSettings);
     if (!result.valid) return result;
     stop();
+    settingsGeneration += 1;
+    inFlightRequests.forEach(request => request.abort());
+    inFlightRequests.clear();
+    lastGood = null;
     activeSettings = result.settings;
     availability = activeSettings.enabled ? 'unknown' : 'disabled';
     start();

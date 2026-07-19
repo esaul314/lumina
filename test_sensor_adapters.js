@@ -2,6 +2,7 @@
 
 const assert = require('assert');
 const {
+  createEcowittRuntime,
   normalizeMetricId,
   parseEcowittPayload
 } = require('./server/services/ecowitt.js');
@@ -236,6 +237,41 @@ const tests = [
       assert.strictEqual(result.error, 'Office: A gateway URL is required.');
       assert.strictEqual(calls[0][0], 'ecowitt-local-http');
       assert.strictEqual(calls[0][1].enabled, true);
+    }
+  },
+  {
+    name: 'isolates last-good and in-flight readings when the active device changes',
+    run: async () => {
+      let resolveOldRequest;
+      let requestCount = 0;
+      const readings = [];
+      const oldPayload = { wh25: [{ intemp: '24', inhumi: '40', abs: '1000', rel: '1010' }] };
+      const fetchImpl = async () => {
+        requestCount += 1;
+        if (requestCount === 1) return { ok: true, json: async () => oldPayload };
+        if (requestCount === 2) return new Promise(resolve => { resolveOldRequest = resolve; });
+        throw new Error('New device unavailable');
+      };
+      const runtime = createEcowittRuntime({
+        settings: { enabled: true, baseUrl: 'http://first.local' },
+        fetchImpl,
+        onReading: reading => readings.push(reading),
+        setIntervalImpl: () => Symbol('interval'),
+        clearIntervalImpl: () => {},
+        log: { log: () => {}, warn: () => {} }
+      });
+
+      assert.strictEqual((await runtime.readEnvironment()).indoor.temperatureC, 24);
+      const oldRequest = runtime.readEnvironment();
+      assert.strictEqual(runtime.updateSettings({ enabled: true, baseUrl: 'http://second.local' }).valid, true);
+      const unavailableNewDevice = await runtime.readEnvironment();
+      resolveOldRequest({ ok: true, json: async () => oldPayload });
+      const supersededResult = await oldRequest;
+
+      assert.strictEqual(unavailableNewDevice.indoor, null);
+      assert.strictEqual(unavailableNewDevice.stale, true);
+      assert.strictEqual(supersededResult.indoor, null);
+      assert.strictEqual(readings.length, 1);
     }
   }
 ];
