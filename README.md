@@ -29,10 +29,21 @@ It features a dynamically coupled mobile remote control web app that allows full
   * Positive headlines map to sunny/golden wallpapers, negative to stormy/rainy, and neutral to cloudy/moody.
   * Integrates active weather conditions (via Open-Meteo) so that active precipitation (snow, rain) overrides news sentiment.
   * Wallpaper candidates matching these states are served with an **80% preference weight**.
+* **🌡️ Local Indoor Environment & Sensor Telemetry Platform**:
+  * **Ecowitt GW1200 Gateway Adapter**: Connects directly to local ambient weather gateways to read indoor temperature, humidity, barometric pressure, and sensor telemetry without third-party cloud dependencies.
+  * **Quiet TV Display Overlay**: Renders a subtle, non-intrusive indoor environmental data line inside the weather widget on the TV View.
+  * **SQLite Persistent Sensor Storage**: Logs hourly sensor snapshots into `sensor_history.db`, retaining full raw telemetry payloads (`gateway_metrics`).
+  * **Grafana & CSV Export API**: Exposes `GET /api/environment/history/export?format=csv` (as well as JSON endpoints) for seamless Grafana Infinity plugin integration, spreadsheet analytics, and long-term storage.
+  * **Remote Control Configuration**: Admin controls under Remote Control → System → Environment allow dynamic gateway URL configuration, polling interval adjustments, enablement toggles, and unit selectors (°F/°C, inHg/hPa).
+* **❤️ Permanent Collection & Loved Photos**:
+  * Flag favorite wallpapers into a permanent collection (`loved: true`). Loved items bypass standard rotating pool eviction caps, ensuring user favorites stay in active slideshow rotation permanently.
+* **🔳 Dynamic QR Code Badge Widget**:
+  * On-demand QR code widget toggle on both TV View and Remote Control for fast mobile device coupling.
 * **📱 Touch-Optimized Mobile Remote Control**:
   * Interactive swipe pad featuring a darkened real-time preview of the active TV background image.
-  * Widgets Switchboard: Toggle TV overlays (clock, particles, weather, aura backlights, Ken Burns pan-and-zoom) on the fly.
+  * Widgets Switchboard: Toggle TV overlays (clock, particles, weather, QR code badge, aura backlights, Ken Burns pan-and-zoom) on the fly.
   * Mood Theme Selector: Change color schemes instantly (Zen Retreat, Cosmic Night, Art Museum, Cyberpunk Rain).
+  * System & Environment Controls: Manage local gateway settings, sensor display units, location settings, and screensaver overrides over REST.
   * Google Photos casting control (direct configuration for OAuth client credentials).
 * **🎵 Smart Media Playback Guard**:
   * Actively monitors PulseAudio/PipeWire sink streams via `pactl list sink-inputs`.
@@ -52,9 +63,20 @@ It features a dynamically coupled mobile remote control web app that allows full
 
 ## 🛠️ Architecture
 
-Lumina uses a decoupled client-server architecture:
-* **Server (Node.js/Express)**: Spawns the GNOME Mutter idle state DBus monitor (running every 2s, dynamically querying `uid` and `homedir`), manages local network discovery, processes news sentiment and weather geolocated coordinates, orchestrates CPU governors, and serves API endpoints.
-* **Client (React/Vite/Vanilla CSS)**: Auto-detects device type (loading Mobile Remote Control or TV Dashboard Kiosk) and renders layouts with glassmorphic styles, bokeh particle canvas systems, and customized weather overlays.
+Lumina uses a decoupled client-server architecture with a REST-first control surface and Socket.IO live event synchronization:
+* **Server (Node.js/Express)**: Spawns the GNOME Mutter idle state DBus monitor (running every 2s, dynamically querying `uid` and `homedir`), manages local network discovery, processes news sentiment and weather geolocated coordinates, polls local Ecowitt sensor gateways, logs hourly environmental history to SQLite (`sensor_history.db`), orchestrates CPU governors, and serves REST API endpoints.
+* **Client (React/Vite/Vanilla CSS)**: Auto-detects device type (loading Mobile Remote Control or TV Dashboard Kiosk) and renders layouts with glassmorphic styles, bokeh particle canvas systems, customized weather overlays, and quiet indoor environmental telemetry line.
+
+### 🌐 Key REST API Endpoints
+
+* `GET /api/environment`: Current normalized indoor environment reading and gateway status.
+* `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, `limit`).
+* `GET /api/environment/history/export?format=csv`: Exports environment history as CSV (or JSON without `format=csv`) for Grafana or spreadsheets.
+* `GET /api/environment/settings` / `POST /api/environment/settings`: Read/update Ecowitt gateway URL, polling interval, enablement, and display unit preferences.
+* `GET /api/weather`: Outdoor weather forecast & conditions from Open-Meteo.
+* `GET /api/photos?category=...`: Returns current photos list for the category.
+* `PATCH /api/photos`: Batch update photo ratings, loved status, crops, or pairing rules.
+* `POST /api/state/screensaver`: Remote trigger or dismissal of the screensaver kiosk.
 
 ## 🗺️ Roadmap
 

@@ -28,13 +28,15 @@ Current migration checkpoint:
 
 ```mermaid
 graph TD
-    A["📱 Mobile Phone Remote / Link"] <-->|Socket.IO Events & QR Connection| B["🟢 Node.js / Express Core Server"]
+    A["📱 Mobile Phone Remote / Link"] <-->|REST API & Socket.IO Events| B["🟢 Node.js / Express Core Server"]
     C["🖥️ GNOME Mutter Idle Monitor"] -->|DBus Polling 2s| B
     D["🔊 PulseAudio Monitor (pactl)"] -->|Audio State Check| B
     B -->|Launches/Kills| E["📺 Chromium Fullscreen Kiosk (TV View)"]
     B -->|Toggles CPU Governor| F["⚡ System CPU Power scaling_governor"]
     B -->|Crawl Daily Feeds| G["🖼️ Unsplash Search NAPI"]
     B -->|Weather Forecast| H["🌦️ Open-Meteo API"]
+    I["🌡️ Ecowitt GW1200 Gateway"] -->|HTTP Polling 60s| B
+    B -->|Logs Hourly Snapshots| J["🗄️ SQLite sensor_history.db"]
     E <-->|Real-Time State Sync| B
 ```
 
@@ -57,8 +59,14 @@ lumina/
 │   │   └── main.jsx            # React client entry point
 │   ├── package.json            # Vite frontend configuration & dependencies
 │   └── vite.config.js          # Vite build options
-├── server.js                   # Node.js backend, daemon monitor, Unsplash crawler, & sync server
+├── server/                     # Modular backend services & domain logic
+│   ├── domain/                 # Functional core (commands, reducers, selectors, ecowitt, statePatch)
+│   ├── runtime/                # Operational runtimes (environment refresh, browser kiosk control)
+│   ├── services/               # System & API integrations (system, vision, googlePhotos)
+│   ├── app.js                  # Express application setup
+│   └── routes.js               # REST route spec registrations
 ├── curated_collections.json    # Local JSON database persisting photography feeds
+├── sensor_history.db           # SQLite database persisting hourly environmental telemetry snapshots
 ├── launch.sh                   # Convenience shell wrapper to start server and background daemons
 ├── package.json                # Root package configuration & backend dependencies
 └── AGENTS.md                   # You are here! (AI Agent & Developer Guide)
@@ -132,17 +140,32 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
       - Otherwise, the room's mood is set by **today's global news sentiment** (prioritizing Sunny, Cloudy, or Rainy/Moody wallpapers accordingly).
     - Photos matching these atmospheric filters are served with an **80% preference weight** to preserve surprise while aligning the living space with the emotional and physical state of the world outside. Under night hours, this integrates with the user's evening/night photo ratio slider.
 
-### 5. API Endpoints
-* `GET /api/weather`: Resolves location weather from the free Open-Meteo API. 
+### 5. Ecowitt Local Environment & Sensor Telemetry Platform
+* **Gateway Adapter (`server/domain/ecowitt.js`)**:
+  - Polls local Ecowitt GW1200 gateways at configurable intervals (default 60s) for indoor temperature, humidity, and barometric pressure.
+  - Normalizes metric units (`temperatureC`, `humidityPercent`, `pressureAbsoluteHpa`, `pressureRelativeHpa`) while handling missing fields or stale network states defensively without interrupting Open-Meteo outdoor weather calculations.
+* **Persistent SQLite Sensor Storage (`sensor_history.db`)**:
+  - Stores hourly environmental snapshots in SQLite, persisting full raw `gateway_metrics` payloads to retain optional multichannel, air quality (PM2.5), rain, wind, and leaf sensor blocks without requiring schema migrations.
+* **Grafana & CSV Export API**:
+  - `GET /api/environment/history/export?format=csv` projects sensor history directly into CSV format for Grafana Infinity plugin integration, spreadsheet analysis, and archival downloads.
+* **Display Units & Remote Controls**:
+  - Presentation display units (`temperatureUnit`: `F`|`C`, `pressureUnit`: `inHg`|`hPa`) are configurable from Remote Control → System → Environment. Sensor readings are rendered as a quiet, subordinate indoor telemetry line inside the weather widget on TV View.
+
+### 6. API Endpoints
+* `GET /api/environment`: Resolves current normalized indoor environment readings, observation timestamp, and gateway availability status.
+* `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, and `limit` query parameters).
+* `GET /api/environment/history/export`: Exports environment history as CSV (`?format=csv`) or JSON for Grafana Infinity plugin and direct downloads.
+* `GET /api/environment/settings` / `POST /api/environment/settings`: Reads or updates local Ecowitt gateway URL, polling interval, enablement, and display unit preferences over REST.
+* `GET /api/weather`: Resolves location weather from the Open-Meteo API.
   > [!NOTE]
   > The server uses the location configured in the local gitignored `config.json`, with optional automatic IP geolocation when enabled.
-* `GET /api/photos?category=...`: Returns current photos list for the category, and updates the active photo selection if needed.
+* `GET /api/photos?category=...`: Returns current photos list for the category, updating active photo selection if needed.
+* `PATCH /api/photos`: REST mutation endpoint to update photo ratings, loved status, crops, and side-by-side pairing preferences.
+* `POST /api/photos/next` / `POST /api/photos/prev`: Advance or rewind photo selection through the balanced visible feed order.
+* `POST /api/state/screensaver`: Kiosk screensaver activation toggle (`active: true|false`).
 * `GET /api/config`: Exposes local IP addresses and ports to allow QR coupling of mobile screens.
-* `GET /api/environment/history`: Returns persisted hourly normalized GW1200/environment snapshots, newest first. Supports `from`, `to`, and `limit` query parameters.
-* `GET /api/environment/history/export?format=csv`: Exports the same history projection as CSV for Grafana Infinity, spreadsheets, or direct archival. JSON export is also available without `format=csv`.
-* `GET /api/environment/settings` / `POST /api/environment/settings`: Read or update the local Ecowitt gateway URL, polling settings, enablement, and display units. This is the REST boundary used by Remote Control → System → Environment.
 
-### 6. Safe Read-Merge-Write Persistence & Ratings Engine
+### 7. Safe Read-Merge-Write Persistence & Ratings Engine
 Lumina implements a highly robust database persistence and rating system located under `server/config/collections.js` to manage wallpapers without losing user preferences:
 * **Safe Read-Merge-Write Persistence (`saveCuratedCollections`)**:
   - To prevent background daily crawls or crawler actions from wiping out existing metadata (like manually selected location settings, auto-location toggles, or keyword settings), the system performs a read-merge-write sequence before persisting to `curated_collections.json`.

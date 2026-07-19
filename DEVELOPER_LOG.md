@@ -1101,6 +1101,17 @@ The screensaver automatically maps live conditions and global sentiment to activ
 - **Learning**:
   - Always remember to restart background daemons and system-wide services when deploying new backend code or REST endpoints to ensure runtime compatibility.
 
+### 2026-07-18 (Phase 22): Overhauled Repository Documentation for Major Features
+- **Goal**: Update `README.md`, `AGENTS.md`, and workspace documentation to comprehensively reflect major features implemented across recent phases.
+- **Changes**:
+  - **Ecowitt Indoor Sensor Suite**: Documented Ecowitt GW1200 gateway integration, quiet indoor telemetry line on TV View, persistent SQLite snapshot logging (`sensor_history.db`), Grafana Infinity CSV export (`GET /api/environment/history/export?format=csv`), and Remote Control gateway/unit configuration.
+  - **Permanent Collection**: Documented loved photo support (`loved: true`) and eviction-proof rotating pool behavior.
+  - **QR Code Widget**: Added QR badge toggle documentation across TV View, Remote Control, and state schema.
+  - **REST API Endpoints**: Documented expanded REST control surface (`/api/environment`, `/api/environment/history`, `/api/environment/history/export`, `/api/environment/settings`, `/api/photos`, `/api/state/screensaver`).
+  - **Architecture & System Diagrams**: Updated Mermaid data flow diagram in `AGENTS.md` and project structure tree to include modular `server/` hierarchy, `sensor_history.db`, and local gateway polling.
+- **Verification**:
+  - Ran `node run-tests.js` to ensure all unit, domain, and integration tests pass without regression.
+
 ---
 
 ## 🧪 Verification & Diagnostics
