@@ -4,6 +4,13 @@ const DEFAULT_SOURCE = 'ecowitt-gw1200';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 3_000;
 const INHG_TO_HPA = 33.8638866667;
+const DEFAULT_UNITS = Object.freeze({
+  temperature: 'C',
+  pressure: 'hPa',
+  wind: 'km/h',
+  rain: 'mm',
+  light: 'lux'
+});
 
 const toFiniteNumber = (value) => {
   const parsed = Number.parseFloat(String(value ?? '').trim());
@@ -26,6 +33,15 @@ const roundMetric = (value, decimals = 1) => (
   value === null ? null : Number(value.toFixed(decimals))
 );
 
+const normalizeUnits = (units = {}) => ({
+  ...DEFAULT_UNITS,
+  ...units
+});
+
+const clonePayload = (payload) => (
+  payload && typeof payload === 'object' ? JSON.parse(JSON.stringify(payload)) : {}
+);
+
 function parseEcowittPayload(payload) {
   const indoor = payload?.wh25?.[0];
   if (!indoor || typeof indoor !== 'object') {
@@ -45,8 +61,10 @@ function parseEcowittPayload(payload) {
   };
 }
 
-const buildEnvironmentResponse = ({ indoor, observedAt = null, stale = false, enabled = true }) => ({
+const buildEnvironmentResponse = ({ indoor, metrics = {}, units = DEFAULT_UNITS, observedAt = null, stale = false, enabled = true }) => ({
   indoor,
+  metrics,
+  units: normalizeUnits(units),
   source: DEFAULT_SOURCE,
   observedAt,
   stale,
@@ -74,6 +92,7 @@ function createEcowittRuntime({
   const pollIntervalMs = Number.isFinite(settings.pollIntervalMs)
     ? settings.pollIntervalMs
     : DEFAULT_POLL_INTERVAL_MS;
+  const units = normalizeUnits(settings.units);
   let lastGood = null;
   let availability = enabled ? 'unknown' : 'disabled';
   let intervalId = null;
@@ -88,7 +107,7 @@ function createEcowittRuntime({
 
   const readEnvironment = async () => {
     if (!enabled || !baseUrl) {
-      return buildEnvironmentResponse({ indoor: null, enabled: false });
+      return buildEnvironmentResponse({ indoor: null, units, enabled: false });
     }
 
     let timeout = null;
@@ -97,9 +116,16 @@ function createEcowittRuntime({
       const response = await fetchImpl(`${baseUrl}/get_livedata_info`, { signal: timeout.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-      const indoor = parseEcowittPayload(await response.json());
+      const payload = await response.json();
+      const indoor = parseEcowittPayload(payload);
       const observedAt = now();
-      lastGood = buildEnvironmentResponse({ indoor, observedAt, enabled: true });
+      lastGood = buildEnvironmentResponse({
+        indoor,
+        metrics: clonePayload(payload),
+        units,
+        observedAt,
+        enabled: true
+      });
       onReading(lastGood);
       logTransition(availability === 'unavailable' ? 'recovered' : 'available');
       return lastGood;
@@ -107,7 +133,7 @@ function createEcowittRuntime({
       logTransition('unavailable', error);
       return lastGood
         ? { ...lastGood, stale: true }
-        : buildEnvironmentResponse({ indoor: null, enabled: true, stale: true });
+        : buildEnvironmentResponse({ indoor: null, units, enabled: true, stale: true });
     } finally {
       timeout?.clear();
     }
@@ -130,11 +156,13 @@ function createEcowittRuntime({
 module.exports = {
   DEFAULT_POLL_INTERVAL_MS,
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_UNITS,
   INHG_TO_HPA,
   buildEnvironmentResponse,
   createEcowittRuntime,
   normalizePressureHpa,
   normalizeTemperatureC,
+  normalizeUnits,
   parseEcowittPayload,
   toFiniteNumber
 };

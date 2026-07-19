@@ -44,7 +44,8 @@ const normalizeSensorSnapshot = ({ environment, weather = null, observedAt } = {
     outdoorWeatherCode: toFiniteNumber(outdoor.weather_code),
     outdoorWindSpeedKmh: toFiniteNumber(outdoor.wind_speed_10m),
     latitude: toFiniteNumber(location.lat),
-    longitude: toFiniteNumber(location.lon)
+    longitude: toFiniteNumber(location.lon),
+    gatewayMetricsJson: JSON.stringify(environment?.metrics || {})
   };
 };
 
@@ -72,9 +73,17 @@ const buildHistorySchema = () => `
     outdoor_weather_code INTEGER,
     outdoor_wind_speed_kmh REAL,
     latitude REAL,
-    longitude REAL
+    longitude REAL,
+    gateway_metrics_json TEXT NOT NULL DEFAULT '{}'
   ) STRICT;
 `;
+
+const ensureHistoryColumn = (db) => {
+  const columns = db.prepare('PRAGMA table_info(sensor_history)').all().map(({ name }) => name);
+  if (!columns.includes('gateway_metrics_json')) {
+    db.exec("ALTER TABLE sensor_history ADD COLUMN gateway_metrics_json TEXT NOT NULL DEFAULT '{}'");
+  }
+};
 
 const columns = [
   'hour_key', 'observed_at', 'source', 'device', 'indoor_temperature_c',
@@ -82,7 +91,7 @@ const columns = [
   'indoor_pressure_relative_hpa', 'outdoor_temperature_c',
   'outdoor_humidity_percent', 'outdoor_apparent_temperature_c',
   'outdoor_precipitation_mm', 'outdoor_rain_mm', 'outdoor_snowfall_mm',
-  'outdoor_weather_code', 'outdoor_wind_speed_kmh', 'latitude', 'longitude'
+  'outdoor_weather_code', 'outdoor_wind_speed_kmh', 'latitude', 'longitude', 'gateway_metrics_json'
 ];
 
 const toRowValues = (snapshot) => [
@@ -92,7 +101,7 @@ const toRowValues = (snapshot) => [
   snapshot.outdoorTemperatureC, snapshot.outdoorHumidityPercent,
   snapshot.outdoorApparentTemperatureC, snapshot.outdoorPrecipitationMm,
   snapshot.outdoorRainMm, snapshot.outdoorSnowfallMm, snapshot.outdoorWeatherCode,
-  snapshot.outdoorWindSpeedKmh, snapshot.latitude, snapshot.longitude
+  snapshot.outdoorWindSpeedKmh, snapshot.latitude, snapshot.longitude, snapshot.gatewayMetricsJson
 ];
 
 const toCsv = (rows) => {
@@ -107,6 +116,7 @@ const toCsv = (rows) => {
 function createSensorHistoryStore({ databasePath = ':memory:', database = null } = {}) {
   const db = database || new DatabaseSync(databasePath);
   db.exec(buildHistorySchema());
+  ensureHistoryColumn(db);
   const upsert = db.prepare(`
     INSERT INTO sensor_history (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})
     ON CONFLICT(hour_key) DO UPDATE SET ${columns.slice(1).map(column => `${column}=excluded.${column}`).join(', ')}
@@ -121,7 +131,10 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
   };
 
   const history = ({ from = null, to = null, limit = DEFAULT_LIMIT } = {}) => (
-    select.all(from, from, to, to, clampLimit(limit))
+    select.all(from, from, to, to, clampLimit(limit)).map((row) => ({
+      ...row,
+      gateway_metrics: JSON.parse(row.gateway_metrics_json || '{}')
+    }))
   );
 
   return {

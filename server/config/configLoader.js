@@ -37,7 +37,11 @@ if (fs.existsSync(configPath)) {
       },
       ecowitt: {
         ...config.ecowitt,
-        ...(sanitizedConfig.ecowitt || {})
+        ...(sanitizedConfig.ecowitt || {}),
+        units: {
+          ...config.ecowitt?.units,
+          ...(sanitizedConfig.ecowitt?.units || {})
+        }
       },
       sensorHistory: {
         ...config.sensorHistory,
