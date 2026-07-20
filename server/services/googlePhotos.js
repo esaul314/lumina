@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { readEnvVar, persistEnvVars } = require('../config/env.js');
 
-const CACHE_PATH = path.join(__dirname, '..', 'config', 'google_photos_cache.json');
+const CACHE_PATH = process.env.LUMINA_GOOGLE_PHOTOS_CACHE_PATH
+  || path.join(__dirname, '..', 'config', 'google_photos_cache.json');
 const DEFAULT_RENDER_WIDTH = 2560;
 const DEFAULT_RENDER_HEIGHT = 1440;
 const BASE_URL_TTL_MS = 55 * 60 * 1000;

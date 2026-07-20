@@ -14,6 +14,13 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { pathToFileURL } = require('url');
+
+// Keep regression fixtures away from the daemon's gitignored source-local cache.
+process.env.LUMINA_GOOGLE_PHOTOS_CACHE_PATH = path.join(
+  require('os').tmpdir(),
+  'lumina-google-photos-cache-test.json'
+);
+
 const express = require('express');
 const config = require('./server/config/configLoader.js');
 const { 
@@ -1130,7 +1137,7 @@ assertAsyncTest('fetchMediaItemBytes lazy-downloads and caches non-mock media to
   };
 
   try {
-    const cacheFile = path.join(__dirname, 'server', 'config', 'google_photos_cache.json');
+    const cacheFile = process.env.LUMINA_GOOGLE_PHOTOS_CACHE_PATH;
     const originalCache = fs.existsSync(cacheFile) ? fs.readFileSync(cacheFile, 'utf8') : '[]';
     
     fs.writeFileSync(cacheFile, JSON.stringify([{

@@ -5,6 +5,14 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-20: Isolated Google Photos Cache Regression Fixtures
+- **Goal**: Prevent `npm test` from replacing the live daemon's gitignored Google Photos cache.
+- **Implementation**:
+  - Added `LUMINA_GOOGLE_PHOTOS_CACHE_PATH` as a source-local cache-path override.
+  - Routed regression fixtures to a temporary test cache instead of `server/config/google_photos_cache.json`.
+  - Recovered the live cache and verified the daemon accepts Google Photos loved PATCHes with `200` responses.
+- **Learning**: Runtime cache files must be treated as an injected effect boundary in tests; otherwise a passing fixture can still corrupt a concurrently running daemon.
+
 ### 2026-07-20: Reconciled Permanent Collection Toggle With Confirmed Google Photos Metadata
 - **Goal**: Fix the Independent Rating Deck toggle appearing stuck when changing a Google Photos item.
 - **Implementation**:
