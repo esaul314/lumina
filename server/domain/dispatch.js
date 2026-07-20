@@ -62,18 +62,18 @@ const createWeatherRefreshEffect = (triggerWeatherUpdate) => async () => {
   return undefined;
 };
 
-const createEffectInterpreter = (effectHandlers) => async (effects = []) => {
-  const effectResults = [];
-
-  for (const effect of effects) {
-    effectResults.push({
-      effect,
-      value: await effectHandlers[effect.type]?.(effect)
-    });
+const interpretEffect = (effectHandlers) => async (effectResults, effect) => [
+  ...effectResults,
+  {
+    effect,
+    value: await effectHandlers[effect.type]?.(effect)
   }
+];
 
-  return effectResults;
-};
+const createEffectInterpreter = (effectHandlers) => (effects = []) => effects.reduce(
+  (results, effect) => results.then((effectResults) => interpretEffect(effectHandlers)(effectResults, effect)),
+  Promise.resolve([])
+);
 
 const createEventEmitter = (eventHandlers) => (events = []) => {
   events.forEach((event) => {

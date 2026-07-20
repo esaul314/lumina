@@ -1937,6 +1937,28 @@ assertAsyncTest('createDomainDispatcher interprets kiosk launch effects and keep
   assert.strictEqual(jobResult.effectResults[0].value.job.id, 'recrawl-test');
 });
 
+assertAsyncTest('createDomainDispatcher interprets effects sequentially and preserves result order', async () => {
+  const order = [];
+  const { dispatcher } = createDispatcherHarness({
+    triggerWeatherUpdate: async () => {
+      order.push('refresh-start');
+      await Promise.resolve();
+      order.push('refresh-end');
+    }
+  });
+
+  const result = await dispatcher.dispatchCommand({
+    type: 'patch-state',
+    payload: { autoLocation: true }
+  });
+
+  assert.deepStrictEqual(result.effectResults.map(({ effect }) => effect.type), [
+    'persist',
+    'refresh-weather'
+  ]);
+  assert.deepStrictEqual(order, ['refresh-start', 'refresh-end']);
+});
+
 assertAsyncTest('createDomainDispatcher routes kiosk kill effects through the shared manual-override helper', async () => {
   const manualOverrideValues = [];
   let killCalls = 0;
