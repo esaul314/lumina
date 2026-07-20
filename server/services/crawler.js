@@ -8,11 +8,11 @@ const { readEnvVar } = require('../config/env.js');
 
 // Search queries mapping for Unsplash keyless napi search
 const searchQueries = {
-  'Scenic Nature': 'scenic nature landscape mountains forest',
-  'Cosmic Space': 'cosmic space nebula galaxy stars',
-  'Abstract Art': 'abstract art painting minimalist geometric',
-  'Liminal Spaces': 'liminal spaces empty corridor backrooms',
-  'AI Creations': 'surreal digital art generative midjourney cyberpunk futuristic'
+  'Scenic Nature': ['scenic nature', 'landscape', 'mountains', 'forest'],
+  'Cosmic Space': ['cosmic space', 'nebula', 'galaxy', 'stars'],
+  'Abstract Art': ['abstract art', 'abstract painting', 'minimalist art', 'geometric abstract'],
+  'Liminal Spaces': ['liminal spaces', 'empty corridor', 'backrooms'],
+  'AI Creations': ['surreal digital art', 'generative art', 'midjourney landscape', 'cyberpunk landscape']
 };
 
 const tumblrApiKey = () => readEnvVar('TUMBLR_API_KEY');
