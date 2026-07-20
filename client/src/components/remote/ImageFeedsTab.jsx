@@ -692,13 +692,16 @@ function ImageFeedsTab({
                     <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>Permanent Collection</div>
                     <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>Loved photos will never be pruned during crawls</div>
                   </div>
-                  <div
+                  <button
+                    type="button"
                     className="switch-wrapper"
+                    aria-label={`${photo.loved ? 'Remove' : 'Add'} photo ${photo.loved ? 'from' : 'to'} Permanent Collection`}
+                    aria-pressed={Boolean(photo.loved)}
                     onClick={() => actions.setLoved(photo.url, !photo.loved)}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: 'pointer', padding: 0, border: 0, background: 'transparent' }}
                   >
                     <span className={`switch-slider ${photo.loved ? 'checked' : ''}`}></span>
-                  </div>
+                  </button>
                 </div>
 
                 <div style={{ fontSize: '0.72rem', opacity: 0.4, textAlign: 'center' }}>

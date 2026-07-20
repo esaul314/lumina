@@ -105,6 +105,23 @@ export function patchPhotoInSnapshot(snapshot, url, patch) {
   });
 }
 
+/**
+ * Prefer the server's canonical photo identity and metadata after a mutation.
+ * This matters for source-local photos such as Google Photos, whose durable
+ * metadata is keyed by the proxy-backed photo returned by the server.
+ */
+export function getConfirmedPhotoPatch(requestedUrl, requestedPatch, response) {
+  const confirmedPhoto = response?.photo;
+
+  return {
+    url: confirmedPhoto?.url || requestedUrl,
+    patch: {
+      ...requestedPatch,
+      ...(confirmedPhoto?.loved !== undefined ? { loved: confirmedPhoto.loved } : {})
+    }
+  };
+}
+
 export function getCurrentFrame(state) {
   return state?.currentFrame || buildFallbackFrame(state || {});
 }

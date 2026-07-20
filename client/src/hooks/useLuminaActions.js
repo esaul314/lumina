@@ -17,7 +17,11 @@ import {
   startRecrawlJob,
   startVisionAnalysisJob
 } from '../api/luminaClient';
-import { normalizeSnapshot, patchPhotoInSnapshot } from '../state/frameSelectors';
+import {
+  getConfirmedPhotoPatch,
+  normalizeSnapshot,
+  patchPhotoInSnapshot
+} from '../state/frameSelectors';
 import {
   applyCategorySelection,
   applyFeedSourceConfigPatch,
@@ -78,8 +82,9 @@ export function useLuminaActions(socket, setState) {
     },
     setLoved: (url, loved) => {
       void runAction(async () => {
-        await patchPhoto({ url, loved });
-        applyPhotoPatch(url, { loved });
+        const response = await patchPhoto({ url, loved });
+        const confirmed = getConfirmedPhotoPatch(url, { loved }, response);
+        applyPhotoPatch(confirmed.url, confirmed.patch);
       });
     },
     ratePhoto: (url, rating) => {
