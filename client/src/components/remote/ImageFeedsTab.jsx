@@ -669,13 +669,21 @@ function ImageFeedsTab({
                       <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>Allow Side-by-Side Pairing</div>
                       <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>Pair this portrait with another side-by-side</div>
                     </div>
-                    <div 
+                    <button
+                      type="button"
                       className="switch-wrapper"
+                      aria-label={`${photo.preventPairing ? 'Allow' : 'Disallow'} side-by-side pairing`}
+                      aria-pressed={!photo.preventPairing}
                       onClick={() => actions.setPreventPairing(photo.url, !photo.preventPairing)}
-                      style={{ cursor: 'pointer' }}
+                      style={{
+                        cursor: 'pointer',
+                        padding: 0,
+                        border: 0,
+                        background: 'transparent'
+                      }}
                     >
                       <span className={`switch-slider ${!photo.preventPairing ? 'checked' : ''}`}></span>
-                    </div>
+                    </button>
                   </div>
                 )}
 

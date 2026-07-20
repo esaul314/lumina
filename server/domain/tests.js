@@ -611,6 +611,39 @@ function runDomainTests({ logSuite, assertTest }) {
     }]);
   });
 
+  assertTest('external Google Photos pairing metadata can be cleared through the shared reducer path', () => {
+    const googleUrl = '/api/google-photos/media/picker-456?w=2560&h=1440';
+    const state = createState({
+      library: {
+        collections: createState().library.collections,
+        externalCollections: {
+          'Google Photos': [{ url: googleUrl, preventPairing: true }]
+        },
+        photosList: [{ url: googleUrl, preventPairing: true }]
+      },
+      playback: {
+        selectedCategories: ['Google Photos'],
+        activePhotoUrl: googleUrl,
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    });
+
+    const result = reduceDomainCommand(state, {
+      type: 'set-photo-prevent-pairing',
+      payload: { url: googleUrl, preventPairing: false }
+    });
+
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].preventPairing, false);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'persist-external-photo-metadata',
+      payload: {
+        url: googleUrl,
+        metadata: { preventPairing: false }
+      }
+    }]);
+  });
+
   assertTest('loved photo updates flow through the shared reducer and persistence path', () => {
     const result = reduceDomainCommand(createState(), {
       type: 'set-photo-loved',
