@@ -5,6 +5,19 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-20: Prevented Black Images in Split Portrait Mode & Fixed Stuffed Pool Keyword Arrays
+- **Goal**: Prevent black image boxes in split portrait mode for Google Photos (or any feed) and fix single-string keyword query stuffing across core photography pools.
+- **Implementation**:
+  - **Keyword Array De-stuffing**: Refactored `defaultKeywords` in `server/config/state.js`, `searchQueries` in `server/services/crawler.js`, and `searchKeywords`/`feedConfigs` in `curated_collections.json` from single concatenated strings (e.g. `["abstract art painting minimalist geometric"]`) into clean, distinct keyword arrays (e.g. `["abstract art", "abstract painting", "minimalist art", "geometric abstract"]`).
+  - **Zero-Byte Media Proxy Hardening**: Updated `fetchMediaItemBytes` in `server/services/googlePhotos.js` to validate `buffer.length > 0` on cache reads and writes. Any empty or corrupted disk cache files are automatically purged and re-fetched from Google Photos.
+  - **Live Image Preloading & DOM Error Auto-Recovery**:
+    - Added an 8-second timeout guard and zero-dimension check to `loadImageMeta` in `Dashboard.jsx`.
+    - Removed early cache returns in `getImageMeta` so every secondary image URL is empirically verified before mounting.
+    - Added DOM-level `onError` listeners inside `.slide-half`. If a mounted secondary split image fails to render in the browser, the error handler automatically reports the broken photo and collapses the active slide into single-frame mode (`isSplit: false`), guaranteeing a black box never stays on screen.
+  - **Google Photos Pairing Metadata Coverage**: Added a domain reducer regression test in `server/domain/tests.js` verifying `set-photo-prevent-pairing` updates on external Google Photos collections.
+- **Learning**: CSS `background-image` fails silently without firing DOM error events on container elements. Adding hidden `<img>` tags with `onError` handlers alongside CSS background styling provides a deterministic DOM error recovery hook to collapse broken multi-panel layouts into single-frame mode automatically.
+- **Verification**: `npm test` passed 236/236 assertions cleanly; client production build succeeded in 3.75s.
+
 ### 2026-07-20: Composed Ordered Effect Interpretation
 - **Goal**: Continue the Step 4 functional-core cleanup by removing the remaining mutable loop from dispatcher effect interpretation without changing effect semantics.
 - **Implementation**:
