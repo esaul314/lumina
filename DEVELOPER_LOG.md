@@ -1166,6 +1166,14 @@ The screensaver automatically maps live conditions and global sentiment to activ
 
 ---
 
+### 2026-07-20: Clarified Google Photos Picker as an External Source
+* **Goal**: Remove the implication that Google Photos is configured inside whichever scenic pool appears nearby in the Image Feeds tab.
+* **Changes**:
+  * Moved the Google Photos controls to the top of Image Feeds in a separately labelled External Photo Source section.
+  * Replaced the obsolete album-link wording with an accurate explanation of the user-initiated Google Photos Picker flow.
+  * Added a small pure copy/status module and regression coverage so the Picker wording continues to distinguish external selections from scenic pools.
+* **Learning**: When two controls share a page but operate on different data lifecycles, visual grouping and explicit ownership language are part of the functional contract, not cosmetic detail.
+
 ## 🧪 Verification & Diagnostics
 
 To run the regression suite, run:

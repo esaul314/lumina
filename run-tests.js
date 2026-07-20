@@ -868,6 +868,17 @@ assertTest('aggressive Chromium acceleration profile remains available as an opt
 
 logSuite('Google Photos Picker Cache');
 
+assertAsyncTest('Google Photos Picker copy keeps the external source separate from scenic pools', async () => {
+  const {
+    GOOGLE_PHOTOS_PICKER_COPY,
+    getGooglePhotosPickerStatus
+  } = await importClientModule('./client/src/components/remote/googlePhotosPicker.js');
+
+  assert.match(GOOGLE_PHOTOS_PICKER_COPY.description, /independent of the scenic pools/i);
+  assert.strictEqual(getGooglePhotosPickerStatus(false).actionLabel, 'Set up Google Photos Picker');
+  assert.match(getGooglePhotosPickerStatus(true).description, /not added to the selected scenic pool/i);
+});
+
 assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {
   const item = buildCachedMediaItem({
     id: 'picker-123',
