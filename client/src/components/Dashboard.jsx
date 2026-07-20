@@ -21,9 +21,27 @@ import { convertPressure, convertTemperature } from '../state/environmentHistory
  * Pure Promise wrapper around native HTML Image element loading to extract dimensions and orientation.
  * Always binds event handlers before setting src to ensure cached loads are handled correctly.
  */
-const loadImageMeta = (url) => new Promise((resolve, reject) => {
+const loadImageMeta = (url, timeoutMs = 8000) => new Promise((resolve, reject) => {
   const img = new window.Image();
+  let timer = null;
+
+  const cleanup = () => {
+    if (timer) clearTimeout(timer);
+    img.onload = null;
+    img.onerror = null;
+  };
+
+  timer = setTimeout(() => {
+    cleanup();
+    reject(new Error(`Image load timed out after ${timeoutMs}ms: ${url}`));
+  }, timeoutMs);
+
   img.onload = () => {
+    cleanup();
+    if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+      reject(new Error(`Image loaded with zero dimensions: ${url}`));
+      return;
+    }
     resolve({
       url,
       w: img.naturalWidth,
@@ -31,7 +49,12 @@ const loadImageMeta = (url) => new Promise((resolve, reject) => {
       orientation: img.naturalHeight > img.naturalWidth ? 'portrait' : 'landscape'
     });
   };
-  img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+
+  img.onerror = () => {
+    cleanup();
+    reject(new Error(`Failed to load image: ${url}`));
+  };
+
   img.src = url;
 });
 
@@ -267,20 +290,21 @@ function Dashboard({ state, socket, connectionInfo }) {
     };
 
     const addSplitSlide = (photo1, photo2) => {
+      if (!photo1?.url || !photo2?.url) return;
       const dims1 = imageDimensionsCache.current[photo1.url] || {};
       const dims2 = imageDimensionsCache.current[photo2.url] || {};
       setActiveSlides(prev => {
         const newSlide = {
           url: photo1.url,
-          title: photo1.title,
-          author: photo1.author,
+          title: photo1.title || 'Google Photos Cast',
+          author: photo1.author || 'Lumina Google Cast',
           w: dims1.w,
           h: dims1.h,
           cropPercent: photo1.cropPercent,
           cropPositionY: photo1.cropPositionY,
           url2: photo2.url,
-          title2: photo2.title,
-          author2: photo2.author,
+          title2: photo2.title || 'Google Photos Cast',
+          author2: photo2.author || 'Lumina Google Cast',
           w2: dims2.w,
           h2: dims2.h,
           cropPercent2: photo2.cropPercent,
@@ -296,14 +320,6 @@ function Dashboard({ state, socket, connectionInfo }) {
     };
 
     const getImageMeta = async (url) => {
-      if (imageOrientationCache.current[url] && imageDimensionsCache.current[url]) {
-        return {
-          url,
-          w: imageDimensionsCache.current[url].w,
-          h: imageDimensionsCache.current[url].h,
-          orientation: imageOrientationCache.current[url]
-        };
-      }
       const meta = await loadImageMeta(url);
       imageOrientationCache.current[url] = meta.orientation;
       imageDimensionsCache.current[url] = { w: meta.w, h: meta.h };
@@ -665,6 +681,17 @@ function Dashboard({ state, socket, connectionInfo }) {
               {isSplit ? (
                 <div className="split-slide-container">
                   <div className="slide-half">
+                    {slide.url && (
+                      <img
+                        src={slide.url}
+                        style={{ display: 'none' }}
+                        onError={() => {
+                          console.warn('Split slide primary image failed in DOM:', slide.url);
+                          socket.emit('mark-photo-broken', { url: slide.url });
+                          socket.emit('next-photo');
+                        }}
+                      />
+                    )}
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
                       style={getSplitImageStyle(slide.url, slide.w, slide.h, slide.cropPercent, slide.cropPositionY)}
@@ -675,6 +702,17 @@ function Dashboard({ state, socket, connectionInfo }) {
                     </div>
                   </div>
                   <div className="slide-half">
+                    {slide.url2 && (
+                      <img
+                        src={slide.url2}
+                        style={{ display: 'none' }}
+                        onError={() => {
+                          console.warn('Split slide secondary image failed in DOM:', slide.url2);
+                          socket.emit('mark-photo-broken', { url: slide.url2 });
+                          setActiveSlides(prev => prev.map(s => s.key === slide.key ? { ...s, isSplit: false } : s));
+                        }}
+                      />
+                    )}
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
                       style={getSplitImageStyle(slide.url2, slide.w2, slide.h2, slide.cropPercent2, slide.cropPositionY2)}

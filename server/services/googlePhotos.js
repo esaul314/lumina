@@ -743,10 +743,15 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
   const localFilePath = getLocalMediaFilePath(mediaItemId);
   if (fs.existsSync(localFilePath)) {
     try {
-      return {
-        buffer: fs.readFileSync(localFilePath),
-        contentType: cachedItem?.mimeType || 'image/jpeg'
-      };
+      const buffer = fs.readFileSync(localFilePath);
+      if (buffer.length > 0) {
+        return {
+          buffer,
+          contentType: cachedItem?.mimeType || 'image/jpeg'
+        };
+      }
+      console.warn(`Google Photos Service: Local cached file for item ${mediaItemId} is 0 bytes, deleting and re-fetching.`);
+      fs.unlinkSync(localFilePath);
     } catch (err) {
       console.warn(`Google Photos Service: Failed to read local cached file for item ${mediaItemId}, falling back to fetch:`, err.message);
     }
@@ -793,7 +798,7 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
 
     if (res.ok) {
       const buffer = Buffer.from(await res.arrayBuffer());
-      if (!mediaItemId.startsWith('MOCK_')) {
+      if (!mediaItemId.startsWith('MOCK_') && buffer.length > 0) {
         fs.writeFileSync(localFilePath, buffer);
       }
       return {
