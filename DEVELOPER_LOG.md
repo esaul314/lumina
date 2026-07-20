@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-20: Composed Ordered Effect Interpretation
+- **Goal**: Continue the Step 4 functional-core cleanup by removing the remaining mutable loop from dispatcher effect interpretation without changing effect semantics.
+- **Implementation**:
+  - Replaced the dispatcher’s effect loop with a named `interpretEffect` step composed through promise chaining and `reduce`.
+  - Preserved strict effect order and the existing `{ effect, value }` result contract, including asynchronous effect handlers.
+  - Added regression coverage proving ordered interpretation and result ordering for a state patch that emits persistence and weather-refresh effects.
+- **Learning**: Sequential effects are inherently ordered, so a promise-reduce pipeline makes that sequencing visible while keeping the domain reducer pure and the runtime effects explicit.
+- **Verification**:
+  - `npm test` passed.
+
 ### 2026-07-19: Preserve Loved Google Photos Across Picker Resyncs
 - **Goal**: Keep Google Photos consistent with the other feeds’ permanent-collection behavior while retaining offline playback during authentication or Picker outages.
 - **Implementation**:
