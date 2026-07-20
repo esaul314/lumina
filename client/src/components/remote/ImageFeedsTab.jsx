@@ -127,59 +127,6 @@ function ImageFeedsTab({
 
   return (
     <>
-      <section className="remote-card" aria-labelledby="google-photos-picker-title" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-          <span style={{ fontSize: '1.4rem' }}>🖼️</span>
-          <div>
-            <div style={{ fontSize: '0.68rem', color: '#8ab4f8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              {GOOGLE_PHOTOS_PICKER_COPY.eyebrow}
-            </div>
-            <span id="google-photos-picker-title" className="remote-section-title" style={{ color: '#4285f4', marginBottom: 0 }}>
-              {GOOGLE_PHOTOS_PICKER_COPY.title}
-            </span>
-          </div>
-        </div>
-        <p style={{ fontSize: '0.85rem', lineHeight: 1.4, color: 'rgba(255,255,255,0.7)', marginBottom: '8px' }}>
-          {googlePhotosPickerStatus.description}
-        </p>
-        {!isSavedEnv && (
-          <p style={{ fontSize: '0.75rem', lineHeight: 1.4, color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
-            {GOOGLE_PHOTOS_PICKER_COPY.credentialNote}
-          </p>
-        )}
-        {isSavedEnv ? (
-          <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid #10b981', padding: '12px', borderRadius: '12px', color: '#10b981', textAlign: 'center', fontSize: '0.9rem' }}>
-            ✓ {googlePhotosPickerStatus.heading}.
-          </div>
-        ) : (
-          <form onSubmit={saveGoogleCredentials} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>CLIENT ID</label>
-              <input
-                type="password"
-                placeholder="Enter Google Client ID"
-                value={googleClientId}
-                onChange={(e) => setGoogleClientId(e.target.value)}
-                style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>CLIENT SECRET</label>
-              <input
-                type="password"
-                placeholder="Enter Google Client Secret"
-                value={googleClientSecret}
-                onChange={(e) => setGoogleClientSecret(e.target.value)}
-                style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
-              />
-            </div>
-            <button type="submit" className="remote-btn" style={{ background: '#4285f4', borderColor: '#4285f4', fontWeight: 600 }}>
-              {googlePhotosPickerStatus.actionLabel}
-            </button>
-          </form>
-        )}
-      </section>
-
       <div className="remote-card">
         <span className="remote-section-title">Curated Scenic Categories</span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -996,6 +943,66 @@ function ImageFeedsTab({
           })}
         </div>
       </div>
+
+      <section className="remote-card" aria-labelledby="google-photos-picker-title" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>
+        <details>
+          <summary style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', listStyle: 'none' }}>
+            <span style={{ fontSize: '1.4rem' }}>🖼️</span>
+            <span>
+              <span style={{ display: 'block', fontSize: '0.68rem', color: '#8ab4f8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                {GOOGLE_PHOTOS_PICKER_COPY.eyebrow}
+              </span>
+              <span id="google-photos-picker-title" className="remote-section-title" style={{ color: '#4285f4', marginBottom: 0 }}>
+                {GOOGLE_PHOTOS_PICKER_COPY.title}
+              </span>
+            </span>
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)' }}>
+              Optional · expand to configure
+            </span>
+          </summary>
+          <div style={{ paddingTop: '16px' }}>
+            <p style={{ fontSize: '0.85rem', lineHeight: 1.4, color: 'rgba(255,255,255,0.7)', marginBottom: '8px' }}>
+              {googlePhotosPickerStatus.description}
+            </p>
+            {!isSavedEnv && (
+              <p style={{ fontSize: '0.75rem', lineHeight: 1.4, color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>
+                {GOOGLE_PHOTOS_PICKER_COPY.credentialNote}
+              </p>
+            )}
+            {isSavedEnv ? (
+              <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid #10b981', padding: '12px', borderRadius: '12px', color: '#10b981', textAlign: 'center', fontSize: '0.9rem' }}>
+                ✓ {googlePhotosPickerStatus.heading}.
+              </div>
+            ) : (
+              <form onSubmit={saveGoogleCredentials} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>CLIENT ID</label>
+                  <input
+                    type="password"
+                    placeholder="Enter Google Client ID"
+                    value={googleClientId}
+                    onChange={(e) => setGoogleClientId(e.target.value)}
+                    style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>CLIENT SECRET</label>
+                  <input
+                    type="password"
+                    placeholder="Enter Google Client Secret"
+                    value={googleClientSecret}
+                    onChange={(e) => setGoogleClientSecret(e.target.value)}
+                    style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                  />
+                </div>
+                <button type="submit" className="remote-btn" style={{ background: '#4285f4', borderColor: '#4285f4', fontWeight: 600 }}>
+                  {googlePhotosPickerStatus.actionLabel}
+                </button>
+              </form>
+            )}
+          </div>
+        </details>
+      </section>
 
     </>
   );

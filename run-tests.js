@@ -877,6 +877,14 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(GOOGLE_PHOTOS_PICKER_COPY.description, /independent of the scenic pools/i);
   assert.strictEqual(getGooglePhotosPickerStatus(false).actionLabel, 'Set up Google Photos Picker');
   assert.match(getGooglePhotosPickerStatus(true).description, /not added to the selected scenic pool/i);
+
+  const imageFeedsSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/components/remote/ImageFeedsTab.jsx'),
+    'utf8'
+  );
+  assert.ok(imageFeedsSource.indexOf('Curated Scenic Categories') < imageFeedsSource.indexOf('google-photos-picker-title'));
+  assert.match(imageFeedsSource, /<details>\s*<summary/);
+  assert.doesNotMatch(imageFeedsSource, /<details\s+open/);
 });
 
 assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {

@@ -1174,6 +1174,14 @@ The screensaver automatically maps live conditions and global sentiment to activ
   * Added a small pure copy/status module and regression coverage so the Picker wording continues to distinguish external selections from scenic pools.
 * **Learning**: When two controls share a page but operate on different data lifecycles, visual grouping and explicit ownership language are part of the functional contract, not cosmetic detail.
 
+### 2026-07-20: Folded Google Photos Picker Out of the Primary Image Feeds View
+* **Goal**: Keep the rarely used Google Photos Picker from occupying the first visible section of Image Feeds.
+* **Changes**:
+  * Moved the Picker section below the scenic feed controls.
+  * Wrapped it in a native, collapsed-by-default `<details>` disclosure with an explicit “Optional” affordance.
+  * Added regression coverage for its placement and default collapsed state.
+* **Learning**: Native disclosure controls provide the smallest state model for infrequent configuration without sacrificing keyboard accessibility.
+
 ## 🧪 Verification & Diagnostics
 
 To run the regression suite, run:
