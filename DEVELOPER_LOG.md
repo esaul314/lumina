@@ -5,6 +5,14 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-20: Reconciled Permanent Collection Toggle With Confirmed Google Photos Metadata
+- **Goal**: Fix the Independent Rating Deck toggle appearing stuck when changing a Google Photos item.
+- **Implementation**:
+  - Reconciled the initiating client snapshot from the canonical `photo` returned by `PATCH /api/photos`, including the proxy-backed Google Photos URL and confirmed `loved` value.
+  - Changed the deck's Permanent Collection control from a clickable `div` to an accessible button with `aria-pressed` state and an explicit action label.
+  - Added pure client-state regression coverage for confirmed source-local photo patches and the optimistic fallback path.
+- **Learning**: Source-local metadata updates need a small response-confirmation boundary in the client; optimistic updates remain immediate, while the server response resolves identity and final metadata without adding another transport-specific branch.
+
 ### 2026-07-20: Prevented Black Images in Split Portrait Mode & Fixed Stuffed Pool Keyword Arrays
 - **Goal**: Prevent black image boxes in split portrait mode for Google Photos (or any feed) and fix single-string keyword query stuffing across core photography pools.
 - **Implementation**:

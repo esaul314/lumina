@@ -2168,8 +2168,25 @@ async function runClientStateTests() {
   });
 
   const {
+    getConfirmedPhotoPatch,
     normalizeSnapshot: normalizeClientSnapshot
   } = await importClientModule('./client/src/state/frameSelectors.js');
+
+  assertTest('photo mutation UI reconciles source-local metadata from the server response', () => {
+    assert.deepStrictEqual(
+      getConfirmedPhotoPatch('requested-url', { loved: true }, {
+        photo: { url: '/api/google-photos/media/picker-1?w=2560&h=1440', loved: true }
+      }),
+      {
+        url: '/api/google-photos/media/picker-1?w=2560&h=1440',
+        patch: { loved: true }
+      }
+    );
+    assert.deepStrictEqual(
+      getConfirmedPhotoPatch('requested-url', { loved: false }, null),
+      { url: 'requested-url', patch: { loved: false } }
+    );
+  });
 
   const {
     applyCategorySelection,
