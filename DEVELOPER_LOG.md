@@ -1242,6 +1242,18 @@ The screensaver automatically maps live conditions and global sentiment to activ
   * Added regression coverage for its placement and default collapsed state.
 * **Learning**: Native disclosure controls provide the smallest state model for infrequent configuration without sacrificing keyboard accessibility.
 
+### 2026-07-20: Indexed Reducer Command Families
+* **Goal**: Continue the functional refactor Step 4 readability pass by removing repeated command-family lookup work without hiding reducer behavior.
+* **Changes**:
+  * Added a pure reducer-family interpreter builder that indexes declarative command entries once in a `Map`.
+  * Preserved explicit per-family `now`/`rng` environment adapters and no-op behavior for unsupported, inherited, and null command keys.
+  * Added regression coverage for the indexed boundary and deterministic smart playback selection.
+  * Updated both roadmap documents with the new Step 4 checkpoint.
+* **Verification**:
+  * `npm test`: 213 tests executed, 212 assertions passed, 0 failed; the existing sandbox-only live Unix-socket smoke test was skipped with `listen EPERM`.
+  * `npm run lint`: 0 errors; the two existing unused-variable warnings remain.
+  * `.agents/skills/lumina-diagnostics/scripts/diagnose.sh`: completed successfully; port 5000 and the daemon were inactive, and Mutter DBus was unavailable in the non-GNOME session.
+
 ## 🧪 Verification & Diagnostics
 
 To run the regression suite, run:
