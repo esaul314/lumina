@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-07-18
+Last updated: 2026-07-20
 
 ## Implementation Companion
 
@@ -22,6 +22,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: implementation companion Step 3. `server/app.js` now delegates active-feed refresh, environment refresh, kiosk/browser lifecycle, and idle-daemon orchestration to dedicated runtime modules.
 - Next: continue the Phase 1 implementation companion with Step 4, focused on extending the new reducer-local combinators, shared dispatch-route shell, dispatcher readability patterns, route-decode algebra, and declarative listener/command specs only where they remove real repeated command/effect ceremony. The latest slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table in `server/domain/commands.js`, aligned the overlapping pool keyword/feed-config REST patch specs with their durable socket command specs through one shared pool transport family, collapsed the remaining photo/pool patch transport shapers in `server/domain/commands.js` onto one shared builder, collapsed the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` onto one shared field-entry interpreter, and now interpret reducer effects through an ordered promise-reduce pipeline so sequencing remains explicit without a mutable loop. The broader Step 4 readability pass remains active and intentionally selective; future work should continue only where repeated command/effect ceremony is still materially clearer as shared data or small interpreters than as explicit route or reducer code.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 3 are complete and Step 4 is the active refactor checkpoint.
+
+Implementation note (2026-07-20): the latest Step 4 slice routes simple, photo, feed, pool, playback, and `patch-state` commands through one ordered reducer-family table with explicit `now`/`rng` environment adapters. Unsupported and inherited object keys remain unchanged no-ops.
 
 ## Architectural Rule
 

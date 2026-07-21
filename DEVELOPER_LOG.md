@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-20: Route Reducer Commands Through One Family Interpreter
+
+- **Goal**: Continue the active Phase 1 Step 4 functional-core cleanup by removing repeated command-family lookup branches from the domain reducer.
+- **Implementation**:
+  - Added one ordered reducer-family specification table for simple, photo, feed, pool, playback, and `patch-state` commands.
+  - Kept family-specific `now` and `rng` requirements explicit through small pure environment adapters, while simple and pool reducers receive no unnecessary context.
+  - Hardened family lookup against inherited object keys and preserved unsupported-command and null-command no-op semantics.
+  - Added regression coverage for unsupported command names, inherited keys such as `toString`, and null commands.
+- **Learning**: Once command families already have stable declarative boundaries, the dispatch boundary can be expressed as data plus a tiny interpreter. The explicit environment adapter keeps composition useful without hiding which reducers depend on time or randomness.
+- **Verification**: `npm run lint` passed with two pre-existing warnings; `npm test` passed 210 assertions and the sensor-adapter suite passed 11/11. The live socket smoke test remains skipped under the sandbox's known `listen EPERM` limitation.
+
 ### 2026-07-20: Isolated Google Photos Cache Regression Fixtures
 - **Goal**: Prevent `npm test` from replacing the live daemon's gitignored Google Photos cache.
 - **Implementation**:
