@@ -70,10 +70,14 @@ const interpretEffect = (effectHandlers) => async (effectResults, effect) => [
   }
 ];
 
-const createEffectInterpreter = (effectHandlers) => (effects = []) => effects.reduce(
-  (results, effect) => results.then((effectResults) => interpretEffect(effectHandlers)(effectResults, effect)),
-  Promise.resolve([])
-);
+const createEffectInterpreter = (effectHandlers) => {
+  const interpret = interpretEffect(effectHandlers);
+
+  return (effects = []) => effects.reduce(
+    (results, effect) => results.then((effectResults) => interpret(effectResults, effect)),
+    Promise.resolve([])
+  );
+};
 
 const createEventEmitter = (eventHandlers) => (events = []) => {
   events.forEach((event) => {
@@ -209,5 +213,6 @@ function createDomainDispatcher({
 }
 
 module.exports = {
-  createDomainDispatcher
+  createDomainDispatcher,
+  createEffectInterpreter
 };

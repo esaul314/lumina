@@ -48,7 +48,10 @@ const {
 const { updatePhotoCrop } = require('./server/config/collections.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
-const { createDomainDispatcher } = require('./server/domain/dispatch.js');
+const {
+  createDomainDispatcher,
+  createEffectInterpreter
+} = require('./server/domain/dispatch.js');
 const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
@@ -1964,6 +1967,35 @@ assertAsyncTest('createDomainDispatcher interprets effects sequentially and pres
     'refresh-weather'
   ]);
   assert.deepStrictEqual(order, ['refresh-start', 'refresh-end']);
+});
+
+assertAsyncTest('createEffectInterpreter captures its effect step and preserves sequential handler order', async () => {
+  const order = [];
+  const interpretEffects = createEffectInterpreter({
+    first: async () => {
+      order.push('first-start');
+      await Promise.resolve();
+      order.push('first-end');
+      return 'first-result';
+    },
+    second: () => {
+      order.push('second');
+      return 'second-result';
+    }
+  });
+
+  const result = await interpretEffects([
+    { type: 'first' },
+    { type: 'second' },
+    { type: 'unhandled' }
+  ]);
+
+  assert.deepStrictEqual(order, ['first-start', 'first-end', 'second']);
+  assert.deepStrictEqual(result.map(({ value }) => value), [
+    'first-result',
+    'second-result',
+    undefined
+  ]);
 });
 
 assertAsyncTest('createDomainDispatcher routes kiosk kill effects through the shared manual-override helper', async () => {
