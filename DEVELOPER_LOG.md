@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-20: Capture the Dispatcher Effect Interpreter Once
+
+- **Goal**: Continue the active Phase 1 Step 4 cleanup by making the ordered effect pipeline’s partial application explicit.
+- **Implementation**:
+  - Capture the effect handler interpreter once when creating the sequential reducer, rather than rebuilding that partially applied function for every effect.
+  - Preserve ordered asynchronous execution, result ordering, and silent handling of unregistered effect types.
+  - Added direct regression coverage for delayed effect sequencing, result order, and unhandled effects.
+- **Learning**: A small closure can make partial application visible at the boundary while keeping the promise-reduce interpreter straightforward and allocation-free per effect.
+- **Verification**: `npm test` and `npm run lint` are required before completion.
+
 ### 2026-07-20: Route Reducer Commands Through One Family Interpreter
 
 - **Goal**: Continue the active Phase 1 Step 4 functional-core cleanup by removing repeated command-family lookup branches from the domain reducer.

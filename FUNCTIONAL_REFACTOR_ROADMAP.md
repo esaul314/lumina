@@ -27,7 +27,7 @@ Current checkpoint:
 - The active work has moved into Step 4: make the shared command/effect pipeline more composable and legible without hiding straightforward reducer updates.
 - The latest Step 4 slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, then collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, then aligned the overlapping pool keyword/feed-config REST patch specs with their durable socket command specs through one shared pool transport family, then collapsed the remaining photo/pool patch transport shapers in `server/domain/commands.js` onto one shared builder, then collapsed the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` onto one shared field-entry interpreter, and now interpret reducer effects through an ordered promise-reduce pipeline so sequencing remains explicit without a mutable loop.
 
-Latest Step 4 note (2026-07-20): reducer command families now share one pure table interpreter. Family-specific time/randomness context is supplied through explicit small adapters, preserving readable functional boundaries without adding context to simple or pool commands.
+Latest Step 4 note (2026-07-20): reducer command families now share one pure table interpreter. Family-specific time/randomness context is supplied through explicit small adapters, preserving readable functional boundaries without adding context to simple or pool commands. The dispatcher now captures its partially applied effect interpreter once before the ordered promise-reduce sequence, keeping effect order and unhandled-effect behavior explicit.
 
 ## Coding Philosophy, Conventions, Style, and Objectives
 
@@ -237,6 +237,7 @@ Progress note:
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity. Future work should continue only when a shared spec or helper is genuinely smaller and clearer than the explicit route or reducer code it replaces.
 - The latest Step 4 slice routes simple, photo, feed, pool, playback, and patch commands through one ordered reducer-family interpreter, with regression coverage for unsupported and inherited command keys.
+- The latest Step 4 slice captures the dispatcher effect interpreter once before sequential promise reduction, with regression coverage for delayed handler ordering, aligned results, and unhandled effects.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 
