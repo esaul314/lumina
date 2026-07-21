@@ -1143,21 +1143,24 @@ const REDUCER_FAMILY_SPECS = [
   }
 ];
 
-const isReducerFor = (commandType) => ({ reducers }) => (
-  Object.prototype.hasOwnProperty.call(reducers, commandType)
-  && typeof reducers[commandType] === 'function'
-);
+const createReducerFamilyInterpreter = (families) => {
+  const reducerEntries = families.flatMap(({ reducers, buildEnv }) => (
+    Object.entries(reducers)
+      .filter(([, reducer]) => typeof reducer === 'function')
+      .map(([type, reducer]) => [type, { reducer, buildEnv }])
+  ));
+  const reducerByType = new Map(reducerEntries);
 
-const interpretCommandFamilies = (state, command, env) => {
-  const family = REDUCER_FAMILY_SPECS.find(isReducerFor(command?.type));
+  return (state, command, env) => {
+    const entry = reducerByType.get(command?.type);
 
-  if (!family) {
-    return unchangedResult(state);
-  }
-
-  const reducer = family.reducers[command.type];
-  return reducer(state, command, family.buildEnv ? family.buildEnv(env) : undefined);
+    return entry
+      ? entry.reducer(state, command, entry.buildEnv ? entry.buildEnv(env) : undefined)
+      : unchangedResult(state);
+  };
 };
+
+const interpretCommandFamilies = createReducerFamilyInterpreter(REDUCER_FAMILY_SPECS);
 
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();

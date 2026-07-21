@@ -352,10 +352,10 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
   });
 
-  assertTest('reducer command-family interpreter preserves no-op behavior for unsupported commands', () => {
+  assertTest('reducer command-family interpreter indexes supported commands without widening unknown keys', () => {
     const state = createState();
 
-    ['unknown-command', 'toString'].forEach((type) => {
+    ['unknown-command', 'toString', '__proto__'].forEach((type) => {
       const result = reduceDomainCommand(state, { type });
 
       assert.strictEqual(result.nextState, state);
@@ -365,6 +365,19 @@ function runDomainTests({ logSuite, assertTest }) {
 
     const nullCommandResult = reduceDomainCommand(state, null);
     assert.strictEqual(nullCommandResult.nextState, state);
+  });
+
+  assertTest('reducer command-family interpreter keeps family environment adapters explicit', () => {
+    const result = reduceDomainCommand(createState(), {
+      type: 'advance-photo',
+      payload: { direction: 'next', strategy: 'smart' }
+    }, {
+      now: new Date('2026-06-27T12:00:00'),
+      rng: () => 0
+    });
+
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
   assertTest('shared socket state-patch specs compose the patch-state command boundary declaratively', () => {
