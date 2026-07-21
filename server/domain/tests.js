@@ -352,6 +352,21 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
   });
 
+  assertTest('reducer command-family interpreter preserves no-op behavior for unsupported commands', () => {
+    const state = createState();
+
+    ['unknown-command', 'toString'].forEach((type) => {
+      const result = reduceDomainCommand(state, { type });
+
+      assert.strictEqual(result.nextState, state);
+      assert.deepStrictEqual(result.events, []);
+      assert.deepStrictEqual(result.effects, []);
+    });
+
+    const nullCommandResult = reduceDomainCommand(state, null);
+    assert.strictEqual(nullCommandResult.nextState, state);
+  });
+
   assertTest('shared socket state-patch specs compose the patch-state command boundary declaratively', () => {
     const decodeWidgetCommand = findSocketStatePatchDecode('toggle-widget');
     const decodeThemeCommand = findSocketStatePatchDecode('change-theme');

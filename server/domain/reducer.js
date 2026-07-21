@@ -1125,44 +1125,45 @@ const reducePlaybackCommand = {
   })
 };
 
+const REDUCER_FAMILY_SPECS = [
+  { reducers: reduceSimpleCommand },
+  { reducers: reducePhotoCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },
+  { reducers: reduceFeedCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },
+  { reducers: reducePoolCommand },
+  { reducers: reducePlaybackCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },
+  {
+    reducers: {
+      'patch-state': (state, command, { now, rng }) => reduceStatePatchCommand(
+        state,
+        command.payload && typeof command.payload === 'object' ? command.payload : {},
+        { now, rng }
+      )
+    },
+    buildEnv: ({ now, rng }) => ({ now, rng })
+  }
+];
+
+const isReducerFor = (commandType) => ({ reducers }) => (
+  Object.prototype.hasOwnProperty.call(reducers, commandType)
+  && typeof reducers[commandType] === 'function'
+);
+
+const interpretCommandFamilies = (state, command, env) => {
+  const family = REDUCER_FAMILY_SPECS.find(isReducerFor(command?.type));
+
+  if (!family) {
+    return unchangedResult(state);
+  }
+
+  const reducer = family.reducers[command.type];
+  return reducer(state, command, family.buildEnv ? family.buildEnv(env) : undefined);
+};
+
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;
-  const reduceSharedCommand = reduceSimpleCommand[command.type];
-  const reduceSharedPhotoCommand = reducePhotoCommand[command.type];
-  const reduceSharedFeedCommand = reduceFeedCommand[command.type];
-  const reduceSharedPoolCommand = reducePoolCommand[command.type];
-  const reduceSharedPlaybackCommand = reducePlaybackCommand[command.type];
 
-  if (reduceSharedCommand) {
-    return reduceSharedCommand(state, command);
-  }
-
-  if (reduceSharedPhotoCommand) {
-    return reduceSharedPhotoCommand(state, command, { now, rng });
-  }
-
-  if (reduceSharedFeedCommand) {
-    return reduceSharedFeedCommand(state, command, { now, rng });
-  }
-
-  if (reduceSharedPoolCommand) {
-    return reduceSharedPoolCommand(state, command);
-  }
-
-  if (reduceSharedPlaybackCommand) {
-    return reduceSharedPlaybackCommand(state, command, { now, rng });
-  }
-
-  switch (command.type) {
-    case 'patch-state': {
-      const patch = command.payload && typeof command.payload === 'object' ? command.payload : {};
-      return reduceStatePatchCommand(state, patch, { now, rng });
-    }
-
-    default:
-      return unchangedResult(state);
-  }
+  return interpretCommandFamilies(state, command, { now, rng });
 }
 
 module.exports = {
