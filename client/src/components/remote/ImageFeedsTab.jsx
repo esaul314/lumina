@@ -538,7 +538,7 @@ function ImageFeedsTab({
                           zIndex: 2,
                           pointerEvents: 'none'
                         }}>
-                          by {photo.author}
+                          by {photo.author} • Pool: {photo.category || 'Default'}
                         </span>
                       </div>
                       <div style={{
@@ -705,7 +705,7 @@ function ImageFeedsTab({
                 </div>
 
                 <div style={{ fontSize: '0.72rem', opacity: 0.4, textAlign: 'center' }}>
-                  Card {galleryIndex + 1} of {state.photosList.length} in active pool
+                  Card {galleryIndex + 1} of {state.photosList.length} (Pool: {photo.category || 'Default'})
                 </div>
               </div>
             );
