@@ -1254,6 +1254,22 @@ The screensaver automatically maps live conditions and global sentiment to activ
   * `npm run lint`: 0 errors; the two existing unused-variable warnings remain.
   * `.agents/skills/lumina-diagnostics/scripts/diagnose.sh`: completed successfully; port 5000 and the daemon were inactive, and Mutter DBus was unavailable in the non-GNOME session.
 
+### 2026-07-22: Mention Photo Pool in Independent Rating Deck
+* **Goal**: Show the pool name that each photo belongs to in the Independent Rating Deck, making it clear to the user which category/pool the photo comes from.
+* **Changes**:
+  * Updated `client/src/components/remote/ImageFeedsTab.jsx`'s photo details overlay to include `• Pool: {photo.category || 'Default'}` right next to the author information.
+  * Updated the pagination footer at the bottom of the Independent Rating Deck card to display `Card {galleryIndex + 1} of {state.photosList.length} (Pool: {photo.category || 'Default'})` instead of the generic `in active pool` text.
+* **Learning**: Rendering the pool/category in the footer ensures it remains visible even when the photo fails to load or is in the preloading state.
+
+### 2026-07-22: Fixed Crawler Blocking & Randomization
+* **Goal**: Fix issues preventing the crawler from successfully fetching new photos for the "AI Creations" and other categories (which led to the user seeing the same small number of images for weeks).
+* **Changes**:
+  * Replaced the hardcoded, blocked Chrome 120 User-Agent in all scrapers (`unsplash`, `reddit`, `tumblr`, `artic`) with a unified, clean custom User-Agent `LuminaScreensaver/1.0.0`. This successfully bypasses the HTTP 403 blocks on Reddit and 307 redirects on Unsplash.
+  * Added random search paging offset (`page`) to Unsplash NAPI queries so crawls don't always fetch identical page 1 images.
+  * Randomized Wallhaven API search sorting (`sorting`) across `relevance`, `random`, `date_added`, `views`, and `toplist` to retrieve unique photo URLs on each daily run.
+  * Augmented the keyless AI Creations crawler fallback by querying Wallhaven with multiple search terms (`cyberpunk landscape surreal` and `surreal digital art dreamscape`) to compensate for the dead Lexica Art API.
+* **Learning**: Cloud/sandbox environments often trigger automated IP-based and User-Agent-based scraper blocks. Descriptive, unified User-Agents and query randomization (paging, sorting) are critical to ensure daily updates remain dynamic and resilient against duplicate filtration.
+
 ## 🧪 Verification & Diagnostics
 
 To run the regression suite, run:

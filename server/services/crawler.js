@@ -1,5 +1,8 @@
 const { readEnvVar } = require('../config/env.js');
 
+const CRAWLER_USER_AGENT = 'LuminaScreensaver/1.0.0 (contact: alex@lumina.local; HTPC ambient screensaver)';
+
+
 /**
  * 🖼️ Dynamic Image Crawler Service
  * Extracts HD wallpapers from Reddit subreddits, Lorem Picsum, Lexica, and Unsplash.
@@ -67,7 +70,7 @@ async function fetchTumblrImages(blogName, count = 20) {
     console.log(`Tumblr Crawler: Fetching posts for blog "${blogName}"...`);
     const res = await fetch(`https://${blogName}.tumblr.com/api/read/json?type=photo&num=${count}`, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': CRAWLER_USER_AGENT
       }
     });
 
@@ -212,7 +215,7 @@ async function fetchRedditImages(subreddit, category, count = 25) {
     console.log(`Reddit Crawler: Fetching /r/${subreddit} for category "${category}"...`);
     const res = await fetch(`https://www.reddit.com/r/${subreddit}/hot.json?limit=${count}`, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': CRAWLER_USER_AGENT,
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9'
       }
@@ -399,10 +402,17 @@ async function fetchLexicaImages(query, count = 25) {
  */
 async function fetchWallhavenImages(query, category, count = 15) {
   try {
-    console.log(`Wallhaven Crawler: Querying "${query}" for category "${category}"...`);
+    // ponytail: randomize sorting to prevent static crawl result duplication and fetch fresh wallpapers
+    const sortings = ['relevance', 'random', 'date_added', 'views', 'toplist'];
+    const chosenSorting = sortings[Math.floor(Math.random() * sortings.length)];
+    console.log(`Wallhaven Crawler: Querying "${query}" with sorting "${chosenSorting}" for category "${category}"...`);
     // SFW only (purity=100), landscape ratio (ratios=16x9,16x10)
-    const url = `https://wallhaven.cc/api/v1/search?q=${encodeURIComponent(query)}&purity=100&ratios=16x9,16x10&sorting=relevance`;
-    const res = await fetch(url);
+    const url = `https://wallhaven.cc/api/v1/search?q=${encodeURIComponent(query)}&purity=100&ratios=16x9,16x10&sorting=${chosenSorting}`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': CRAWLER_USER_AGENT
+      }
+    });
     if (!res.ok) {
       console.warn(`Wallhaven Crawler: Failed to query, status=${res.status}`);
       return [];
@@ -550,10 +560,12 @@ async function fetchBingImageOfTheDay(count = 8) {
  */
 async function fetchUnsplashImages(query, count = 20) {
   try {
+    // ponytail: randomize search page to fetch new results and avoid duplicates on subsequent crawls
+    const randomPage = Math.floor(Math.random() * 5) + 1;
     const queriesToCrawl = [
-      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=20&xp=feedback-loop:control`,
-      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + ' wallpaper')}&per_page=20&xp=feedback-loop:control`,
-      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + ' 4k')}&per_page=20&xp=feedback-loop:control`
+      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=20&page=${randomPage}&xp=feedback-loop:control`,
+      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + ' wallpaper')}&per_page=20&page=${randomPage}&xp=feedback-loop:control`,
+      `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + ' 4k')}&per_page=20&page=${randomPage}&xp=feedback-loop:control`
     ];
 
     const photos = [];
@@ -563,7 +575,7 @@ async function fetchUnsplashImages(query, count = 20) {
       console.log(`Unsplash Crawler: Fetching "${query}" wallpapers from ${url}...`);
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          'User-Agent': CRAWLER_USER_AGENT
         }
       });
 
@@ -629,16 +641,23 @@ async function fetchMidjourneyImages(count = 15) {
     console.log('UseAPI.net: No USEAPI_TOKEN configured. Using free keyless AI aggregators (Lexica Art + Wallhaven AI)...');
     try {
       const lexicaPromise = fetchLexicaImages('midjourney landscape surreal dreamscape', count);
+      // ponytail: add multiple Wallhaven AI queries to compensate for Lexica being down
       const wallhavenPromise = fetchWallhavenImages('cyberpunk landscape surreal', 'AI Creations', count);
+      const wallhavenPromise2 = fetchWallhavenImages('surreal digital art dreamscape', 'AI Creations', count);
       
-      const [lexicaPhotos, wallhavenPhotos] = await Promise.all([lexicaPromise, wallhavenPromise]);
+      const [lexicaPhotos, wallhavenPhotos, wallhavenPhotos2] = await Promise.all([
+        lexicaPromise,
+        wallhavenPromise,
+        wallhavenPromise2
+      ]);
       
       // Combine them alternately (round-robin style)
       const combined = [];
-      const maxLen = Math.max(lexicaPhotos.length, wallhavenPhotos.length);
+      const maxLen = Math.max(lexicaPhotos.length, wallhavenPhotos.length, wallhavenPhotos2.length);
       for (let i = 0; i < maxLen; i++) {
         if (lexicaPhotos[i]) combined.push(lexicaPhotos[i]);
         if (wallhavenPhotos[i]) combined.push(wallhavenPhotos[i]);
+        if (wallhavenPhotos2[i]) combined.push(wallhavenPhotos2[i]);
       }
       
       console.log(`Free AI Aggregators: Loaded ${combined.length} stunning keyless AI photos successfully.`);
@@ -795,7 +814,7 @@ async function fetchAicImages(query, count = 10) {
     const searchUrl = `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(query)}&limit=${count}&fields=id,title,image_id,artist_title`;
     const res = await fetch(searchUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': CRAWLER_USER_AGENT
       }
     });
     if (!res.ok) {
