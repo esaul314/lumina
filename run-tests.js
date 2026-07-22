@@ -52,6 +52,7 @@ const {
   createDomainDispatcher,
   createEffectInterpreter
 } = require('./server/domain/dispatch.js');
+const { reduceAsyncSequentially } = require('./server/utils/asyncReduce.js');
 const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
@@ -1995,6 +1996,25 @@ assertAsyncTest('createEffectInterpreter captures its effect step and preserves 
     'first-result',
     'second-result',
     undefined
+  ]);
+});
+
+assertAsyncTest('reduceAsyncSequentially preserves order and supports a partially applied batch reducer', async () => {
+  const order = [];
+  const sumBatch = reduceAsyncSequentially(async (sum, value) => {
+    order.push(`start:${value}`);
+    await new Promise((resolve) => setImmediate(resolve));
+    order.push(`finish:${value}`);
+    return sum + value;
+  }, 0);
+
+  const result = await sumBatch([1, 2, 3]);
+
+  assert.strictEqual(result, 6);
+  assert.deepStrictEqual(order, [
+    'start:1', 'finish:1',
+    'start:2', 'finish:2',
+    'start:3', 'finish:3'
   ]);
 });
 

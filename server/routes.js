@@ -35,6 +35,7 @@ const {
   mapRouteDecode,
   normalizeRouteDecodeResult
 } = require('./utils/routeDecode.js');
+const { reduceAsyncSequentially } = require('./utils/asyncReduce.js');
 
 const DEFAULT_CATEGORY = 'Scenic Nature';
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
@@ -253,18 +254,17 @@ module.exports = function configureRoutes({
     ...body,
     state: buildStateResponse()
   });
-  const dispatchAll = async (commands) => {
-    const results = [];
-    let changed = false;
-
-    for (const command of commands) {
+  const dispatchAll = reduceAsyncSequentially(
+    async ({ results, changed }, command) => {
       const result = await dispatchCommand(command);
-      results.push(result);
-      changed = changed || didDispatchChange(result);
-    }
 
-    return { results, changed };
-  };
+      return {
+        results: [...results, result],
+        changed: changed || didDispatchChange(result)
+      };
+    },
+    { results: [], changed: false }
+  );
   const getEffectValue = (result, effectType) => result?.effectResults?.find((entry) => entry.effect?.type === effectType)?.value;
   const createAsyncRoute = (handler) => async (req, res) => {
     try {

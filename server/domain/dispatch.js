@@ -4,6 +4,7 @@ const { saveCuratedCollections } = require('../config/collections.js');
 const { persistEnvVars } = require('../config/env.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
+const { reduceAsyncSequentially } = require('../utils/asyncReduce.js');
 
 /** @typedef {import('./types').Command} Command */
 /** @typedef {import('./types').Effect} Effect */
@@ -73,10 +74,7 @@ const interpretEffect = (effectHandlers) => async (effectResults, effect) => [
 const createEffectInterpreter = (effectHandlers) => {
   const interpret = interpretEffect(effectHandlers);
 
-  return (effects = []) => effects.reduce(
-    (results, effect) => results.then((effectResults) => interpret(effectResults, effect)),
-    Promise.resolve([])
-  );
+  return reduceAsyncSequentially(interpret, []);
 };
 
 const createEventEmitter = (eventHandlers) => (events = []) => {
