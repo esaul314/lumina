@@ -23,6 +23,7 @@ const {
   keywordEntriesEqual,
   normalizeKeywordEntries
 } = require('../utils/keywordSpecs.js');
+const { createIndexedInterpreter } = require('../utils/fn.js');
 const {
   normalizeManualLocation,
   normalizeVisionConfig,
@@ -1149,15 +1150,17 @@ const createReducerFamilyInterpreter = (families) => {
       .filter(([, reducer]) => typeof reducer === 'function')
       .map(([type, reducer]) => [type, { reducer, buildEnv }])
   ));
-  const reducerByType = new Map(reducerEntries);
+  const interpret = createIndexedInterpreter(
+    reducerEntries,
+    ({ reducer, buildEnv }, state, command, env) => reducer(
+      state,
+      command,
+      buildEnv ? buildEnv(env) : undefined
+    ),
+    (state) => unchangedResult(state)
+  );
 
-  return (state, command, env) => {
-    const entry = reducerByType.get(command?.type);
-
-    return entry
-      ? entry.reducer(state, command, entry.buildEnv ? entry.buildEnv(env) : undefined)
-      : unchangedResult(state);
-  };
+  return (state, command, env) => interpret(command?.type, state, command, env);
 };
 
 const interpretCommandFamilies = createReducerFamilyInterpreter(REDUCER_FAMILY_SPECS);

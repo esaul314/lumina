@@ -50,6 +50,30 @@ const filter = curry((fn, arr) => (arr ? arr.filter(fn) : []));
 const reduce = curry((fn, initial, arr) => (arr ? arr.reduce(fn, initial) : initial));
 
 /**
+ * Build a keyed interpreter from declarative entries.
+ *
+ * Map keeps the accepted key space closed, so inherited object properties
+ * cannot accidentally become commands. Duplicate keys retain normal Map
+ * semantics: the last declarative entry wins.
+ *
+ * @template K, E, R
+ * @param {Array<[K, E]>} entries
+ * @param {(entry: E, ...args: any[]) => R} interpret
+ * @param {(...args: any[]) => R} fallback
+ * @returns {(key: K, ...args: any[]) => R}
+ */
+const createIndexedInterpreter = (entries, interpret, fallback) => {
+  const index = new Map(entries);
+
+  return (key, ...args) => {
+    const entry = index.get(key);
+    return entry === undefined
+      ? fallback(...args)
+      : interpret(entry, ...args);
+  };
+};
+
+/**
  * 🔤 toLower
  * Safe string lowercase mapper.
  */
@@ -82,6 +106,7 @@ module.exports = {
   map,
   filter,
   reduce,
+  createIndexedInterpreter,
   toLower,
   includes,
   uniqBy

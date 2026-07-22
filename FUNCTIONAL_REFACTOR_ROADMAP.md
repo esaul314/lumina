@@ -241,6 +241,7 @@ Progress note:
 - The latest Step 4 slice routes simple, photo, feed, pool, playback, and patch commands through one ordered reducer-family interpreter, with regression coverage for unsupported and inherited command keys.
 - The latest Step 4 slice captures the dispatcher effect interpreter once before sequential promise reduction, with regression coverage for delayed handler ordering, aligned results, and unhandled effects.
 - The latest Step 4 slice completed the route-decode collector's small algebraic boundary, replacing its mutable accumulation loop with a pure short-circuiting reduction and explicit empty-success identity coverage.
+- The latest Step 4 slice extracted the keyed reducer-family lookup into a small reusable indexed interpreter, preserving last-entry-wins declarative semantics and explicit fallback handling for unsupported or inherited command keys.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

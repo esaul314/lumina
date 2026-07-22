@@ -1295,3 +1295,11 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Added regression coverage for plain and wrapped successful decodes plus the empty-success identity.
 - **Learning**: A route decoder collection behaves like a small applicative-style accumulation with a failure short-circuit; making the identity and accumulation visible improves both composability and testability without adding a library.
 - **Verification**: `npm test` passed with 213 assertions and 0 failures; lint passed with two pre-existing warnings, and the client production build passed.
+
+### 2026-07-22: Extracted the Indexed Interpreter Boundary
+- **Goal**: Continue Step 4 by making the reducer-family lookup boundary reusable without hiding family-specific reducer behavior.
+- **Implementation**:
+  - Added `createIndexedInterpreter(entries, interpret, fallback)` to the functional utility module.
+  - Routed reducer-family command lookup through the helper while preserving explicit environment adapters, last-entry-wins Map semantics, and no-op fallback behavior.
+  - Added regression coverage for duplicate-key resolution and inherited-looking unknown keys.
+- **Learning**: A declarative command table needs a closed lookup boundary; a small Map-backed interpreter captures that law more directly than repeating object-key dispatch while keeping the domain reducer visible.

@@ -49,6 +49,7 @@ const {
   buildPersistedSnapshot,
   normalizePersistedSnapshot
 } = require('../config/collectionsCodec.js');
+const { createIndexedInterpreter } = require('../utils/fn.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
 const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
@@ -378,6 +379,21 @@ function runDomainTests({ logSuite, assertTest }) {
 
     assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+  });
+
+  assertTest('indexed interpreters preserve declarative order and isolate unknown keys', () => {
+    const interpret = createIndexedInterpreter(
+      [
+        ['first', (value) => value + 1],
+        ['first', (value) => value + 2]
+      ],
+      (handler, value) => handler(value),
+      () => 'fallback'
+    );
+
+    assert.strictEqual(interpret('first', 1), 3);
+    assert.strictEqual(interpret('toString', 1), 'fallback');
+    assert.strictEqual(interpret('__proto__', 1), 'fallback');
   });
 
   assertTest('shared socket state-patch specs compose the patch-state command boundary declaratively', () => {
