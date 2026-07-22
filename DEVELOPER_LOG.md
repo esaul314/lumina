@@ -1270,6 +1270,14 @@ The screensaver automatically maps live conditions and global sentiment to activ
   * Augmented the keyless AI Creations crawler fallback by querying Wallhaven with multiple search terms (`cyberpunk landscape surreal` and `surreal digital art dreamscape`) to compensate for the dead Lexica Art API.
 * **Learning**: Cloud/sandbox environments often trigger automated IP-based and User-Agent-based scraper blocks. Descriptive, unified User-Agents and query randomization (paging, sorting) are critical to ensure daily updates remain dynamic and resilient against duplicate filtration.
 
+### 2026-07-22: Shared Sequential Async Reduction Boundary
+- **Goal**: Continue implementation-companion Step 4 by removing the remaining mutable-loop ceremony from ordered REST command batches while preserving strict dispatch order.
+- **Changes**:
+  * Added the curried `reduceAsyncSequentially(step, initial)(values)` helper as a small promise-accumulator boundary.
+  * Reused it for dispatcher effect interpretation and REST batch command dispatch, preserving effect/result order and route-specific changed-state aggregation.
+  * Added regression coverage for partial application, sequential execution, and ordered accumulation.
+- **Learning**: Ordered asynchronous work is clearer when its `Chain`-like promise accumulator is named once and reused at both shell boundaries; the domain-specific step functions remain visible and no generic route framework is needed.
+
 ## 🧪 Verification & Diagnostics
 
 To run the regression suite, run:
