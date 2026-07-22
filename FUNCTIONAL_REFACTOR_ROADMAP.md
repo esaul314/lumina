@@ -240,6 +240,7 @@ Progress note:
 - The first Step 4 slice is complete, but the broader command/effect readability pass remains active for additional reducer and dispatcher polish where it clearly improves clarity. Future work should continue only when a shared spec or helper is genuinely smaller and clearer than the explicit route or reducer code it replaces.
 - The latest Step 4 slice routes simple, photo, feed, pool, playback, and patch commands through one ordered reducer-family interpreter, with regression coverage for unsupported and inherited command keys.
 - The latest Step 4 slice captures the dispatcher effect interpreter once before sequential promise reduction, with regression coverage for delayed handler ordering, aligned results, and unhandled effects.
+- The latest Step 4 slice completed the route-decode collector's small algebraic boundary, replacing its mutable accumulation loop with a pure short-circuiting reduction and explicit empty-success identity coverage.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

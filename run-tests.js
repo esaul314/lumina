@@ -3095,7 +3095,7 @@ async function runIntegrationTests() {
   });
 
   logSuite('Route Decode Helpers');
-  assertTest('collectRouteDecodeResults short-circuits on the first failure while preserving earlier successes only implicitly', () => {
+  assertTest('collectRouteDecodeResults accumulates successes and short-circuits on the first failure', () => {
     const result = collectRouteDecodeResults([
       createRouteDecodeSuccess({ step: 'first' }),
       createRouteDecodeFailure(400, 'Bad second decode'),
@@ -3105,6 +3105,27 @@ async function runIntegrationTests() {
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.failure.status, 400);
     assert.strictEqual(result.failure.error, 'Bad second decode');
+
+    const successful = collectRouteDecodeResults([
+      { step: 'plain value' },
+      createRouteDecodeSuccess({ step: 'wrapped value' })
+    ]);
+    assert.deepStrictEqual(successful, {
+      routeDecode: true,
+      ok: true,
+      value: [
+        { step: 'plain value' },
+        { step: 'wrapped value' }
+      ]
+    });
+  });
+
+  assertTest('collectRouteDecodeResults has an empty-success identity', () => {
+    assert.deepStrictEqual(collectRouteDecodeResults(), {
+      routeDecode: true,
+      ok: true,
+      value: []
+    });
   });
 
   assertTest('chainRouteDecode composes follow-up validation on successful decode values only', () => {

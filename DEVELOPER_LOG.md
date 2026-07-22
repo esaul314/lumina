@@ -1286,3 +1286,12 @@ node run-tests.js
 ```
 
 A local diagnostic utility script is available at `.agents/skills/lumina-diagnostics/scripts/diagnose.sh` to check port status, daemon status, Mutter DBus connection, and PulseAudio streams.
+
+### 2026-07-22: Made Route Decode Collection Pure and Lawful
+- **Goal**: Continue the Step 4 route-decode algebra pass with the smallest remaining imperative boundary.
+- **Implementation**:
+  - Replaced `collectRouteDecodeResults`' mutable loop with a pure left-to-right reduction.
+  - Preserved short-circuit failure semantics while making successful values explicit in the collected result.
+  - Added regression coverage for plain and wrapped successful decodes plus the empty-success identity.
+- **Learning**: A route decoder collection behaves like a small applicative-style accumulation with a failure short-circuit; making the identity and accumulation visible improves both composability and testability without adding a library.
+- **Verification**: `npm test` passed with 213 assertions and 0 failures; lint passed with two pre-existing warnings, and the client production build passed.

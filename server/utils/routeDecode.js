@@ -30,20 +30,19 @@ const chainRouteDecode = (transform) => (decoded) => {
   return result.ok ? normalizeRouteDecodeResult(transform(result.value)) : result;
 };
 
-function collectRouteDecodeResults(results = []) {
-  const values = [];
-
-  for (const result of results) {
-    const normalized = normalizeRouteDecodeResult(result);
-    if (!normalized.ok) {
-      return normalized;
+const collectRouteDecodeResults = (results = []) => results.reduce(
+  (collected, result) => {
+    if (!collected.ok) {
+      return collected;
     }
 
-    values.push(normalized.value);
-  }
-
-  return createRouteDecodeSuccess(values);
-}
+    const normalized = normalizeRouteDecodeResult(result);
+    return normalized.ok
+      ? createRouteDecodeSuccess([...collected.value, normalized.value])
+      : normalized;
+  },
+  createRouteDecodeSuccess([])
+);
 
 module.exports = {
   chainRouteDecode,
