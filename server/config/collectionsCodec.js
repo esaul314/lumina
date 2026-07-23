@@ -117,6 +117,7 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
   const {
     searchKeywords,
     feedConfigs,
+    lastFeedUpdated = 0,
     autoLocation,
     manualLocation,
     visionConfig,
@@ -127,6 +128,7 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
   } = state;
   const payload = {
     lastUpdated: timestamp,
+    lastFeedUpdated,
     feeds: cloneCollectionEntries(collections)
   };
 
@@ -200,16 +202,29 @@ function loadCollectionsSnapshot({ jsonPath, defaultCollections, defaultState, b
   }
 }
 
-function saveCollectionsSnapshot({ jsonPath, collections, state }) {
+function saveCollectionsSnapshot({ jsonPath, collections, state, lastFeedUpdated }) {
   if (process.env.NODE_ENV === 'test') {
     return;
   }
 
+  const persistedFeedTimestamp = lastFeedUpdated ?? (() => {
+    if (!fs.existsSync(jsonPath)) return 0;
+    try {
+      return JSON.parse(fs.readFileSync(jsonPath, 'utf8')).lastFeedUpdated ?? 0;
+    } catch {
+      return 0;
+    }
+  })();
+
   fs.writeFileSync(
     jsonPath,
-    JSON.stringify(buildPersistedSnapshot(collections, state), null, 2),
+    JSON.stringify(buildPersistedSnapshot(collections, stateWithFeedTimestamp(state, persistedFeedTimestamp)), null, 2),
     'utf8'
   );
+}
+
+function stateWithFeedTimestamp(state = {}, lastFeedUpdated) {
+  return { ...state, lastFeedUpdated };
 }
 
 module.exports = {

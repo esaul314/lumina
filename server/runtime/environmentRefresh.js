@@ -36,7 +36,9 @@ function readLastUpdatedTimestamp({
 
   try {
     const fileData = JSON.parse(fsImpl.readFileSync(jsonPath, 'utf8'));
-    return fileData.lastUpdated ?? 0;
+    // `lastUpdated` tracks any snapshot write (ratings, crops, vision metadata,
+    // etc.). Only a completed feed crawl should postpone the next daily crawl.
+    return fileData.lastFeedUpdated ?? 0;
   } catch (error) {
     log.warn('Could not parse persisted curated collections for last update check:', error.message);
     return 0;
@@ -175,7 +177,7 @@ function createEnvironmentRefreshRuntime({
     }
 
     mergeUpdatedCollections(collections, updatedCollections);
-    persistCollections(collections, state);
+    persistCollections(collections, state, { lastFeedUpdated: currentTime });
     activeFeedRuntime.refreshActiveFeed();
     broadcastStateSync();
     triggerImageAnalysisBackground().catch((error) => {

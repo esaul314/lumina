@@ -73,12 +73,12 @@ const defaultCuratedCollections = {
  * Safely saves the collections, search keywords, and location settings to disk,
  * preserving any other properties in curated_collections.json.
  */
-function saveCuratedCollections(collections, state) {
+function saveCuratedCollections(collections, state, options = {}) {
   if (process.env.NODE_ENV === 'test') return;
   try {
     const rootDir = path.join(__dirname, '..', '..');
     const jsonPath = path.join(rootDir, 'curated_collections.json');
-    saveCollectionsSnapshot({ jsonPath, collections, state });
+    saveCollectionsSnapshot({ jsonPath, collections, state, ...options });
     console.log('[Collections Config] Safely persisted curated_collections.json to disk.');
   } catch (err) {
     console.error('[Collections Config] Failed to write curated_collections.json:', err.message);

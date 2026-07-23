@@ -1664,6 +1664,45 @@ assertTest('shouldSkipDailyFeedUpdate only skips when the last refresh is still 
   );
 });
 
+assertAsyncTest('daily feed refresh ignores general snapshot writes and migrates legacy timestamps', async () => {
+  const { createEnvironmentRefreshRuntime } = require('./server/runtime/environmentRefresh.js');
+  let crawlCount = 0;
+  let persistedOptions = null;
+
+  const runtime = createEnvironmentRefreshRuntime({
+    state: { feedConfigs: {}, searchKeywords: {}, excludedKeywords: [] },
+    collections: {},
+    activeFeedRuntime: { refreshActiveFeed: () => [] },
+    jsonPath: '/tmp/curated.json',
+    setWeatherData: () => {},
+    resolveActiveLocation: async () => ({ lat: 0, lon: 0 }),
+    fetchWeatherForecast: async () => ({ current: null, daily: [] }),
+    classifyWeatherCode: () => ({ physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' }),
+    analyzeSentiment: () => ({ score: 0, label: 'Overcast / Calm', weatherMatch: 'Cloudy' }),
+    crawlCollections: async () => {
+      crawlCount += 1;
+      return { updatedCollections: { 'Scenic Nature': [{ url: 'new-1' }] }, updatedAny: true };
+    },
+    persistCollections: (_collections, _state, options) => { persistedOptions = options; },
+    broadcastStateSync: () => {},
+    triggerImageAnalysisBackground: async () => {},
+    fsImpl: {
+      existsSync: () => true,
+      readFileSync: () => JSON.stringify({ lastUpdated: 9_500 })
+    },
+    now: () => 10_000,
+    refreshIntervalMs: 1_000,
+    readNewsRss: async () => null,
+    log: { log() {}, warn() {}, error() {} }
+  });
+
+  const result = await runtime.updateFeedsDaily();
+
+  assert.strictEqual(result.skipped, false);
+  assert.strictEqual(crawlCount, 1);
+  assert.deepStrictEqual(persistedOptions, { lastFeedUpdated: 10_000 });
+});
+
 assertAsyncTest('createEnvironmentRefreshRuntime updates news sentiment and broadcasts the refreshed snapshot', async () => {
   const { createEnvironmentRefreshRuntime } = require('./server/runtime/environmentRefresh.js');
   const state = {};
@@ -1767,7 +1806,7 @@ assertAsyncTest('createEnvironmentRefreshRuntime skips the daily feed refresh wh
     triggerImageAnalysisBackground: async () => {},
     fsImpl: {
       existsSync: () => true,
-      readFileSync: () => JSON.stringify({ lastUpdated: 9_500 })
+      readFileSync: () => JSON.stringify({ lastFeedUpdated: 9_500 })
     },
     now: () => 10_000,
     refreshIntervalMs: 1_000,

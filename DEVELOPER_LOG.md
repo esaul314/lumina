@@ -5,6 +5,15 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-23: Separate Daily Crawl Timing From Snapshot Writes
+
+- **Goal**: Restore the daemon's intended daily feed crawl cadence.
+- **Implementation**:
+  - Added a dedicated `lastFeedUpdated` persistence field for completed crawler passes.
+  - Kept `lastUpdated` as the general snapshot-write timestamp used by ratings, crops, and vision metadata.
+  - Legacy snapshots without `lastFeedUpdated` now receive one migration crawl instead of being suppressed by unrelated recent writes.
+- **Learning**: A file's modification timestamp or general persistence timestamp is not a valid freshness signal when several independent workflows write the same snapshot.
+
 ### 2026-07-20: Capture the Dispatcher Effect Interpreter Once
 
 - **Goal**: Continue the active Phase 1 Step 4 cleanup by making the ordered effect pipeline’s partial application explicit.
