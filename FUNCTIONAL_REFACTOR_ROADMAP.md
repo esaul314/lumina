@@ -242,6 +242,7 @@ Progress note:
 - The latest Step 4 slice captures the dispatcher effect interpreter once before sequential promise reduction, with regression coverage for delayed handler ordering, aligned results, and unhandled effects.
 - The latest Step 4 slice completed the route-decode collector's small algebraic boundary, replacing its mutable accumulation loop with a pure short-circuiting reduction and explicit empty-success identity coverage.
 - The latest Step 4 slice extracted the keyed reducer-family lookup into a small reusable indexed interpreter, preserving last-entry-wins declarative semantics and explicit fallback handling for unsupported or inherited command keys.
+- The latest Step 4 slice centralized reducer-builder option resolution, so feed and pool command families now share one pure `(payload, command, state) -> options` interpreter while their distinct mutation/finalization boundaries remain explicit.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

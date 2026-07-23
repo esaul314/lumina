@@ -1303,3 +1303,11 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Routed reducer-family command lookup through the helper while preserving explicit environment adapters, last-entry-wins Map semantics, and no-op fallback behavior.
   - Added regression coverage for duplicate-key resolution and inherited-looking unknown keys.
 - **Learning**: A declarative command table needs a closed lookup boundary; a small Map-backed interpreter captures that law more directly than repeating object-key dispatch while keeping the domain reducer visible.
+
+### 2026-07-22: Shared Reducer Option Resolution
+* **Goal**: Continue Step 4 with a small compositional cleanup after indexing reducer command families.
+* **Implementation**:
+  * Added one pure reducer-local interpreter for resolving declarative feed/pool options against the same `(payload, command, state)` context.
+  * Removed duplicated option-resolution ceremony while preserving default event, effect, persistence, and pool-guard behavior.
+  * Added regression coverage across category selection and pool keyword mutation.
+* **Learning**: Shared option interpretation is useful when it removes identical context plumbing without merging the distinct state-transition boundaries that make each command family understandable.
