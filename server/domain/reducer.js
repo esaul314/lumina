@@ -429,6 +429,13 @@ function resolveReducerValue(value, ...args) {
   return typeof value === 'function' ? value(...args) : value;
 }
 
+const resolveReducerOptions = (options, payload, command, state) => Object.fromEntries(
+  Object.entries(options).map(([key, value]) => [
+    key,
+    resolveReducerValue(value, payload, command, state)
+  ])
+);
+
 function buildFeedCommandReducer({
   readPayload,
   apply,
@@ -445,12 +452,12 @@ function buildFeedCommandReducer({
     }
 
     return reduceFeedMutation(state, {
-      direction: resolveReducerValue(direction, payload, command, state),
-      forceReselect: resolveReducerValue(forceReselect, payload, command, state),
-      ...(eventsFor === undefined
-        ? {}
-        : { eventsFor: resolveReducerValue(eventsFor, payload, command, state) }),
-      persist: resolveReducerValue(persist, payload, command, state),
+      ...resolveReducerOptions(
+        { direction, forceReselect, eventsFor, persist },
+        payload,
+        command,
+        state
+      ),
       apply: (nextState) => apply(nextState, payload, command, state)
     }, env);
   };
@@ -471,10 +478,7 @@ function buildPoolCommandReducer({
     }
 
     const options = {
-      persist: resolveReducerValue(persist, payload, command, state),
-      ...(effects === undefined
-        ? {}
-        : { effects: resolveReducerValue(effects, payload, command, state) }),
+      ...resolveReducerOptions({ effects, persist }, payload, command, state),
       apply: requireExistingPool
         ? (nextState, poolName) => apply(nextState, { ...payload, name: poolName }, command, state)
         : (nextState) => apply(nextState, payload, command, state)

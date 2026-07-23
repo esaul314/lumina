@@ -381,6 +381,29 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('feed and pool reducer builders resolve declarative options from one command context', () => {
+    const state = createState({
+      playback: {
+        selectedCategories: ['Scenic Nature'],
+        activePhotoUrl: 'port-1',
+        lastDirection: 'next'
+      }
+    });
+
+    const feedResult = reduceDomainCommand(state, {
+      type: 'select-categories',
+      payload: { categories: ['Liminal Spaces'] }
+    });
+    const poolResult = reduceDomainCommand(state, {
+      type: 'set-pool-keywords',
+      payload: { name: 'Scenic Nature', keywords: ['mountain'] }
+    });
+
+    assert.deepStrictEqual(feedResult.events.map((event) => event.type), ['photo-update', 'state-sync']);
+    assert.deepStrictEqual(poolResult.events.map((event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(poolResult.effects.map((effect) => effect.type), ['persist']);
+  });
+
   assertTest('indexed interpreters preserve declarative order and isolate unknown keys', () => {
     const interpret = createIndexedInterpreter(
       [
