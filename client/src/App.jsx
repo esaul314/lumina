@@ -17,6 +17,8 @@ function App() {
   const [state, setState] = useState(null);
   const [connectionInfo, setConnectionInfo] = useState({ localIps: [], port: 5000 });
   const [connected, setConnected] = useState(false);
+  const minimalTvMode = new URLSearchParams(window.location.search).get('render') === 'minimal';
+  const isMinimalTvMode = deviceMode === 'tv' && minimalTvMode;
 
   useEffect(() => {
     // 1. Determine Device Mode
@@ -159,11 +161,12 @@ function App() {
           state={state} 
           socket={socket} 
           connectionInfo={connectionInfo}
+          minimalMode={isMinimalTvMode}
         />
       )}
       
       {/* Smart Mode Switcher floating button */}
-      <button 
+      {!isMinimalTvMode && <button
         onClick={toggleDeviceMode}
         style={{
           position: 'absolute',
@@ -193,7 +196,7 @@ function App() {
         }}
       >
         🖥️ Switch to {deviceMode === 'tv' ? 'Remote' : 'TV View'}
-      </button>
+      </button>}
     </div>
   );
 }

@@ -70,6 +70,18 @@ function getChromiumAccelerationProfile() {
   return rawProfile === 'aggressive' ? 'aggressive' : 'safe';
 }
 
+function getDisplayMode() {
+  return readEnvVar('LUMINA_DISPLAY_MODE', 'full').toLowerCase() === 'minimal' ? 'minimal' : 'full';
+}
+
+function buildKioskUrl(port, mode = 'tv') {
+  const query = new URLSearchParams({ mode });
+  if (mode === 'tv' && getDisplayMode() === 'minimal') {
+    query.set('render', 'minimal');
+  }
+  return `http://localhost:${port}/?${query.toString()}`;
+}
+
 function buildChromiumFlags({ platform = 'wayland' } = {}) {
   const flags = [
     ...BASE_CHROMIUM_FLAGS,
@@ -200,9 +212,10 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
   const accelerationProfile = getChromiumAccelerationProfile();
   console.log(`System Service: Launching Chromium kiosk with ${accelerationProfile} acceleration profile on Wayland-first path.`);
 
-  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
-  const x11Cmd = `XAUTH=$(find /run/user/${uid} -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="${homedir}/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${x11Flags} http://localhost:${port}/?mode=${mode}`;
-  const waylandFallbackCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
+  const kioskUrl = buildKioskUrl(port, mode);
+  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${waylandFlags} ${kioskUrl}`;
+  const x11Cmd = `XAUTH=$(find /run/user/${uid} -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="${homedir}/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${x11Flags} ${kioskUrl}`;
+  const waylandFallbackCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${waylandFlags} ${kioskUrl}`;
 
   let currentProcess = null;
 
@@ -291,6 +304,8 @@ module.exports = {
   getHostDisplayInfo,
   buildChromiumFlags,
   getChromiumAccelerationProfile,
+  getDisplayMode,
+  buildKioskUrl,
   launchChromiumKiosk,
   killChromiumKiosk
 };

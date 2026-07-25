@@ -58,7 +58,7 @@ const loadImageMeta = (url, timeoutMs = 8000) => new Promise((resolve, reject) =
   img.src = url;
 });
 
-function Dashboard({ state, socket, connectionInfo }) {
+function Dashboard({ state, socket, connectionInfo, minimalMode = false }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
   const [environment, setEnvironment] = useState(null);
@@ -90,6 +90,8 @@ function Dashboard({ state, socket, connectionInfo }) {
   }, []);
 
   useEffect(() => {
+    if (minimalMode) return undefined;
+
     let cancelled = false;
     const fetchEnvironment = async () => {
       try {
@@ -106,7 +108,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       cancelled = true;
       clearInterval(environmentTimer);
     };
-  }, []);
+  }, [minimalMode]);
 
   useEffect(() => {
     if (!socket) {
@@ -131,11 +133,13 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   // 1. Clock Sync
   useEffect(() => {
+    if (minimalMode) return undefined;
+
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [minimalMode]);
 
   // 2. Weather Fetch
   const fetchWeather = async () => {
@@ -151,11 +155,13 @@ function Dashboard({ state, socket, connectionInfo }) {
   };
 
   useEffect(() => {
+    if (minimalMode) return undefined;
+
     fetchWeather();
     // Refresh weather every 30 minutes
     const weatherTimer = setInterval(fetchWeather, 1800000);
     return () => clearInterval(weatherTimer);
-  }, []);
+  }, [minimalMode]);
 
   // 3. Image Category Initial Fetch & Periodic Cycle
   const fetchPhotos = async (category) => {
@@ -465,6 +471,8 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   // Hook to hide the cursor after a few seconds of mouse inactivity (except when settings are open)
   useEffect(() => {
+    if (minimalMode) return undefined;
+
     const handleMouseMove = () => {
       setShowCursor(true);
       if (cursorTimeoutRef.current) {
@@ -487,7 +495,7 @@ function Dashboard({ state, socket, connectionInfo }) {
         clearTimeout(cursorTimeoutRef.current);
       }
     };
-  }, [isSettingsOpen]);
+  }, [isSettingsOpen, minimalMode]);
 
   // Receive sync events from socket for toggle widgets
   useEffect(() => {
@@ -502,7 +510,7 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   // 5. Bokeh HTML5 Canvas Particle Engine
   useEffect(() => {
-    if (!state.widgets.particles) return;
+    if (minimalMode || !state.widgets.particles) return undefined;
 
     const canvas = particleCanvasRef.current;
     if (!canvas) return;
@@ -570,7 +578,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [state.widgets.particles, isScreensaverActive]);
+  }, [state.widgets.particles, isScreensaverActive, minimalMode]);
 
   // Construct mobile remote URL
   const localIp = connectionInfo.localIps[0] || window.location.hostname;
@@ -665,13 +673,13 @@ function Dashboard({ state, socket, connectionInfo }) {
   };
 
   return (
-    <div className={`lumina-tv-container ${currentThemeClass} ${showCursor ? '' : 'hide-cursor'}`}>
+    <div className={`lumina-tv-container ${currentThemeClass} ${minimalMode || !showCursor ? 'hide-cursor' : ''}`}>
       {/* 1. Ambient Wallpaper Slideshow */}
       <div className="slideshow-container">
         {activeSlides.map((slide) => {
           const isSplit = slide.isSplit && state.splitPortrait;
           const currentScaleMode = state.scaleMode || 'cover';
-          const shouldAnimate = state.widgets.animations && (isSplit || currentScaleMode === 'cover');
+          const shouldAnimate = !minimalMode && state.widgets.animations && (isSplit || currentScaleMode === 'cover');
 
           return (
             <div
@@ -760,15 +768,15 @@ function Dashboard({ state, socket, connectionInfo }) {
       )}
 
       {/* 2. Color-Breathing Backlight Aura */}
-      {state.widgets.auraglow && <div className="aura-glow-overlay" />}
+      {!minimalMode && state.widgets.auraglow && <div className="aura-glow-overlay" />}
 
       {/* 3. Bokeh Particles Canvas */}
-      {state.widgets.particles && (
+      {!minimalMode && state.widgets.particles && (
         <canvas ref={particleCanvasRef} className="particles-canvas" />
       )}
 
       {/* 4. Live Atmospheric Weather Animations */}
-      {weather && state.widgets.animations && (
+      {!minimalMode && weather && state.widgets.animations && (
         <div className="weather-overlay-effect">
           {/* Drifting Clouds effect */}
           {[1, 2, 3].includes(weather.current.weather_code) && (
@@ -818,7 +826,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       <div className="tv-vignette" />
 
       {/* 6. TV Dashboard Glassmorphic UI overlays */}
-      <div className="tv-dashboard-ui">
+      {!minimalMode && <div className="tv-dashboard-ui">
           {/* A. Time & Date (Top Left) */}
           {state.widgets.clock && (
             <div className="glass-widget clock-widget">
@@ -913,10 +921,10 @@ function Dashboard({ state, socket, connectionInfo }) {
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
       {/* 7. Floating Settings Button & Drawer (only pointer-events allowed on hover/click) */}
-      <>
+      {!minimalMode && <>
           <button 
             className="desktop-settings-btn"
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
@@ -1149,7 +1157,7 @@ function Dashboard({ state, socket, connectionInfo }) {
               </div>
             </div>
           </div>
-      </>
+      </>}
     </div>
   );
 }
