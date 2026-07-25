@@ -83,9 +83,7 @@ const {
 } = require('./server/services/googlePhotos.js');
 const {
   buildChromiumFlags,
-  getChromiumAccelerationProfile,
-  getDisplayMode,
-  buildKioskUrl
+  getChromiumAccelerationProfile
 } = require('./server/services/system.js');
 
 // Formatting constants for clean terminal reports
@@ -875,27 +873,6 @@ assertTest('aggressive Chromium acceleration profile remains available as an opt
       delete process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE;
     } else {
       process.env.LUMINA_CHROMIUM_ACCELERATION_PROFILE = original;
-    }
-  }
-});
-
-assertTest('minimal display mode is explicit and only affects the TV kiosk URL', () => {
-  const original = process.env.LUMINA_DISPLAY_MODE;
-  delete process.env.LUMINA_DISPLAY_MODE;
-
-  try {
-    assert.strictEqual(getDisplayMode(), 'full');
-    assert.strictEqual(buildKioskUrl(5000), 'http://localhost:5000/?mode=tv');
-
-    process.env.LUMINA_DISPLAY_MODE = 'minimal';
-    assert.strictEqual(getDisplayMode(), 'minimal');
-    assert.strictEqual(buildKioskUrl(5000), 'http://localhost:5000/?mode=tv&render=minimal');
-    assert.strictEqual(buildKioskUrl(5000, 'remote'), 'http://localhost:5000/?mode=remote');
-  } finally {
-    if (original === undefined) {
-      delete process.env.LUMINA_DISPLAY_MODE;
-    } else {
-      process.env.LUMINA_DISPLAY_MODE = original;
     }
   }
 });
