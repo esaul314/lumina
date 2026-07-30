@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-29: Filter Out Watermarked Unsplash+ Preview Images
+
+- **Goal**: Automatically skip Unsplash images containing bleak repeating watermarks.
+- **Implementation**:
+  - Identified `item.premium`, `item.plus`, and `plus.unsplash.com` URL domains in the Unsplash NAPI response representing watermarked iStock/Getty preview images.
+  - Added filter check in `server/services/crawler.js` to skip watermarked Unsplash+ preview photos.
+  - Pruned existing watermarked `plus.unsplash.com` entries from `curated_collections.json`.
+- **Learning**: Unsplash NAPI explicit flags (`premium: true`, `plus: true`, `urls.raw` containing `plus.unsplash.com`) provide a reliable mechanism for excluding watermarked preview assets.
+- **Mandatory Agent Rule**: Always commit changes with conventional commit syntax and push to remote (`git push origin main`) at the end of every task execution.
+
 ### 2026-07-23: Separate Daily Crawl Timing From Snapshot Writes
 
 - **Goal**: Restore the daemon's intended daily feed crawl cadence.
@@ -1320,3 +1330,22 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   * Removed duplicated option-resolution ceremony while preserving default event, effect, persistence, and pool-guard behavior.
   * Added regression coverage across category selection and pool keyword mutation.
 * **Learning**: Shared option interpretation is useful when it removes identical context plumbing without merging the distinct state-transition boundaries that make each command family understandable.
+
+### 2026-07-23: Minimal Mode Feasibility Plan
+* **Goal**: Investigate replacing the Chromium TV display shell with a lower-resource native/raster presentation mode.
+* **Decision**:
+  * Keep Lumina's state, selectors, weather, sensor, image-cache, and persistence layers shared.
+  * Validate a persistent fullscreen presenter separately from the image compositor; generating a raster frame is not sufficient to replace Chromium.
+  * Start the feasibility spike with the host's already-installed ImageMagick delegates, while treating `node-canvas` and any native presenter as optional follow-on dependencies.
+  * Preserve Chromium as the default and recovery path until screenshot parity, resource reduction, and presenter recovery are measured on the real GNOME/Wayland host.
+* **Learning**: Static raster composition can reproduce a fixed-resolution frame closely, but browser-only effects such as backdrop blur, SVG/font rasterization, CSS animation, and responsive layout need explicit contracts before “exactly the same” can be claimed.
+* **Follow-up**: A temporary `canvas@3.2.3` install succeeded and generated a PNG on the host, so native dependency installation is an experiment input rather than a reason to reject `node-canvas`.
+
+### 2026-07-24: Presenter Investigation
+* **Goal**: Identify a non-Chromium fullscreen presenter for minimal mode.
+* **Findings**:
+  * GTK4/GDK, PyGObject, GdkPixbuf, Cairo/Pango, SDL2 runtime libraries, and the Wayland client runtime are already present on the host.
+  * No convenient image-presenter executable such as mpv, imv, feh, or swayimg is installed; ImageMagick `display` is available but is an X11 utility and could not open the current SSH display.
+  * GTK4/PyGObject is the recommended first presenter spike because it supports the GNOME Wayland/X11 session through one toolkit and needs only to display locally composed frames.
+  * SDL2 is the lower-level fallback if GTK's memory or fullscreen behavior is not acceptable. Direct Wayland protocol work is deferred because it expands the display lifecycle surface unnecessarily.
+* **Learning**: The presenter should be a small, restartable process separate from frame composition. That keeps `node-canvas` focused on pixels and lets the runtime measure or replace the windowing layer independently.

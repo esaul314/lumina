@@ -593,8 +593,11 @@ async function fetchUnsplashImages(query, count = 20) {
         const isLandscape = width && height ? width > height : true;
         if (!isLandscape) continue;
 
+        // ponytail: skip watermarked preview images from Unsplash+ / Premium collections
+        if (item.premium || item.plus) continue;
+
         const photoUrl = item.urls ? (item.urls.raw || item.urls.full || item.urls.regular) : null;
-        if (!photoUrl) continue;
+        if (!photoUrl || photoUrl.includes('plus.unsplash.com')) continue;
 
         const finalUrl = photoUrl.includes('?') ? `${photoUrl.split('?')[0]}?q=80&w=2560&auto=format&fit=crop` : photoUrl;
 
