@@ -51,9 +51,20 @@ function createKioskControlRuntime({
     emitStateSync();
     return true;
   };
+  const MAX_RAPID_FAILURES = 3;
+  const FAILURE_COOLDOWN_MS = 60000; // 1 minute pause on crash loop
+  let consecutiveFailures = 0;
+  let cooldownUntil = 0;
+
   const handleUnexpectedExit = () => {
     setBrowserRunning(false);
     resetManualOverrideOnUnexpectedExit();
+    
+    consecutiveFailures += 1;
+    if (consecutiveFailures >= MAX_RAPID_FAILURES) {
+      cooldownUntil = Date.now() + FAILURE_COOLDOWN_MS;
+      log.error(`System Service: Kiosk browser crashed ${consecutiveFailures} times consecutively. Cooling down launch retries for ${FAILURE_COOLDOWN_MS / 1000}s to prevent CPU thrashing.`);
+    }
   };
   const scheduleDeferredLaunch = (forceManual = false) => {
     if (pendingLaunchRetry !== null) {
@@ -80,6 +91,11 @@ function createKioskControlRuntime({
       return false;
     }
 
+    if (Date.now() < cooldownUntil) {
+      log.warn(`System Service: Kiosk browser launch suppressed due to crash-loop cooldown (active until ${new Date(cooldownUntil).toISOString()}).`);
+      return false;
+    }
+
     if (!isServerListening()) {
       scheduleDeferredLaunch(forceManual);
       return false;
@@ -88,6 +104,11 @@ function createKioskControlRuntime({
     clearLaunchRetry();
     log.log('Lumina System Idle: Spawning Fullscreen Kiosk Screensaver...');
     setBrowserRunning(true);
+    // ponytail: successful manual launch resets failure count
+    if (forceManual) {
+      consecutiveFailures = 0;
+      cooldownUntil = 0;
+    }
     void relaunchChromiumKiosk();
     return true;
   }
