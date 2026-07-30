@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-30: Harden Kiosk Recovery and Persisted Unsplash Filtering
+
+- **Goal**: Stop Chromium restart storms and prevent premium Unsplash preview rows from surviving into the active feed.
+- **Implementation**:
+  - Replaced shell-based Chromium launch commands with tracked child processes and explicit Wayland/X11 environments.
+  - Classified expected kiosk dismissal separately from unexpected exits and fail-closed automatic relaunch after repeated failures.
+  - Applied the Unsplash premium/plus policy during crawling and persisted snapshot normalization.
+  - Added regression coverage for the shared Unsplash policy and removed the old assumption that launch kills all Chromium processes.
+- **Learning**: A cooldown alone is not a recovery policy when the idle reducer keeps requesting launch; the blocked state must be part of the daemon decision so the system becomes quiet and recoverable.
+
 ### 2026-07-29: Filter Out Watermarked Unsplash+ Preview Images
 
 - **Goal**: Automatically skip Unsplash images containing bleak repeating watermarks.
