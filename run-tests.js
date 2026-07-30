@@ -85,6 +85,7 @@ const {
   buildChromiumFlags,
   getChromiumAccelerationProfile
 } = require('./server/services/system.js');
+const { isDisallowedUnsplashPhoto } = require('./server/utils/photoPolicy.js');
 
 // Formatting constants for clean terminal reports
 const COLORS = {
@@ -704,7 +705,7 @@ assertAsyncTest('createKioskControlRuntime defers launch until the server is lis
       kioskKillCount += 1;
       return true;
     },
-    log: { log() {}, warn() {} }
+    log: { log() {}, warn() {}, error() {} }
   });
 
   assert.strictEqual(runtime.launchKioskBrowser(true), false);
@@ -720,7 +721,7 @@ assertAsyncTest('createKioskControlRuntime defers launch until the server is lis
 
   assert.strictEqual(runtime.isBrowserRunning(), true);
   assert.deepStrictEqual(governorProfiles, ['performance']);
-  assert.strictEqual(kioskKillCount, 1);
+  assert.strictEqual(kioskKillCount, 0, 'launch must not globally kill unrelated Chromium processes');
   assert.deepStrictEqual(kioskLaunches, [{ port: 5050, mode: 'tv' }]);
 
   exitHandler?.();
@@ -729,6 +730,13 @@ assertAsyncTest('createKioskControlRuntime defers launch until the server is lis
   assert.strictEqual(state.screensaverActive, false);
   assert.strictEqual(broadcastCount, 1);
   assert.deepStrictEqual(killedTimers, []);
+});
+
+assertTest('Unsplash premium policy rejects API flags and persisted plus CDN rows', () => {
+  assert.strictEqual(isDisallowedUnsplashPhoto({ source: 'unsplash', premium: true, url: 'https://images.unsplash.com/photo-x' }), true);
+  assert.strictEqual(isDisallowedUnsplashPhoto({ source: 'unsplash', url: 'https://plus.unsplash.com/photo-x' }), true);
+  assert.strictEqual(isDisallowedUnsplashPhoto({ source: 'unsplash', url: 'https://images.unsplash.com/photo-x' }), false);
+  assert.strictEqual(isDisallowedUnsplashPhoto({ source: 'wallhaven', url: 'https://plus.unsplash.com/photo-x' }), false);
 });
 
 assertAsyncTest('createIdleDaemonRuntime launches after three idle ticks and broadcasts the active-state transition once', async () => {

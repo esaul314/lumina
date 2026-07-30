@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const { normalizeKeywordEntries } = require('../utils/keywordSpecs.js');
+const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
 
 function cloneCollectionEntries(collections = {}) {
   return Object.fromEntries(
@@ -9,7 +10,7 @@ function cloneCollectionEntries(collections = {}) {
       category,
       Array.isArray(photos)
         ? photos
-            .filter((photo) => photo?.url)
+            .filter((photo) => photo?.url && !isDisallowedUnsplashPhoto(photo))
             .map((photo) => ({ ...photo, category: photo.category ?? category }))
         : []
     ])

@@ -1,4 +1,5 @@
 const { readEnvVar } = require('../config/env.js');
+const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
 
 const CRAWLER_USER_AGENT = 'LuminaScreensaver/1.0.0 (contact: alex@lumina.local; HTPC ambient screensaver)';
 
@@ -593,11 +594,17 @@ async function fetchUnsplashImages(query, count = 20) {
         const isLandscape = width && height ? width > height : true;
         if (!isLandscape) continue;
 
-        // ponytail: skip watermarked preview images from Unsplash+ / Premium collections
-        if (item.premium || item.plus) continue;
-
         const photoUrl = item.urls ? (item.urls.raw || item.urls.full || item.urls.regular) : null;
-        if (!photoUrl || photoUrl.includes('plus.unsplash.com')) continue;
+        if (isDisallowedUnsplashPhoto({
+          source: 'unsplash',
+          url: photoUrl,
+          premium: item.premium,
+          plus: item.plus,
+          isPremium: item.isPremium,
+          isPlus: item.isPlus,
+          is_premium: item.is_premium,
+          is_plus: item.is_plus
+        })) continue;
 
         const finalUrl = photoUrl.includes('?') ? `${photoUrl.split('?')[0]}?q=80&w=2560&auto=format&fit=crop` : photoUrl;
 
