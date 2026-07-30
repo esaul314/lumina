@@ -1,4 +1,5 @@
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
+const fs = require('fs');
 const os = require('os');
 const { readEnvVar } = require('../config/env.js');
 
@@ -200,9 +201,21 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
   const accelerationProfile = getChromiumAccelerationProfile();
   console.log(`System Service: Launching Chromium kiosk with ${accelerationProfile} acceleration profile on Wayland-first path.`);
 
-  const waylandCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
-  const x11Cmd = `XAUTH=$(find /run/user/${uid} -name ".mutter-Xwaylandauth.*" | head -n 1); [ -z "$XAUTH" ] && XAUTH="${homedir}/.Xauthority"; DISPLAY=:0 XAUTHORITY=$XAUTH XDG_RUNTIME_DIR=/run/user/${uid} chromium-browser ${x11Flags} http://localhost:${port}/?mode=${mode}`;
-  const waylandFallbackCmd = `WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid} chromium ${waylandFlags} http://localhost:${port}/?mode=${mode}`;
+  const runtimeDir = `/run/user/${uid}`;
+  const displayAuth = (() => {
+    try {
+      const entry = fs.readdirSync(runtimeDir).find(name => name.startsWith('.mutter-Xwaylandauth.'));
+      return entry ? `${runtimeDir}/${entry}` : `${homedir}/.Xauthority`;
+    } catch {
+      return `${homedir}/.Xauthority`;
+    }
+  })();
+  const targetUrl = `http://localhost:${port}/?mode=${mode}`;
+  const launchSequence = [
+    { executable: 'chromium-browser', args: waylandFlags.split(' ').concat(targetUrl), name: 'Wayland (chromium-browser)', env: { WAYLAND_DISPLAY: 'wayland-0', XDG_RUNTIME_DIR: runtimeDir } },
+    { executable: 'chromium-browser', args: x11Flags.split(' ').concat(targetUrl), name: 'X11 fallback (chromium-browser)', env: { DISPLAY: ':0', XAUTHORITY: displayAuth, XDG_RUNTIME_DIR: runtimeDir } },
+    { executable: 'chromium', args: waylandFlags.split(' ').concat(targetUrl), name: 'Wayland fallback (chromium)', env: { WAYLAND_DISPLAY: 'wayland-0', XDG_RUNTIME_DIR: runtimeDir } }
+  ];
 
   let currentProcess = null;
 
@@ -213,47 +226,47 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
       return;
     }
 
-    const { cmd, name } = cmds[index];
+    const { executable, args, name, env } = cmds[index];
     const startTime = Date.now();
     let exited = false;
 
-    const p = exec(cmd, (err) => {
+    const p = spawn(executable, args, {
+      env: { ...process.env, ...env },
+      stdio: 'ignore'
+    });
+    const handleExit = (err, code, signal) => {
       if (exited) return;
       exited = true;
 
       const duration = Date.now() - startTime;
-      if (err) {
-        if (err.signal === 'SIGTERM' || err.signal === 'SIGKILL') {
-          console.log(`System Service: Kiosk browser (${name}) terminated via ${err.signal}.`);
+      if (err || code !== 0) {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') {
+          console.log(`System Service: Kiosk browser (${name}) terminated via ${signal}.`);
           if (onUnexpectedExit) onUnexpectedExit();
           return; // Expected exit
         }
 
-        // If the process was running for more than 5 seconds, treat it as a successful launch
-        // that crashed later, rather than a startup failure. Do not run fallbacks.
+        // A process that survives startup is a failed kiosk session, not a
+        // reason to try a second display backend while the first is exiting.
         if (duration > 5000) {
-          console.warn(`System Service: Kiosk browser (${name}) exited unexpectedly after running for ${Math.round(duration / 1000)}s:`, err.message);
+          console.warn(`System Service: Kiosk browser (${name}) exited unexpectedly after running for ${Math.round(duration / 1000)}s.`);
           if (onUnexpectedExit) onUnexpectedExit();
           return;
         }
 
-        console.warn(`System Service: Kiosk browser (${name}) failed at startup:`, err.message);
+        console.warn(`System Service: Kiosk browser (${name}) failed at startup.`);
         runCommandWithFallback(cmds, index + 1);
       } else {
         // Normal exit (exit code 0) without explicit signal
         console.log(`System Service: Kiosk browser (${name}) exited normally.`);
         if (onUnexpectedExit) onUnexpectedExit();
       }
-    });
+    };
+    p.once('error', error => handleExit(error, null, null));
+    p.once('close', (code, signal) => handleExit(null, code, signal));
 
     currentProcess = p;
   }
-
-  const launchSequence = [
-    { cmd: waylandCmd, name: 'Wayland (chromium-browser)' },
-    { cmd: x11Cmd, name: 'X11 fallback (chromium-browser)' },
-    { cmd: waylandFallbackCmd, name: 'Wayland fallback (chromium)' }
-  ];
 
   runCommandWithFallback(launchSequence, 0);
 
@@ -267,22 +280,6 @@ function launchChromiumKiosk(port, mode = 'tv', onUnexpectedExit) {
   };
 }
 
-/**
- * 💀 killChromiumKiosk
- * Hard kills all active Chromium/kiosk processes.
- */
-function killChromiumKiosk() {
-  if (process.env.NODE_ENV === 'test') {
-    console.log('System Service: [Test Mode] Bypassing real Chromium kiosk kill.');
-    return Promise.resolve(true);
-  }
-  return new Promise((resolve) => {
-    exec('killall chromium-browser || killall chromium', () => {
-      resolve(true);
-    });
-  });
-}
-
 module.exports = {
   setCpuGovernor,
   getGnomeIdleTime,
@@ -291,6 +288,5 @@ module.exports = {
   getHostDisplayInfo,
   buildChromiumFlags,
   getChromiumAccelerationProfile,
-  launchChromiumKiosk,
-  killChromiumKiosk
+  launchChromiumKiosk
 };

@@ -2,11 +2,11 @@
 
 function getNextScreensaverState(currentState, inputs) {
   const { idleCounter, isBrowserRunning } = currentState;
-  const { isIdle, isMoviePlaying, manualOverride } = inputs;
+  const { isIdle, isMoviePlaying, manualOverride, launchBlocked = false } = inputs;
 
   const isActuallyIdle = isIdle && !isMoviePlaying;
   const nextIdleCounter = isActuallyIdle ? idleCounter + 1 : 0;
-  const shouldBeActive = nextIdleCounter >= 3 || manualOverride;
+  const shouldBeActive = !launchBlocked && (nextIdleCounter >= 3 || manualOverride);
 
   let action = null;
   if (shouldBeActive && !isBrowserRunning) {
@@ -30,12 +30,14 @@ function buildDaemonInputs({
   inactivityTimeout,
   audioPlaying,
   sessionInhibited,
-  manualOverride
+  manualOverride,
+  launchBlocked = false
 }) {
   return {
     isIdle: idleMs >= inactivityTimeout,
     isMoviePlaying: Boolean(audioPlaying || sessionInhibited),
-    manualOverride: Boolean(manualOverride)
+    manualOverride: Boolean(manualOverride),
+    launchBlocked: Boolean(launchBlocked)
   };
 }
 
@@ -72,7 +74,7 @@ function createIdleDaemonRuntime({
 
   const tick = async () => {
     try {
-      const { browserRunning = false, manualOverride = false } = getRuntimeContext() ?? {};
+      const { browserRunning = false, manualOverride = false, launchBlocked = false } = getRuntimeContext() ?? {};
       const idleMs = await getIdleTime();
       const audioPlaying = await isAudioPlaying();
       const sessionInhibited = browserRunning ? false : await isSessionInhibited();
@@ -81,7 +83,8 @@ function createIdleDaemonRuntime({
         inactivityTimeout: state.inactivityTimeout,
         audioPlaying,
         sessionInhibited,
-        manualOverride
+        manualOverride,
+        launchBlocked
       });
       const { nextState, action } = getNextScreensaverState(
         { idleCounter, isBrowserRunning: browserRunning },

@@ -33,7 +33,6 @@ const {
   isAudioPlaying,
   isSessionInhibited,
   launchChromiumKiosk,
-  killChromiumKiosk,
   setCpuGovernor
 } = require('./services/system.js');
 const {
@@ -488,8 +487,7 @@ const kioskControlRuntime = createKioskControlRuntime({
   getPort: () => PORT,
   isServerListening: () => server.listening,
   setCpuGovernor,
-  launchChromiumKiosk,
-  killChromiumKiosk
+  launchChromiumKiosk
 });
 
 function getRuntimeContext() {
