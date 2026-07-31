@@ -46,6 +46,18 @@ Lumina should continue moving toward one stable integration boundary:
 - Socket.IO should shrink to live sync, push notifications, TV viewport/reporting, and low-latency playback events.
 - The codebase should keep moving toward a functional core / imperative shell split with pure reducers, selectors, codecs, and transport adapters.
 
+## Optional Feature Candidate
+
+### Minimal display mode
+
+The feasibility work in [docs/MINIMAL_MODE_FEASIBILITY_PLAN.md](./docs/MINIMAL_MODE_FEASIBILITY_PLAN.md)
+describes a possible optional low-power TV presentation runtime. It is not a
+committed phase or a replacement for Chromium: it should remain behind an
+explicit feature flag and proceed only if a real-host presenter spike proves
+measurable CPU/memory savings, visual sufficiency, and reliable recovery. The
+canonical state, selectors, metadata, and persistence layers should remain
+shared if this feature is pursued.
+
 ## Current Baseline
 
 The codebase already contains part of this direction, but Phase 1 is not complete yet.
