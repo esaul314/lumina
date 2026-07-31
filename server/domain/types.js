@@ -19,6 +19,7 @@
  * @property {string=} author
  * @property {string=} source
  * @property {string=} category
+ * @property {string=} addedAt ISO timestamp for when Lumina first accepted the photo into a pool
  * @property {number=} rating
  * @property {boolean=} isBroken
  * @property {boolean=} preventPairing

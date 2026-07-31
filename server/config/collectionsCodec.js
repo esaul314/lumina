@@ -3,6 +3,7 @@
 const fs = require('fs');
 const { normalizeKeywordEntries } = require('../utils/keywordSpecs.js');
 const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
+const { normalizePhotoTimestamp } = require('../domain/photoTimestamps.js');
 
 function cloneCollectionEntries(collections = {}) {
   return Object.fromEntries(
@@ -11,7 +12,10 @@ function cloneCollectionEntries(collections = {}) {
       Array.isArray(photos)
         ? photos
             .filter((photo) => photo?.url && !isDisallowedUnsplashPhoto(photo))
-            .map((photo) => ({ ...photo, category: photo.category ?? category }))
+            .map((photo) => normalizePhotoTimestamp({
+              ...photo,
+              category: photo.category ?? category
+            }))
         : []
     ])
   );

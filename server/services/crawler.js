@@ -1,5 +1,6 @@
 const { readEnvVar } = require('../config/env.js');
 const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
+const { stampNewPhotos } = require('../domain/photoTimestamps.js');
 
 const CRAWLER_USER_AGENT = 'LuminaScreensaver/1.0.0 (contact: alex@lumina.local; HTPC ambient screensaver)';
 
@@ -973,10 +974,17 @@ function capCollectionLimit(list, initialLength, limit = 2000) {
  * 🏔️ crawlAllCollections
  * Declarative orchestrator that runs all crawls based on per-source feed configurations.
  */
-async function crawlAllCollections(currentCollections, feedConfigs = null, searchKeywords = null, excludedKeywords = null) {
+async function crawlAllCollections(
+  currentCollections,
+  feedConfigs = null,
+  searchKeywords = null,
+  excludedKeywords = null,
+  now = () => new Date()
+) {
   console.log('Initiating dynamic multi-source feed updates for all categories...');
   const updatedCollections = { ...currentCollections };
   let updatedAny = false;
+  const stampAcceptedPhotos = stampNewPhotos(now());
 
   const matchesExclusion = (excludedList, item) => {
     if (!item || !item.title) return false;
@@ -1119,7 +1127,11 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
     });
 
     if (uniqueNewItems.length > 0) {
-      categoryList = capCollectionLimit(categoryList.concat(uniqueNewItems), initialLength, 2000);
+      categoryList = capCollectionLimit(
+        categoryList.concat(stampAcceptedPhotos(uniqueNewItems)),
+        initialLength,
+        2000
+      );
       if (categoryList.length > initialLength) {
         console.log(`${scraper.key.toUpperCase()}: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
         updatedCollections[category] = categoryList;
@@ -1146,7 +1158,7 @@ async function crawlAllCollections(currentCollections, feedConfigs = null, searc
           const lexicaPhotos = await fetchLexicaImages(query, 15);
           for (const p of lexicaPhotos) {
             if (!globalExistingUrls.has(p.url) && !matchesExclusion(excludedKeywords, p)) {
-              aiList.push(p);
+              aiList.push(...stampAcceptedPhotos([p]));
               globalExistingUrls.add(p.url);
             }
           }
