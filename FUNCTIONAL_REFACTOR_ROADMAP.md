@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-20
+Last updated: 2026-07-31
 
 ## Purpose
 
@@ -26,6 +26,13 @@ Current checkpoint:
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
 - The active work has moved into Step 4: make the shared command/effect pipeline more composable and legible without hiding straightforward reducer updates.
 - The latest Step 4 slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, then collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, then aligned the overlapping pool keyword/feed-config REST patch specs with their durable socket command specs through one shared pool transport family, then collapsed the remaining photo/pool patch transport shapers in `server/domain/commands.js` onto one shared builder, then collapsed the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` onto one shared field-entry interpreter, and now interpret reducer effects through an ordered promise-reduce pipeline so sequencing remains explicit without a mutable loop.
+
+Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
+provides pure normalization and immutable stamping for per-photo `addedAt`
+values. The crawler stamps newly accepted items through an injected clock, and
+the persistence codec preserves valid timestamps while leaving legacy photos
+undated. This is a product-foundation slice, not a retention policy or UI
+change.
 
 Latest Step 4 note (2026-07-20): reducer command families now share one pure table interpreter. Family-specific time/randomness context is supplied through explicit small adapters, preserving readable functional boundaries without adding context to simple or pool commands. The dispatcher now captures its partially applied effect interpreter once before the ordered promise-reduce sequence, keeping effect order and unhandled-effect behavior explicit.
 

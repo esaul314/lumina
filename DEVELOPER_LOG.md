@@ -1359,3 +1359,16 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   * GTK4/PyGObject is the recommended first presenter spike because it supports the GNOME Wayland/X11 session through one toolkit and needs only to display locally composed frames.
   * SDL2 is the lower-level fallback if GTK's memory or fullscreen behavior is not acceptable. Direct Wayland protocol work is deferred because it expands the display lifecycle surface unnecessarily.
 * **Learning**: The presenter should be a small, restartable process separate from frame composition. That keeps `node-canvas` focused on pixels and lets the runtime measure or replace the windowing layer independently.
+
+## 2026-07-31 — Add per-photo acquisition timestamps
+
+- Added pure `addedAt` normalization and immutable stamping in
+  `server/domain/photoTimestamps.js`.
+- Newly accepted crawler results receive one canonical ISO timestamp through
+  an injected clock, making future age-based retention deterministic and
+  testable.
+- The persistence codec preserves valid timestamps and removes malformed ones,
+  but intentionally does not invent dates for legacy photos.
+- Kept snapshot-level `lastUpdated` and `lastFeedUpdated` separate from
+  per-photo acquisition time; they answer different freshness questions.
+- Full regression verification passed: 220 assertions and 11 sensor checks.
