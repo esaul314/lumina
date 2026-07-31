@@ -1396,3 +1396,13 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Added regression coverage proving inherited keys such as `toString` and `__proto__` cannot escape the supported effect vocabulary.
 - **Learning**: A plain handler object is an accidental prototype-based API. Indexing the declared entries once makes the accepted effect language explicit and keeps the interpreter safely composable.
 - **Verification**: `npm test` passed with 223 assertions and 11 sensor checks; `npm run lint` completed with three pre-existing warnings and no errors; `git diff --check` passed.
+
+### 2026-07-31: Close the Dispatcher Event Vocabulary
+
+- **Goal**: Continue the Step 4 command/effect readability pass by applying the closed interpreter boundary to dispatcher events as well as effects.
+- **Implementation**:
+  - Reused the indexed interpreter for event-handler lookup before invoking the existing ordered event list.
+  - Preserved event order and silent handling of unknown event types.
+  - Added regression coverage proving inherited keys such as `toString` and `__proto__` are outside the supported event vocabulary.
+- **Learning**: Event emission is another small interpreter boundary; keeping the accepted keys closed prevents prototype properties from becoming accidental transport behavior without hiding the straightforward event order.
+- **Verification**: `npm test` passed with 224 assertions and 11 sensor checks; `npm run lint` completed with three pre-existing warnings and no errors; `git diff --check` passed.
