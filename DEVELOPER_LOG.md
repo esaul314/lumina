@@ -1386,3 +1386,13 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   decoding, reducer persistence, and transport route metadata.
 - Verification: `npm test` passed with 222 assertions and 11 sensor checks;
   client production build is the remaining final check for this slice.
+
+### 2026-07-31: Close the Dispatcher Effect Vocabulary
+
+- **Goal**: Continue the Step 4 command/effect readability pass by aligning effect lookup with the reducer's closed declarative interpreter.
+- **Implementation**:
+  - Reused `createIndexedInterpreter` for dispatcher effect handlers before the existing ordered promise-reduce pipeline.
+  - Preserved effect order, handler results, and silent unknown-effect behavior.
+  - Added regression coverage proving inherited keys such as `toString` and `__proto__` cannot escape the supported effect vocabulary.
+- **Learning**: A plain handler object is an accidental prototype-based API. Indexing the declared entries once makes the accepted effect language explicit and keeps the interpreter safely composable.
+- **Verification**: `npm test` passed with 223 assertions and 11 sensor checks; `npm run lint` completed with three pre-existing warnings and no errors; `git diff --check` passed.
