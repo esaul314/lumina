@@ -81,10 +81,18 @@ const createEffectInterpreter = (effectHandlers) => {
   return reduceAsyncSequentially(interpret, []);
 };
 
-const createEventEmitter = (eventHandlers) => (events = []) => {
-  events.forEach((event) => {
-    eventHandlers[event.type]?.(event);
-  });
+const createEventEmitter = (eventHandlers) => {
+  const resolveHandler = createIndexedInterpreter(
+    Object.entries(eventHandlers),
+    (handler) => handler,
+    () => undefined
+  );
+
+  return (events = []) => {
+    events.forEach((event) => {
+      callIfFunction(resolveHandler(event?.type), event);
+    });
+  };
 };
 
 function createEffectHandlers({
@@ -216,5 +224,6 @@ function createDomainDispatcher({
 
 module.exports = {
   createDomainDispatcher,
-  createEffectInterpreter
+  createEffectInterpreter,
+  createEventEmitter
 };

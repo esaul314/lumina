@@ -57,6 +57,7 @@ const {
   stampNewPhotos
 } = require('./photoTimestamps.js');
 const { normalizePoolPolicy, pruneExpiredPhotos } = require('./poolRetention.js');
+const { createEventEmitter } = require('./dispatch.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
 const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
@@ -425,6 +426,22 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(interpret('first', 1), 3);
     assert.strictEqual(interpret('toString', 1), 'fallback');
     assert.strictEqual(interpret('__proto__', 1), 'fallback');
+  });
+
+  assertTest('event emission keeps the declared vocabulary closed', () => {
+    const emitted = [];
+    const emitEvents = createEventEmitter({
+      'state-sync': (event) => emitted.push(event.type)
+    });
+
+    emitEvents([
+      { type: 'state-sync' },
+      { type: 'toString' },
+      { type: '__proto__' },
+      { type: 'unknown-event' }
+    ]);
+
+    assert.deepStrictEqual(emitted, ['state-sync']);
   });
 
   assertTest('shared socket state-patch specs compose the patch-state command boundary declaratively', () => {
