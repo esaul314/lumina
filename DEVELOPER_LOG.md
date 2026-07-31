@@ -5,6 +5,16 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-31: Scrubbed Local Paths From Tracked Documentation
+
+- **Goal**: Keep public documentation portable and prevent local file URLs or
+  home-directory paths from leaking into the repository.
+- **Implementation**: Replaced tracked absolute local links with repo-relative
+  links and generalized the mount-specific deployment warning in
+  `CONVENTIONS.md`.
+- **Verification**: A tracked-files privacy scan found no remaining local file
+  URLs or local home-directory paths.
+
 ### 2026-07-31: Documented Agent Memory Authority and Git-Escalation Handoff
 
 - **Goal**: Prevent future agents from treating an ordinary sandbox Git-metadata
@@ -434,9 +444,9 @@ This document serves as a public-facing, generic history of technical developmen
 ### 2026-07-12: Continued Step 4 with Shared Route Decoder-Spec Pipelines for Photo and Pool Patches
 - **Goal**: Keep the active Step 4 readability pass moving by removing the last hand-built optional-command decode ceremony from the shared REST photo/pool patch routes without changing their wire contracts.
 - **Implementation**:
-  - Refactored [server/routes.js](file:///home/alex/work/lumina/server/routes.js) around one tiny optional-command spec interpreter, so photo and pool patch decoders now express their mutation fields as declarative spec data instead of repeating `decodeOptionalCommandPart(...)` wrapper calls inline.
+  - Refactored [server/routes.js](./server/routes.js) around one tiny optional-command spec interpreter, so photo and pool patch decoders now express their mutation fields as declarative spec data instead of repeating `decodeOptionalCommandPart(...)` wrapper calls inline.
   - Rewrote the `PATCH /api/photos` and `PATCH /api/pools/:name` decode paths to build their command batches through those shared spec pipelines while keeping the existing validation messages, command order, and response shaping intact.
-  - Expanded [run-tests.js](file:///home/alex/work/lumina/run-tests.js) with a batch pool-patch regression that proves keywords plus multi-source feed-config updates still dispatch in deterministic order through the new decoder boundary.
+  - Expanded [run-tests.js](./run-tests.js) with a batch pool-patch regression that proves keywords plus multi-source feed-config updates still dispatch in deterministic order through the new decoder boundary.
   - Updated `ROADMAP.md` and `FUNCTIONAL_REFACTOR_ROADMAP.md` so the repo records this as the newest Step 4 slice while keeping the broader checkpoint intentionally open.
 - **Learning**: The useful abstraction here was another small lawful interpreter, not a new HTTP DSL. Once optional route mutations became plain spec rows plus one collector, the route layer stayed readable because each mutation still owns the only interesting part: its payload policy and validation message.
 - **Verification**: `npm test` passed with 162 assertions. `npm run lint` passed.
@@ -455,10 +465,10 @@ This document serves as a public-facing, generic history of technical developmen
 - **Goal**: Resolve the 7-day session expiration and 60-minute URL expiration limitations of Google's public APIs by caching selected photo files locally.
 - **Implementation**:
   - Defined a local cache directory `server/config/google_photos_media/` to store image files.
-  - Implemented pure functional helpers `difference` and `getOrphanedFiles` in [googlePhotos.js](file:///home/alex/work/lumina/server/services/googlePhotos.js) to compute orphaned files when syncing new items.
-  - Added background downloader `downloadSyncMediaItems` and file cleanup `cleanOrphanedMediaFiles` in [googlePhotos.js](file:///home/alex/work/lumina/server/services/googlePhotos.js) to run on album sync.
+  - Implemented pure functional helpers `difference` and `getOrphanedFiles` in [googlePhotos.js](./server/services/googlePhotos.js) to compute orphaned files when syncing new items.
+  - Added background downloader `downloadSyncMediaItems` and file cleanup `cleanOrphanedMediaFiles` in [googlePhotos.js](./server/services/googlePhotos.js) to run on album sync.
   - Modified `fetchMediaItemBytes` to serve files from local disk when available, and lazy-download and write to disk on success (self-healing cache).
-  - Added full unit and integration tests to [run-tests.js](file:///home/alex/work/lumina/run-tests.js) verifying local serving, lazy caching, set difference, and cleanup.
+  - Added full unit and integration tests to [run-tests.js](./run-tests.js) verifying local serving, lazy caching, set difference, and cleanup.
 - **Learning**: The 7-day Picker session limit is a hard security feature of Google's public APIs. Instead of attempting fragile API hacks, downloading only the user's selected photos locally on-demand provides permanent, offline-capable screensaver playback with minimal disk footprint.
 - **Verification**: `npm test` passed successfully with 189 assertions.
 
@@ -756,7 +766,7 @@ This document serves as a public-facing, generic history of technical developmen
 - **Goal**: Update the Lumina product roadmap to include a detailed TypeScript migration plan and determine the most appropriate timing and scope for execution.
 - **Implementation**:
   - Analyzed the codebase to determine the best phase for migration. Identified that migrating during Phase 1 (REST-first API migration) adds unnecessary churn, whereas migrating between Phase 1 and Phase 2 (as a transition bridge) is optimal because the API contracts and domain logic are stabilized.
-  - Updated [ROADMAP.md](file:///home/alex/work/lumina/ROADMAP.md) to define a dedicated "TypeScript Migration (Transition Bridge)" stage.
+  - Updated [ROADMAP.md](./ROADMAP.md) to define a dedicated "TypeScript Migration (Transition Bridge)" stage.
   - Specified frontend migration scopes (Vite config, TSX conversion) and backend scopes (Node v22 `--experimental-strip-types`, domain conversions, `run-tests.js` updates).
   - Added specific criteria to the Acceptance Plan and updated Defaults rules.
 - **Learning**: Implementing structural language migrations (like JavaScript to TypeScript) is most efficient when scheduled directly after major API and data model restructuring (Phase 1) is complete, preventing double-refactoring effort. Node v22's native type-stripping capabilities permit a lightweight transition without introducing heavy compile-step wrappers in production.
@@ -774,9 +784,9 @@ This document serves as a public-facing, generic history of technical developmen
 ### 2026-07-06: Optimize Vision Service Cache Initialization, Implement Circuit Breaker, and Isolate Tests
 - **Goal**: Fix screensaver freezes and high CPU/swap thrashing caused by the background Vision Service loop attempting to process all 336 images on every daemon start when the local qwen3-vl API is offline/down, and prevent test runs from killing/interrupting the production kiosk browser.
 - **Implementation**:
-  - **Lazy Cache Init**: Modified [vision.js](file:///home/alex/work/lumina/server/services/vision.js#L8-L15) to use a `cacheInitialized` boolean flag, ensuring `analysis_cache.json` is read and parsed from disk exactly once per process lifetime instead of on every image evaluation (which previously caused 336 synchronous disk reads).
-  - **Circuit Breaker**: Added a failure-counter circuit breaker in `triggerImageAnalysisBackground` inside [app.js](file:///home/alex/work/lumina/server/app.js#L320-L330). If 3 consecutive Vision API inference failures are encountered on cache misses, the background analyzer immediately aborts the loop, preventing 336 high-bandwidth image downloads and inference requests.
-  - **Test Isolation Bypass**: Updated [system.js](file:///home/alex/work/lumina/server/services/system.js#L102-L272) to check `process.env.NODE_ENV === 'test'` and bypass real hardware CPU governor modifications, browser GUI spawns, and global process kills (which were executing `killall` and terminating the production TV screensaver browser).
+  - **Lazy Cache Init**: Modified [vision.js](./server/services/vision.js#L8-L15) to use a `cacheInitialized` boolean flag, ensuring `analysis_cache.json` is read and parsed from disk exactly once per process lifetime instead of on every image evaluation (which previously caused 336 synchronous disk reads).
+  - **Circuit Breaker**: Added a failure-counter circuit breaker in `triggerImageAnalysisBackground` inside [app.js](./server/app.js#L320-L330). If 3 consecutive Vision API inference failures are encountered on cache misses, the background analyzer immediately aborts the loop, preventing 336 high-bandwidth image downloads and inference requests.
+  - **Test Isolation Bypass**: Updated [system.js](./server/services/system.js#L102-L272) to check `process.env.NODE_ENV === 'test'` and bypass real hardware CPU governor modifications, browser GUI spawns, and global process kills (which were executing `killall` and terminating the production TV screensaver browser).
 - **Learning**: Background loops processing large datasets must be safeguarded with circuit breakers when hitting external/local microservices. Unbounded retry loops and redundant disk I/O block event loops and saturate swap spaces on low-resource hardware. Additionally, test suites running integration smoke checks must be strictly decoupled from the host system's hardware configurations and active user sessions to avoid unexpected side effects (such as terminating active processes).
 - **Verification**:
   - Verified the `lumina` systemd service successfully restarted and logged the early abort after exactly 3 consecutive 404 inference failures.
