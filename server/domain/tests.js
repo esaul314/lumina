@@ -50,6 +50,11 @@ const {
   normalizePersistedSnapshot
 } = require('../config/collectionsCodec.js');
 const { createIndexedInterpreter } = require('../utils/fn.js');
+const {
+  normalizePhotoAddedAt,
+  normalizePhotoTimestamp,
+  stampNewPhotos
+} = require('./photoTimestamps.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
 const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
@@ -2070,6 +2075,56 @@ function runDomainTests({ logSuite, assertTest }) {
     });
 
     assert.strictEqual(normalized.persistedState.splitCropPercent, 0);
+  });
+
+  assertTest('photo timestamps normalize valid values without inventing legacy dates', () => {
+    assert.strictEqual(
+      normalizePhotoAddedAt('2026-07-31T12:34:56-04:00'),
+      '2026-07-31T16:34:56.000Z'
+    );
+    assert.strictEqual(normalizePhotoAddedAt('not-a-date'), null);
+    assert.deepStrictEqual(
+      normalizePhotoTimestamp({ url: 'legacy-photo' }),
+      { url: 'legacy-photo' }
+    );
+  });
+
+  assertTest('photo timestamps stamp only newly accepted photos immutably', () => {
+    const photos = [
+      { url: 'existing', addedAt: '2026-07-01T00:00:00.000Z' },
+      { url: 'new' }
+    ];
+    const stamped = stampNewPhotos('2026-07-31T16:34:56Z')(photos);
+
+    assert.strictEqual(stamped[0], photos[0]);
+    assert.strictEqual(stamped[1].addedAt, '2026-07-31T16:34:56.000Z');
+    assert.strictEqual(photos[1].addedAt, undefined);
+  });
+
+  assertTest('persistence codec preserves valid photo timestamps and drops malformed ones', () => {
+    const normalized = normalizePersistedSnapshot({
+      feeds: {
+        'Scenic Nature': [
+          { url: 'dated', addedAt: '2026-07-31T12:00:00-04:00' },
+          { url: 'legacy', addedAt: 'unknown' }
+        ]
+      }
+    }, {
+      defaultCollections: {},
+      defaultState: {
+        searchKeywords: {},
+        autoLocation: false,
+        manualLocation: {},
+        excludedKeywords: []
+      },
+      buildFeedConfigsFromKeywords: () => ({})
+    });
+
+    assert.strictEqual(
+      normalized.collections['Scenic Nature'][0].addedAt,
+      '2026-07-31T16:00:00.000Z'
+    );
+    assert.strictEqual(normalized.collections['Scenic Nature'][1].addedAt, undefined);
   });
 }
 
