@@ -81,6 +81,12 @@ const normalizeMediaDimension = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const createPresenceGuard = (isPresent, status, error) => (value) => (
+  isPresent(value)
+    ? null
+    : createRouteFailure(status, typeof error === 'function' ? error(value) : error)
+);
+
 function getLocalIpAddresses() {
   return Object.values(os.networkInterfaces())
     .flat()
@@ -230,25 +236,25 @@ module.exports = function configureRoutes({
     || fallbackPhoto
     || null
   );
-  const ensurePoolExists = (name, status = 404) => (
-    hasPool(name)
-      ? null
-      : createRouteFailure(status, `Pool "${name}" not found.`)
+  const ensurePoolExists = createPresenceGuard(
+    hasPool,
+    404,
+    (name) => `Pool "${name}" not found.`
   );
-  const ensurePoolKnown = (name, status = 404) => (
-    hasPool(name) || hasPoolConfig(name)
-      ? null
-      : createRouteFailure(status, `Pool "${name}" not found.`)
+  const ensurePoolKnown = createPresenceGuard(
+    (name) => hasPool(name) || hasPoolConfig(name),
+    404,
+    (name) => `Pool "${name}" not found.`
   );
-  const ensurePoolMissing = (name) => (
-    hasPool(name) || hasPoolConfig(name)
-      ? createRouteFailure(409, `Pool "${name}" already exists.`)
-      : null
+  const ensurePoolMissing = createPresenceGuard(
+    (name) => !(hasPool(name) || hasPoolConfig(name)),
+    409,
+    (name) => `Pool "${name}" already exists.`
   );
-  const ensureKnownPhoto = (url, status = 404) => (
-    findKnownPhoto(url)
-      ? null
-      : createRouteFailure(status, 'Photo URL not found in available photo collections.')
+  const ensureKnownPhoto = createPresenceGuard(
+    (url) => Boolean(findKnownPhoto(url)),
+    404,
+    'Photo URL not found in available photo collections.'
   );
   const respondWithState = (res, status, body = {}) => sendSuccess(res, status, {
     ...body,

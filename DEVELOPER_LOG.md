@@ -1415,3 +1415,11 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Reused it for dispatcher effects and events while keeping ordered promise reduction and event emission explicit.
   - Added regression coverage for record adaptation and prototype-key isolation.
 - **Learning**: A useful FP abstraction here is a boundary adapter, not a generalized dispatcher: partial application fixes the declared handler record once, while the existing interpreter still defines the closed-key semantics.
+### 2026-07-31: Share the Route Presence Guard Algebra
+
+- **Goal**: Continue the Step 4 readability pass by removing the last repeated resource-presence guard ceremony in `server/routes.js` without hiding route-specific status or message policy.
+- **Implementation**:
+  - Added one pure `createPresenceGuard` factory that maps a presence predicate and failure policy to the existing `null`/route-failure guard contract.
+  - Reused it for pool existence, known-pool, missing-pool, and known-photo checks while keeping each route's domain predicate and message visible as data.
+  - Verified the existing guarded route regressions for success, missing-resource, duplicate-resource, and invalid-photo paths against the shared factory.
+- **Learning**: The useful abstraction was a small algebra over the existing guard result, not a general validation framework; route policy remains explicit and the shared shell only owns the repeated result shape.
