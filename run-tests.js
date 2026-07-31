@@ -2046,6 +2046,20 @@ assertAsyncTest('createEffectInterpreter captures its effect step and preserves 
   ]);
 });
 
+assertAsyncTest('createEffectInterpreter keeps inherited effect keys outside the handler vocabulary', async () => {
+  const interpretEffects = createEffectInterpreter({
+    persist: async () => 'persisted'
+  });
+
+  const result = await interpretEffects([
+    { type: 'toString' },
+    { type: '__proto__' },
+    { type: 'persist' }
+  ]);
+
+  assert.deepStrictEqual(result.map(({ value }) => value), [undefined, undefined, 'persisted']);
+});
+
 assertAsyncTest('reduceAsyncSequentially preserves order and supports a partially applied batch reducer', async () => {
   const order = [];
   const sumBatch = reduceAsyncSequentially(async (sum, value) => {
