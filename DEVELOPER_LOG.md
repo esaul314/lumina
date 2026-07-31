@@ -5,6 +5,17 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-31: Documented Agent Memory Authority and Git-Escalation Handoff
+
+- **Goal**: Prevent future agents from treating an ordinary sandbox Git-metadata
+  failure as a final commit blocker.
+- **Implementation**: Added `docs/AGENT_MEMORY_HANDOFF.md`, documenting the
+  duplicated memory sources, missing precedence rules, the canonical escalation
+  decision, and a portable next-agent checklist.
+- **Learning**: Historical evidence and current operating policy need separate
+  authority levels. One canonical action rule is more reliable than many
+  duplicated reminders.
+
 ### 2026-07-30: Harden Kiosk Recovery and Persisted Unsplash Filtering
 
 - **Goal**: Stop Chromium restart storms and prevent premium Unsplash preview rows from surviving into the active feed.
