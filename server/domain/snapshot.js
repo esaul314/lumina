@@ -54,6 +54,7 @@ function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
       nightPercentage: legacyState.nightPercentage ?? 50,
       searchKeywords: cloneSearchKeywords(legacyState.searchKeywords),
       feedConfigs: { ...(legacyState.feedConfigs || {}) },
+      poolPolicies: { ...(legacyState.poolPolicies || {}) },
       excludedKeywords: [...(legacyState.excludedKeywords || [])],
       autoLocation: Boolean(legacyState.autoLocation),
       manualLocation: { ...(legacyState.manualLocation || {}) },

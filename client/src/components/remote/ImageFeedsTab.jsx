@@ -44,6 +44,7 @@ function ImageFeedsTab({
   saveGoogleCredentials
 }) {
   const [keywordInput, setKeywordInput] = useState('');
+  const [policyDrafts, setPolicyDrafts] = useState({});
   const [localCrop, setLocalCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
   const ratingDeckPreviewContainerRef = useRef(null);
@@ -106,6 +107,12 @@ function ImageFeedsTab({
     ? { playback: { selectedCategories } }
     : state;
   const googlePhotosPickerStatus = getGooglePhotosPickerStatus(isSavedEnv);
+  const poolPolicy = (category) => state.poolPolicies?.[category] || { retentionDays: 30, maxPhotos: 2000 };
+  const draftPolicy = (category) => policyDrafts[category] || poolPolicy(category);
+  const updatePolicyDraft = (category, field, value) => setPolicyDrafts((drafts) => ({
+    ...drafts,
+    [category]: { ...draftPolicy(category), [field]: value }
+  }));
 
   const handleAddChip = (text) => {
     const clean = text.trim();
@@ -187,6 +194,28 @@ function ImageFeedsTab({
                     </button>
                   )}
                 </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <span className="remote-section-title">Pool Lifecycle</span>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', margin: '4px 0 12px' }}>
+            New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept.
+          </p>
+          {categories.filter((category) => category !== 'Google Photos').map((category) => {
+            const policy = draftPolicy(category);
+            return (
+              <div key={category} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 90px auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
+                <label style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>{category}</label>
+                <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Keep days
+                  <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} style={{ width: '100%', marginTop: '4px' }} />
+                </label>
+                <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Max photos
+                  <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} style={{ width: '100%', marginTop: '4px' }} />
+                </label>
+                <button type="button" className="remote-btn" onClick={() => actions.updatePoolPolicy(category, policy)} style={{ padding: '7px 9px', fontSize: '0.72rem' }}>Save</button>
               </div>
             );
           })}

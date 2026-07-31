@@ -162,6 +162,12 @@ export function useLuminaActions(socket, setState) {
         await refreshState();
       });
     },
+    updatePoolPolicy: (category, policy) => {
+      void runAction(async () => {
+        await patchPool(category, { policy });
+        await refreshState();
+      });
+    },
     setScreensaverActive: (active) => {
       void runAction(async () => {
         const nextState = await setScreensaverActive(active);

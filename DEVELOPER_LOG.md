@@ -1372,3 +1372,17 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - Kept snapshot-level `lastUpdated` and `lastFeedUpdated` separate from
   per-photo acquisition time; they answer different freshness questions.
 - Full regression verification passed: 220 assertions and 11 sensor checks.
+
+## 2026-07-31 — Add pool lifecycle controls
+
+- Added pure per-pool retention policy normalization and a curried pruning
+  function. Only dated, non-loved photos can expire; legacy photos without
+  `addedAt` remain exempt by design.
+- Persisted `poolPolicies` in the curated snapshot and routed updates through
+  the shared `PATCH /api/pools/:name` command/spec/reducer path.
+- Added Image Feeds controls for retention days and maximum pool size, with a
+  short explanation of the protected loved and legacy entries.
+- Added domain regressions for policy bounds, pruning semantics, command
+  decoding, reducer persistence, and transport route metadata.
+- Verification: `npm test` passed with 222 assertions and 11 sensor checks;
+  client production build is the remaining final check for this slice.

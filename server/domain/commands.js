@@ -20,6 +20,7 @@ const {
   validatePhotoCropPercent,
   validateRating
 } = require('../utils/validation.js');
+const { normalizePoolPolicy } = require('./poolRetention.js');
 
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -413,6 +414,12 @@ const decodePoolFeedConfigCommand = createPoolCommandDecoder('merge-pool-feed-co
   };
 });
 
+const decodePoolPolicyCommand = createPoolCommandDecoder('set-pool-policy', (name, payload) => (
+  isPlainObject(payload?.policy)
+    ? { name, policy: normalizePoolPolicy(payload.policy) }
+    : null
+));
+
 function decodeScopedJobCommand(payload, type) {
   if (payload === undefined || payload === null) {
     return createCommand(type, {});
@@ -608,6 +615,19 @@ const POOL_PATCH_TRANSPORT_SPECS = [
       socketEvent: 'update-keywords',
       decodeSocket: decodePoolKeywordsCommand,
       fallbackKey: 'poolKeywords'
+    }
+  }),
+  createPatchTransportSpec({
+    route: {
+      routeKey: 'policy',
+      routeActive: ({ body }) => body?.policy !== undefined,
+      decodeRoute: ({ name, body }) => decodePoolPolicyCommand({ name, policy: body?.policy }),
+      routeError: 'Invalid parameter: "policy" must be an object.'
+    },
+    socket: {
+      socketEvent: 'update-pool-policy',
+      decodeSocket: decodePoolPolicyCommand,
+      fallbackKey: 'poolPolicy'
     }
   }),
   createPatchTransportSpec({
@@ -817,6 +837,7 @@ module.exports = {
   decodeExcludedKeywordsCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodePoolPolicyCommand,
   decodePoolScopedRecrawlCommand,
   decodePhotoCropCommand,
   decodePhotoLovedCommand,

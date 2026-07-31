@@ -165,7 +165,8 @@ function createEnvironmentRefreshRuntime({
       collections,
       state.feedConfigs,
       state.searchKeywords,
-      state.excludedKeywords
+      state.excludedKeywords,
+      state.poolPolicies
     );
 
     if (!updatedAny) {

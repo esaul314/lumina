@@ -278,6 +278,15 @@ function createSocketLegacyCompatibility({
     broadcast();
   };
 
+  const poolPolicy = (command) => {
+    const { name, policy } = command.payload;
+    if (!collections[name]) return;
+    state.poolPolicies ??= {};
+    state.poolPolicies[name] = { ...policy };
+    saveCuratedCollections(collections, state);
+    broadcast();
+  };
+
   const addPool = async (command) => {
     const { name, keywords } = command.payload;
     if (collections[name] || state.searchKeywords?.[name]) {
@@ -437,6 +446,7 @@ function createSocketLegacyCompatibility({
     photoMetadata,
     poolKeywords,
     poolFeedConfig,
+    poolPolicy,
     addPool,
     deletePool,
     envSecret,

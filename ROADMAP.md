@@ -36,6 +36,16 @@ Phase 1 is in progress. The current checkpoint is:
   `addedAt` must remain exempt from age-based pruning until a deliberate
   backfill policy exists.
 
+### Pool lifecycle controls (2026-07-31)
+
+- Done: the Image Feeds admin surface now exposes per-pool retention days and
+  maximum photo count controls through the shared pool REST command path.
+- Done: recrawls prune dated, non-loved photos past the configured age and cap
+  each pool with its configured maximum; loved photos and legacy undated photos
+  remain protected.
+- Next: add optional lifecycle previews and a deliberate legacy-date backfill
+  workflow only if operationally useful.
+
 Implementation note (2026-07-22): the latest Step 4 slices route simple, photo, feed, pool, playback, and `patch-state` commands through one reusable indexed interpreter with explicit `now`/`rng` environment adapters, centralize feed/pool reducer option resolution, and capture the dispatcher effect interpreter once before its promise-reduce sequence. Unsupported and inherited object keys, plus unhandled effects, remain unchanged/no-op boundaries.
 
 ## Architectural Rule

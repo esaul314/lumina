@@ -78,7 +78,8 @@ async function executeRecrawlPass({
     scopedCollections,
     scopedFeedConfigs,
     scopedKeywords,
-    state.excludedKeywords
+    state.excludedKeywords,
+    state.poolPolicies
   );
 
   emitProgress({

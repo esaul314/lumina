@@ -18,6 +18,7 @@ const {
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodePoolPolicyCommand,
   decodePoolScopedRecrawlCommand,
   decodeBrokenPhotoCommand,
   decodePhotoCropCommand,
@@ -55,6 +56,7 @@ const {
   normalizePhotoTimestamp,
   stampNewPhotos
 } = require('./photoTimestamps.js');
+const { normalizePoolPolicy, pruneExpiredPhotos } = require('./poolRetention.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
 const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
@@ -86,6 +88,7 @@ function createState(overrides = {}) {
         'Liminal Spaces': ['hallway']
       },
       feedConfigs: {},
+      poolPolicies: {},
       excludedKeywords: [],
       autoLocation: false,
       manualLocation: {}
@@ -1884,12 +1887,40 @@ function runDomainTests({ logSuite, assertTest }) {
     ]);
     assert.deepStrictEqual(poolRouteKeys, [
       'keywords',
+      'policy',
       'feed-config:reddit',
       'feed-config:unsplash'
     ]);
     assert.strictEqual(findSocketCommandSpec('set-photo-loved'), null);
     assert.ok(findSocketCommandSpec('report-photo-metadata'));
     assert.ok(findSocketCommandSpec('update-feed-config'));
+  });
+
+  assertTest('pool retention policies normalize and prune only eligible aged photos', () => {
+    assert.deepStrictEqual(normalizePoolPolicy({ retentionDays: 7, maxPhotos: 80 }), {
+      retentionDays: 7,
+      maxPhotos: 80
+    });
+    const retained = pruneExpiredPhotos('2026-07-31T00:00:00Z', { retentionDays: 30 })([
+      { url: 'fresh', addedAt: '2026-07-15T00:00:00Z' },
+      { url: 'old', addedAt: '2026-06-01T00:00:00Z' },
+      { url: 'loved', addedAt: '2026-01-01T00:00:00Z', loved: true },
+      { url: 'legacy' }
+    ]);
+    assert.deepStrictEqual(retained.map(({ url }) => url), ['fresh', 'loved', 'legacy']);
+  });
+
+  assertTest('pool policy command shares normalized REST decoding and reducer persistence', () => {
+    assert.deepStrictEqual(decodePoolPolicyCommand({ name: ' Scenic Nature ', policy: { retentionDays: 0, maxPhotos: 2 } }), {
+      type: 'set-pool-policy',
+      payload: { name: 'Scenic Nature', policy: { retentionDays: 1, maxPhotos: 12 } }
+    });
+    const result = reduceDomainCommand(createState(), {
+      type: 'set-pool-policy',
+      payload: { name: 'Scenic Nature', policy: { retentionDays: 14, maxPhotos: 500 } }
+    });
+    assert.deepStrictEqual(result.nextState.config.poolPolicies['Scenic Nature'], { retentionDays: 14, maxPhotos: 500 });
+    assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist']);
   });
 
   assertTest('shared pool transport specs keep overlapping REST patch and socket pool commands in one declarative family', () => {

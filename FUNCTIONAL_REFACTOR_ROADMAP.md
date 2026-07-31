@@ -34,6 +34,12 @@ the persistence codec preserves valid timestamps while leaving legacy photos
 undated. This is a product-foundation slice, not a retention policy or UI
 change.
 
+Pool lifecycle note (2026-07-31): `server/domain/poolRetention.js` keeps the
+retention contract pure and curried: policy normalization is separate from
+age pruning, and the crawler supplies the clock. The admin editor sends one
+normalized `set-pool-policy` command through the existing pool patch transport
+family rather than introducing a parallel settings path.
+
 Latest Step 4 note (2026-07-20): reducer command families now share one pure table interpreter. Family-specific time/randomness context is supplied through explicit small adapters, preserving readable functional boundaries without adding context to simple or pool commands. The dispatcher now captures its partially applied effect interpreter once before the ordered promise-reduce sequence, keeping effect order and unhandled-effect behavior explicit.
 
 ## Coding Philosophy, Conventions, Style, and Objectives

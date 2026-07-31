@@ -166,6 +166,7 @@ const {
   persistedState: {
     searchKeywords,
     feedConfigs,
+    poolPolicies,
     autoLocation,
     manualLocation,
     visionConfig,
@@ -179,6 +180,7 @@ const {
 Object.assign(screensaverState, {
   searchKeywords,
   feedConfigs,
+  poolPolicies,
   autoLocation,
   manualLocation,
   visionConfig,

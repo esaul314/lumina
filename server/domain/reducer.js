@@ -42,6 +42,7 @@ function cloneState(state) {
         ])
       ),
       feedConfigs: { ...state.config.feedConfigs },
+      poolPolicies: { ...state.config.poolPolicies },
       excludedKeywords: [...state.config.excludedKeywords],
       manualLocation: { ...state.config.manualLocation },
       visionConfig: state.config.visionConfig ? { ...state.config.visionConfig } : undefined
@@ -711,6 +712,14 @@ function mergePoolSourceConfig(nextState, name, source, configPatch) {
   return true;
 }
 
+function assignPoolPolicy(nextState, name, policy) {
+  nextState.config.poolPolicies ??= {};
+  const current = nextState.config.poolPolicies[name] || {};
+  if (shallowEqualObjects(current, policy)) return false;
+  nextState.config.poolPolicies[name] = { ...policy };
+  return true;
+}
+
 function removePoolState(nextState, name) {
   if (!hasPool(nextState, name)) {
     return false;
@@ -719,6 +728,9 @@ function removePoolState(nextState, name) {
   delete nextState.library.collections[name];
   delete nextState.config.searchKeywords[name];
   delete nextState.config.feedConfigs[name];
+  if (nextState.config.poolPolicies) {
+    delete nextState.config.poolPolicies[name];
+  }
   nextState.playback.selectedCategories = normalizeCategorySelection(
     nextState.playback.selectedCategories.filter((category) => category !== name),
     Object.keys(nextState.library.collections),
@@ -976,6 +988,12 @@ const readPoolFeedConfigPayload = (command) => {
     : null;
 };
 
+const readPoolPolicyPayload = (command) => {
+  const name = normalizePoolName(command.payload?.name);
+  const policy = command.payload?.policy;
+  return name && isPlainObject(policy) ? { name, policy } : null;
+};
+
 const readActivePhotoSelectionPayload = (command) => {
   const url = String(command.payload?.url || '');
   const photo = command.payload?.photo && typeof command.payload.photo === 'object'
@@ -1098,6 +1116,11 @@ const reducePoolCommand = {
     readPayload: readPoolFeedConfigPayload,
     persist: true,
     apply: (nextState, { name, source, config }) => mergePoolSourceConfig(nextState, name, source, config)
+  }),
+  'set-pool-policy': buildPoolCommandReducer({
+    readPayload: readPoolPolicyPayload,
+    persist: true,
+    apply: (nextState, { name, policy }) => assignPoolPolicy(nextState, name, policy)
   })
 };
 

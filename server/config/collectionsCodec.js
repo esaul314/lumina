@@ -4,6 +4,7 @@ const fs = require('fs');
 const { normalizeKeywordEntries } = require('../utils/keywordSpecs.js');
 const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
 const { normalizePhotoTimestamp } = require('../domain/photoTimestamps.js');
+const { normalizePoolPolicy } = require('../domain/poolRetention.js');
 
 function cloneCollectionEntries(collections = {}) {
   return Object.fromEntries(
@@ -98,12 +99,17 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
     ? { ...rawFeedConfigs }
     : buildFeedConfigsFromKeywords(searchKeywords);
   const manualLocation = rawData?.locationSettings?.manualLocation ?? defaultState.manualLocation ?? {};
+  const poolPolicies = Object.fromEntries(
+    Object.entries(rawData?.poolPolicies ?? defaultState.poolPolicies ?? {})
+      .map(([category, policy]) => [category, normalizePoolPolicy(policy)])
+  );
 
   return {
     collections,
     persistedState: {
       searchKeywords,
       feedConfigs,
+      poolPolicies,
       autoLocation: rawData?.locationSettings?.autoLocation ?? defaultState.autoLocation,
       manualLocation: { ...manualLocation },
       visionConfig: rawData?.visionConfig ? { ...rawData.visionConfig } : defaultState.visionConfig,
@@ -122,6 +128,7 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
   const {
     searchKeywords,
     feedConfigs,
+    poolPolicies,
     lastFeedUpdated = 0,
     autoLocation,
     manualLocation,
@@ -143,6 +150,12 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
 
   if (feedConfigs) {
     payload.feedConfigs = feedConfigs;
+  }
+
+  if (poolPolicies) {
+    payload.poolPolicies = Object.fromEntries(
+      Object.entries(poolPolicies).map(([category, policy]) => [category, normalizePoolPolicy(policy)])
+    );
   }
 
   payload.locationSettings = {

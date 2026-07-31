@@ -1,6 +1,7 @@
 const { readEnvVar } = require('../config/env.js');
 const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
 const { stampNewPhotos } = require('../domain/photoTimestamps.js');
+const { normalizePoolPolicy, pruneExpiredPhotos } = require('../domain/poolRetention.js');
 
 const CRAWLER_USER_AGENT = 'LuminaScreensaver/1.0.0 (contact: alex@lumina.local; HTPC ambient screensaver)';
 
@@ -979,12 +980,25 @@ async function crawlAllCollections(
   feedConfigs = null,
   searchKeywords = null,
   excludedKeywords = null,
+  poolPolicies = null,
   now = () => new Date()
 ) {
+  if (typeof poolPolicies === 'function') {
+    now = poolPolicies;
+    poolPolicies = null;
+  }
   console.log('Initiating dynamic multi-source feed updates for all categories...');
-  const updatedCollections = { ...currentCollections };
+  const currentTime = now();
   let updatedAny = false;
-  const stampAcceptedPhotos = stampNewPhotos(now());
+  const updatedCollections = Object.fromEntries(
+    Object.entries(currentCollections).map(([category, photos]) => {
+      const policy = normalizePoolPolicy(poolPolicies?.[category]);
+      const retained = pruneExpiredPhotos(currentTime, policy)(photos);
+      updatedAny ||= retained.length !== photos.length;
+      return [category, retained];
+    })
+  );
+  const stampAcceptedPhotos = stampNewPhotos(currentTime);
 
   const matchesExclusion = (excludedList, item) => {
     if (!item || !item.title) return false;
@@ -1130,7 +1144,7 @@ async function crawlAllCollections(
       categoryList = capCollectionLimit(
         categoryList.concat(stampAcceptedPhotos(uniqueNewItems)),
         initialLength,
-        2000
+        normalizePoolPolicy(poolPolicies?.[category]).maxPhotos
       );
       if (categoryList.length > initialLength) {
         console.log(`${scraper.key.toUpperCase()}: Added ${categoryList.length - initialLength} new photos to "${category}" (Total: ${categoryList.length})`);
@@ -1164,7 +1178,7 @@ async function crawlAllCollections(
           }
         }
 
-        aiList = capCollectionLimit(aiList, initialAiLength, 2000);
+        aiList = capCollectionLimit(aiList, initialAiLength, normalizePoolPolicy(poolPolicies?.[category]).maxPhotos);
 
         updatedCollections[category] = aiList;
         if (aiList.length > initialAiLength) {
@@ -1194,5 +1208,7 @@ module.exports = {
   fetchAicImages,
   fetchUnsplashImages,
   capCollectionLimit,
+  normalizePoolPolicy,
+  pruneExpiredPhotos,
   crawlAllCollections
 };
