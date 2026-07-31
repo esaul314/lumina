@@ -50,7 +50,7 @@ const {
   buildPersistedSnapshot,
   normalizePersistedSnapshot
 } = require('../config/collectionsCodec.js');
-const { createIndexedInterpreter } = require('../utils/fn.js');
+const { createClosedInterpreter, createIndexedInterpreter } = require('../utils/fn.js');
 const {
   normalizePhotoAddedAt,
   normalizePhotoTimestamp,
@@ -424,6 +424,16 @@ function runDomainTests({ logSuite, assertTest }) {
     );
 
     assert.strictEqual(interpret('first', 1), 3);
+    assert.strictEqual(interpret('toString', 1), 'fallback');
+    assert.strictEqual(interpret('__proto__', 1), 'fallback');
+  });
+
+  assertTest('closed interpreters adapt handler records without opening prototype keys', () => {
+    const interpret = createClosedInterpreter({
+      increment: (value) => value + 1
+    }, (handler, value) => handler(value), () => 'fallback');
+
+    assert.strictEqual(interpret('increment', 1), 2);
     assert.strictEqual(interpret('toString', 1), 'fallback');
     assert.strictEqual(interpret('__proto__', 1), 'fallback');
   });

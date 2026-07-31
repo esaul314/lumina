@@ -5,7 +5,7 @@ const { persistEnvVars } = require('../config/env.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 const { reduceAsyncSequentially } = require('../utils/asyncReduce.js');
-const { createIndexedInterpreter } = require('../utils/fn.js');
+const { createClosedInterpreter } = require('../utils/fn.js');
 
 /** @typedef {import('./types').Command} Command */
 /** @typedef {import('./types').Effect} Effect */
@@ -65,11 +65,7 @@ const createWeatherRefreshEffect = (triggerWeatherUpdate) => async () => {
 };
 
 const createEffectInterpreter = (effectHandlers) => {
-  const resolveHandler = createIndexedInterpreter(
-    Object.entries(effectHandlers),
-    (handler) => handler,
-    () => undefined
-  );
+  const resolveHandler = createClosedInterpreter(effectHandlers);
   const interpret = async (effectResults, effect) => [
     ...effectResults,
     {
@@ -82,11 +78,7 @@ const createEffectInterpreter = (effectHandlers) => {
 };
 
 const createEventEmitter = (eventHandlers) => {
-  const resolveHandler = createIndexedInterpreter(
-    Object.entries(eventHandlers),
-    (handler) => handler,
-    () => undefined
-  );
+  const resolveHandler = createClosedInterpreter(eventHandlers);
 
   return (events = []) => {
     events.forEach((event) => {

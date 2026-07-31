@@ -1406,3 +1406,12 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Added regression coverage proving inherited keys such as `toString` and `__proto__` are outside the supported event vocabulary.
 - **Learning**: Event emission is another small interpreter boundary; keeping the accepted keys closed prevents prototype properties from becoming accidental transport behavior without hiding the straightforward event order.
 - **Verification**: `npm test` passed with 224 assertions and 11 sensor checks; `npm run lint` completed with three pre-existing warnings and no errors; `git diff --check` passed.
+
+### 2026-07-31: Share the Closed Dispatcher Interpreter
+
+- **Goal**: Continue Step 4 by removing the duplicated handler-record lookup setup left after closing the effect and event vocabularies.
+- **Implementation**:
+  - Added the small `createClosedInterpreter` adapter over the existing indexed `Map` interpreter.
+  - Reused it for dispatcher effects and events while keeping ordered promise reduction and event emission explicit.
+  - Added regression coverage for record adaptation and prototype-key isolation.
+- **Learning**: A useful FP abstraction here is a boundary adapter, not a generalized dispatcher: partial application fixes the declared handler record once, while the existing interpreter still defines the closed-key semantics.

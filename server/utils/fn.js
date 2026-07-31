@@ -74,6 +74,25 @@ const createIndexedInterpreter = (entries, interpret, fallback) => {
 };
 
 /**
+ * Build a closed interpreter directly from a handler record.
+ *
+ * The record is converted once to the indexed interpreter above, so callers
+ * can expose a small declared vocabulary without opening prototype properties
+ * as accidental handlers.
+ *
+ * @template E, R
+ * @param {Record<string, E>} handlers
+ * @param {(entry: E, ...args: any[]) => R} [interpret]
+ * @param {(...args: any[]) => R} [fallback]
+ * @returns {(key: string, ...args: any[]) => R}
+ */
+const createClosedInterpreter = (
+  handlers,
+  interpret = (handler) => handler,
+  fallback = () => undefined
+) => createIndexedInterpreter(Object.entries(handlers), interpret, fallback);
+
+/**
  * 🔤 toLower
  * Safe string lowercase mapper.
  */
@@ -107,6 +126,7 @@ module.exports = {
   filter,
   reduce,
   createIndexedInterpreter,
+  createClosedInterpreter,
   toLower,
   includes,
   uniqBy
