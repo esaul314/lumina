@@ -34,11 +34,14 @@ const normalizeRecord = (value) => (
     : {}
 );
 
-const applyRuntimeFlags = (state, runtimeFlags) => {
-  Object.entries(runtimeFlags).forEach(([flag, enabled]) => {
-    state[flag] = Boolean(enabled);
-  });
-};
+const normalizeRuntimeFlags = (runtimeFlags) => Object.fromEntries(
+  Object.entries(normalizeRecord(runtimeFlags)).map(([flag, enabled]) => [flag, Boolean(enabled)])
+);
+
+const applyRuntimeFlags = (state, runtimeFlags) => Object.assign(
+  state,
+  normalizeRuntimeFlags(runtimeFlags)
+);
 
 const normalizeEnvVarEffectPayload = (effect) => ({
   entries: normalizeRecord(effect.payload?.entries),
@@ -217,5 +220,6 @@ function createDomainDispatcher({
 module.exports = {
   createDomainDispatcher,
   createEffectInterpreter,
-  createEventEmitter
+  createEventEmitter,
+  normalizeRuntimeFlags
 };

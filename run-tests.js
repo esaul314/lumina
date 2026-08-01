@@ -50,7 +50,8 @@ const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const {
   createDomainDispatcher,
-  createEffectInterpreter
+  createEffectInterpreter,
+  normalizeRuntimeFlags
 } = require('./server/domain/dispatch.js');
 const { reduceAsyncSequentially } = require('./server/utils/asyncReduce.js');
 const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
@@ -2079,6 +2080,18 @@ assertAsyncTest('createEffectInterpreter keeps inherited effect keys outside the
   ]);
 
   assert.deepStrictEqual(result.map(({ value }) => value), [undefined, undefined, 'persisted']);
+});
+
+assertTest('normalizeRuntimeFlags projects environment flags without mutating its input', () => {
+  const flags = { hasUseApiToken: 1, hasTumblrApiKey: 0 };
+  const normalized = normalizeRuntimeFlags(flags);
+
+  assert.deepStrictEqual(normalized, {
+    hasUseApiToken: true,
+    hasTumblrApiKey: false
+  });
+  assert.deepStrictEqual(flags, { hasUseApiToken: 1, hasTumblrApiKey: 0 });
+  assert.deepStrictEqual(normalizeRuntimeFlags(['not', 'a', 'record']), {});
 });
 
 assertAsyncTest('reduceAsyncSequentially preserves order and supports a partially applied batch reducer', async () => {
