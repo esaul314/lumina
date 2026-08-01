@@ -437,6 +437,14 @@ const resolveReducerOptions = (options, payload, command, state) => Object.fromE
   ])
 );
 
+const withCommandPayload = (readPayload, reduce) => (state, command, env = {}) => {
+  const payload = readPayload(command, state);
+
+  return payload === null
+    ? unchangedResult(state)
+    : reduce(state, command, payload, env);
+};
+
 function buildFeedCommandReducer({
   readPayload,
   apply,
@@ -445,14 +453,8 @@ function buildFeedCommandReducer({
   eventsFor,
   persist = false
 }) {
-  return (state, command, env = {}) => {
-    const payload = readPayload(command, state);
-
-    if (payload === null) {
-      return unchangedResult(state);
-    }
-
-    return reduceFeedMutation(state, {
+  return withCommandPayload(readPayload, (state, command, payload, env) => (
+    reduceFeedMutation(state, {
       ...resolveReducerOptions(
         { direction, forceReselect, eventsFor, persist },
         payload,
@@ -460,8 +462,8 @@ function buildFeedCommandReducer({
         state
       ),
       apply: (nextState) => apply(nextState, payload, command, state)
-    }, env);
-  };
+    }, env)
+  ));
 }
 
 function buildPoolCommandReducer({
@@ -471,13 +473,7 @@ function buildPoolCommandReducer({
   persist = false,
   requireExistingPool = true
 }) {
-  return (state, command) => {
-    const payload = readPayload(command, state);
-
-    if (payload === null) {
-      return unchangedResult(state);
-    }
-
+  return withCommandPayload(readPayload, (state, command, payload) => {
     const options = {
       ...resolveReducerOptions({ effects, persist }, payload, command, state),
       apply: requireExistingPool
@@ -488,7 +484,7 @@ function buildPoolCommandReducer({
     return requireExistingPool
       ? reducePoolMutation(state, payload.name, options)
       : reduceStateMutation(state, options);
-  };
+  });
 }
 
 function prependVisiblePhoto(photosList, photo) {
@@ -524,13 +520,7 @@ function buildPlaybackCommandReducer({
   resolveDirection,
   prepareState
 }) {
-  return (state, command, env = {}) => {
-    const payload = readPayload(command, state);
-
-    if (payload === null) {
-      return unchangedResult(state);
-    }
-
+  return withCommandPayload(readPayload, (state, command, payload, env) => {
     const selectedPhoto = selectPhoto(state, payload, env);
     if (!selectedPhoto) {
       return unchangedResult(state);
@@ -544,7 +534,7 @@ function buildPlaybackCommandReducer({
           : nextState
       )
     });
-  };
+  });
 }
 
 const reducePhotoCommand = {

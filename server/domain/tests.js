@@ -413,6 +413,23 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(poolResult.effects.map((effect) => effect.type), ['persist']);
   });
 
+  assertTest('shared command payload boundary preserves invalid no-op semantics across reducer families', () => {
+    const state = createState();
+    const invalidCommands = [
+      { type: 'delete-pool', payload: { name: '   ' } },
+      { type: 'set-pool-keywords', payload: { name: '   ', keywords: ['mist'] } },
+      { type: 'set-active-photo', payload: { title: 'Missing URL' } }
+    ];
+
+    invalidCommands.forEach((command) => {
+      const result = reduceDomainCommand(state, command);
+
+      assert.strictEqual(result.nextState, state);
+      assert.deepStrictEqual(result.events, []);
+      assert.deepStrictEqual(result.effects, []);
+    });
+  });
+
   assertTest('indexed interpreters preserve declarative order and isolate unknown keys', () => {
     const interpret = createIndexedInterpreter(
       [
