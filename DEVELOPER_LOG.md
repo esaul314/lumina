@@ -1481,3 +1481,13 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Reused it for pool existence, known-pool, missing-pool, and known-photo checks while keeping each route's domain predicate and message visible as data.
   - Verified the existing guarded route regressions for success, missing-resource, duplicate-resource, and invalid-photo paths against the shared factory.
 - **Learning**: The useful abstraction was a small algebra over the existing guard result, not a general validation framework; route policy remains explicit and the shared shell only owns the repeated result shape.
+
+### 2026-08-01: Normalize Dispatcher Runtime Flags Before Applying Them
+
+- **Goal**: Continue the selective Step 4 command/effect readability pass at the environment-secret effect boundary.
+- **Implementation**:
+  - Added `normalizeRuntimeFlags(...)`, a pure record projection that coerces declared runtime flags to booleans without modifying its input.
+  - Kept state mutation in the dispatcher shell as one explicit `Object.assign(...)` after environment persistence, replacing the local imperative assignment loop.
+  - Added a direct regression for boolean coercion, invalid non-record inputs, and input immutability.
+- **Learning**: This is a useful small Functor-like map over record entries: the data transformation stays testable and lawful, while the one necessary state application remains visible at the effect boundary.
+- **Verification**: `npm test` passed with 260 assertions and 11 sensor checks; `npm run lint` passed with three pre-existing warnings; `git diff --check` passed.
