@@ -907,6 +907,26 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.doesNotMatch(imageFeedsSource, /<details\s+open/);
 });
 
+assertAsyncTest('pool policy drafts preserve a just-edited maximum through synchronous save reads', async () => {
+  const {
+    mergePoolPolicyDraft,
+    readPoolPolicy,
+    readPoolPolicyDraft
+  } = await importClientModule('./client/src/state/poolPolicyDrafts.js');
+  const policyFor = (category) => readPoolPolicy({
+    'Scenic Nature': { retentionDays: 30, maxPhotos: 2000 }
+  }, category);
+  const readDraft = readPoolPolicyDraft(policyFor);
+  const maxPhotosDraft = mergePoolPolicyDraft(policyFor)({}, 'Scenic Nature', 'maxPhotos', '500');
+  const drafts = mergePoolPolicyDraft(policyFor)(maxPhotosDraft, 'Scenic Nature', 'retentionDays', '45');
+
+  assert.deepStrictEqual(readDraft(drafts, 'Scenic Nature'), {
+    retentionDays: '45',
+    maxPhotos: '500'
+  });
+  assert.strictEqual(readDraft({}, 'Scenic Nature').maxPhotos, 2000);
+});
+
 assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {
   const item = buildCachedMediaItem({
     id: 'picker-123',
@@ -4350,6 +4370,16 @@ async function runIntegrationTests() {
       assert.strictEqual(patchPoolRes.status, 200);
       assert.strictEqual(patchPoolRes.body.success, true);
       assert.deepStrictEqual(patchPoolRes.body.pool.keywords, ['modified-keyword-1']);
+    });
+
+    const patchPoolPolicyRes = await liveRequestJson(`/api/pools/${encodeURIComponent(poolName)}`, 'PATCH', {
+      policy: { retentionDays: 45, maxPhotos: 500 }
+    });
+    const stateAfterPoolPolicy = await liveRequestJson('/api/state', 'GET');
+    assertTest('PATCH /api/pools/:name retains a custom maximum in the returned and refreshed state', () => {
+      assert.strictEqual(patchPoolPolicyRes.status, 200);
+      assert.deepStrictEqual(patchPoolPolicyRes.body.state.poolPolicies[poolName], { retentionDays: 45, maxPhotos: 500 });
+      assert.deepStrictEqual(stateAfterPoolPolicy.body.poolPolicies[poolName], { retentionDays: 45, maxPhotos: 500 });
     });
 
     // 9. PATCH /api/pools/:name/feed-sources/:source

@@ -8,6 +8,11 @@ import {
 } from '../../state/photoCrop';
 import { isCategorySelected } from '../../state/feedMutations';
 import {
+  mergePoolPolicyDraft,
+  readPoolPolicy,
+  readPoolPolicyDraft
+} from '../../state/poolPolicyDrafts';
+import {
   GOOGLE_PHOTOS_PICKER_COPY,
   getGooglePhotosPickerStatus
 } from './googlePhotosPicker';
@@ -45,6 +50,7 @@ function ImageFeedsTab({
 }) {
   const [keywordInput, setKeywordInput] = useState('');
   const [policyDrafts, setPolicyDrafts] = useState({});
+  const policyDraftsRef = useRef({});
   const [localCrop, setLocalCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
   const ratingDeckPreviewContainerRef = useRef(null);
@@ -107,13 +113,15 @@ function ImageFeedsTab({
     ? { playback: { selectedCategories } }
     : state;
   const googlePhotosPickerStatus = getGooglePhotosPickerStatus(isSavedEnv);
-  const poolPolicy = (category) => state.poolPolicies?.[category] || { retentionDays: 30, maxPhotos: 2000 };
-  const draftPolicy = (category) => policyDrafts[category] || poolPolicy(category);
-  const updatePolicyDraft = (category, field, value) => setPolicyDrafts((drafts) => ({
-    ...drafts,
-    [category]: { ...draftPolicy(category), [field]: value }
-  }));
-  const savePoolPolicy = (category) => actions.updatePoolPolicy(category, draftPolicy(category));
+  const poolPolicy = (category) => readPoolPolicy(state.poolPolicies, category);
+  const getDraftPolicy = readPoolPolicyDraft(poolPolicy);
+  const draftPolicy = (category) => getDraftPolicy(policyDrafts, category);
+  const updatePolicyDraft = (category, field, value) => {
+    const nextDrafts = mergePoolPolicyDraft(poolPolicy)(policyDraftsRef.current, category, field, value);
+    policyDraftsRef.current = nextDrafts;
+    setPolicyDrafts(nextDrafts);
+  };
+  const savePoolPolicy = (category) => actions.updatePoolPolicy(category, getDraftPolicy(policyDraftsRef.current, category));
 
   const handleAddChip = (text) => {
     const clean = text.trim();

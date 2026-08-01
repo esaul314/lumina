@@ -1437,6 +1437,14 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   `npm run build` in `client/` passed, and the local server serves that rebuilt
   bundle.
 
+## 2026-07-31 — Keep Pool Lifecycle drafts current during save
+
+- Fixed the Pool Lifecycle form so its pure draft merge reads the state updater's
+  current draft, rather than a potentially stale render closure.
+- A synchronized local draft reference now supplies blur and Save submissions,
+  so React event batching cannot send the old 2,000 fallback after a Max photos edit.
+- Added client draft and REST refresh regressions covering custom maximum retention.
+
 ### 2026-07-31: Close the Dispatcher Effect Vocabulary
 
 - **Goal**: Continue the Step 4 command/effect readability pass by aligning effect lookup with the reducer's closed declarative interpreter.
