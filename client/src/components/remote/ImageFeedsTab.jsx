@@ -113,6 +113,7 @@ function ImageFeedsTab({
     ...drafts,
     [category]: { ...draftPolicy(category), [field]: value }
   }));
+  const savePoolPolicy = (category) => actions.updatePoolPolicy(category, draftPolicy(category));
 
   const handleAddChip = (text) => {
     const clean = text.trim();
@@ -210,12 +211,12 @@ function ImageFeedsTab({
               <div key={category} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 90px auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
                 <label style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>{category}</label>
                 <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Keep days
-                  <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} style={{ width: '100%', marginTop: '4px' }} />
+                  <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
                 </label>
                 <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Max photos
-                  <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} style={{ width: '100%', marginTop: '4px' }} />
+                  <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
                 </label>
-                <button type="button" className="remote-btn" onClick={() => actions.updatePoolPolicy(category, policy)} style={{ padding: '7px 9px', fontSize: '0.72rem' }}>Save</button>
+                <button type="button" className="remote-btn" onClick={() => savePoolPolicy(category)} style={{ padding: '7px 9px', fontSize: '0.72rem' }}>Save</button>
               </div>
             );
           })}

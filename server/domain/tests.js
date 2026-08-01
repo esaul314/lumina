@@ -2101,6 +2101,7 @@ function runDomainTests({ logSuite, assertTest }) {
     const persisted = buildPersistedSnapshot(createState().library.collections, {
       searchKeywords: createState().config.searchKeywords,
       feedConfigs: { foo: { enabled: true } },
+      poolPolicies: { 'Scenic Nature': { retentionDays: 14, maxPhotos: 500 } },
       autoLocation: true,
       manualLocation: { city: 'Montreal' },
       visionConfig: { model: 'gpt-4.1-mini' },
@@ -2115,6 +2116,7 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(persisted.splitCropPercent, 42);
     assert.deepStrictEqual(persisted.locationSettings.manualLocation, { city: 'Montreal' });
     assert.deepStrictEqual(persisted.excludedKeywords, ['anime']);
+    assert.deepStrictEqual(persisted.poolPolicies['Scenic Nature'], { retentionDays: 14, maxPhotos: 500 });
   });
 
   assertTest('persistence codec keeps explicit zero-valued crop defaults', () => {

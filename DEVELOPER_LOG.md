@@ -1408,6 +1408,19 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - Verification: `npm test` passed with 222 assertions and 11 sensor checks;
   client production build is the remaining final check for this slice.
 
+## 2026-07-31 — Persist lifecycle edits on field exit
+
+- Pool Lifecycle inputs now submit their normalized policy when focus leaves
+  either numeric field, in addition to the existing explicit Save button.
+- This prevents a changed Max photos draft from looking saved until the user
+  leaves and later reopens Image Feeds, where it previously reverted to the
+  2,000 fallback.
+- Added codec coverage that verifies a saved pool policy survives the curated
+  collections persistence round trip.
+- Verification: `npm test` passed with 225 assertions and 11 sensor checks;
+  `npm run build` in `client/` passed, and the local server serves that rebuilt
+  bundle.
+
 ### 2026-07-31: Close the Dispatcher Effect Vocabulary
 
 - **Goal**: Continue the Step 4 command/effect readability pass by aligning effect lookup with the reducer's closed declarative interpreter.
