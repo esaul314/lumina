@@ -5,6 +5,13 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-08-01: Share Reducer Payload Boundaries
+
+- **Goal**: Continue the selective Phase 1 companion Step 4 readability pass by removing repeated invalid-command handling from the feed, pool, and playback reducer builders.
+- **Implementation**: Added one partially applied `withCommandPayload` boundary that decodes a command payload once, returns the existing identity no-op for invalid payloads, and delegates valid payloads to each family’s explicit reducer logic.
+- **Verification**: Added regression coverage across feed deletion, pool keyword updates, and active-photo selection. The full regression suite passed 261 assertions, and the sensor-adapter suite passed 11/11.
+- **Learning**: A small higher-order boundary is useful when several reducer builders share the same validation/no-op contract but still need to expose their domain-specific mutation and selection policies directly.
+
 ### 2026-07-31: Close Socket Command-Family Interpretation
 
 - **Goal**: Continue the selective Phase 1 companion Step 4 readability pass

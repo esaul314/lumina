@@ -261,6 +261,7 @@ Progress note:
 - The latest Step 4 slice also closes dispatcher effect lookup through the shared indexed interpreter, preserving ordered promise reduction while making unknown and inherited effect keys explicit no-op boundaries.
 - The latest Step 4 slice closes dispatcher event lookup through the same indexed interpreter, preserving event order while making unknown and inherited event keys explicit no-op boundaries.
 - The latest Step 4 slice closes Socket.IO command-family lookup through the same handler-record interpreter, preserving each transport family’s explicit fallback shaping while making unknown and inherited family keys identity fallbacks.
+- The latest Step 4 slice shares one higher-order `read payload -> unchanged or reduce` boundary across feed, pool, and playback reducer builders, preserving family-specific mutation and selection logic while removing repeated invalid-payload ceremony.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 
