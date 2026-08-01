@@ -7,6 +7,7 @@ const { createSocketLegacyCompatibility } = require('./socketLegacyCompatibility
 const {
   SOCKET_COMMAND_LISTENER_SPECS,
 } = require('./domain/commands.js');
+const { createClosedInterpreter } = require('./utils/fn.js');
 const buildSocketErrorLogger = (label) => (error) => {
   console.error(`Socket Event: ${label} failed:`, error.message);
 };
@@ -168,32 +169,25 @@ const createSecretSaveListenerSpec = ({ compatibility, emitSecretSaveResult }) =
 });
 const createSocketCommandSpecInterpreter = ({ compatibility, emitSecretSaveResult, socket }) => {
   const interpretSecretSave = createSecretSaveListenerSpec({ compatibility, emitSecretSaveResult });
+  const interpretFamily = createClosedInterpreter({
+    'state-patch': (spec) => ({
+      ...spec,
+      fallback: compatibility?.statePatch
+    }),
+    'durable-command': (spec) => ({
+      ...spec,
+      decode: resolveCommandDecode(spec),
+      fallback: resolveCompatibilityFallback(compatibility, spec)
+    }),
+    'async-job': (spec) => ({
+      ...spec,
+      decode: resolveCommandDecode(spec),
+      fallback: createSocketEmitFallback(socket, spec.unavailableEvent, spec.unavailablePayload)
+    }),
+    'secret-save': interpretSecretSave
+  }, (interpret, spec) => interpret(spec), (spec) => spec);
 
-  return ({ family, ...spec }) => {
-    switch (family) {
-      case 'state-patch':
-        return {
-          ...spec,
-          fallback: compatibility?.statePatch
-        };
-      case 'durable-command':
-        return {
-          ...spec,
-          decode: resolveCommandDecode(spec),
-          fallback: resolveCompatibilityFallback(compatibility, spec)
-        };
-      case 'async-job':
-        return {
-          ...spec,
-          decode: resolveCommandDecode(spec),
-          fallback: createSocketEmitFallback(socket, spec.unavailableEvent, spec.unavailablePayload)
-        };
-      case 'secret-save':
-        return interpretSecretSave(spec);
-      default:
-        return spec;
-    }
-  };
+  return ({ family, ...spec }) => interpretFamily(family, spec);
 };
 
 /**
@@ -354,3 +348,5 @@ module.exports = function configureSockets({
     registerCommands(SOCKET_COMMAND_LISTENER_SPECS.map(interpretSocketCommandSpec));
   });
 };
+
+module.exports.createSocketCommandSpecInterpreter = createSocketCommandSpecInterpreter;

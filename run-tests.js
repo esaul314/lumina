@@ -57,6 +57,7 @@ const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js')
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const configureSockets = require('./server/sockets.js');
+const { createSocketCommandSpecInterpreter } = configureSockets;
 const { createSensorPlatform } = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
@@ -2509,6 +2510,49 @@ async function runClientStateTests() {
     global.window = originalWindow;
     global.fetch = originalFetch;
   }
+
+  const socketFamilyEmits = [];
+  const compatibilityFallback = () => 'legacy-state-patch';
+  const interpretSocketFamily = createSocketCommandSpecInterpreter({
+    compatibility: {
+      statePatch: compatibilityFallback,
+      categorySelection: () => 'legacy-category'
+    },
+    emitSecretSaveResult: () => {},
+    socket: {
+      emit: (...args) => socketFamilyEmits.push(args)
+    }
+  });
+
+  assertTest('socket command-family interpreter keeps its declared vocabulary closed', () => {
+    const statePatch = interpretSocketFamily({ family: 'state-patch', event: 'change-theme' });
+    const durableCommand = interpretSocketFamily({
+      family: 'durable-command',
+      event: 'change-category',
+      decode: (payload) => ({ type: 'select-categories', payload }),
+      fallbackKey: 'categorySelection'
+    });
+    const asyncJob = interpretSocketFamily({
+      family: 'async-job',
+      event: 'trigger-recrawl',
+      decode: () => ({ type: 'request-recrawl' }),
+      unavailableEvent: 'recrawl-complete',
+      unavailablePayload: { success: false }
+    });
+    const unknown = interpretSocketFamily({ family: 'unknown-family', event: 'custom' });
+    const inherited = interpretSocketFamily({ family: '__proto__', event: 'custom-inherited' });
+
+    assert.strictEqual(statePatch.fallback, compatibilityFallback);
+    assert.deepStrictEqual(durableCommand.decode(['Scenic Nature']), {
+      type: 'select-categories',
+      payload: ['Scenic Nature']
+    });
+    assert.strictEqual(durableCommand.fallback(), 'legacy-category');
+    asyncJob.fallback();
+    assert.deepStrictEqual(socketFamilyEmits, [['recrawl-complete', { success: false }]]);
+    assert.deepStrictEqual(unknown, { event: 'custom' });
+    assert.deepStrictEqual(inherited, { event: 'custom-inherited' });
+  });
 
   const dispatchedCommands = [];
   const dispatchHarness = createSocketHarness({
