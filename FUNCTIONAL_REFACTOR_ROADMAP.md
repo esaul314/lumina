@@ -259,6 +259,7 @@ Progress note:
 - The latest Step 4 slice centralized reducer-builder option resolution, so feed and pool command families now share one pure `(payload, command, state) -> options` interpreter while their distinct mutation/finalization boundaries remain explicit.
 - The latest Step 4 slice also closes dispatcher effect lookup through the shared indexed interpreter, preserving ordered promise reduction while making unknown and inherited effect keys explicit no-op boundaries.
 - The latest Step 4 slice closes dispatcher event lookup through the same indexed interpreter, preserving event order while making unknown and inherited event keys explicit no-op boundaries.
+- The latest Step 4 slice closes Socket.IO command-family lookup through the same handler-record interpreter, preserving each transport family’s explicit fallback shaping while making unknown and inherited family keys identity fallbacks.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

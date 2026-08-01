@@ -5,6 +5,22 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-07-31: Close Socket Command-Family Interpretation
+
+- **Goal**: Continue the selective Phase 1 companion Step 4 readability pass
+  without hiding socket-owned behavior behind a broad framework.
+- **Implementation**: Replaced the Socket.IO command-family `switch` with the
+  existing closed, Map-backed handler-record interpreter. State-patch,
+  durable-command, async-job, and secret-save specializations remain explicit;
+  unknown and inherited family keys preserve the former identity fallback.
+- **Verification**: Added a direct regression test for family specialization,
+  unknown/inherited keys, and async fallback emission. `npm test` passed 226
+  assertions plus 11/11 sensor-adapter regressions; `npm run lint` passed with
+  three pre-existing warnings.
+- **Learning**: A closed interpreter is valuable when it replaces an existing
+  finite dispatch branch without obscuring the distinct payload shaping each
+  case owns.
+
 ### 2026-07-31: Scrubbed Local Paths From Tracked Documentation
 
 - **Goal**: Keep public documentation portable and prevent local file URLs or
