@@ -3342,6 +3342,26 @@ async function runIntegrationTests() {
     assert.strictEqual(dispatched, false);
   });
 
+  await assertAsyncTest('GET /api/pools/:name/photos reuses the shared pool guard for missing pools', async () => {
+    const app = buildConfiguredRoutesApp();
+    const response = await invokeRoute(app, 'get', '/api/pools/:name/photos', {
+      params: { name: 'Missing Pool' }
+    });
+
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(response.body.error, 'Pool "Missing Pool" not found.');
+  });
+
+  await assertAsyncTest('GET /api/pools/:name/photos returns the pool collection for an existing pool', async () => {
+    const app = buildConfiguredRoutesApp();
+    const response = await invokeRoute(app, 'get', '/api/pools/:name/photos', {
+      params: { name: 'Scenic Nature' }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.deepStrictEqual(response.body, [{ url: 'land-1', category: 'Scenic Nature' }]);
+  });
+
   await assertAsyncTest('PATCH /api/pools/:name rejects an invalid feed-source config before batch dispatching the shared decode pipeline', async () => {
     let dispatched = false;
     const app = buildConfiguredRoutesApp({

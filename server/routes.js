@@ -799,8 +799,9 @@ module.exports = function configureRoutes({
 
   app.get('/api/pools/:name/photos', (req, res) => {
     const name = req.params.name.trim();
-    if (!collections[name]) {
-      sendError(res, 404, `Pool "${name}" not found.`);
+    const guardFailure = ensurePoolExists(name);
+    if (guardFailure) {
+      sendRouteFailure(res, guardFailure, { name });
       return;
     }
 
