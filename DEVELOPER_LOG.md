@@ -5,6 +5,13 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-08-02: Reuse the Pool Presence Guard on the Photo Read Route
+
+- **Goal**: Finish the current Step 4 route-guard seam by removing the last inline pool-existence failure branch.
+- **Implementation**: Routed `GET /api/pools/:name/photos` through the existing pure `createPresenceGuard` boundary; successful responses still return the collection unchanged.
+- **Verification**: Added regressions for existing and missing pools so the shared 404 contract is explicit.
+- **Learning**: A small guard algebra pays off when it spans both command and read routes, provided response shaping remains local to each route.
+
 ### 2026-08-02: Share Short-Circuit Route Reduction
 
 - **Goal**: Continue the selective Phase 1 companion Step 4 cleanup by removing duplicated early-exit reduction ceremony at the route-decode and route-guard boundaries.
