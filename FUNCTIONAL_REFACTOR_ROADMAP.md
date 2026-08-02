@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-07-31
+Last updated: 2026-08-02
 
 ## Purpose
 
@@ -28,6 +28,7 @@ Current checkpoint:
 - The latest Step 4 slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, then collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, then aligned the overlapping pool keyword/feed-config REST patch specs with their durable socket command specs through one shared pool transport family, then collapsed the remaining photo/pool patch transport shapers in `server/domain/commands.js` onto one shared builder, then collapsed the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` onto one shared field-entry interpreter, then interpreted reducer effects through an ordered promise-reduce pipeline so sequencing remains explicit without a mutable loop, and now share the route-presence guard algebra across pool and photo resource checks without hiding their distinct predicates or failure policies.
 - The latest Step 4 slice also extracted `createClosedInterpreter`, a small partially applied handler-record adapter over the indexed vocabulary helper, so dispatcher effect and event lookup share one closed boundary without hiding their sequential shells.
 - The latest Step 4 slice keeps environment-secret runtime flags on the same functional-core/imperative-shell boundary: a pure record-to-boolean projection now feeds one explicit shell assignment after persistence.
+- The latest Step 4 slice shares one curried `reduceUntil(step, shouldStop, initial)(values)` boundary between route-decode collection and route-guard evaluation, preserving empty identities, first-failure short-circuiting, and explicit transport predicates without introducing a general routing framework.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`
@@ -262,6 +263,7 @@ Progress note:
 - The latest Step 4 slice closes dispatcher event lookup through the same indexed interpreter, preserving event order while making unknown and inherited event keys explicit no-op boundaries.
 - The latest Step 4 slice closes Socket.IO command-family lookup through the same handler-record interpreter, preserving each transport family’s explicit fallback shaping while making unknown and inherited family keys identity fallbacks.
 - The latest Step 4 slice shares one higher-order `read payload -> unchanged or reduce` boundary across feed, pool, and playback reducer builders, preserving family-specific mutation and selection logic while removing repeated invalid-payload ceremony.
+- The latest Step 4 slice shares a pure short-circuit reducer across route decoding and guarded route execution, with regression coverage for data-last partial application, identity values, non-mutation, and skipped post-failure steps.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

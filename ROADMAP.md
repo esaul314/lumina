@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-07-31
+Last updated: 2026-08-02
 
 ## Implementation Companion
 
@@ -27,6 +27,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: the Socket.IO command-family adapter now uses that same closed handler-record interpreter, so state-patch, durable-command, async-job, and secret-save specializations remain declarative while unknown and inherited family keys retain their identity fallback.
 - Latest Step 4 slice: environment-secret runtime flags now cross a pure normalization projection before the dispatcher shell assigns them, preserving boolean coercion and effect behavior while keeping input shaping deterministic and independently testable.
 - Latest Step 4 slice: feed, pool, and playback reducer builders now share one higher-order payload boundary for invalid-command no-ops, while their distinct mutation, selection, and finalization rules remain explicit.
+- Latest Step 4 slice: route-decode collection and route-guard evaluation now share one curried short-circuit reducer, keeping the decode algebra and guard predicates explicit while avoiding duplicate early-exit reduction ceremony.
 
 ### Photo timestamp foundation (2026-07-31)
 

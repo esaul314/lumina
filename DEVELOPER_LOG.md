@@ -5,6 +5,13 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-08-02: Share Short-Circuit Route Reduction
+
+- **Goal**: Continue the selective Phase 1 companion Step 4 cleanup by removing duplicated early-exit reduction ceremony at the route-decode and route-guard boundaries.
+- **Implementation**: Added a curried, data-last `reduceUntil` helper. Route-decode collection uses it to preserve the empty-success identity and first decode failure; route guards use the same boundary while retaining their pool/photo-specific predicates and failure policies.
+- **Verification**: Added coverage for partial application, first-match short-circuiting, input non-mutation, and empty/null identities. The full regression and lint gates remain the completion checks for this slice.
+- **Learning**: A tiny lawful-looking reduction boundary is worthwhile when the stopping condition is explicit and two callers share the same accumulation contract; it is not worthwhile to hide the domain-specific step functions behind a generic route framework.
+
 ### 2026-08-01: Share Reducer Payload Boundaries
 
 - **Goal**: Continue the selective Phase 1 companion Step 4 readability pass by removing repeated invalid-command handling from the feed, pool, and playback reducer builders.
