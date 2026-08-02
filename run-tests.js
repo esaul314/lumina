@@ -54,6 +54,7 @@ const {
   normalizeRuntimeFlags
 } = require('./server/domain/dispatch.js');
 const { reduceAsyncSequentially } = require('./server/utils/asyncReduce.js');
+const { reduceUntil } = require('./server/utils/fn.js');
 const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
@@ -2111,6 +2112,25 @@ assertAsyncTest('reduceAsyncSequentially preserves order and supports a partiall
     'start:2', 'finish:2',
     'start:3', 'finish:3'
   ]);
+});
+
+assertTest('reduceUntil is data-last, preserves its input, and stops after the first match', () => {
+  const values = [1, 2, 3];
+  const visited = [];
+  const findFirstEven = reduceUntil(
+    (found, value) => {
+      visited.push(value);
+      return value % 2 === 0 ? value : found;
+    },
+    Boolean,
+    null
+  );
+
+  assert.strictEqual(findFirstEven(values), 2);
+  assert.deepStrictEqual(visited, [1, 2]);
+  assert.deepStrictEqual(values, [1, 2, 3]);
+  assert.strictEqual(reduceUntil((sum, value) => sum + value, Boolean, 0)([]), 0);
+  assert.strictEqual(reduceUntil((sum, value) => sum + value, Boolean, 0)(null), 0);
 });
 
 assertAsyncTest('createDomainDispatcher routes kiosk kill effects through the shared manual-override helper', async () => {

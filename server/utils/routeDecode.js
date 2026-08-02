@@ -1,5 +1,7 @@
 // @ts-check
 
+const { reduceUntil } = require('./fn.js');
+
 function createRouteFailure(status, error, extra = {}) {
   return { status, error, extra };
 }
@@ -30,19 +32,16 @@ const chainRouteDecode = (transform) => (decoded) => {
   return result.ok ? normalizeRouteDecodeResult(transform(result.value)) : result;
 };
 
-const collectRouteDecodeResults = (results = []) => results.reduce(
+const collectRouteDecodeResults = (results = []) => reduceUntil(
   (collected, result) => {
-    if (!collected.ok) {
-      return collected;
-    }
-
     const normalized = normalizeRouteDecodeResult(result);
     return normalized.ok
       ? createRouteDecodeSuccess([...collected.value, normalized.value])
       : normalized;
   },
+  ({ ok }) => !ok,
   createRouteDecodeSuccess([])
-);
+)(results);
 
 module.exports = {
   chainRouteDecode,

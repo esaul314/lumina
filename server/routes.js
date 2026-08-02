@@ -36,6 +36,7 @@ const {
   normalizeRouteDecodeResult
 } = require('./utils/routeDecode.js');
 const { reduceAsyncSequentially } = require('./utils/asyncReduce.js');
+const { reduceUntil } = require('./utils/fn.js');
 
 const DEFAULT_CATEGORY = 'Scenic Nature';
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
@@ -279,8 +280,11 @@ module.exports = function configureRoutes({
       sendError(res, 500, toErrorMessage(error));
     }
   };
-  const runRouteGuards = (guards, context) => (
-    guards.reduce((failure, guard) => failure || guard(context), null)
+  const runRouteGuards = (guards, context) => reduceUntil(
+    (failure, guard) => failure || guard(context),
+    Boolean,
+    null,
+    guards
   );
   const registerRouteSpecs = (specs, buildRoute, defaultMethod = 'post') => {
     specs.forEach((spec) => {

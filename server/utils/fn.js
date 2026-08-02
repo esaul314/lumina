@@ -50,6 +50,30 @@ const filter = curry((fn, arr) => (arr ? arr.filter(fn) : []));
 const reduce = curry((fn, initial, arr) => (arr ? arr.reduce(fn, initial) : initial));
 
 /**
+ * Reduce from left to right until the accumulated value satisfies a predicate.
+ *
+ * The input collection stays data-last, so callers can partially apply the
+ * step, stop condition, and identity before receiving values from a pipeline.
+ * The source array is never mutated, and steps after the first stopping value
+ * are not evaluated.
+ *
+ * @template A, B
+ * @param {(accumulator: A, value: B) => A} step
+ * @param {(accumulator: A) => boolean} shouldStop
+ * @param {A} initial
+ * @param {B[] | null | undefined} values
+ * @returns {A}
+ */
+const reduceUntil = curry((step, shouldStop, initial, values) => (
+  (values || []).reduce(
+    (accumulator, value) => (
+      shouldStop(accumulator) ? accumulator : step(accumulator, value)
+    ),
+    initial
+  )
+));
+
+/**
  * Build a keyed interpreter from declarative entries.
  *
  * Map keeps the accepted key space closed, so inherited object properties
@@ -125,6 +149,7 @@ module.exports = {
   map,
   filter,
   reduce,
+  reduceUntil,
   createIndexedInterpreter,
   createClosedInterpreter,
   toLower,
