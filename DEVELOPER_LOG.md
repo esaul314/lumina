@@ -5,6 +5,14 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-08-08: Isolated Clock AM/PM Tracking From Large Digits
+
+- **Goal**: Fix the `m` in the AM/PM period appearing partially cut off on the TV clock despite the existing glass-container padding fix.
+- **Implementation**:
+  - Added the pure `formatClockParts` helper, which uses `Intl.DateTimeFormat.formatToParts` to keep numeric time and the day period separate across locale punctuation and whitespace.
+  - Added a dedicated `.clock-period` layout contract that resets inherited negative digit tracking, keeps the period as a non-shrinking inline box, and adds a small right-side glyph buffer.
+- **Verification**: Added deterministic AM/PM regression assertions; browser reproduction confirmed the inherited `-3.84px` tracking was the clipping source.
+
 ### 2026-08-07: Normalize Montreal Pool Keyword Entries
 
 - **Goal**: Restore the Montreal pool's one-phrase-per-query configuration after its keyword list had been persisted as one concatenated entry.
