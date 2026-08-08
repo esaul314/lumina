@@ -5,6 +5,13 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-08-07: Normalize Montreal Pool Keyword Entries
+
+- **Goal**: Restore the Montreal pool's one-phrase-per-query configuration after its keyword list had been persisted as one concatenated entry.
+- **Implementation**: Repaired the live pool through the REST patch path, updating both `searchKeywords` and the existing keyword-based `feedConfigs` sources while preserving source enablement.
+- **Verification**: Confirmed all 25 supplied phrases are separate entries in the persisted snapshot and in `unsplash`, `wallhaven`, `metmuseum`, and `artic` source configurations.
+- **Learning**: Pool keyword repairs must update both configuration layers because an existing `feedConfigs` map takes precedence over rebuilding source queries from `searchKeywords`.
+
 ### 2026-08-02: Reuse the Pool Presence Guard on the Photo Read Route
 
 - **Goal**: Finish the current Step 4 route-guard seam by removing the last inline pool-existence failure branch.
