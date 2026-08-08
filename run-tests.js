@@ -2904,6 +2904,31 @@ async function runClientRenderingTests() {
   logSuite('Client Rendering Helpers');
 
   const { toCssImageUrl } = await importClientModule('./client/src/state/cssImage.js');
+  const { formatClockParts } = await importClientModule('./client/src/state/clock.js');
+
+  const clockOptions = { timeZone: 'UTC' };
+  const morningClock = formatClockParts(
+    new Date('2026-01-02T05:07:00.000Z'),
+    'en-US',
+    clockOptions
+  );
+  const afternoonClock = formatClockParts(
+    new Date('2026-01-02T17:07:00.000Z'),
+    'en-US',
+    clockOptions
+  );
+
+  assertTest('formatClockParts keeps AM and PM separate from locale time punctuation', () => {
+    assert.deepStrictEqual(morningClock, { time: '05:07', period: 'AM' });
+    assert.deepStrictEqual(afternoonClock, { time: '05:07', period: 'PM' });
+  });
+
+  assertTest('formatClockParts does not inherit the clock digit tracking contract', () => {
+    assert.notStrictEqual(morningClock.period, '');
+    assert.notStrictEqual(afternoonClock.period, '');
+    assert.strictEqual(morningClock.time.includes('AM'), false);
+    assert.strictEqual(afternoonClock.time.includes('PM'), false);
+  });
 
   assertTest('toCssImageUrl quotes and encodes whitespace-safe image URLs', () => {
     assert.strictEqual(

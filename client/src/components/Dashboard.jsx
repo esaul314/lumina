@@ -14,6 +14,7 @@ import {
   isSplitFrameActive
 } from '../state/frameSelectors';
 import { toCssImageUrl } from '../state/cssImage.js';
+import { formatClockParts } from '../state/clock.js';
 import { convertPressure, convertTemperature } from '../state/environmentHistory.js';
 
 /**
@@ -80,6 +81,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   const currentFrame = getCurrentFrame(state);
   const primaryPhoto = getFramePhoto(state, 'primary');
   const secondaryPhoto = getFramePhoto(state, 'secondary');
+  const clockParts = formatClockParts(currentTime);
 
   useEffect(() => {
     const handleResize = () => {
@@ -823,9 +825,9 @@ function Dashboard({ state, socket, connectionInfo }) {
           {state.widgets.clock && (
             <div className="glass-widget clock-widget">
               <div className="clock-time">
-                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).split(' ')[0]}
-                <span style={{ fontSize: '1.4rem', fontWeight: 300, opacity: 0.7, marginLeft: '8px' }}>
-                  {currentTime.toLocaleTimeString([], { hour12: true }).split(' ')[1]}
+                {clockParts.time}
+                <span className="clock-period">
+                  {clockParts.period}
                 </span>
               </div>
               <div className="clock-date">
