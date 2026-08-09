@@ -16,6 +16,7 @@ import {
   GOOGLE_PHOTOS_PICKER_COPY,
   getGooglePhotosPickerStatus
 } from './googlePhotosPicker';
+import { parseFeedParameterInput, splitKeywordInput } from '../../state/keywordInput';
 
 function ImageFeedsTab({
   state,
@@ -108,7 +109,7 @@ function ImageFeedsTab({
     return () => window.removeEventListener('resize', updatePreviewBounds);
   }, [galleryIndex, imageStatus]);
 
-  const activeChips = newCategoryKeyword ? newCategoryKeyword.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const activeChips = splitKeywordInput(newCategoryKeyword);
   const selectedCategorySnapshot = selectedCategories?.length
     ? { playback: { selectedCategories } }
     : state;
@@ -127,7 +128,7 @@ function ImageFeedsTab({
     const clean = text.trim();
     if (!clean) return;
 
-    const words = clean.split(/[;,]/).map(w => w.trim()).filter(Boolean);
+    const words = splitKeywordInput(clean);
     const uniqueNewWords = words.filter(w => !activeChips.some(existing => existing.toLowerCase() === w.toLowerCase()));
 
     if (uniqueNewWords.length > 0) {
@@ -309,14 +310,14 @@ function ImageFeedsTab({
               
               {/* Input field */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="text"
+                <textarea
+                  rows="2"
                   placeholder={activeChips.length === 0 ? 'Keywords (e.g. oil painting, renaissance)' : 'Add more keywords...'}
                   value={keywordInput}
                   onChange={(e) => {
                     const val = e.target.value;
-                    // If they typed a comma or semicolon, add the chip immediately
-                    if (val.endsWith(',') || val.endsWith(';')) {
+                    // Delimiters make pasted or typed phrases into separate chips.
+                    if (/[;,\n]$/.test(val)) {
                       handleAddChip(val.slice(0, -1));
                       setKeywordInput('');
                     } else {
@@ -337,7 +338,8 @@ function ImageFeedsTab({
                     color: '#fff',
                     fontSize: '0.85rem',
                     outline: 'none',
-                    padding: '4px 0'
+                    padding: '4px 0',
+                    resize: 'vertical'
                   }}
                 />
                 <button
@@ -367,7 +369,7 @@ function ImageFeedsTab({
             onClick={() => {
               if (keywordInput.trim()) {
                 const clean = keywordInput.trim();
-                const words = clean.split(/[;,]/).map(w => w.trim()).filter(Boolean);
+                const words = splitKeywordInput(clean);
                 const uniqueNewWords = words.filter(w => !activeChips.some(existing => existing.toLowerCase() === w.toLowerCase()));
                 const nextChips = [...activeChips, ...uniqueNewWords];
                 const nextKeywordStr = nextChips.join(', ');
@@ -906,20 +908,8 @@ function ImageFeedsTab({
                         const inputVal = e.target.elements[src.key + '_input'].value.trim();
                         if (!inputVal) return;
 
-                        let newVals = [];
-                        const timeRangeRegex = /^\[([0-1]?[0-9]|2[0-3]):[0-5][0-9]-([0-1]?[0-9]|2[0-3]):[0-5][0-9]\]\s+(.+)$/;
-                        const match = inputVal.match(timeRangeRegex);
-                        if (match) {
-                          const [, start, end, kwsStr] = match;
-                          newVals = [{
-                            timeStart: start,
-                            timeEnd: end,
-                            keywords: kwsStr.split(/[;,]/).map(kw => kw.trim()).filter(Boolean)
-                          }];
-                        } else {
-                          // Regular parameters: split by comma/semicolon to allow multiple inputs
-                          newVals = inputVal.split(/[;,]/).map(val => val.trim()).filter(Boolean);
-                        }
+                        const timeRangeRegex = /^\[((?:[0-1]?[0-9]|2[0-3]):[0-5][0-9])-((?:[0-1]?[0-9]|2[0-3]):[0-5][0-9])\]\s+(.+)$/;
+                        const newVals = parseFeedParameterInput(inputVal, timeRangeRegex);
 
                         // Filter out duplicates
                         const uniqueNewVals = newVals.filter(newVal => {
@@ -947,7 +937,24 @@ function ImageFeedsTab({
                       }}
                       style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}
                     >
-                      <input
+                      {src.param === 'keywords' ? <textarea
+                        rows="2"
+                        type="text"
+                        name={src.key + '_input'}
+                        placeholder={`${src.placeholder} One phrase per line or separated by commas.`}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          background: 'rgba(0,0,0,0.4)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '6px',
+                          color: '#fff',
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          minWidth: '150px',
+                          resize: 'vertical'
+                        }}
+                      /> : <input
                         type="text"
                         name={src.key + '_input'}
                         placeholder={src.placeholder}
@@ -962,7 +969,7 @@ function ImageFeedsTab({
                           outline: 'none',
                           minWidth: '150px'
                         }}
-                      />
+                      />}
                       <button
                         type="submit"
                         style={{
@@ -981,7 +988,7 @@ function ImageFeedsTab({
                       </button>
                       {src.param === 'keywords' && (
                         <div style={{ width: '100%', fontSize: '0.65rem', opacity: 0.4, marginTop: '4px', lineHeight: '1.2' }}>
-                          Hint: Add time-based keywords as <code>[06:00-12:00] morning, sunrise</code>
+                          Hint: Add one phrase per line or separated by commas. Time-based keywords use <code>[06:00-12:00] morning, sunrise</code>.
                         </div>
                       )}
                     </form>
