@@ -9,7 +9,7 @@ const normalizeKeywordTerms = (keywords, { splitString = false } = {}) => {
   const rawKeywords = Array.isArray(keywords)
     ? keywords
     : (typeof keywords === 'string'
-      ? (splitString ? keywords.split(/[;,]/) : [keywords])
+      ? (splitString ? keywords.split(/[;,\r\n]+/) : [keywords])
       : []);
 
   return rawKeywords.map(trimString).filter(Boolean);
@@ -49,7 +49,7 @@ function normalizeKeywordEntries(entries, { splitTopLevelString = false } = {}) 
   const rawEntries = Array.isArray(entries)
     ? entries
     : (typeof entries === 'string'
-      ? (splitTopLevelString ? entries.split(/[;,]/) : [entries])
+      ? (splitTopLevelString ? entries.split(/[;,\r\n]+/) : [entries])
       : (isPlainObject(entries) ? [entries] : []));
 
   return rawEntries
@@ -78,7 +78,7 @@ function collectKeywordTerms(entries) {
   const rawEntries = Array.isArray(entries)
     ? entries
     : (typeof entries === 'string'
-      ? entries.split(/[;,]/)
+      ? entries.split(/[;,\r\n]+/)
       : (isPlainObject(entries) ? [entries] : []));
 
   return rawEntries.flatMap((entry) => {

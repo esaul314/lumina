@@ -1527,3 +1527,7 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Added a direct regression for boolean coercion, invalid non-record inputs, and input immutability.
 - **Learning**: This is a useful small Functor-like map over record entries: the data transformation stays testable and lawful, while the one necessary state application remains visible at the effect boundary.
 - **Verification**: `npm test` passed with 260 assertions and 11 sensor checks; `npm run lint` passed with three pre-existing warnings; `git diff --check` passed.
+# Keyword entry accepts pasted phrase lists
+
+- **Implementation**: Keyword fields now accept one phrase per line, commas, or semicolons. Source keyword configuration uses a multiline field, while the shared client and server parsers keep time-scoped keyword entries intact.
+- **Learning**: Keyword entry parsing must stay consistent across new-pool creation, feed-source editing, and command decoding so pasted lists do not collapse into one crawler query.

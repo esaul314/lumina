@@ -1918,6 +1918,42 @@ assertAsyncTest('createEnvironmentRefreshRuntime persists refreshed collections,
 // ============================================================================
 logSuite('Customizable Keyword Search Manager');
 
+assertAsyncTest('keyword entry accepts one phrase per line as well as comma-separated phrases', async () => {
+  const {
+    parseFeedParameterInput,
+    splitKeywordInput
+  } = await importClientModule('./client/src/state/keywordInput.js');
+  const timeRangePattern = /^\[((?:[0-1]?[0-9]|2[0-3]):[0-5][0-9])-((?:[0-1]?[0-9]|2[0-3]):[0-5][0-9])\]\s+(.+)$/;
+
+  assert.deepStrictEqual(
+    splitKeywordInput('misty morning\ncoastal cliffs, night sky; moon'),
+    ['misty morning', 'coastal cliffs', 'night sky', 'moon']
+  );
+  assert.deepStrictEqual(
+    parseFeedParameterInput('[06:00-12:00] morning, sunrise\nforest trail', timeRangePattern),
+    [
+      { timeStart: '06:00', timeEnd: '12:00', keywords: ['morning', 'sunrise'] },
+      'forest trail'
+    ]
+  );
+
+  const { decodeAddPoolCommand, decodePoolKeywordsCommand } = require('./server/domain/commands.js');
+  assert.deepStrictEqual(
+    decodeAddPoolCommand({ name: 'Pasted Phrases', keywords: 'misty morning\ncoastal cliffs, night sky' }),
+    {
+      type: 'add-pool',
+      payload: { name: 'Pasted Phrases', keywords: ['misty morning', 'coastal cliffs', 'night sky'] }
+    }
+  );
+  assert.deepStrictEqual(
+    decodePoolKeywordsCommand({ name: 'Pasted Phrases', keywords: 'misty morning\ncoastal cliffs' }),
+    {
+      type: 'set-pool-keywords',
+      payload: { name: 'Pasted Phrases', keywords: ['misty morning', 'coastal cliffs'] }
+    }
+  );
+});
+
 assertTest('correctly loads and configures searchKeywords state', () => {
   assert.ok(screensaverState.searchKeywords, 'searchKeywords object must exist in screensaverState');
   assert.ok(Array.isArray(screensaverState.searchKeywords['Scenic Nature']), 'Scenic Nature keywords should be an array');
