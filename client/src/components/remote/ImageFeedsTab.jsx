@@ -312,7 +312,7 @@ function ImageFeedsTab({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <textarea
                   rows="2"
-                  placeholder={activeChips.length === 0 ? 'Keywords (e.g. oil painting, renaissance)' : 'Add more keywords...'}
+                  placeholder={activeChips.length === 0 ? 'Keywords (one phrase per line or comma-separated)' : 'Add more keywords...'}
                   value={keywordInput}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -939,7 +939,6 @@ function ImageFeedsTab({
                     >
                       {src.param === 'keywords' ? <textarea
                         rows="2"
-                        type="text"
                         name={src.key + '_input'}
                         placeholder={`${src.placeholder} One phrase per line or separated by commas.`}
                         style={{
