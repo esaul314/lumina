@@ -267,6 +267,7 @@ Progress note:
 - The latest Step 4 slice shares one higher-order `read payload -> unchanged or reduce` boundary across feed, pool, and playback reducer builders, preserving family-specific mutation and selection logic while removing repeated invalid-payload ceremony.
 - The latest Step 4 slice shares a pure short-circuit reducer across route decoding and guarded route execution, with regression coverage for data-last partial application, identity values, non-mutation, and skipped post-failure steps.
 - The latest Step 4 slice shares the pure post-change result builder between ordinary state and feed mutations, so event/effect resolution and persistence ordering are expressed once while feed finalization keeps its richer context explicit.
+- The latest Step 4 slice routes patch-state result assembly through that same builder, so persistence ordering and optional weather-refresh effects are expressed once without hiding patch-specific recomputation.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

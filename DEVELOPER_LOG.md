@@ -1587,3 +1587,23 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Verification**: `npm test` passed with 240 tests, 238 assertions, and 11
   sensor checks; the known sandbox-only live Unix-socket smoke test skipped on
   `listen EPERM`.
+
+### 2026-08-16: Reuse the Reducer Result Builder for State Patches
+
+- **Goal**: Continue implementation-companion Step 4 by removing the last
+  duplicate durable result assembly in the patch-state reducer.
+- **Implementation**:
+  - Routed `reduceStatePatchCommand(...)` through the pure
+    `buildMutationResult(...)` helper.
+  - Preserved patch-local feed recomputation and active-photo selection while
+    keeping `state-sync` selection and `persist` before optional
+    `refresh-weather` effects in one shared output boundary.
+  - Added a focused domain regression for the state-sync event and effect
+    ordering contract.
+- **Learning**: Result builders are useful at the boundary where reducers have
+  already made their domain-specific state decisions; sharing output assembly
+  does not require abstracting the patch interpreter itself.
+- **Verification**: `npm test` passed with 241 tests, 239 assertions, and 11
+  sensor checks; `npm run lint` passed with three pre-existing warnings and no
+  errors; `git diff --check` passed. The known sandbox-only live Unix-socket
+  smoke test skipped with `listen EPERM`.
