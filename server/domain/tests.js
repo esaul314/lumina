@@ -899,6 +899,21 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
   });
 
+  assertTest('marking the active photo broken shares the same immutable recovery continuation', () => {
+    const state = createState();
+    const result = reduceDomainCommand(state, {
+      type: 'mark-photo-broken',
+      payload: { url: 'port-1' }
+    }, { now: new Date('2026-06-27T02:00:00'), rng: () => 0.1 });
+
+    assert.strictEqual(state.playback.activePhotoUrl, 'port-1');
+    assert.strictEqual(state.library.photosList.some((photo) => photo.url === 'port-1'), true);
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
+    assert.strictEqual(result.nextState.library.photosList.some((photo) => photo.url === 'port-1'), false);
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+  });
+
   assertTest('sequence advance walks the balanced multi-feed order and prev reverses it', () => {
     const state = createState({
       library: {

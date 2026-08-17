@@ -381,10 +381,6 @@ function keepUpdatedPhotoState(state) {
   return { state, photoChanged: false };
 }
 
-function recomputeUpdatedPhotoState(state, { now, rng, direction = 'next', forceReselect = false }) {
-  return ensureActivePhoto(recomputeFeed(state, rng), { now, rng, direction, forceReselect });
-}
-
 function preserveUpdatedPhotoState(state, { url }) {
   const focusedPhoto = findPhotoInFeed(state.library.photosList, url)
     || getPhotoByUrl(state.library.collections, url, state.library.externalCollections);
@@ -575,7 +571,7 @@ const reducePhotoCommand = {
     }),
     resolveAfterUpdate: ({ rating }) => (
       Number(rating) === 1
-        ? recomputeUpdatedPhotoState
+        ? recomputeAndEnsureActivePhoto
         : keepUpdatedPhotoState
     )
   }),
@@ -589,7 +585,7 @@ const reducePhotoCommand = {
       rating: 1,
       isBroken: true
     }),
-    resolveAfterUpdate: () => recomputeUpdatedPhotoState
+    resolveAfterUpdate: () => recomputeAndEnsureActivePhoto
   }),
   'set-photo-crop': buildPhotoCommandReducer({
     buildUpdater: ({ cropPercent, cropPositionY }, photo) => ({
