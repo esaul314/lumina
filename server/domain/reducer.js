@@ -202,8 +202,12 @@ function finalizeFeedMutation(nextState, {
   effects = [],
   persist = false
 }) {
-  const recomputed = recomputeFeed(nextState, rng);
-  const finalized = ensureActivePhoto(recomputed, { now, rng, direction, forceReselect });
+  const finalized = recomputeAndEnsureActivePhoto(nextState, {
+    now,
+    rng,
+    direction,
+    forceReselect
+  });
 
   return buildMutationResult(finalized.state, {
     events: typeof eventsFor === 'function'
@@ -273,6 +277,18 @@ function recomputeFeed(state, rng) {
       })
     }
   };
+}
+
+function recomputeAndEnsureActivePhoto(state, {
+  now,
+  rng,
+  direction = 'next',
+  forceReselect = false
+}) {
+  return ensureActivePhoto(
+    recomputeFeed(state, rng),
+    { now, rng, direction, forceReselect }
+  );
 }
 
 function updateActivePhotoUrl(state, photo, direction) {
@@ -913,12 +929,13 @@ function reduceStatePatchCommand(state, patch, env) {
     return unchangedResult(state);
   }
 
-  const recomputed = context.recomputePhotos
-    ? recomputeFeed(context.nextState, env.rng)
-    : context.nextState;
   const ensured = context.recomputePhotos
-    ? ensureActivePhoto(recomputed, { now: env.now, rng: env.rng, direction: 'next' })
-    : { state: recomputed, photoChanged: false };
+    ? recomputeAndEnsureActivePhoto(context.nextState, {
+        now: env.now,
+        rng: env.rng,
+        direction: 'next'
+      })
+    : { state: context.nextState, photoChanged: false };
 
   return buildMutationResult(ensured.state, {
     events: stateSyncEventsFor(ensured.photoChanged),

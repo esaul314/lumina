@@ -1151,6 +1151,46 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist', 'refresh-weather']);
   });
 
+  assertTest('feed and patch mutations share active-photo finalization after recomputing visibility', () => {
+    const state = createState({
+      library: {
+        collections: {
+          'Scenic Nature': [
+            { url: 'land-1', title: 'Sunny Forest', rating: 10, category: 'Scenic Nature' },
+            { url: 'land-2', title: 'Anime Forest', rating: 10, category: 'Scenic Nature' }
+          ],
+          'Liminal Spaces': createState().library.collections['Liminal Spaces']
+        },
+        photosList: [
+          { url: 'land-1', title: 'Sunny Forest', rating: 10, category: 'Scenic Nature' },
+          { url: 'land-2', title: 'Anime Forest', rating: 10, category: 'Scenic Nature' }
+        ]
+      },
+      playback: {
+        selectedCategories: ['Scenic Nature'],
+        activePhotoUrl: 'land-2',
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    });
+    const command = { payload: { keywords: ['anime'] } };
+    const env = { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 };
+
+    const feedResult = reduceDomainCommand(state, {
+      type: 'update-excluded-keywords',
+      ...command
+    }, env);
+    const patchResult = reduceDomainCommand(state, {
+      type: 'patch-state',
+      payload: { excludedKeywords: command.payload.keywords }
+    }, env);
+
+    assert.strictEqual(feedResult.nextState.playback.activePhotoUrl, 'land-1');
+    assert.strictEqual(patchResult.nextState.playback.activePhotoUrl, 'land-1');
+    assert.deepStrictEqual(feedResult.events.map((event) => event.type), ['photo-update', 'state-sync']);
+    assert.deepStrictEqual(patchResult.events.map((event) => event.type), ['photo-update', 'state-sync']);
+  });
+
   assertTest('reducer patch-state no-op stays silent when the patch does not change any durable fields', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {
