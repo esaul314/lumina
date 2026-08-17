@@ -1614,3 +1614,23 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks; `npm run lint` passed with three pre-existing warnings and no
   errors; `git diff --check` passed. The known sandbox-only live Unix-socket
   smoke test skipped with `listen EPERM`.
+
+### 2026-08-16: Share Photo Mutation Result Assembly
+
+- **Goal**: Continue implementation-companion Step 4 by removing the last
+  duplicate reducer result construction in the photo-library mutation path.
+- **Implementation**:
+  - Routed `reducePhotoLibraryCommand(...)` through the pure
+    `buildMutationResult(...)` helper already used by ordinary state, feed, and
+    patch mutations.
+  - Preserved photo-specific dynamic event selection and the separate
+    collection versus external-photo persistence effects.
+  - Strengthened regressions for active-photo banning and external metadata so
+    their event and effect ordering remains explicit.
+- **Learning**: Result assembly is now one shared boundary across all durable
+  mutation families, while photo update/finalization and source-local
+  persistence policy remain visible as domain-specific continuations.
+- **Verification**: `npm test` passed with 240 assertions and 11 sensor checks;
+  `npm run lint` passed with three pre-existing warnings and no errors;
+  `git diff --check` passed. The known sandbox-only live Unix-socket smoke test
+  skipped with `listen EPERM`.

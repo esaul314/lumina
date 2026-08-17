@@ -31,6 +31,7 @@ Current checkpoint:
 - The latest Step 4 slice shares one curried `reduceUntil(step, shouldStop, initial)(values)` boundary between route-decode collection and route-guard evaluation, preserving empty identities, first-failure short-circuiting, and explicit transport predicates without introducing a general routing framework.
 - The latest Step 4 slice shares one higher-order `reduceClonedMutation(state, apply, onChanged)` boundary between ordinary state mutations and feed mutations, preserving strict no-op identity while leaving feed finalization and state result shaping visible at their respective continuations.
 - The latest Step 4 slice shares one pure `recomputeAndEnsureActivePhoto(...)` continuation between feed mutations and `patch-state`, preserving deterministic active-photo recovery without hiding patch-specific recompute and weather-refresh flags.
+- The latest Step 4 slice routes photo-library result assembly through the same pure `buildMutationResult(...)` boundary as ordinary state, feed, and patch mutations, preserving photo-specific persistence effects and dynamic event selection while keeping the photo updater/finalizer explicit.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`
