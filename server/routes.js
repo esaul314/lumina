@@ -114,6 +114,7 @@ module.exports = function configureRoutes({
   getEnvironmentData = async () => ({ indoor: null, source: 'ecowitt-gw1200', observedAt: null, stale: false, enabled: false }),
   getEnvironmentHistory = async () => [],
   exportEnvironmentHistory = async () => '',
+  getEnvironmentStats = async () => ({ summary: {}, daily: [] }),
   getEnvironmentSettings = () => ({}),
   updateEnvironmentSettings = () => ({ valid: false, error: 'Environment settings unavailable.' }),
   getEnvironmentAdapters = () => [],
@@ -600,6 +601,14 @@ module.exports = function configureRoutes({
       res.json({ readings: await getEnvironmentHistory(req.query) });
     } catch (error) {
       sendError(res, 503, 'Failed to read environment history', { message: toErrorMessage(error) });
+    }
+  });
+
+  app.get('/api/environment/history/stats', async (req, res) => {
+    try {
+      res.json(await getEnvironmentStats(req.query));
+    } catch (error) {
+      sendError(res, 503, 'Failed to calculate environment stats', { message: toErrorMessage(error) });
     }
   });
 

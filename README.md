@@ -73,6 +73,7 @@ Lumina uses a decoupled client-server architecture with a REST-first control sur
 
 * `GET /api/environment`: Current normalized indoor environment reading and gateway status.
 * `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, `limit`).
+* `GET /api/environment/history/stats`: Returns rolling day/night temperature and humidity aggregates (supports `days`, `dayStart`, and `dayEnd`).
 * `GET /api/environment/history/export?format=csv`: Exports environment history as CSV (or JSON without `format=csv`) for Grafana or spreadsheets.
 * `GET /api/environment/settings` / `POST /api/environment/settings`: Read/update saved sensor device profiles, the active source, connection timing, and display unit preferences. Legacy flat Ecowitt settings remain accepted.
 * `GET /api/environment/adapters`: List registered protocol adapters and compatibility metadata for the device manager.

@@ -54,6 +54,13 @@ const clampLimit = (value) => Math.min(
   Math.max(1, Number.parseInt(String(value ?? DEFAULT_LIMIT), 10) || DEFAULT_LIMIT)
 );
 
+const clampInteger = (value, fallback, minimum, maximum) => {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? Math.min(maximum, Math.max(minimum, Math.trunc(number)))
+    : fallback;
+};
+
 const buildHistorySchema = () => `
   CREATE TABLE IF NOT EXISTS sensor_history (
     hour_key TEXT PRIMARY KEY,
@@ -137,10 +144,74 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
     }))
   );
 
+  // Keep aggregation in SQLite so the API does not materialize the full history.
+  const stats = ({ days = 7, dayStart = 7, dayEnd = 19 } = {}) => {
+    const validDays = clampInteger(days, 7, 1, 90);
+    const validStart = clampInteger(dayStart, 7, 0, 23);
+    const validEnd = clampInteger(dayEnd, 19, 0, 23);
+
+    const summarySql = 'SELECT ' +
+      "CASE WHEN CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) >= ? " +
+      "AND CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) < ? " +
+      "THEN 'daytime' ELSE 'nighttime' END AS period, " +
+      'COUNT(*) AS samples, ' +
+      'ROUND(AVG(indoor_temperature_c), 2) AS avg_temp_c, ' +
+      'ROUND(AVG(indoor_humidity_percent), 2) AS avg_humidity_pct ' +
+      'FROM sensor_history ' +
+      "WHERE observed_at >= datetime('now', '-' || ? || ' days') " +
+      'GROUP BY period';
+
+    const summaryRows = db.prepare(summarySql).all(validStart, validEnd, validDays);
+
+    const summaryMap = Object.fromEntries(
+      ['daytime', 'nighttime'].map((period) => {
+        const row = summaryRows.find(({ period: currentPeriod }) => currentPeriod === period);
+        return [period, row
+          ? {
+              avg_temp_c: row.avg_temp_c,
+              avg_humidity_pct: row.avg_humidity_pct,
+              samples: row.samples
+            }
+          : { avg_temp_c: null, avg_humidity_pct: null, samples: 0 }];
+      })
+    );
+
+    const dailySql = 'SELECT ' +
+      "date(observed_at, 'localtime') AS date, " +
+      "ROUND(AVG(CASE WHEN CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) >= ? AND CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) < ? THEN indoor_temperature_c END), 2) AS day_temp_c, " +
+      "ROUND(AVG(CASE WHEN NOT (CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) >= ? AND CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) < ?) THEN indoor_temperature_c END), 2) AS night_temp_c, " +
+      "ROUND(AVG(CASE WHEN CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) >= ? AND CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) < ? THEN indoor_humidity_percent END), 2) AS day_humidity_pct, " +
+      "ROUND(AVG(CASE WHEN NOT (CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) >= ? AND CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) < ?) THEN indoor_humidity_percent END), 2) AS night_humidity_pct " +
+      'FROM sensor_history ' +
+      "WHERE observed_at >= datetime('now', '-' || ? || ' days') " +
+      'GROUP BY date ' +
+      'ORDER BY date ASC';
+
+    const dailyRows = db.prepare(dailySql).all(
+      validStart, validEnd,
+      validStart, validEnd,
+      validStart, validEnd,
+      validStart, validEnd,
+      validDays
+    ).map(row => ({
+      ...row,
+      observed_at: row.date + 'T12:00:00.000Z'
+    }));
+
+    return {
+      days: validDays,
+      day_start: validStart,
+      day_end: validEnd,
+      summary: summaryMap,
+      daily: dailyRows
+    };
+  };
+
   return {
     close: () => { if (!database) db.close(); },
     history,
     record,
+    stats,
     exportCsv: options => toCsv(history(options))
   };
 }

@@ -183,6 +183,7 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
 - Ingest local-device readings through a general adapter model rather than device-specific UI wiring.
 - Done: normalized GW1200 readings are recorded as one latest snapshot per UTC hour in the local `sensor_history.db` SQLite database, with outdoor Open-Meteo fields included when available.
 - Done: history is exposed through `GET /api/environment/history` and CSV/JSON export through `GET /api/environment/history/export?format=csv` (with `/api/environment/export` as a short alias) for Grafana integration and direct downloads.
+- Done: rolling day/night temperature and humidity aggregates are exposed through `GET /api/environment/history/stats` with bounded day-window parameters.
 - Done: each hourly history row preserves the complete Ecowitt `get_livedata_info` payload under `gateway_metrics`, so optional rain, wind, UV/light, lightning, air-quality, soil, leaf, leak, distance, and multichannel sensor blocks are retained without schema changes.
 - Done: introduced a general capability-aware sensor adapter platform; Ecowitt GW1200 is now the first registered adapter rather than the platform contract itself, with adapter discovery at `GET /api/environment/adapters`.
 - Have widgets consume normalized sensor records plus source/device capability metadata.

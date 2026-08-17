@@ -1551,3 +1551,18 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   0 failures, plus 11 sensor checks;
   the existing sandbox-only live Unix-socket smoke test was skipped with
   `listen EPERM`.
+
+### 2026-08-16: Add Environment History Statistics
+
+- **Goal**: Expose compact rolling day/night aggregates without requiring
+  clients or Grafana queries to materialize the full sensor history.
+- **Implementation**:
+  - Added SQLite-backed summary and daily aggregation through
+    `GET /api/environment/history/stats`.
+  - Bounded the rolling window to 1–90 days and normalized day-window hours
+    to safe integer values with deterministic fallbacks.
+  - Added value-level regressions for averages, empty periods, daily output,
+    and malformed query options, plus endpoint wiring coverage.
+- **Learning**: Aggregation boundaries should validate query inputs before they
+  reach SQL and test computed values, not only response shape; otherwise
+  malformed hours can silently produce empty or misleading period buckets.

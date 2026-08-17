@@ -1599,6 +1599,24 @@ assertTest('stores one latest reading per hour and exports queryable CSV', () =>
   assert.deepStrictEqual(JSON.parse(rows[0].gateway_metrics_json), {});
   assert.match(store.exportCsv({ limit: 10 }), /hour_key,observed_at,source/);
   assert.match(store.exportCsv({ limit: 10 }), /2026-07-18T21,2026-07-18T21:55:00.000Z/);
+  const stats = store.stats({ days: 400, dayStart: 0, dayEnd: 23 });
+  assert.strictEqual(stats.days, 90);
+  assert.strictEqual(stats.day_start, 0);
+  assert.strictEqual(stats.day_end, 23);
+  assert.deepStrictEqual(stats.summary.daytime, {
+    avg_temp_c: 22,
+    avg_humidity_pct: 50,
+    samples: 1
+  });
+  assert.strictEqual(stats.summary.nighttime.samples, 0);
+  assert.strictEqual(stats.daily.length, 1);
+  assert.strictEqual(stats.daily[0].day_temp_c, 22);
+  assert.strictEqual(stats.daily[0].night_temp_c, null);
+
+  const invalidOptions = store.stats({ days: 'invalid', dayStart: 'invalid', dayEnd: 'invalid' });
+  assert.strictEqual(invalidOptions.days, 7);
+  assert.strictEqual(invalidOptions.day_start, 7);
+  assert.strictEqual(invalidOptions.day_end, 19);
   store.close();
 });
 
@@ -3195,6 +3213,16 @@ async function runIntegrationTests() {
     assert.deepStrictEqual(history.body, { readings });
     assert.strictEqual(csv.status, 200);
     assert.match(csv.body, /hour_key,indoor_temperature_c/);
+  });
+
+  await assertAsyncTest('GET environment history stats uses the injected storage boundary', async () => {
+    const statsPayload = { summary: { daytime: { avg_temp_c: 24.5 } }, daily: [] };
+    const responseApp = buildConfiguredRoutesApp({
+      getEnvironmentStats: async () => statsPayload
+    });
+    const statsRes = await invokeRoute(responseApp, 'get', '/api/environment/history/stats');
+    assert.strictEqual(statsRes.status, 200);
+    assert.deepStrictEqual(statsRes.body, statsPayload);
   });
 
   await assertAsyncTest('GET and POST environment settings expose a validated admin configuration boundary', async () => {

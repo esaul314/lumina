@@ -160,6 +160,7 @@ When screensaver activation is triggered, the server spawns Chromium in fullscre
 ### 6. API Endpoints
 * `GET /api/environment`: Resolves current normalized indoor environment readings, observation timestamp, and gateway availability status.
 * `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, and `limit` query parameters).
+* `GET /api/environment/history/stats`: Returns rolling day/night temperature and humidity aggregates (supports `days`, `dayStart`, and `dayEnd`).
 * `GET /api/environment/history/export`: Exports environment history as CSV (`?format=csv`) or JSON for Grafana Infinity plugin and direct downloads.
 * `GET /api/environment/settings` / `POST /api/environment/settings`: Reads or updates saved device profiles, the active source, connection timing, and display unit preferences. Legacy flat Ecowitt payloads remain accepted.
 * `GET /api/environment/adapters`: Lists registered sensor adapters and capabilities. Ecowitt is the first adapter; new protocols should implement the shared sensor-platform contract instead of changing storage or widget consumers.

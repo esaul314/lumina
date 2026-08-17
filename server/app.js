@@ -614,6 +614,7 @@ require('./routes.js')({
   setWeatherData,
   getEnvironmentData: () => sensorPlatform.read('ecowitt-gw1200'),
   getEnvironmentHistory: query => sensorHistoryStore?.history(query) || [],
+  getEnvironmentStats: query => sensorHistoryStore?.stats(query) || { summary: {}, daily: [] },
   exportEnvironmentHistory: query => sensorHistoryStore?.exportCsv(query) || '',
   getEnvironmentSettings: () => projectLegacySettings(environmentSettings),
   updateEnvironmentSettings: updateEcowittSettings,
