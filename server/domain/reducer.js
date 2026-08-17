@@ -420,15 +420,15 @@ function reducePhotoLibraryCommand(state, {
     updateResult: updated
   });
 
-  return createResult(
-    finalized.state,
-    eventsFor(finalized),
-    buildPhotoPersistenceEffects({
+  return buildMutationResult(finalized.state, {
+    events: () => eventsFor(finalized),
+    effects: buildPhotoPersistenceEffects({
       url,
       metadata,
       updateResult: updated
-    })
-  );
+    }),
+    context: finalized
+  });
 }
 
 const readPhotoCommandUrl = (command) => String(command.payload?.url || '');

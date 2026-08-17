@@ -856,6 +856,7 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].orientation, 'portrait');
     assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].width, 1080);
     assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].height, 1920);
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['state-sync']);
     assert.deepStrictEqual(result.effects, [{
       type: 'persist-external-photo-metadata',
       payload: {
@@ -895,6 +896,7 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
     assert.strictEqual(result.nextState.library.photosList.some((photo) => photo.url === 'port-1'), false);
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
   });
 
   assertTest('sequence advance walks the balanced multi-feed order and prev reverses it', () => {
