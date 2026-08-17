@@ -107,6 +107,21 @@ function resolveMutationOutput(output, nextState) {
   return output;
 }
 
+function buildMutationResult(nextState, {
+  events = emitStateSync(),
+  effects = [],
+  persist = false,
+  context = nextState
+}) {
+  const resolvedEffects = resolveMutationOutput(effects, context) || [];
+
+  return createResult(
+    nextState,
+    resolveMutationOutput(events, context) || [],
+    persist ? withPersist(resolvedEffects) : resolvedEffects
+  );
+}
+
 const reduceClonedMutation = (state, apply, onChanged) => {
   const nextState = cloneState(state);
 
@@ -121,15 +136,11 @@ function reduceStateMutation(state, {
   effects = [],
   persist = false
 }) {
-  return reduceClonedMutation(state, apply, (nextState) => {
-    const resolvedEffects = resolveMutationOutput(effects, nextState) || [];
-
-    return createResult(
-      nextState,
-      resolveMutationOutput(events, nextState) || [],
-      persist ? withPersist(resolvedEffects) : resolvedEffects
-    );
-  });
+  return reduceClonedMutation(state, apply, (nextState) => buildMutationResult(nextState, {
+    events,
+    effects,
+    persist
+  }));
 }
 
 function reduceCommandMutation(state, command, {
@@ -193,13 +204,15 @@ function finalizeFeedMutation(nextState, {
 }) {
   const recomputed = recomputeFeed(nextState, rng);
   const finalized = ensureActivePhoto(recomputed, { now, rng, direction, forceReselect });
-  const resolvedEffects = resolveMutationOutput(effects, finalized) || [];
 
-  return createResult(
-    finalized.state,
-    resolveMutationOutput(eventsFor, finalized) || [],
-    persist ? withPersist(resolvedEffects) : resolvedEffects
-  );
+  return buildMutationResult(finalized.state, {
+    events: typeof eventsFor === 'function'
+      ? () => eventsFor(finalized)
+      : eventsFor,
+    effects,
+    context: finalized,
+    persist
+  });
 }
 
 function reduceFeedMutation(state, options, env) {

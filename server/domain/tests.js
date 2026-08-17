@@ -1041,6 +1041,23 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(state.config.excludedKeywords, []);
   });
 
+  assertTest('state and feed mutation results resolve event/effect continuations consistently', () => {
+    const state = createState();
+    const changedState = reduceDomainCommand(state, {
+      type: 'set-split-portrait',
+      payload: { enabled: false }
+    });
+    const changedFeed = reduceDomainCommand(state, {
+      type: 'update-excluded-keywords',
+      payload: { keywords: ['forest'] }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.deepStrictEqual(changedState.events.map(({ type }) => type), ['state-sync']);
+    assert.deepStrictEqual(changedState.effects.map(({ type }) => type), ['persist']);
+    assert.deepStrictEqual(changedFeed.events.map(({ type }) => type), ['state-sync']);
+    assert.deepStrictEqual(changedFeed.effects.map(({ type }) => type), ['persist']);
+  });
+
   assertTest('shared feed reducer specs preserve forced reselection, exclusion clears, and invalid delete no-op semantics', () => {
     const selected = reduceDomainCommand(createState(), {
       type: 'select-categories',
