@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-08-02
+Last updated: 2026-08-16
 
 ## Implementation Companion
 
@@ -29,6 +29,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: feed, pool, and playback reducer builders now share one higher-order payload boundary for invalid-command no-ops, while their distinct mutation, selection, and finalization rules remain explicit.
 - Latest Step 4 slice: route-decode collection and route-guard evaluation now share one curried short-circuit reducer, keeping the decode algebra and guard predicates explicit while avoiding duplicate early-exit reduction ceremony.
 - Latest Step 4 slice: the pool-photo read route now reuses the shared pool-presence guard, so pool resource failures have one route-level result shape across read and mutation paths while the successful collection response remains unchanged.
+- Latest Step 4 slice: state and feed mutation reducers now share one higher-order clone/apply/unchanged boundary, keeping changed-state continuations explicit while removing duplicate no-op ceremony.
 
 ### Photo timestamp foundation (2026-07-31)
 

@@ -1531,3 +1531,23 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 
 - **Implementation**: Keyword fields now accept one phrase per line, commas, or semicolons. Source keyword configuration uses a multiline field, while the shared client and server parsers keep time-scoped keyword entries intact.
 - **Learning**: Keyword entry parsing must stay consistent across new-pool creation, feed-source editing, and command decoding so pasted lists do not collapse into one crawler query.
+
+### 2026-08-16: Share the Reducer Clone-and-Continue Boundary
+
+- **Goal**: Continue implementation-companion Step 4 by removing the repeated
+  clone/apply/no-op ceremony shared by ordinary state and feed mutations.
+- **Implementation**:
+  - Added the small higher-order `reduceClonedMutation(state, apply, onChanged)`
+    boundary in `server/domain/reducer.js`.
+  - Kept ordinary result shaping and feed recomputation/finalization in their
+    existing continuations, so the abstraction owns only the truly shared
+    boundary.
+  - Added a domain regression covering strict no-op identity, changed-state
+    cloning, and input immutability across both mutation families.
+- **Learning**: A useful functional refactor can be a narrow continuation
+  boundary: sharing the clone/apply decision is valuable because it preserves
+  no-op identity while keeping domain-specific post-change behavior readable.
+- **Verification**: `npm test` executed 239 tests with 237 assertions passed and
+  0 failures, plus 11 sensor checks;
+  the existing sandbox-only live Unix-socket smoke test was skipped with
+  `listen EPERM`.
