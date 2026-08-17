@@ -107,26 +107,29 @@ function resolveMutationOutput(output, nextState) {
   return output;
 }
 
+const reduceClonedMutation = (state, apply, onChanged) => {
+  const nextState = cloneState(state);
+
+  return apply(nextState)
+    ? onChanged(nextState)
+    : unchangedResult(state);
+};
+
 function reduceStateMutation(state, {
   apply,
   events = emitStateSync(),
   effects = [],
   persist = false
 }) {
-  const nextState = cloneState(state);
-  const changed = apply(nextState);
+  return reduceClonedMutation(state, apply, (nextState) => {
+    const resolvedEffects = resolveMutationOutput(effects, nextState) || [];
 
-  if (!changed) {
-    return unchangedResult(state);
-  }
-
-  const resolvedEffects = resolveMutationOutput(effects, nextState) || [];
-
-  return createResult(
-    nextState,
-    resolveMutationOutput(events, nextState) || [],
-    persist ? withPersist(resolvedEffects) : resolvedEffects
-  );
+    return createResult(
+      nextState,
+      resolveMutationOutput(events, nextState) || [],
+      persist ? withPersist(resolvedEffects) : resolvedEffects
+    );
+  });
 }
 
 function reduceCommandMutation(state, command, {
@@ -200,17 +203,12 @@ function finalizeFeedMutation(nextState, {
 }
 
 function reduceFeedMutation(state, options, env) {
-  const nextState = cloneState(state);
-  const changed = options.apply(nextState);
-
-  if (!changed) {
-    return unchangedResult(state);
-  }
-
-  return finalizeFeedMutation(nextState, {
-    ...options,
-    ...env
-  });
+  return reduceClonedMutation(state, options.apply, (nextState) => (
+    finalizeFeedMutation(nextState, {
+      ...options,
+      ...env
+    })
+  ));
 }
 
 function stateSyncEventsFor(photoChanged) {

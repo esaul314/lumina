@@ -1009,6 +1009,38 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(result.nextState.library.photosList.length, 1);
   });
 
+  assertTest('state and feed mutations share a clone-and-continue boundary', () => {
+    const state = createState();
+    const unchangedStateMutation = reduceDomainCommand(state, {
+      type: 'change-theme',
+      payload: { theme: state.config.theme }
+    });
+    const unchangedFeedMutation = reduceDomainCommand(state, {
+      type: 'update-excluded-keywords',
+      payload: { keywords: [] }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    [unchangedStateMutation, unchangedFeedMutation].forEach((result) => {
+      assert.strictEqual(result.nextState, state);
+      assert.deepStrictEqual(result.events, []);
+      assert.deepStrictEqual(result.effects, []);
+    });
+
+    const changedStateMutation = reduceDomainCommand(state, {
+      type: 'change-theme',
+      payload: { theme: 'Cosmic Night' }
+    });
+    const changedFeedMutation = reduceDomainCommand(state, {
+      type: 'update-excluded-keywords',
+      payload: { keywords: ['forest'] }
+    }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
+
+    assert.notStrictEqual(changedStateMutation.nextState, state);
+    assert.notStrictEqual(changedFeedMutation.nextState, state);
+    assert.strictEqual(state.config.theme, 'Zen Retreat');
+    assert.deepStrictEqual(state.config.excludedKeywords, []);
+  });
+
   assertTest('shared feed reducer specs preserve forced reselection, exclusion clears, and invalid delete no-op semantics', () => {
     const selected = reduceDomainCommand(createState(), {
       type: 'select-categories',
