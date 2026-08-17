@@ -1643,3 +1643,23 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   `collectRouteDecodeResults(...)` as an honourable mention.
 - The gallery is intentionally append-and-review oriented so future agents can
   compare candidates without erasing the project's evolving design history.
+
+### 2026-08-16: Share Active-Photo Recovery Across Photo Mutations
+
+- **Goal**: Continue implementation-companion Step 4 by removing the remaining
+  duplicate recompute-and-recover helper from photo-library mutations.
+- **Implementation**:
+  - Removed the photo-local `recomputeUpdatedPhotoState(...)` wrapper.
+  - Routed active-photo rating and broken-photo finalization through the shared
+    `recomputeAndEnsureActivePhoto(...)` continuation used by feed and patch
+    mutations.
+  - Added a regression proving broken active photos advance once, disappear
+    from the visible feed, preserve the input state, and retain event/effect
+    ordering.
+- **Learning**: A continuation is worth sharing when its state and contract are
+  identical across mutation families; keeping each updater and persistence rule
+  local preserves the domain distinctions that matter.
+- **Verification**: `npm test` passed with 243 tests, 241 assertions, 11/11
+  sensor checks, and 0 failures. `npm run lint` passed with three pre-existing
+  warnings, and `git diff --check` passed; the known sandbox-only Unix-socket
+  smoke test skipped on `listen EPERM`.

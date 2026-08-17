@@ -34,6 +34,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: patch-state mutations now reuse the same pure result builder, preserving state-sync selection and `persist` before optional weather refresh effects while keeping patch recomputation explicit.
 - Latest Step 4 slice: feed mutations and `patch-state` now share one pure `recompute -> ensure active photo` continuation, keeping visibility changes and active-photo recovery aligned while preserving each command's own flags and result policy.
 - Latest Step 4 slice: photo-library mutations now reuse the same pure result builder as ordinary state, feed, and patch mutations, preserving photo-specific event selection and source-local persistence effects while removing the final duplicate result assembly.
+- Latest Step 4 slice: active-photo rating and broken-photo mutations now reuse the shared `recompute -> ensure active photo` continuation already used by feed and patch mutations, preserving immutable recovery and one consistent transition boundary.
 
 ### Photo timestamp foundation (2026-07-31)
 
