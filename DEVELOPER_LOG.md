@@ -1634,3 +1634,12 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   `npm run lint` passed with three pre-existing warnings and no errors;
   `git diff --check` passed. The known sandbox-only live Unix-socket smoke test
   skipped with `listen EPERM`.
+
+### 2026-08-16: Add the Code Spotlight Gallery
+
+- Added `CODE_SPOTLIGHT.md` as a small reviewable gallery for code that best
+  expresses Lumina's functional and aesthetic philosophy.
+- Recorded the shared reducer mutation boundary as the current favourite and
+  `collectRouteDecodeResults(...)` as an honourable mention.
+- The gallery is intentionally append-and-review oriented so future agents can
+  compare candidates without erasing the project's evolving design history.
