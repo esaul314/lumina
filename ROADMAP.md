@@ -32,6 +32,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: state and feed mutation reducers now share one higher-order clone/apply/unchanged boundary, keeping changed-state continuations explicit while removing duplicate no-op ceremony.
 - Latest Step 4 slice: state and feed mutation reducers now share one pure result-builder boundary for resolving events/effects and prepending persistence, while feed-specific recomputation context remains explicit.
 - Latest Step 4 slice: patch-state mutations now reuse the same pure result builder, preserving state-sync selection and `persist` before optional weather refresh effects while keeping patch recomputation explicit.
+- Latest Step 4 slice: feed mutations and `patch-state` now share one pure `recompute -> ensure active photo` continuation, keeping visibility changes and active-photo recovery aligned while preserving each command's own flags and result policy.
 
 ### Photo timestamp foundation (2026-07-31)
 

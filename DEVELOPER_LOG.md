@@ -5,6 +5,13 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-08-16: Share Feed Recompute and Active-Photo Recovery
+
+- **Goal**: Continue the selective Phase 1 companion Step 4 cleanup by removing the duplicated `recompute feed -> ensure active photo` continuation from feed mutations and `patch-state`.
+- **Implementation**: Added the pure `recomputeAndEnsureActivePhoto(...)` boundary and reused it from both mutation paths. Patch-specific recompute flags, weather-refresh effects, direction, and result assembly remain explicit at their callers.
+- **Verification**: Added a domain regression proving feed exclusion updates and equivalent state patches recover the same active photo and emit the same photo-update/state-sync event contract. `npm test` passed 240 assertions plus 11/11 sensor-adapter checks; `npm run lint` passed with three pre-existing warnings; `git diff --check` passed.
+- **Learning**: A shared continuation is useful when two mutation families perform the same pure selector pipeline but still need different policy around whether that pipeline runs and which effects follow it.
+
 ### 2026-08-08: Isolated Clock AM/PM Tracking From Large Digits
 
 - **Goal**: Fix the `m` in the AM/PM period appearing partially cut off on the TV clock despite the existing glass-container padding fix.

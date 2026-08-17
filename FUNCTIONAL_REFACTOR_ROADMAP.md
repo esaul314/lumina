@@ -30,6 +30,7 @@ Current checkpoint:
 - The latest Step 4 slice keeps environment-secret runtime flags on the same functional-core/imperative-shell boundary: a pure record-to-boolean projection now feeds one explicit shell assignment after persistence.
 - The latest Step 4 slice shares one curried `reduceUntil(step, shouldStop, initial)(values)` boundary between route-decode collection and route-guard evaluation, preserving empty identities, first-failure short-circuiting, and explicit transport predicates without introducing a general routing framework.
 - The latest Step 4 slice shares one higher-order `reduceClonedMutation(state, apply, onChanged)` boundary between ordinary state mutations and feed mutations, preserving strict no-op identity while leaving feed finalization and state result shaping visible at their respective continuations.
+- The latest Step 4 slice shares one pure `recomputeAndEnsureActivePhoto(...)` continuation between feed mutations and `patch-state`, preserving deterministic active-photo recovery without hiding patch-specific recompute and weather-refresh flags.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`
@@ -268,6 +269,7 @@ Progress note:
 - The latest Step 4 slice shares a pure short-circuit reducer across route decoding and guarded route execution, with regression coverage for data-last partial application, identity values, non-mutation, and skipped post-failure steps.
 - The latest Step 4 slice shares the pure post-change result builder between ordinary state and feed mutations, so event/effect resolution and persistence ordering are expressed once while feed finalization keeps its richer context explicit.
 - The latest Step 4 slice routes patch-state result assembly through that same builder, so persistence ordering and optional weather-refresh effects are expressed once without hiding patch-specific recomputation.
+- The latest Step 4 slice shares the pure `recompute -> ensure active photo` continuation between feed and patch mutations, so visibility changes use one active-photo recovery boundary while command-specific result policy remains explicit.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 
