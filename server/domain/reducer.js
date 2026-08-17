@@ -920,11 +920,11 @@ function reduceStatePatchCommand(state, patch, env) {
     ? ensureActivePhoto(recomputed, { now: env.now, rng: env.rng, direction: 'next' })
     : { state: recomputed, photoChanged: false };
 
-  return createResult(
-    ensured.state,
-    stateSyncEventsFor(ensured.photoChanged),
-    withPersist(context.refreshWeather ? [{ type: 'refresh-weather' }] : [])
-  );
+  return buildMutationResult(ensured.state, {
+    events: stateSyncEventsFor(ensured.photoChanged),
+    effects: context.refreshWeather ? [{ type: 'refresh-weather' }] : [],
+    persist: true
+  });
 }
 
 function buildCategoryJobPayload(command) {

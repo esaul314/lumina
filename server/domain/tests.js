@@ -1141,6 +1141,16 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('reducer state patch keeps persistence ahead of weather refresh through the shared result builder', () => {
+    const result = reduceDomainCommand(createState(), {
+      type: 'patch-state',
+      payload: { autoLocation: true }
+    });
+
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist', 'refresh-weather']);
+  });
+
   assertTest('reducer patch-state no-op stays silent when the patch does not change any durable fields', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {
