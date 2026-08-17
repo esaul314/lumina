@@ -1566,3 +1566,24 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Learning**: Aggregation boundaries should validate query inputs before they
   reach SQL and test computed values, not only response shape; otherwise
   malformed hours can silently produce empty or misleading period buckets.
+
+### 2026-08-16: Share Reducer Result Assembly After Mutation
+
+- **Goal**: Continue implementation-companion Step 4 by removing the remaining
+  duplicate event/effect/persistence result assembly between ordinary state and
+  feed mutations.
+- **Implementation**:
+  - Added the pure `buildMutationResult(...)` boundary in
+    `server/domain/reducer.js` for resolving dynamic events and effects,
+    preserving persistence ordering, and creating the reducer result.
+  - Reused it from both state mutation and feed finalization paths while
+    preserving feed finalization's richer `{ state, photoChanged }` callback
+    context.
+  - Added a domain regression proving both mutation families preserve their
+    state-sync events and persistence effect ordering.
+- **Learning**: The useful abstraction was a context-aware result builder, not
+  a generalized reducer framework: shared output algebra can be centralized
+  while domain-specific state transitions remain visible at the call site.
+- **Verification**: `npm test` passed with 240 tests, 238 assertions, and 11
+  sensor checks; the known sandbox-only live Unix-socket smoke test skipped on
+  `listen EPERM`.
