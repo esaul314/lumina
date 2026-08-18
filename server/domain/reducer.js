@@ -29,6 +29,7 @@ const {
   normalizeVisionConfig,
   STATE_PATCH_FIELDS
 } = require('./statePatch.js');
+const { normalizePoolPolicy } = require('./poolRetention.js');
 
 function cloneState(state) {
   return {
@@ -727,9 +728,10 @@ function mergePoolSourceConfig(nextState, name, source, configPatch) {
 
 function assignPoolPolicy(nextState, name, policy) {
   nextState.config.poolPolicies ??= {};
+  const normalizedPolicy = normalizePoolPolicy(policy);
   const current = nextState.config.poolPolicies[name] || {};
-  if (shallowEqualObjects(current, policy)) return false;
-  nextState.config.poolPolicies[name] = { ...policy };
+  if (shallowEqualObjects(current, normalizedPolicy)) return false;
+  nextState.config.poolPolicies[name] = normalizedPolicy;
   return true;
 }
 
