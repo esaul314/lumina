@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-08-16
+Last updated: 2026-08-18
 
 ## Implementation Companion
 
@@ -58,6 +58,20 @@ Phase 1 is in progress. The current checkpoint is:
   remain protected.
 - Next: add optional lifecycle previews and a deliberate legacy-date backfill
   workflow only if operationally useful.
+
+### Scheduled pool activation (2026-08-18)
+
+- Done: pools can be assigned recurring daily local-time activation windows,
+  including overnight windows such as 22:00–06:00.
+- Done: overlapping schedules resolve deterministically by explicit priority,
+  with category-name ordering as the stable tie-breaker.
+- Done: scheduled activation uses the shared category-selection command path,
+  persists with the existing pool policy snapshot, and restores the previous
+  selection when the active window ends.
+- Done: manual category selection temporarily overrides an active schedule
+  until the next schedule boundary.
+- Next: consider weekday filters, exceptions, and a configurable timezone only
+  if recurring daily host-local schedules prove insufficient.
 
 Implementation note (2026-07-22): the latest Step 4 slices route simple, photo, feed, pool, playback, and `patch-state` commands through one reusable indexed interpreter with explicit `now`/`rng` environment adapters, centralize feed/pool reducer option resolution, and capture the dispatcher effect interpreter once before its promise-reduce sequence. Unsupported and inherited object keys, plus unhandled effects, remain unchanged/no-op boundaries.
 

@@ -5,6 +5,27 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+### 2026-08-18: Scheduled Pool Activation
+
+- **Goal**: Let a pool such as “Night Mood” become the active display feed
+  automatically during a recurring daily time window.
+- **Implementation**:
+  - Extended normalized `poolPolicies` with an optional disabled-by-default
+    schedule containing `enabled`, `start`, `end`, and `priority`.
+  - Added the pure `poolSchedule` evaluator for host-local daily windows,
+    overnight ranges, deterministic priority resolution, and a small runtime
+    that applies activation through the existing `select-categories` command.
+  - Added manual-override handling that leaves a user-selected category alone
+    until the next schedule boundary, then restores the prior baseline.
+  - Added Image Feeds controls for enablement, start/end times, and priority;
+    schedule settings persist through the existing pool REST policy path.
+- **Verification**: `npm test` passed 245 assertions plus 11/11 sensor-adapter
+  checks. The live-server smoke portion still reports the known sandbox
+  `listen EPERM` restriction; it is not a product failure.
+- **Learning**: Scheduling belongs beside pool policy persistence, while the
+  actual activation should remain an ordinary category command so REST,
+  Socket.IO, manual controls, and scheduled changes share one state boundary.
+
 ### 2026-08-16: Share Feed Recompute and Active-Photo Recovery
 
 - **Goal**: Continue the selective Phase 1 companion Step 4 cleanup by removing the duplicated `recompute feed -> ensure active photo` continuation from feed mutations and `patch-state`.
