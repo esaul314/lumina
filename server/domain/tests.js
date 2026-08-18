@@ -1159,6 +1159,27 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('reducer patch specs compose immutable state writers without mutating the source snapshot', () => {
+    const state = createState();
+    const originalConfig = JSON.parse(JSON.stringify(state.config));
+    const result = reduceDomainCommand(state, {
+      type: 'patch-state',
+      payload: {
+        theme: 'Cosmic Night',
+        widgets: { clock: false },
+        manualLocation: { city: 'Montreal', lat: 45.5, lon: -73.6 }
+      }
+    });
+
+    assert.deepStrictEqual(state.config, originalConfig);
+    assert.notStrictEqual(result.nextState.config, state.config);
+    assert.notStrictEqual(result.nextState.config.widgets, state.config.widgets);
+    assert.notStrictEqual(result.nextState.config.manualLocation, state.config.manualLocation);
+    assert.strictEqual(result.nextState.config.theme, 'Cosmic Night');
+    assert.strictEqual(result.nextState.config.widgets.clock, false);
+    assert.strictEqual(result.nextState.config.manualLocation.city, 'Montreal');
+  });
+
   assertTest('reducer state patch keeps persistence ahead of weather refresh through the shared result builder', () => {
     const result = reduceDomainCommand(createState(), {
       type: 'patch-state',

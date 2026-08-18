@@ -787,12 +787,12 @@ function shallowEqualObjects(left = {}, right = {}) {
 
 const PATCH_SKIP = Symbol('patch-skip');
 
-function markPatchChange(context, flags = {}) {
-  context.changed = true;
-  context.recomputePhotos ||= Boolean(flags.recomputePhotos);
-  context.refreshWeather ||= Boolean(flags.refreshWeather);
-  return context;
-}
+const markPatchChange = (context, flags = {}) => ({
+  ...context,
+  changed: true,
+  recomputePhotos: context.recomputePhotos || Boolean(flags.recomputePhotos),
+  refreshWeather: context.refreshWeather || Boolean(flags.refreshWeather)
+});
 
 const hasPatchField = (patch, field) => patch?.[field] !== undefined;
 
@@ -802,6 +802,8 @@ const readPatchField = (field, normalize = (value) => value) => (patch, nextStat
     : PATCH_SKIP
 );
 
+// Patch writers stay pure: each spec returns the next state and leaves the
+// context reducer responsible for accumulating change flags.
 const createPatchSpec = ({
   readValue,
   hasChanged,
@@ -821,16 +823,22 @@ function applyPatchSpec(context, spec) {
     return context;
   }
 
-  spec.applyValue(context.nextState, value);
-  return markPatchChange(context, spec.flags);
+  return markPatchChange({
+    ...context,
+    nextState: spec.applyValue(context.nextState, value)
+  }, spec.flags);
 }
 
 const createConfigPatchSpec = (field, {
   readValue = readPatchField(field),
   hasChanged = (nextState, value) => nextState.config[field] !== value,
-  applyValue = (nextState, value) => {
-    nextState.config[field] = value;
-  },
+  applyValue = (nextState, value) => ({
+    ...nextState,
+    config: {
+      ...nextState.config,
+      [field]: value
+    }
+  }),
   flags
 } = {}) => createPatchSpec({
   readValue,
@@ -872,20 +880,29 @@ const PATCH_STATE_SPECS = [
   createConfigPatchSpec('excludedKeywords', {
     readValue: readExcludedKeywordsPatch,
     hasChanged: (nextState, keywords) => !arraysEqual(nextState.config.excludedKeywords, keywords),
-    applyValue: (nextState, keywords) => {
-      nextState.config.excludedKeywords = [...keywords];
-    },
+    applyValue: (nextState, keywords) => ({
+      ...nextState,
+      config: {
+        ...nextState.config,
+        excludedKeywords: [...keywords]
+      }
+    }),
     flags: { recomputePhotos: true }
   }),
   createPatchSpec({
     readValue: readWidgetPatch,
     hasChanged: (nextState, widgets) => Object.entries(widgets)
       .some(([widgetName, visible]) => nextState.config.widgets[widgetName] !== visible),
-    applyValue: (nextState, widgets) => {
-      Object.entries(widgets).forEach(([widgetName, visible]) => {
-        nextState.config.widgets[widgetName] = visible;
-      });
-    }
+    applyValue: (nextState, widgets) => ({
+      ...nextState,
+      config: {
+        ...nextState.config,
+        widgets: {
+          ...nextState.config.widgets,
+          ...widgets
+        }
+      }
+    })
   }),
   createConfigPatchSpec('visionConfig', {
     readValue: readVisionConfigPatch,
@@ -893,9 +910,13 @@ const PATCH_STATE_SPECS = [
       visionConfig,
       nextState.config.visionConfig || {}
     ),
-    applyValue: (nextState, visionConfig) => {
-      nextState.config.visionConfig = { ...visionConfig };
-    }
+    applyValue: (nextState, visionConfig) => ({
+      ...nextState,
+      config: {
+        ...nextState.config,
+        visionConfig: { ...visionConfig }
+      }
+    })
   }),
   createConfigPatchSpec('autoLocation', {
     readValue: readAutoLocationPatch,
@@ -907,9 +928,13 @@ const PATCH_STATE_SPECS = [
       manualLocation,
       nextState.config.manualLocation || {}
     ),
-    applyValue: (nextState, manualLocation) => {
-      nextState.config.manualLocation = { ...manualLocation };
-    },
+    applyValue: (nextState, manualLocation) => ({
+      ...nextState,
+      config: {
+        ...nextState.config,
+        manualLocation: { ...manualLocation }
+      }
+    }),
     flags: { refreshWeather: true }
   })
 ];
