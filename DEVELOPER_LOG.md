@@ -5,6 +5,26 @@ This document serves as a public-facing, generic history of technical developmen
 ---
 
 ## 📅 Technical Changelog & Milestones
+
+### 2026-08-18: Make Patch-State Spec Application Pure
+
+- **Goal**: Continue implementation-companion Step 4 by removing mutation from
+  the declarative `patch-state` spec interpreter itself.
+- **Implementation**:
+  - Changed patch writers to return immutable next-state values instead of
+    mutating the cloned state in place.
+  - Changed patch flag accumulation to return a new context, preserving the
+    existing short-circuit/no-op identity and recompute/weather-refresh policy.
+  - Added a regression proving composed theme, widget, and location patches do
+    not mutate the source snapshot or reuse nested config references.
+- **Learning**: A declarative spec table becomes easier to reason about when
+  both its value writers and its context accumulator are pure; the reducer can
+  still keep its explicit clone boundary without making each row imperative.
+- **Verification**: `npm test` passed with 246 tests, 244 assertions, and 11/11
+  sensor checks. `npm run lint` passed with three pre-existing warnings, and
+  `git diff --check` passed; the known sandbox-only live Unix-socket smoke test
+  skipped on `listen EPERM`.
+
 ### 2026-08-18: Scheduled Pool Activation
 
 - **Goal**: Let a pool such as “Night Mood” become the active display feed
