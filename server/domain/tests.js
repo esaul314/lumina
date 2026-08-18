@@ -57,6 +57,7 @@ const {
   stampNewPhotos
 } = require('./photoTimestamps.js');
 const { normalizePoolPolicy, pruneExpiredPhotos } = require('./poolRetention.js');
+const { resolveScheduledPool } = require('./poolSchedule.js');
 const { createEventEmitter } = require('./dispatch.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
@@ -2059,7 +2060,8 @@ function runDomainTests({ logSuite, assertTest }) {
   assertTest('pool retention policies normalize and prune only eligible aged photos', () => {
     assert.deepStrictEqual(normalizePoolPolicy({ retentionDays: 7, maxPhotos: 80 }), {
       retentionDays: 7,
-      maxPhotos: 80
+      maxPhotos: 80,
+      schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
     });
     const retained = pruneExpiredPhotos('2026-07-31T00:00:00Z', { retentionDays: 30 })([
       { url: 'fresh', addedAt: '2026-07-15T00:00:00Z' },
@@ -2073,13 +2075,24 @@ function runDomainTests({ logSuite, assertTest }) {
   assertTest('pool policy command shares normalized REST decoding and reducer persistence', () => {
     assert.deepStrictEqual(decodePoolPolicyCommand({ name: ' Scenic Nature ', policy: { retentionDays: 0, maxPhotos: 2 } }), {
       type: 'set-pool-policy',
-      payload: { name: 'Scenic Nature', policy: { retentionDays: 1, maxPhotos: 12 } }
+      payload: {
+        name: 'Scenic Nature',
+        policy: {
+          retentionDays: 1,
+          maxPhotos: 12,
+          schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
+        }
+      }
     });
     const result = reduceDomainCommand(createState(), {
       type: 'set-pool-policy',
       payload: { name: 'Scenic Nature', policy: { retentionDays: 14, maxPhotos: 500 } }
     });
-    assert.deepStrictEqual(result.nextState.config.poolPolicies['Scenic Nature'], { retentionDays: 14, maxPhotos: 500 });
+    assert.deepStrictEqual(result.nextState.config.poolPolicies['Scenic Nature'], {
+      retentionDays: 14,
+      maxPhotos: 500,
+      schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
+    });
     assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist']);
   });
 
@@ -2249,7 +2262,28 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(persisted.splitCropPercent, 42);
     assert.deepStrictEqual(persisted.locationSettings.manualLocation, { city: 'Montreal' });
     assert.deepStrictEqual(persisted.excludedKeywords, ['anime']);
-    assert.deepStrictEqual(persisted.poolPolicies['Scenic Nature'], { retentionDays: 14, maxPhotos: 500 });
+    assert.deepStrictEqual(persisted.poolPolicies['Scenic Nature'], {
+      retentionDays: 14,
+      maxPhotos: 500,
+      schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
+    });
+  });
+
+  assertTest('pool schedules normalize daily windows and resolve overnight priority', () => {
+    const selectedAtNight = resolveScheduledPool({
+      poolPolicies: {
+        'Night Mood': { schedule: { enabled: true, start: '22:00', end: '06:00', priority: 2 } },
+        'Low Priority': { schedule: { enabled: true, start: '22:00', end: '06:00', priority: 1 } }
+      },
+      availableCategories: ['Scenic Nature', 'Night Mood', 'Low Priority'],
+      now: new Date('2026-08-18T23:30:00')
+    });
+    assert.strictEqual(selectedAtNight.category, 'Night Mood');
+    assert.strictEqual(resolveScheduledPool({
+      poolPolicies: { 'Night Mood': { schedule: { enabled: true, start: '22:00', end: '06:00' } } },
+      availableCategories: ['Night Mood'],
+      now: new Date('2026-08-18T06:00:00')
+    }), null);
   });
 
   assertTest('persistence codec keeps explicit zero-valued crop defaults', () => {

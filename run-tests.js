@@ -56,6 +56,7 @@ const {
 const { reduceAsyncSequentially } = require('./server/utils/asyncReduce.js');
 const { reduceUntil } = require('./server/utils/fn.js');
 const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
+const { createPoolScheduleRuntime } = require('./server/runtime/poolSchedule.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const configureSockets = require('./server/sockets.js');
@@ -924,9 +925,45 @@ assertAsyncTest('pool policy drafts preserve a just-edited maximum through synch
 
   assert.deepStrictEqual(readDraft(drafts, 'Scenic Nature'), {
     retentionDays: '45',
-    maxPhotos: '500'
+    maxPhotos: '500',
+    schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
   });
   assert.strictEqual(readDraft({}, 'Scenic Nature').maxPhotos, 2000);
+});
+
+assertAsyncTest('pool schedule runtime activates a pool, honors manual override, and restores the baseline', async () => {
+  const state = {
+    currentCategory: 'Scenic Nature',
+    poolPolicies: {
+      'Night Mood': { schedule: { enabled: true, start: '22:00', end: '06:00' } }
+    }
+  };
+  const collections = {
+    'Scenic Nature': [],
+    'Night Mood': [],
+    'Day Mood': []
+  };
+  let now = new Date('2026-08-18T23:00:00');
+  const dispatched = [];
+  const runtime = createPoolScheduleRuntime({
+    state,
+    collections,
+    getNow: () => now,
+    dispatchCommand: async (command) => {
+      dispatched.push(command);
+      state.currentCategory = command.payload.categories.join(',');
+    }
+  });
+
+  await runtime.tick();
+  assert.strictEqual(state.currentCategory, 'Night Mood');
+  state.currentCategory = 'Day Mood';
+  await runtime.tick();
+  assert.strictEqual(runtime.getStatus().manualOverride, true);
+  now = new Date('2026-08-19T06:00:00');
+  await runtime.tick();
+  assert.strictEqual(state.currentCategory, 'Scenic Nature');
+  assert.deepStrictEqual(dispatched.map(({ payload }) => payload.categories), [['Night Mood'], ['Scenic Nature']]);
 });
 
 assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {
@@ -4515,13 +4552,25 @@ async function runIntegrationTests() {
     });
 
     const patchPoolPolicyRes = await liveRequestJson(`/api/pools/${encodeURIComponent(poolName)}`, 'PATCH', {
-      policy: { retentionDays: 45, maxPhotos: 500 }
+      policy: {
+        retentionDays: 45,
+        maxPhotos: 500,
+        schedule: { enabled: true, start: '22:00', end: '06:00', priority: 3 }
+      }
     });
     const stateAfterPoolPolicy = await liveRequestJson('/api/state', 'GET');
     assertTest('PATCH /api/pools/:name retains a custom maximum in the returned and refreshed state', () => {
       assert.strictEqual(patchPoolPolicyRes.status, 200);
-      assert.deepStrictEqual(patchPoolPolicyRes.body.state.poolPolicies[poolName], { retentionDays: 45, maxPhotos: 500 });
-      assert.deepStrictEqual(stateAfterPoolPolicy.body.poolPolicies[poolName], { retentionDays: 45, maxPhotos: 500 });
+      assert.deepStrictEqual(patchPoolPolicyRes.body.state.poolPolicies[poolName], {
+        retentionDays: 45,
+        maxPhotos: 500,
+        schedule: { enabled: true, start: '22:00', end: '06:00', priority: 3 }
+      });
+      assert.deepStrictEqual(stateAfterPoolPolicy.body.poolPolicies[poolName], {
+        retentionDays: 45,
+        maxPhotos: 500,
+        schedule: { enabled: true, start: '22:00', end: '06:00', priority: 3 }
+      });
     });
 
     // 9. PATCH /api/pools/:name/feed-sources/:source
