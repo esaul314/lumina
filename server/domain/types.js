@@ -61,6 +61,7 @@
  * @property {number} nightPercentage
  * @property {Record<string, unknown>} searchKeywords
  * @property {Record<string, unknown>} feedConfigs
+ * @property {Record<string, { retentionDays?: number, maxPhotos?: number, schedule?: { enabled?: boolean, start?: string, end?: string, priority?: number }>=} poolPolicies
  * @property {string[]} excludedKeywords
  * @property {boolean} autoLocation
  * @property {Record<string, unknown>} manualLocation
@@ -138,6 +139,7 @@
  *     | 'add-pool'
  *     | 'set-pool-keywords'
  *     | 'merge-pool-feed-config'
+ *     | 'set-pool-policy'
  *     | 'delete-pool'
  *     | 'save-env-secret'
  *     | 'trigger-recrawl'

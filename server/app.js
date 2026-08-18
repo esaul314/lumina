@@ -25,6 +25,7 @@ const {
 } = require('./domain/selectors.js');
 const { syncLegacySnapshot } = require('./domain/snapshot.js');
 const { createActiveFeedRuntime } = require('./runtime/activeFeed.js');
+const { createPoolScheduleRuntime } = require('./runtime/poolSchedule.js');
 const { createEnvironmentRefreshRuntime } = require('./runtime/environmentRefresh.js');
 const { createIdleDaemonRuntime, getNextScreensaverState } = require('./runtime/idleDaemon.js');
 const { createKioskControlRuntime } = require('./runtime/kioskControl.js');
@@ -583,6 +584,17 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   startVisionAnalysisJob: (payload) => visionAnalysisJobService?.submit(payload),
   triggerWeatherUpdate
 });
+
+const poolScheduleRuntime = createPoolScheduleRuntime({
+  state: screensaverState,
+  collections: curatedCollections,
+  dispatchCommand,
+  log: console
+});
+
+if (process.env.NODE_ENV !== 'test') {
+  poolScheduleRuntime.start();
+}
 
 recrawlJobService = createRecrawlJobService({
   state: screensaverState,
