@@ -212,12 +212,12 @@ function ImageFeedsTab({
         <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <span className="remote-section-title">Pool Lifecycle</span>
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', margin: '4px 0 12px' }}>
-            New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept.
+            New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept. Enable a daily local-time window to activate a pool automatically, including overnight windows.
           </p>
           {categories.filter((category) => category !== 'Google Photos').map((category) => {
             const policy = draftPolicy(category);
             return (
-              <div key={category} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 90px auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
+              <div key={category} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 90px minmax(0, 1.5fr) auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
                 <label style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>{category}</label>
                 <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Keep days
                   <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
@@ -225,6 +225,26 @@ function ImageFeedsTab({
                 <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Max photos
                   <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
                 </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr 70px', gap: '5px', alignItems: 'end' }}>
+                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Schedule
+                    <input
+                      type="checkbox"
+                      checked={Boolean(policy.schedule?.enabled)}
+                      onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, enabled: event.target.checked })}
+                      onBlur={() => savePoolPolicy(category)}
+                      style={{ display: 'block', marginTop: '7px' }}
+                    />
+                  </label>
+                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>From
+                    <input type="time" value={policy.schedule?.start || '22:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, start: event.target.value })} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
+                  </label>
+                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Until
+                    <input type="time" value={policy.schedule?.end || '06:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, end: event.target.value })} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
+                  </label>
+                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Priority
+                    <input type="number" min="-10000" max="10000" value={policy.schedule?.priority ?? 0} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, priority: event.target.value })} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
+                  </label>
+                </div>
                 <button type="button" className="remote-btn" onClick={() => savePoolPolicy(category)} style={{ padding: '7px 9px', fontSize: '0.72rem' }}>Save</button>
               </div>
             );
