@@ -60,7 +60,14 @@ function createIdleDaemonRuntime({
     kill: () => killKioskBrowser?.()
   };
   let idleCounter = 0;
+  let activitySuppressed = false;
   let intervalId = null;
+
+  const notifyActivity = () => {
+    idleCounter = 0;
+    activitySuppressed = true;
+    return true;
+  };
 
   const syncScreensaverActivity = (screensaverActive) => {
     if (state.screensaverActive === screensaverActive) {
@@ -76,6 +83,9 @@ function createIdleDaemonRuntime({
     try {
       const { browserRunning = false, manualOverride = false, launchBlocked = false } = getRuntimeContext() ?? {};
       const idleMs = await getIdleTime();
+      if (manualOverride || idleMs < state.inactivityTimeout) {
+        activitySuppressed = false;
+      }
       const audioPlaying = await isAudioPlaying();
       const sessionInhibited = browserRunning ? false : await isSessionInhibited();
       const inputs = buildDaemonInputs({
@@ -84,7 +94,7 @@ function createIdleDaemonRuntime({
         audioPlaying,
         sessionInhibited,
         manualOverride,
-        launchBlocked
+        launchBlocked: launchBlocked || activitySuppressed
       });
       const { nextState, action } = getNextScreensaverState(
         { idleCounter, isBrowserRunning: browserRunning },
@@ -98,7 +108,8 @@ function createIdleDaemonRuntime({
       return {
         action,
         inputs,
-        nextState
+        nextState,
+        activitySuppressed
       };
     } catch (error) {
       log.warn('System Service: Idle daemon tick failed:', error.message);
@@ -129,6 +140,7 @@ function createIdleDaemonRuntime({
 
   return {
     getIdleCounter: () => idleCounter,
+    notifyActivity,
     start,
     stop,
     tick

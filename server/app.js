@@ -484,11 +484,14 @@ const {
   updateServerWeather
 } = environmentRefreshRuntime;
 
+let notifyIdleActivity = () => {};
+
 const kioskControlRuntime = createKioskControlRuntime({
   state: screensaverState,
   emitStateSync,
   getPort: () => PORT,
   isServerListening: () => server.listening,
+  notifyActivity: () => notifyIdleActivity(),
   setCpuGovernor,
   launchChromiumKiosk
 });
@@ -511,6 +514,8 @@ const idleDaemonRuntime = createIdleDaemonRuntime({
   killKioskBrowser: kioskControlRuntime.killKioskBrowser,
   broadcastStateSync: emitStateSync
 });
+
+notifyIdleActivity = idleDaemonRuntime.notifyActivity;
 
 // Daemon-specific interval bindings (disabled under test suites)
 if (process.env.NODE_ENV !== 'test') {

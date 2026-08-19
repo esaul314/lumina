@@ -8,6 +8,7 @@ function createKioskControlRuntime({
   setTimeoutImpl = setTimeout,
   clearTimeoutImpl = clearTimeout,
   retryDelayMs = 1000,
+  notifyActivity = () => {},
   setCpuGovernor,
   launchChromiumKiosk,
   log = console
@@ -125,6 +126,7 @@ function createKioskControlRuntime({
   }
 
   function killKioskBrowser(forceManual = false) {
+    notifyActivity();
     if (forceManual) {
       setManualOverride(false);
     }
