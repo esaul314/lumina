@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-18: Share the Socket Async Error Boundary
+
+- **Goal**: Continue implementation-companion Step 4 by removing duplicate
+  async error-boundary ceremony from Socket.IO command and transport listeners.
+- **Implementation**:
+  - Added `runWithErrorBoundary(...)` as the shared imperative-shell runner.
+  - Kept command decoding outside the boundary, preserving invalid-command
+    no-ops and the command-specific `(error, command, payload)` context.
+  - Preserved telemetry and Google Photos refresh acknowledgement behavior,
+    with regression coverage for refresh failures.
+- **Learning**: A small effect-shell abstraction is useful when the error
+  policy is identical but each adapter still owns its own context projection.
+- **Verification**: `npm test` passed with 256 tests, 254 assertions, and
+  11/11 sensor checks. The known sandbox-only live Unix-socket smoke test
+  skipped on `listen EPERM`.
+
 ### 2026-08-18: Share the Google Photos OAuth Async Boundary
 
 - **Goal**: Continue implementation-companion Step 4 by removing duplicate
