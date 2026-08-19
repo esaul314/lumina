@@ -37,6 +37,7 @@ Current checkpoint:
 - The latest Step 4 slice shares the existing async route error shell through a small `createAsyncJsonRoute(...)` adapter for environment reads, keeping endpoint-specific projections and failure policy declarative at registration.
 - The latest Step 4 slice extends that async JSON/error boundary to weather reads, keeping cache short-circuiting and weather persistence in the route-local resolver while extracting the pure public response projection for direct testing.
 - The latest Step 4 slice extends the same boundary to environment-settings persistence, so the route composes `resolve -> validate -> project` while keeping invalid settings and thrown service errors on their existing response contracts.
+- The latest Step 4 slice makes photo mutation specs patch-first: one pure `buildPatch(payload)` now feeds both the immutable photo updater and source-local metadata persistence, removing duplicated normalization while preserving each command's recovery and event policy.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`
@@ -276,6 +277,7 @@ Progress note:
 - The latest Step 4 slice shares the pure post-change result builder between ordinary state and feed mutations, so event/effect resolution and persistence ordering are expressed once while feed finalization keeps its richer context explicit.
 - The latest Step 4 slice routes patch-state result assembly through that same builder, so persistence ordering and optional weather-refresh effects are expressed once without hiding patch-specific recomputation.
 - The latest Step 4 slice shares the pure `recompute -> ensure active photo` continuation between feed and patch mutations, so visibility changes use one active-photo recovery boundary while command-specific result policy remains explicit.
+- The latest Step 4 slice extends the photo-library boundary with one pure payload-to-patch projection, so crop, pairing, loved, rating, broken, and metadata commands no longer duplicate their updater and persistence metadata shapes.
 
 ### Step 5: Align the client control surface with the same functional boundaries
 

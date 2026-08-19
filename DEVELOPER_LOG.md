@@ -1760,3 +1760,24 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks, and 0 failures. `npm run lint` passed with three pre-existing
   warnings, and `git diff --check` passed; the known sandbox-only Unix-socket
   smoke test skipped on `listen EPERM`.
+
+### 2026-08-18: Derive Photo Updates and Persistence from One Patch
+
+- **Goal**: Continue implementation-companion Step 4 by removing duplicated
+  photo updater and source-local metadata projections.
+- **Implementation**:
+  - Changed `buildPhotoCommandReducer(...)` to accept one pure
+    `buildPatch(payload)` projection.
+  - Derived both the immutable `photo -> nextPhoto` update and the
+    `persist-external-photo-metadata` payload from that same patch.
+  - Kept rating/broken recovery, pairing-preservation, event selection, and
+    curated-versus-external persistence policy at their existing call sites.
+  - Added a regression covering a partial crop patch across live external photo
+    state and persisted metadata, including omission of an undefined field.
+- **Learning**: A patch-first boundary is a useful small Applicative-like shape
+  here: one normalized value is interpreted by two consumers without coupling
+  their effects or hiding the domain-specific finalizers.
+- **Verification**: `npm test` passed with 252 executed tests, 250 assertions,
+  11/11 sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke
+  test skipped on `listen EPERM`; lint and final diff checks remain part of the
+  completion gate.
