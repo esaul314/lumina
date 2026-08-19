@@ -309,9 +309,20 @@ module.exports = function configureRoutes({
     handler,
     status = 503,
     error,
-    project = (value) => value
+    project = (value) => value,
+    validate = () => null
   }) => createAsyncRoute(
-    async (req, res) => res.json(project(await handler(req))),
+    async (req, res) => {
+      const result = await handler(req);
+      const failure = validate(result);
+
+      if (failure) {
+        sendRouteFailure(res, failure, result);
+        return;
+      }
+
+      res.json(project(result));
+    },
     (res, caught) => sendError(res, status, error, { message: toErrorMessage(caught) })
   );
   const runRouteGuards = (guards, context) => reduceUntil(
@@ -623,18 +634,15 @@ module.exports = function configureRoutes({
   app.get('/api/environment/settings', (_req, res) => res.json(getEnvironmentSettings()));
   app.get('/api/environment/adapters', (_req, res) => res.json({ adapters: getEnvironmentAdapters() }));
 
-  app.post('/api/environment/settings', async (req, res) => {
-    try {
-      const result = await updateEnvironmentSettings(req.body || {});
-      if (!result?.valid) {
-        sendError(res, 400, result?.error || 'Invalid environment settings.');
-        return;
-      }
-      res.json({ success: true, settings: result.settings });
-    } catch (error) {
-      sendError(res, 500, 'Failed to save environment settings', { message: toErrorMessage(error) });
-    }
-  });
+  app.post('/api/environment/settings', createAsyncJsonRoute({
+    handler: (req) => updateEnvironmentSettings(req.body || {}),
+    validate: (result) => result?.valid
+      ? null
+      : createRouteFailure(400, result?.error || 'Invalid environment settings.'),
+    project: (result) => ({ success: true, settings: result.settings }),
+    status: 500,
+    error: 'Failed to save environment settings'
+  }));
 
   const exportEnvironmentHistoryRoute = async (req, res) => {
     try {

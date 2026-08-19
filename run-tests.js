@@ -3399,6 +3399,41 @@ async function runIntegrationTests() {
     assert.strictEqual(saved.body.settings.units.temperature, 'F');
   });
 
+  await assertAsyncTest('POST /api/environment/settings preserves validation and async failure contracts through the shared JSON route shell', async () => {
+    const invalidApp = buildConfiguredRoutesApp({
+      updateEnvironmentSettings: async () => ({ valid: false, error: 'Gateway URL is required.' })
+    });
+    const invalid = await invokeRoute(invalidApp, 'post', '/api/environment/settings', {
+      body: {}
+    });
+
+    const failingApp = buildConfiguredRoutesApp({
+      updateEnvironmentSettings: async () => {
+        throw new Error('settings store unavailable');
+      }
+    });
+    const failed = await invokeRoute(failingApp, 'post', '/api/environment/settings', {
+      body: { enabled: true }
+    });
+
+    assert.deepStrictEqual({
+      status: invalid.status,
+      error: invalid.body.error
+    }, {
+      status: 400,
+      error: 'Gateway URL is required.'
+    });
+    assert.deepStrictEqual({
+      status: failed.status,
+      error: failed.body.error,
+      message: failed.body.message
+    }, {
+      status: 500,
+      error: 'Failed to save environment settings',
+      message: 'settings store unavailable'
+    });
+  });
+
   await assertAsyncTest('POST /api/pools/:name/crawl scopes the recrawl effect to the requested pool', async () => {
     const dispatched = [];
     const app = buildConfiguredRoutesApp({
