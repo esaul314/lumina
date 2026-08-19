@@ -36,6 +36,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: photo-library mutations now reuse the same pure result builder as ordinary state, feed, and patch mutations, preserving photo-specific event selection and source-local persistence effects while removing the final duplicate result assembly.
 - Latest Step 4 slice: active-photo rating and broken-photo mutations now reuse the shared `recompute -> ensure active photo` continuation already used by feed and patch mutations, preserving immutable recovery and one consistent transition boundary.
 - Latest Step 4 slice: `patch-state` spec writers now return immutable next-state values and accumulate change flags through a pure context step, preserving no-op identity and patch result ordering while making the declarative patch pipeline easier to compose and test.
+- Latest Step 4 slice: environment read routes now share one higher-order async JSON/error boundary, while each endpoint keeps its own response projection, status, and public error message explicit.
 
 ### Photo timestamp foundation (2026-07-31)
 

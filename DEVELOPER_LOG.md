@@ -6,6 +6,25 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-18: Share the Environment Read Route Boundary
+
+- **Goal**: Continue implementation-companion Step 4 by removing repeated
+  async JSON/error handling from the environment read routes.
+- **Implementation**:
+  - Extended the existing async route shell with an injectable error presenter.
+  - Added `createAsyncJsonRoute(...)`, a small higher-order adapter that keeps
+    response projection and failure policy at each route registration.
+  - Reused it for current environment, history, and history-statistics reads
+    without changing their response shapes or 503 contracts.
+  - Added direct route-handler coverage for all three endpoint-specific errors.
+- **Learning**: The useful abstraction was the shared effect boundary around
+  async JSON responses; endpoint-specific data shaping remains visible and
+  composable instead of being hidden behind a generic environment framework.
+- **Verification**: `npm test` passed with 247 tests, 245 assertions, and 11/11
+  sensor checks. `npm run lint` passed with three pre-existing warnings, and
+  `git diff --check` passed; the known sandbox-only live Unix-socket smoke test
+  skipped on `listen EPERM`.
+
 ### 2026-08-18: Make Patch-State Spec Application Pure
 
 - **Goal**: Continue implementation-companion Step 4 by removing mutation from
