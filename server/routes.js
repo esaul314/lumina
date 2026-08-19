@@ -274,13 +274,24 @@ module.exports = function configureRoutes({
     { results: [], changed: false }
   );
   const getEffectValue = (result, effectType) => result?.effectResults?.find((entry) => entry.effect?.type === effectType)?.value;
-  const createAsyncRoute = (handler) => async (req, res) => {
+  const createAsyncRoute = (handler, onError = (res, error) => {
+    sendError(res, 500, toErrorMessage(error));
+  }) => async (req, res) => {
     try {
       await handler(req, res);
     } catch (error) {
-      sendError(res, 500, toErrorMessage(error));
+      onError(res, error);
     }
   };
+  const createAsyncJsonRoute = ({
+    handler,
+    status = 503,
+    error,
+    project = (value) => value
+  }) => createAsyncRoute(
+    async (req, res) => res.json(project(await handler(req))),
+    (res, caught) => sendError(res, status, error, { message: toErrorMessage(caught) })
+  );
   const runRouteGuards = (guards, context) => reduceUntil(
     (failure, guard) => failure || guard(context),
     Boolean,
@@ -588,29 +599,21 @@ module.exports = function configureRoutes({
     }
   });
 
-  app.get('/api/environment', async (_req, res) => {
-    try {
-      res.json(await getEnvironmentData());
-    } catch (error) {
-      sendError(res, 503, 'Failed to fetch indoor environment data', { message: toErrorMessage(error) });
-    }
-  });
+  app.get('/api/environment', createAsyncJsonRoute({
+    handler: () => getEnvironmentData(),
+    error: 'Failed to fetch indoor environment data'
+  }));
 
-  app.get('/api/environment/history', async (req, res) => {
-    try {
-      res.json({ readings: await getEnvironmentHistory(req.query) });
-    } catch (error) {
-      sendError(res, 503, 'Failed to read environment history', { message: toErrorMessage(error) });
-    }
-  });
+  app.get('/api/environment/history', createAsyncJsonRoute({
+    handler: (req) => getEnvironmentHistory(req.query),
+    project: (readings) => ({ readings }),
+    error: 'Failed to read environment history'
+  }));
 
-  app.get('/api/environment/history/stats', async (req, res) => {
-    try {
-      res.json(await getEnvironmentStats(req.query));
-    } catch (error) {
-      sendError(res, 503, 'Failed to calculate environment stats', { message: toErrorMessage(error) });
-    }
-  });
+  app.get('/api/environment/history/stats', createAsyncJsonRoute({
+    handler: (req) => getEnvironmentStats(req.query),
+    error: 'Failed to calculate environment stats'
+  }));
 
   app.get('/api/environment/settings', (_req, res) => res.json(getEnvironmentSettings()));
   app.get('/api/environment/adapters', (_req, res) => res.json({ adapters: getEnvironmentAdapters() }));

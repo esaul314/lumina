@@ -3262,6 +3262,41 @@ async function runIntegrationTests() {
     assert.deepStrictEqual(statsRes.body, statsPayload);
   });
 
+  await assertAsyncTest('environment read routes share the async JSON failure boundary', async () => {
+    const responseApp = buildConfiguredRoutesApp({
+      getEnvironmentData: async () => { throw new Error('gateway offline'); },
+      getEnvironmentHistory: async () => { throw new Error('history unavailable'); },
+      getEnvironmentStats: async () => { throw new Error('stats unavailable'); }
+    });
+    const responses = await Promise.all([
+      invokeRoute(responseApp, 'get', '/api/environment'),
+      invokeRoute(responseApp, 'get', '/api/environment/history'),
+      invokeRoute(responseApp, 'get', '/api/environment/history/stats')
+    ]);
+
+    assert.deepStrictEqual(responses.map(({ status, body }) => ({
+      status,
+      error: body.error,
+      message: body.message
+    })), [
+      {
+        status: 503,
+        error: 'Failed to fetch indoor environment data',
+        message: 'gateway offline'
+      },
+      {
+        status: 503,
+        error: 'Failed to read environment history',
+        message: 'history unavailable'
+      },
+      {
+        status: 503,
+        error: 'Failed to calculate environment stats',
+        message: 'stats unavailable'
+      }
+    ]);
+  });
+
   await assertAsyncTest('GET and POST environment settings expose a validated admin configuration boundary', async () => {
     let savedSettings = { enabled: false, baseUrl: 'http://ecowitt.local', units: { temperature: 'C' } };
     const responseApp = buildConfiguredRoutesApp({
