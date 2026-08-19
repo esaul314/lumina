@@ -644,18 +644,22 @@ module.exports = function configureRoutes({
     error: 'Failed to save environment settings'
   }));
 
-  const exportEnvironmentHistoryRoute = async (req, res) => {
-    try {
+  const exportEnvironmentHistoryRoute = createAsyncRoute(
+    async (req, res) => {
       const format = String(req.query.format || 'json').toLowerCase();
       if (format === 'csv') {
         res.type('text/csv').send(await exportEnvironmentHistory(req.query));
         return;
       }
       res.json({ readings: await getEnvironmentHistory(req.query) });
-    } catch (error) {
-      sendError(res, 503, 'Failed to export environment history', { message: toErrorMessage(error) });
-    }
-  };
+    },
+    (res, error) => sendError(
+      res,
+      503,
+      'Failed to export environment history',
+      { message: toErrorMessage(error) }
+    )
+  );
   app.get('/api/environment/history/export', exportEnvironmentHistoryRoute);
   app.get('/api/environment/export', exportEnvironmentHistoryRoute);
 

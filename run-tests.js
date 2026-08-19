@@ -3336,6 +3336,34 @@ async function runIntegrationTests() {
     assert.match(csv.body, /hour_key,indoor_temperature_c/);
   });
 
+  await assertAsyncTest('environment history export shares the async error boundary for JSON and CSV failures', async () => {
+    const responseApp = buildConfiguredRoutesApp({
+      getEnvironmentHistory: async () => { throw new Error('history unavailable'); },
+      exportEnvironmentHistory: async () => { throw new Error('csv unavailable'); }
+    });
+    const [json, csv] = await Promise.all([
+      invokeRoute(responseApp, 'get', '/api/environment/history/export'),
+      invokeRoute(responseApp, 'get', '/api/environment/history/export', {
+        query: { format: 'csv' }
+      })
+    ]);
+
+    assert.deepStrictEqual({ status: json.status, body: json.body }, {
+      status: 503,
+      body: {
+        error: 'Failed to export environment history',
+        message: 'history unavailable'
+      }
+    });
+    assert.deepStrictEqual({ status: csv.status, body: csv.body }, {
+      status: 503,
+      body: {
+        error: 'Failed to export environment history',
+        message: 'csv unavailable'
+      }
+    });
+  });
+
   await assertAsyncTest('GET environment history stats uses the injected storage boundary', async () => {
     const statsPayload = { summary: { daytime: { avg_temp_c: 24.5 } }, daily: [] };
     const responseApp = buildConfiguredRoutesApp({
