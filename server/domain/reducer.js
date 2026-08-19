@@ -431,18 +431,18 @@ function reducePhotoLibraryCommand(state, {
 const readPhotoCommandUrl = (command) => String(command.payload?.url || '');
 
 function buildPhotoCommandReducer({
-  buildUpdater,
-  buildMetadata = () => ({}),
+  buildPatch = () => ({}),
   resolveAfterUpdate = () => keepUpdatedPhotoState,
   eventsFor
 }) {
   return (state, command, env = {}) => {
     const payload = command.payload || {};
+    const patch = buildPatch(payload);
 
     return reducePhotoLibraryCommand(state, {
       url: readPhotoCommandUrl(command),
-      updater: (photo) => buildUpdater(payload, photo),
-      metadata: buildMetadata(payload),
+      updater: (photo) => ({ ...photo, ...patch }),
+      metadata: patch,
       afterUpdate: resolveAfterUpdate(payload),
       ...(eventsFor ? { eventsFor } : {}),
       env
@@ -563,11 +563,7 @@ function buildPlaybackCommandReducer({
 
 const reducePhotoCommand = {
   'rate-photo': buildPhotoCommandReducer({
-    buildUpdater: ({ rating }, photo) => ({
-      ...photo,
-      rating: Number(rating)
-    }),
-    buildMetadata: ({ rating }) => ({
+    buildPatch: ({ rating }) => ({
       rating: Number(rating)
     }),
     resolveAfterUpdate: ({ rating }) => (
@@ -577,34 +573,20 @@ const reducePhotoCommand = {
     )
   }),
   'mark-photo-broken': buildPhotoCommandReducer({
-    buildUpdater: (_payload, photo) => ({
-      ...photo,
-      rating: 1,
-      isBroken: true
-    }),
-    buildMetadata: () => ({
+    buildPatch: () => ({
       rating: 1,
       isBroken: true
     }),
     resolveAfterUpdate: () => recomputeAndEnsureActivePhoto
   }),
   'set-photo-crop': buildPhotoCommandReducer({
-    buildUpdater: ({ cropPercent, cropPositionY }, photo) => ({
-      ...photo,
+    buildPatch: ({ cropPercent, cropPositionY }) => ({
       ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
       ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
     }),
-    buildMetadata: ({ cropPercent, cropPositionY }) => ({
-      ...(cropPercent !== undefined ? { cropPercent: Number(cropPercent) } : {}),
-      ...(cropPositionY !== undefined ? { cropPositionY: Number(cropPositionY) } : {})
-    })
   }),
   'set-photo-prevent-pairing': buildPhotoCommandReducer({
-    buildUpdater: ({ preventPairing }, photo) => ({
-      ...photo,
-      preventPairing: Boolean(preventPairing)
-    }),
-    buildMetadata: ({ preventPairing }) => ({
+    buildPatch: ({ preventPairing }) => ({
       preventPairing: Boolean(preventPairing)
     }),
     resolveAfterUpdate: ({ preventPairing, preserveActive }) => (
@@ -614,26 +596,16 @@ const reducePhotoCommand = {
     )
   }),
   'set-photo-loved': buildPhotoCommandReducer({
-    buildUpdater: ({ loved }, photo) => ({
-      ...photo,
+    buildPatch: ({ loved }) => ({
       loved: Boolean(loved)
     }),
-    buildMetadata: ({ loved }) => ({
-      loved: Boolean(loved)
-    })
   }),
   'report-photo-metadata': buildPhotoCommandReducer({
-    buildUpdater: ({ orientation, width, height }, photo) => ({
-      ...photo,
+    buildPatch: ({ orientation, width, height }) => ({
       orientation,
       ...(width !== undefined ? { width: Number(width) } : {}),
       ...(height !== undefined ? { height: Number(height) } : {})
     }),
-    buildMetadata: ({ orientation, width, height }) => ({
-      orientation,
-      ...(width !== undefined ? { width: Number(width) } : {}),
-      ...(height !== undefined ? { height: Number(height) } : {})
-    })
   })
 };
 

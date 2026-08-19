@@ -871,6 +871,40 @@ function runDomainTests({ logSuite, assertTest }) {
     }]);
   });
 
+  assertTest('photo mutation patches drive both immutable photo state and persisted metadata', () => {
+    const googleUrl = '/api/google-photos/media/picker-crop?w=2560&h=1440';
+    const state = createState({
+      library: {
+        collections: createState().library.collections,
+        externalCollections: {
+          'Google Photos': [{ url: googleUrl, category: 'Google Photos' }]
+        },
+        photosList: [{ url: googleUrl, category: 'Google Photos' }]
+      },
+      playback: {
+        selectedCategories: ['Google Photos'],
+        activePhotoUrl: googleUrl,
+        splitSeed: 0,
+        lastDirection: 'next'
+      }
+    });
+
+    const result = reduceDomainCommand(state, {
+      type: 'set-photo-crop',
+      payload: { url: googleUrl, cropPercent: 42 }
+    });
+
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].cropPercent, 42);
+    assert.strictEqual(result.nextState.library.externalCollections['Google Photos'][0].cropPositionY, undefined);
+    assert.deepStrictEqual(result.effects, [{
+      type: 'persist-external-photo-metadata',
+      payload: {
+        url: googleUrl,
+        metadata: { cropPercent: 42 }
+      }
+    }]);
+  });
+
   assertTest('disallowing pairing can preserve the focused split portrait as the active single photo', () => {
     const result = reduceDomainCommand(createState(), {
       type: 'set-photo-prevent-pairing',
