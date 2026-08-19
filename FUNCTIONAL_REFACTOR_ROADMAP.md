@@ -35,6 +35,7 @@ Current checkpoint:
 - The latest Step 4 slice extends the shared `recomputeAndEnsureActivePhoto(...)` continuation to active-photo rating and broken-photo mutations, so all visibility-changing mutation families share one immutable recovery boundary while their source-specific update policies remain explicit.
 - The latest Step 4 slice makes `patch-state` spec application pure: each patch writer returns a new state, while a separate context step accumulates `changed`, recompute, and weather-refresh flags without mutating the reducer context.
 - The latest Step 4 slice shares the existing async route error shell through a small `createAsyncJsonRoute(...)` adapter for environment reads, keeping endpoint-specific projections and failure policy declarative at registration.
+- The latest Step 4 slice extends that async JSON/error boundary to weather reads, keeping cache short-circuiting and weather persistence in the route-local resolver while extracting the pure public response projection for direct testing.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`

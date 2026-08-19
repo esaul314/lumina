@@ -37,6 +37,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: active-photo rating and broken-photo mutations now reuse the shared `recompute -> ensure active photo` continuation already used by feed and patch mutations, preserving immutable recovery and one consistent transition boundary.
 - Latest Step 4 slice: `patch-state` spec writers now return immutable next-state values and accumulate change flags through a pure context step, preserving no-op identity and patch result ordering while making the declarative patch pipeline easier to compose and test.
 - Latest Step 4 slice: environment read routes now share one higher-order async JSON/error boundary, while each endpoint keeps its own response projection, status, and public error message explicit.
+- Latest Step 4 slice: the weather read route now uses that same async JSON/error boundary, with cached reads, injected weather effects, and pure public response projection kept explicit.
 
 ### Photo timestamp foundation (2026-07-31)
 

@@ -6,6 +6,25 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-18: Share the Weather Read Route Boundary
+
+- **Goal**: Continue implementation-companion Step 4 by removing the remaining
+  inline async JSON/error handling from the weather read route.
+- **Implementation**:
+  - Reused `createAsyncJsonRoute(...)` for `GET /api/weather`, preserving its
+    cached-read short circuit and persistence of freshly resolved weather.
+  - Added injected location/forecast adapters so route behavior is deterministic
+    in tests without making the functional core depend on network calls.
+  - Extracted pure `buildWeatherResponse(...)` projection and kept the response
+    contract limited to location, current conditions, and daily forecast.
+- **Verification**: `npm test` passed with 250 tests, 248 assertions, and 11/11
+  sensor checks. `npm run lint` passed with three pre-existing warnings, and
+  `git diff --check` passed; the known sandbox-only live Unix-socket smoke test
+  skipped on `listen EPERM`.
+- **Learning**: A shared async boundary is useful when the route-specific cache
+  and persistence policy can remain in a small resolver while response shaping
+  stays a pure, independently testable projection.
+
 ### 2026-08-18: Share the Environment Read Route Boundary
 
 - **Goal**: Continue implementation-companion Step 4 by removing repeated
