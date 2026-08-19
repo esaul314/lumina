@@ -42,6 +42,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: photo mutation specs now derive the immutable in-memory update and source-local persistence metadata from one pure normalized patch, while active-photo recovery and transport-specific persistence remain explicit.
 - Latest Step 4 slice: environment-history export now reuses the shared async route shell for both JSON and CSV responses, keeping format-specific presentation explicit while consolidating error handling.
 - Latest Step 4 slice: the Google Photos media proxy now reuses the shared async route shell, keeping binary headers, dimension normalization, and its 502 failure projection explicit.
+- Latest Step 4 slice: the Google Photos OAuth callback routes now reuse a small higher-order async error adapter, keeping authorization validation, picker synchronization, redirects, and route-specific failure text explicit.
 
 ### Photo timestamp foundation (2026-07-31)
 

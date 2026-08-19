@@ -6,6 +6,25 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-18: Share the Google Photos OAuth Async Boundary
+
+- **Goal**: Continue implementation-companion Step 4 by removing duplicate
+  hand-written async error handling from the production and sandbox OAuth
+  callback routes.
+- **Implementation**:
+  - Added a small higher-order `createGoogleAuthRoute(...)` adapter that
+    centralizes callback error logging, status, and text projection.
+  - Kept authorization-code validation, picker-session polling, sandbox sync,
+    redirect targets, and route-specific failure messages explicit.
+  - Added regression coverage for sandbox success, callback failure, and the
+    production callback's missing-code response.
+- **Learning**: A shared async boundary is valuable when it removes identical
+  error interpretation while leaving materially different success workflows
+  visible at the route edge.
+- **Verification**: `npm test` passed with 255 tests, 253 assertions, and
+  11/11 sensor checks. The known sandbox-only live Unix-socket smoke test
+  skipped on `listen EPERM`.
+
 ### 2026-08-18: Share the Google Photos Media Async Boundary
 
 - **Goal**: Continue implementation-companion Step 4 by removing the remaining
