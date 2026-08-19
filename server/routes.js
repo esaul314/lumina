@@ -663,8 +663,8 @@ module.exports = function configureRoutes({
   app.get('/api/environment/history/export', exportEnvironmentHistoryRoute);
   app.get('/api/environment/export', exportEnvironmentHistoryRoute);
 
-  app.get('/api/google-photos/media/:mediaItemId', async (req, res) => {
-    try {
+  app.get('/api/google-photos/media/:mediaItemId', createAsyncRoute(
+    async (req, res) => {
       const media = await googlePhotos.fetchMediaItemBytes(req.params.mediaItemId, {
         width: normalizeMediaDimension(req.query.w, DEFAULT_GOOGLE_WIDTH),
         height: normalizeMediaDimension(req.query.h, DEFAULT_GOOGLE_HEIGHT),
@@ -674,10 +674,14 @@ module.exports = function configureRoutes({
       res.setHeader('Content-Type', media.contentType);
       res.setHeader('Cache-Control', 'private, max-age=300');
       res.send(media.buffer);
-    } catch (error) {
-      sendError(res, 502, 'Failed to proxy Google Photos media item.', { message: toErrorMessage(error) });
-    }
-  });
+    },
+    (res, error) => sendError(
+      res,
+      502,
+      'Failed to proxy Google Photos media item.',
+      { message: toErrorMessage(error) }
+    )
+  ));
 
   app.get('/api/photos', createAsyncRoute(async (req, res) => {
     if (req.query.category) {

@@ -395,6 +395,9 @@ async function invokeRoute(app, method, routePath, { body = undefined, params = 
       responseBody = payload;
       return this;
     },
+    setHeader() {
+      return this;
+    },
     type() {
       return this;
     },
@@ -3334,6 +3337,45 @@ async function runIntegrationTests() {
     assert.deepStrictEqual(history.body, { readings });
     assert.strictEqual(csv.status, 200);
     assert.match(csv.body, /hour_key,indoor_temperature_c/);
+  });
+
+  await assertAsyncTest('Google Photos media proxy keeps binary projection and shared async failures', async () => {
+    const originalFetchMediaItemBytes = googlePhotos.fetchMediaItemBytes;
+    let request = null;
+
+    try {
+      googlePhotos.fetchMediaItemBytes = async (mediaItemId, options) => {
+        request = { mediaItemId, options };
+        return { contentType: 'image/png', buffer: Buffer.from('png-bytes') };
+      };
+
+      const success = await invokeRoute(buildConfiguredRoutesApp(), 'get', '/api/google-photos/media/:mediaItemId', {
+        params: { mediaItemId: 'picker-123' },
+        query: { w: '1080', h: '1920', c: '1' }
+      });
+      assert.strictEqual(success.status, 200);
+      assert.strictEqual(success.body.toString(), 'png-bytes');
+      assert.deepStrictEqual(request, {
+        mediaItemId: 'picker-123',
+        options: { width: 1080, height: 1920, crop: true }
+      });
+
+      googlePhotos.fetchMediaItemBytes = async () => {
+        throw new Error('media unavailable');
+      };
+      const failed = await invokeRoute(buildConfiguredRoutesApp(), 'get', '/api/google-photos/media/:mediaItemId', {
+        params: { mediaItemId: 'picker-123' }
+      });
+      assert.deepStrictEqual(failed, {
+        status: 502,
+        body: {
+          error: 'Failed to proxy Google Photos media item.',
+          message: 'media unavailable'
+        }
+      });
+    } finally {
+      googlePhotos.fetchMediaItemBytes = originalFetchMediaItemBytes;
+    }
   });
 
   await assertAsyncTest('environment history export shares the async error boundary for JSON and CSV failures', async () => {
