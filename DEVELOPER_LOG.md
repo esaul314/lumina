@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-19: Make TV screensaver dismissal an explicit safety path
+
+- **Incident**: The kiosk page received mouse and keyboard events but only
+  cleared an unused browser-local inactivity timer. It had no Escape handler
+  and did not request the daemon to dismiss the kiosk, so a stale or unavailable
+  Mutter idle reading could leave the computer visually hijacked.
+- **Implementation**:
+  - Added a TV-side activity boundary that dismisses through
+    `POST /api/state/screensaver` for Escape, keyboard, mouse, scroll, and touch
+    activity, with the legacy Socket.IO fallback retained for mixed-version
+    clients.
+  - Added an idle-daemon activity latch so a dismissal cannot be immediately
+    undone by the same stale idle reading; normal relaunch resumes only after
+    the host reports a non-idle reading.
+  - Kept the dismissal request single-flight and restore the local state if the
+    server request fails.
+- **Learning**: A screensaver must have an explicit client-to-daemon wake path;
+  OS idle polling is useful for automatic launch but is not a sufficient safety
+  boundary for user-controlled dismissal.
+- **Verification**: Added regression coverage for Escape/input activity and
+  stale-idle relaunch suppression. `npm test` passed with 258 assertions and
+  11/11 sensor checks; lint and the client build passed; the live REST off-path
+  dismissed Chromium normally, and the final served bundle contains the Escape
+  and screensaver-off code. The live service remains active with zero restarts.
+
 ### 2026-08-18: Share the Socket Async Error Boundary
 
 - **Goal**: Continue implementation-companion Step 4 by removing duplicate
