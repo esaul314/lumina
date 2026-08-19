@@ -8,7 +8,7 @@ honesty, and a pleasing economy of means.
 
 ### Shared mutation boundary
 
-[`server/domain/reducer.js:110`](/home/alex/work/lumina/server/domain/reducer.js:110)
+[`server/domain/reducer.js:110`](server/domain/reducer.js:110)
 
 ```js
 function buildMutationResult(nextState, {
@@ -50,7 +50,7 @@ introducing a heavyweight state-management abstraction.
 
 ## Honourable mention
 
-[`server/utils/routeDecode.js:35`](/home/alex/work/lumina/server/utils/routeDecode.js:35)
+[`server/utils/routeDecode.js:35`](server/utils/routeDecode.js:35)
 
 `collectRouteDecodeResults(...)` is the more algebraic candidate: it has an
 explicit empty-success identity, short-circuits on the first failure, and

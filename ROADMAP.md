@@ -40,6 +40,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: the weather read route now uses that same async JSON/error boundary, with cached reads, injected weather effects, and pure public response projection kept explicit.
 - Latest Step 4 slice: environment-settings persistence now uses the same async JSON boundary with a pure validation hook, preserving its distinct 400 validation response and 500 service-failure contract.
 - Latest Step 4 slice: photo mutation specs now derive the immutable in-memory update and source-local persistence metadata from one pure normalized patch, while active-photo recovery and transport-specific persistence remain explicit.
+- Latest Step 4 slice: environment-history export now reuses the shared async route shell for both JSON and CSV responses, keeping format-specific presentation explicit while consolidating error handling.
 
 ### Photo timestamp foundation (2026-07-31)
 

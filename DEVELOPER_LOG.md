@@ -1781,3 +1781,21 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   11/11 sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke
   test skipped on `listen EPERM`; lint and final diff checks remain part of the
   completion gate.
+
+### 2026-08-18: Share the Environment Export Async Shell
+
+- **Goal**: Continue implementation-companion Step 4 by removing the remaining
+  environment-history export copy of the route-level async error boundary.
+- **Implementation**:
+  - Routed both JSON and CSV environment-history exports through the existing
+    `createAsyncRoute(...)` higher-order adapter.
+  - Kept format detection, CSV content negotiation, and JSON projection local
+    to the response handler.
+  - Added a regression covering independent JSON and CSV storage failures and
+    their shared 503 error contract.
+- **Learning**: A response-format branch does not need a second effect shell;
+  one async boundary can interpret the request while each pure presentation
+  branch remains visible at the transport edge.
+- **Verification**: `npm test` passed with 253 executed tests, 251 assertions,
+  11/11 sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke
+  test skipped with `listen EPERM`.
