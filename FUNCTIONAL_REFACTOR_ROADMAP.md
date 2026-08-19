@@ -39,6 +39,7 @@ Current checkpoint:
 - The latest Step 4 slice extends the same boundary to environment-settings persistence, so the route composes `resolve -> validate -> project` while keeping invalid settings and thrown service errors on their existing response contracts.
 - The latest Step 4 slice makes photo mutation specs patch-first: one pure `buildPatch(payload)` now feeds both the immutable photo updater and source-local metadata persistence, removing duplicated normalization while preserving each command's recovery and event policy.
 - The latest Step 4 slice reuses the existing higher-order async route shell for environment-history export, so CSV and JSON response projections remain explicit while their thrown-error contract is interpreted once.
+- The latest Step 4 slice reuses the same higher-order async route shell for the Google Photos media proxy, so binary response headers and dimension shaping remain explicit while its 502 error boundary is interpreted once.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`

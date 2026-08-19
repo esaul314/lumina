@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-18: Share the Google Photos Media Async Boundary
+
+- **Goal**: Continue implementation-companion Step 4 by removing the remaining
+  hand-written async error shell from the Google Photos binary media proxy.
+- **Implementation**:
+  - Reused `createAsyncRoute(...)` for the media proxy while keeping content
+    headers, dimension normalization, cropping, and binary response projection
+    explicit at the route boundary.
+  - Preserved the existing 502 public error contract for media fetch failures.
+  - Added regression coverage for normalized media options, binary response
+    bytes, and the shared failure projection.
+- **Learning**: The shared async boundary remains useful beyond JSON routes when
+  the route's response representation is explicit and only error interpretation
+  is genuinely repeated.
+- **Verification**: `npm test` passed with 254 tests, 252 assertions, and
+  11/11 sensor checks. The known sandbox-only live Unix-socket smoke test
+  skipped on `listen EPERM`.
+
 ### 2026-08-18: Share the Environment Settings Async Boundary
 
 - **Goal**: Continue implementation-companion Step 4 by removing the remaining
