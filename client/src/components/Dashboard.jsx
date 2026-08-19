@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
-import { selectCategories } from '../api/luminaClient';
+import { selectCategories, setScreensaverActive as requestScreensaverState } from '../api/luminaClient';
 import {
   isCategorySelected,
   serializeCategorySelection,
@@ -16,6 +16,7 @@ import {
 import { toCssImageUrl } from '../state/cssImage.js';
 import { formatClockParts } from '../state/clock.js';
 import { convertPressure, convertTemperature } from '../state/environmentHistory.js';
+import { isEscapeKey, isScreensaverDismissalActivity } from '../state/screensaverActivity.js';
 
 /**
  * 🖼️ loadImageMeta
@@ -63,14 +64,14 @@ function Dashboard({ state, socket, connectionInfo }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
   const [environment, setEnvironment] = useState(null);
-  const [isScreensaverActive, setIsScreensaverActive] = useState(true);
+  const [isScreensaverActive, setIsScreensaverActive] = useState(() => Boolean(state.screensaverActive));
   const [activeSlides, setActiveSlides] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showCursor, setShowCursor] = useState(true);
   const cursorTimeoutRef = useRef(null);
 
 
-  const inactivityTimerRef = useRef(null);
+  const dismissalPendingRef = useRef(false);
   const particleCanvasRef = useRef(null);
   const mountTimeRef = useRef(Date.now());
   const lastMousePosRef = useRef({ x: -1, y: -1 });
@@ -414,7 +415,29 @@ function Dashboard({ state, socket, connectionInfo }) {
   }, [primaryPhoto, secondaryPhoto, currentFrame.layout, currentFrame.crop.primaryPercent, currentFrame.crop.primaryPositionY, currentFrame.crop.secondaryPercent, currentFrame.crop.secondaryPositionY, state.photosList, state.scaleMode, state.splitCropPercent]);
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic
+  const dismissScreensaver = () => {
+    if (!state.screensaverActive || dismissalPendingRef.current) {
+      return;
+    }
+
+    dismissalPendingRef.current = true;
+    setIsScreensaverActive(false);
+    void requestScreensaverState(false, { socket }).catch((error) => {
+      dismissalPendingRef.current = false;
+      setIsScreensaverActive(true);
+      console.error('[Dashboard] Failed to dismiss screensaver:', error);
+    });
+  };
+
   const resetInactivityTimer = (e) => {
+    if (e?.type === 'keydown') {
+      if (isEscapeKey(e)) {
+        e.preventDefault();
+      }
+      dismissScreensaver();
+      return;
+    }
+
     // Prevent accidental triggers during the first 5 seconds after mount
     // (Chromium often fires synthetic mousemove/focus events on launch)
     if (Date.now() - mountTimeRef.current < 5000) {
@@ -423,23 +446,23 @@ function Dashboard({ state, socket, connectionInfo }) {
 
     if (e && e.type === 'mousemove') {
       const { clientX: x, clientY: y } = e;
-      // If first mousemove, store coordinates and return without action.
-      // Synthetic events often fire on focus/render with default positions.
+      // Ignore the first post-launch coordinate only as a baseline for movement
+      // filtering; synthetic launch events are already covered by the grace period.
       if (lastMousePosRef.current.x === -1 && lastMousePosRef.current.y === -1) {
         lastMousePosRef.current = { x, y };
-        return;
+      } else {
+        // If coordinates haven't changed, ignore it (filters out synthetic/spurious movements).
+        if (x === lastMousePosRef.current.x && y === lastMousePosRef.current.y) {
+          return;
+        }
+        lastMousePosRef.current = { x, y };
       }
-      // If coordinates haven't changed, ignore it (filters out synthetic/spurious movements).
-      if (x === lastMousePosRef.current.x && y === lastMousePosRef.current.y) {
-        return;
-      }
-      lastMousePosRef.current = { x, y };
     }
 
-    // Inactivity timer reset logic
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
+    if (isScreensaverDismissalActivity({ screensaverActive: state.screensaverActive, event: e })) {
+      dismissScreensaver();
     }
+
   };
 
   useEffect(() => {
@@ -459,11 +482,13 @@ function Dashboard({ state, socket, connectionInfo }) {
       window.removeEventListener('mousedown', resetInactivityTimer);
       window.removeEventListener('scroll', resetInactivityTimer);
       window.removeEventListener('touchstart', resetInactivityTimer);
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-      }
     };
-  }, [isScreensaverActive, state.inactivityTimeout]);
+  }, [state.screensaverActive]);
+
+  useEffect(() => {
+    setIsScreensaverActive(Boolean(state.screensaverActive));
+    dismissalPendingRef.current = false;
+  }, [state.screensaverActive]);
 
   // Hook to hide the cursor after a few seconds of mouse inactivity (except when settings are open)
   useEffect(() => {
@@ -495,6 +520,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   useEffect(() => {
     const handleSync = (syncedState) => {
       setIsScreensaverActive(syncedState.screensaverActive);
+      dismissalPendingRef.current = false;
     };
     socket.on('state-sync', handleSync);
     return () => {

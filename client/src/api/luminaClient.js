@@ -66,11 +66,19 @@ export async function selectCategories(categories, { socket } = {}) {
   }
 }
 
-export function setScreensaverActive(active) {
-  return requestJson('/api/state/screensaver', {
-    method: 'POST',
-    body: { active }
-  });
+export async function setScreensaverActive(active, { socket } = {}) {
+  try {
+    return await requestJson('/api/state/screensaver', {
+      method: 'POST',
+      body: { active }
+    });
+  } catch (error) {
+    if (error?.status === 404 && socket?.emit) {
+      socket.emit('set-screensaver-active', active);
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function patchPhoto(body) {

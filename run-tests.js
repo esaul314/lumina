@@ -844,6 +844,58 @@ assertAsyncTest('createIdleDaemonRuntime ignores session inhibition checks once 
   assert.strictEqual(broadcastCount, 1);
 });
 
+assertAsyncTest('createIdleDaemonRuntime holds off relaunch after client activity until idle state recovers', async () => {
+  const { createIdleDaemonRuntime } = require('./server/runtime/idleDaemon.js');
+  const state = {
+    inactivityTimeout: 500,
+    screensaverActive: false
+  };
+  const runtimeState = {
+    browserRunning: false,
+    manualOverride: false
+  };
+  let idleMs = 800;
+  let launchCount = 0;
+
+  const runtime = createIdleDaemonRuntime({
+    state,
+    getRuntimeContext: () => runtimeState,
+    getIdleTime: async () => idleMs,
+    isAudioPlaying: async () => false,
+    isSessionInhibited: async () => false,
+    launchKioskBrowser: () => {
+      launchCount += 1;
+      runtimeState.browserRunning = true;
+    },
+    killKioskBrowser: () => {
+      runtimeState.browserRunning = false;
+    },
+    broadcastStateSync: () => {},
+    log: { warn() {} }
+  });
+
+  await runtime.tick();
+  await runtime.tick();
+  await runtime.tick();
+  assert.strictEqual(launchCount, 1);
+
+  runtime.notifyActivity();
+  runtimeState.browserRunning = false;
+  state.screensaverActive = false;
+  await runtime.tick();
+  await runtime.tick();
+  await runtime.tick();
+  assert.strictEqual(launchCount, 1, 'stale idle readings must not immediately relaunch the kiosk');
+
+  idleMs = 0;
+  await runtime.tick();
+  idleMs = 800;
+  await runtime.tick();
+  await runtime.tick();
+  await runtime.tick();
+  assert.strictEqual(launchCount, 2, 'normal relaunch should resume after the host reports activity');
+});
+
 logSuite('Env Secret Store');
 
 assertTest('upsertEnvVarInContent appends and replaces quoted secret values safely', () => {
@@ -3021,6 +3073,10 @@ async function runClientRenderingTests() {
 
   const { toCssImageUrl } = await importClientModule('./client/src/state/cssImage.js');
   const { formatClockParts } = await importClientModule('./client/src/state/clock.js');
+  const {
+    isEscapeKey,
+    isScreensaverDismissalActivity
+  } = await importClientModule('./client/src/state/screensaverActivity.js');
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3058,6 +3114,23 @@ async function runClientRenderingTests() {
       toCssImageUrl('https://example.com/already%20encoded/image.jpg'),
       'url("https://example.com/already%20encoded/image.jpg")'
     );
+  });
+
+  assertTest('screensaver activity treats Escape and ordinary input as dismissal signals', () => {
+    assert.strictEqual(isEscapeKey({ key: 'Escape' }), true);
+    assert.strictEqual(isEscapeKey({ code: 'Escape' }), true);
+    assert.strictEqual(isScreensaverDismissalActivity({
+      screensaverActive: true,
+      event: { type: 'keydown', key: 'Enter' }
+    }), true);
+    assert.strictEqual(isScreensaverDismissalActivity({
+      screensaverActive: true,
+      event: { type: 'mousemove' }
+    }), true);
+    assert.strictEqual(isScreensaverDismissalActivity({
+      screensaverActive: false,
+      event: { type: 'keydown', key: 'Escape' }
+    }), false);
   });
 }
 
