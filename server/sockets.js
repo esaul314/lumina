@@ -67,6 +67,18 @@ ${failedUrls.join('\n')}
 
 Action: The client is rate-limiting skips and holding an offline visual boundary. Please check your network connection.`
 );
+const runWithErrorBoundary = async (handler, onError) => {
+  try {
+    await handler();
+  } catch (error) {
+    if (typeof onError === 'function') {
+      await onError(error);
+      return;
+    }
+
+    throw error;
+  }
+};
 
 /**
  * @param {{
@@ -85,7 +97,7 @@ function createCommandListener({ dispatchCommand, decode, fallback, intercept, a
       return;
     }
 
-    try {
+    await runWithErrorBoundary(async () => {
       if (typeof intercept === 'function' && await intercept(command, payload)) {
         return;
       }
@@ -97,14 +109,7 @@ function createCommandListener({ dispatchCommand, decode, fallback, intercept, a
       if (typeof afterDispatch === 'function') {
         await afterDispatch(result, command, payload);
       }
-    } catch (error) {
-      if (typeof onError === 'function') {
-        await onError(error, command, payload);
-        return;
-      }
-
-      throw error;
-    }
+    }, onError ? (error) => onError(error, command, payload) : undefined);
   };
 }
 
@@ -115,18 +120,10 @@ function createCommandListener({ dispatchCommand, decode, fallback, intercept, a
  * }} options
  */
 function createAsyncListener({ handler, onError }) {
-  return async (payload) => {
-    try {
-      await handler(payload);
-    } catch (error) {
-      if (typeof onError === 'function') {
-        await onError(error, payload);
-        return;
-      }
-
-      throw error;
-    }
-  };
+  return (payload) => runWithErrorBoundary(
+    () => handler(payload),
+    onError ? (error) => onError(error, payload) : undefined
+  );
 }
 
 /**

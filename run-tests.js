@@ -2915,6 +2915,23 @@ async function runClientStateTests() {
     );
   });
 
+  const failedRefreshHarness = createSocketHarness({
+    refreshGooglePhotoUrl: async () => {
+      throw new Error('refresh unavailable');
+    }
+  });
+  await failedRefreshHarness.socketHandlers['get-active-google-photo']({ mediaItemId: 'picker-failed' });
+
+  assertTest('socket Google Photos refresh failures stay inside the shared async boundary', () => {
+    assert.deepStrictEqual(
+      failedRefreshHarness.socketEmits.findLast(([event]) => event === 'active-google-photo-response'),
+      ['active-google-photo-response', {
+        mediaItemId: 'picker-failed',
+        error: 'refresh unavailable'
+      }]
+    );
+  });
+
   const googleFallbackHarness = createSocketHarness();
   const originalIsGooglePhotoProxyUrl = googlePhotos.isGooglePhotoProxyUrl;
   const originalUpdateCachedMediaItemMetadata = googlePhotos.updateCachedMediaItemMetadata;
