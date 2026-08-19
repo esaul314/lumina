@@ -404,6 +404,10 @@ async function invokeRoute(app, method, routePath, { body = undefined, params = 
     send(payload) {
       responseBody = payload;
       return this;
+    },
+    redirect(location) {
+      responseBody = { redirect: location };
+      return this;
     }
   };
 
@@ -3375,6 +3379,56 @@ async function runIntegrationTests() {
       });
     } finally {
       googlePhotos.fetchMediaItemBytes = originalFetchMediaItemBytes;
+    }
+  });
+
+  await assertAsyncTest('Google Photos callbacks share async failure handling without merging success flows', async () => {
+    const originalExchangeGoogleCode = googlePhotos.exchangeGoogleCode;
+    const originalCreatePickerSession = googlePhotos.createPickerSession;
+    const originalSyncGoogleAlbum = googlePhotos.syncGoogleAlbum;
+
+    try {
+      googlePhotos.exchangeGoogleCode = async (code, redirectUri) => ({ code, redirectUri });
+      googlePhotos.createPickerSession = async () => ({ id: 'picker-session', pickerUri: 'https://picker.example/session' });
+      googlePhotos.syncGoogleAlbum = async () => ({ synced: true });
+
+      const sandboxSuccess = await invokeRoute(
+        buildConfiguredRoutesApp(),
+        'get',
+        '/api/auth/google/sandbox-callback',
+        { headers: { host: 'display.example' } }
+      );
+      assert.deepStrictEqual(sandboxSuccess, {
+        status: 200,
+        body: { redirect: 'http://display.example/?mode=remote&googleAuth=success' }
+      });
+
+      googlePhotos.exchangeGoogleCode = async () => {
+        throw new Error('oauth unavailable');
+      };
+      const failure = await invokeRoute(
+        buildConfiguredRoutesApp(),
+        'get',
+        '/api/auth/google/sandbox-callback'
+      );
+      assert.deepStrictEqual(failure, {
+        status: 500,
+        body: 'Sandbox Google Photos Link Failed: oauth unavailable'
+      });
+
+      const missingCode = await invokeRoute(
+        buildConfiguredRoutesApp(),
+        'get',
+        '/api/auth/google/callback'
+      );
+      assert.deepStrictEqual(missingCode, {
+        status: 400,
+        body: 'Authentication code is missing from Google redirect.'
+      });
+    } finally {
+      googlePhotos.exchangeGoogleCode = originalExchangeGoogleCode;
+      googlePhotos.createPickerSession = originalCreatePickerSession;
+      googlePhotos.syncGoogleAlbum = originalSyncGoogleAlbum;
     }
   });
 

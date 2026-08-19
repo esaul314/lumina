@@ -305,6 +305,13 @@ module.exports = function configureRoutes({
       onError(res, error);
     }
   };
+  const createGoogleAuthRoute = (label, failureMessage, handler) => createAsyncRoute(
+    handler,
+    (res, error) => {
+      console.error(`${label}:`, toErrorMessage(error));
+      res.status(500).send(`${failureMessage}: ${toErrorMessage(error)}`);
+    }
+  );
   const createAsyncJsonRoute = ({
     handler,
     status = 503,
@@ -716,14 +723,16 @@ module.exports = function configureRoutes({
     res.redirect(googlePhotos.getGoogleAuthUrl(redirectUri));
   });
 
-  app.get('/api/auth/google/callback', async (req, res) => {
-    const { code } = req.query;
-    if (!code) {
-      res.status(400).send('Authentication code is missing from Google redirect.');
-      return;
-    }
+  app.get('/api/auth/google/callback', createGoogleAuthRoute(
+    'Google Photos Auth Callback error',
+    'Google Photos Link Failed',
+    async (req, res) => {
+      const { code } = req.query;
+      if (!code) {
+        res.status(400).send('Authentication code is missing from Google redirect.');
+        return;
+      }
 
-    try {
       const host = req.headers.host || `localhost:${port}`;
       const redirectUri = `http://${host}/api/auth/google/callback`;
       await googlePhotos.exchangeGoogleCode(code, redirectUri);
@@ -732,14 +741,13 @@ module.exports = function configureRoutes({
       startPickerSessionPoller(session.id);
 
       res.redirect(`${session.pickerUri}/autoclose`);
-    } catch (error) {
-      console.error('Google Photos Auth Callback error:', toErrorMessage(error));
-      res.status(500).send(`Google Photos Link Failed: ${toErrorMessage(error)}`);
     }
-  });
+  ));
 
-  app.get('/api/auth/google/sandbox-callback', async (req, res) => {
-    try {
+  app.get('/api/auth/google/sandbox-callback', createGoogleAuthRoute(
+    'Google Photos Sandbox Callback error',
+    'Sandbox Google Photos Link Failed',
+    async (req, res) => {
       await googlePhotos.exchangeGoogleCode('sandbox-code', '');
       const session = await googlePhotos.createPickerSession();
       await googlePhotos.syncGoogleAlbum(session.id);
@@ -751,10 +759,8 @@ module.exports = function configureRoutes({
 
       const host = req.headers.host || `localhost:${port}`;
       res.redirect(`http://${host}/?mode=remote&googleAuth=success`);
-    } catch (error) {
-      res.status(500).send(`Sandbox Google Photos Link Failed: ${toErrorMessage(error)}`);
     }
-  });
+  ));
 
   app.get('/api/config', (_req, res) => {
     res.json({
