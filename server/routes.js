@@ -42,6 +42,11 @@ const DEFAULT_CATEGORY = 'Scenic Nature';
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
 const DEFAULT_GOOGLE_WIDTH = 2560;
 const DEFAULT_GOOGLE_HEIGHT = 1440;
+const buildWeatherResponse = (location, weatherData) => ({
+  location,
+  current: weatherData.current,
+  daily: weatherData.daily
+});
 
 /**
  * @typedef {{
@@ -60,6 +65,8 @@ const DEFAULT_GOOGLE_HEIGHT = 1440;
  *   collections: Record<string, any[]>,
  *   getWeatherData: () => any,
  *   setWeatherData: (data: any) => void,
+ *   resolveWeatherLocation?: (state: Record<string, any>) => Promise<Record<string, any>>,
+ *   fetchWeather?: (lat: number, lon: number) => Promise<Record<string, any>>,
  *   getEnvironmentData?: () => Promise<Record<string, unknown>>,
  *   getEnvironmentHistory?: (query?: Record<string, unknown>) => Array<Record<string, unknown>>,
  *   exportEnvironmentHistory?: (query?: Record<string, unknown>) => string,
@@ -111,6 +118,8 @@ module.exports = function configureRoutes({
   collections,
   getWeatherData,
   setWeatherData,
+  resolveWeatherLocation = resolveActiveLocation,
+  fetchWeather = fetchWeatherForecast,
   getEnvironmentData = async () => ({ indoor: null, source: 'ecowitt-gw1200', observedAt: null, stale: false, enabled: false }),
   getEnvironmentHistory = async () => [],
   exportEnvironmentHistory = async () => '',
@@ -274,6 +283,19 @@ module.exports = function configureRoutes({
     { results: [], changed: false }
   );
   const getEffectValue = (result, effectType) => result?.effectResults?.find((entry) => entry.effect?.type === effectType)?.value;
+  const resolveWeatherData = async () => {
+    const cached = getWeatherData();
+    if (cached) {
+      return cached;
+    }
+
+    const location = await resolveWeatherLocation(state);
+    const weatherData = await fetchWeather(location.lat, location.lon);
+    const finalData = buildWeatherResponse(location, weatherData);
+
+    setWeatherData(finalData);
+    return finalData;
+  };
   const createAsyncRoute = (handler, onError = (res, error) => {
     sendError(res, 500, toErrorMessage(error));
   }) => async (req, res) => {
@@ -576,28 +598,11 @@ module.exports = function configureRoutes({
     }, 3000);
   }
 
-  app.get('/api/weather', async (_req, res) => {
-    const cached = getWeatherData();
-    if (cached) {
-      res.json(cached);
-      return;
-    }
-
-    try {
-      const location = await resolveActiveLocation(state);
-      const weatherData = await fetchWeatherForecast(location.lat, location.lon);
-      const finalData = {
-        location,
-        current: weatherData.current,
-        daily: weatherData.daily
-      };
-
-      setWeatherData(finalData);
-      res.json(finalData);
-    } catch (error) {
-      sendError(res, 500, 'Failed to fetch weather data', { message: toErrorMessage(error) });
-    }
-  });
+  app.get('/api/weather', createAsyncJsonRoute({
+    handler: resolveWeatherData,
+    status: 500,
+    error: 'Failed to fetch weather data'
+  }));
 
   app.get('/api/environment', createAsyncJsonRoute({
     handler: () => getEnvironmentData(),
@@ -963,3 +968,5 @@ module.exports = function configureRoutes({
   registerRouteSpecs(REST_SINGLE_COMMAND_ROUTE_SPECS, createCommandRoute);
   registerRouteSpecs(REST_ADVANCE_PHOTO_ROUTE_SPECS, createAdvanceRoute);
 };
+
+module.exports.buildWeatherResponse = buildWeatherResponse;

@@ -59,6 +59,7 @@ const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js')
 const { createPoolScheduleRuntime } = require('./server/runtime/poolSchedule.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
+const { buildWeatherResponse } = configureRoutes;
 const configureSockets = require('./server/sockets.js');
 const { createSocketCommandSpecInterpreter } = configureSockets;
 const { createSensorPlatform } = require('./server/services/sensorPlatform.js');
@@ -3216,6 +3217,89 @@ async function runIntegrationTests() {
       type: 'trigger-recrawl',
       payload: {}
     }]);
+  });
+
+  await assertAsyncTest('GET /api/weather shares the async JSON boundary for cached and fresh data', async () => {
+    const cachedWeather = {
+      location: { city: 'Cached City' },
+      current: { temperature_2m: 21 },
+      daily: []
+    };
+    let locationCalls = 0;
+    let forecastCalls = 0;
+    let savedWeather = null;
+    const freshWeather = {
+      current: { temperature_2m: 22 },
+      daily: [{ weather_code: 1 }]
+    };
+    const responseApp = buildConfiguredRoutesApp({
+      getWeatherData: () => savedWeather || cachedWeather,
+      setWeatherData: (value) => { savedWeather = value; },
+      resolveWeatherLocation: async () => {
+        locationCalls += 1;
+        return { city: 'Fresh City', lat: 45, lon: -73 };
+      },
+      fetchWeather: async () => {
+        forecastCalls += 1;
+        return freshWeather;
+      }
+    });
+
+    const cached = await invokeRoute(responseApp, 'get', '/api/weather');
+    assert.deepStrictEqual(cached.body, cachedWeather);
+    assert.strictEqual(locationCalls, 0);
+    assert.strictEqual(forecastCalls, 0);
+
+    const freshResponseApp = buildConfiguredRoutesApp({
+      getWeatherData: () => null,
+      setWeatherData: (value) => { savedWeather = value; },
+      resolveWeatherLocation: async () => ({ city: 'Fresh City', lat: 45, lon: -73 }),
+      fetchWeather: async () => freshWeather
+    });
+    const fresh = await invokeRoute(freshResponseApp, 'get', '/api/weather');
+    assert.deepStrictEqual(fresh.body, {
+      location: { city: 'Fresh City', lat: 45, lon: -73 },
+      current: freshWeather.current,
+      daily: freshWeather.daily
+    });
+    assert.deepStrictEqual(savedWeather, fresh.body);
+  });
+
+  assertTest('buildWeatherResponse projects only the public weather fields without mutation', () => {
+    const location = { city: 'Fresh City', lat: 45, lon: -73, privateNote: 'ignored' };
+    const weatherData = {
+      current: { temperature_2m: 22 },
+      daily: [{ weather_code: 1 }],
+      hourly: [{ temperature_2m: 22 }]
+    };
+
+    assert.deepStrictEqual(buildWeatherResponse(location, weatherData), {
+      location,
+      current: weatherData.current,
+      daily: weatherData.daily
+    });
+    assert.deepStrictEqual(location, { city: 'Fresh City', lat: 45, lon: -73, privateNote: 'ignored' });
+    assert.deepStrictEqual(weatherData, {
+      current: { temperature_2m: 22 },
+      daily: [{ weather_code: 1 }],
+      hourly: [{ temperature_2m: 22 }]
+    });
+  });
+
+  await assertAsyncTest('GET /api/weather presents resolver failures through the shared JSON error contract', async () => {
+    const responseApp = buildConfiguredRoutesApp({
+      getWeatherData: () => null,
+      resolveWeatherLocation: async () => { throw new Error('location unavailable'); }
+    });
+    const response = await invokeRoute(responseApp, 'get', '/api/weather');
+
+    assert.deepStrictEqual(response, {
+      status: 500,
+      body: {
+        error: 'Failed to fetch weather data',
+        message: 'location unavailable'
+      }
+    });
   });
 
   await assertAsyncTest('GET /api/environment returns the stable normalized indoor contract', async () => {
