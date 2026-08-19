@@ -36,6 +36,7 @@ Current checkpoint:
 - The latest Step 4 slice makes `patch-state` spec application pure: each patch writer returns a new state, while a separate context step accumulates `changed`, recompute, and weather-refresh flags without mutating the reducer context.
 - The latest Step 4 slice shares the existing async route error shell through a small `createAsyncJsonRoute(...)` adapter for environment reads, keeping endpoint-specific projections and failure policy declarative at registration.
 - The latest Step 4 slice extends that async JSON/error boundary to weather reads, keeping cache short-circuiting and weather persistence in the route-local resolver while extracting the pure public response projection for direct testing.
+- The latest Step 4 slice extends the same boundary to environment-settings persistence, so the route composes `resolve -> validate -> project` while keeping invalid settings and thrown service errors on their existing response contracts.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`

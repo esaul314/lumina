@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-18: Share the Environment Settings Async Boundary
+
+- **Goal**: Continue implementation-companion Step 4 by removing the remaining
+  hand-written async error shell from environment-settings persistence.
+- **Implementation**:
+  - Added a pure validation hook to `createAsyncJsonRoute(...)`, keeping the
+    route flow readable as `resolve -> validate -> project`.
+  - Routed `POST /api/environment/settings` through the shared boundary while
+    preserving its 400 invalid-settings and 500 service-failure contracts.
+  - Added regression coverage for valid, invalid, and thrown update-service
+    outcomes.
+- **Learning**: A validation hook is a useful extension when it preserves the
+  route's local policy as data; it avoids duplicating `try/catch` without
+  turning endpoint-specific validation into a generic framework.
+- **Verification**: `npm test` passed with 251 tests, 249 assertions, and
+  11/11 sensor checks. The known sandbox-only live Unix-socket smoke test
+  skipped on `listen EPERM`.
+
 ### 2026-08-18: Share the Weather Read Route Boundary
 
 - **Goal**: Continue implementation-companion Step 4 by removing the remaining
