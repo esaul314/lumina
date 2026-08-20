@@ -1877,3 +1877,25 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Verification**: `npm test` passed with 253 executed tests, 251 assertions,
   11/11 sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke
   test skipped with `listen EPERM`.
+
+### 2026-08-19: Share the Client REST Fallback Adapter
+
+- **Goal**: Continue implementation-companion Step 4 at the REST-first client
+  transport boundary without duplicating mixed-version compatibility policy.
+- **Implementation**:
+  - Added the small higher-order `withLegacySocketFallback(...)` adapter in
+    `client/src/api/luminaClient.js`.
+  - Routed category, screensaver, recrawl, vision-analysis, and admin-secret
+    requests through it, keeping each REST request and legacy event payload
+    explicit as data.
+  - Preserved the compatibility contract: only a missing REST route (`404`)
+    emits the legacy Socket.IO event; all other failures remain rejected.
+  - Added regression coverage for every fallback family and for non-404 error
+    propagation.
+- **Learning**: The useful client abstraction is a partial transport policy,
+  not a generic action runner: the request remains a factory and the
+  imperative socket fallback stays at one narrow compatibility boundary.
+- **Verification**: `npm test` passed with 260 tests, 258 assertions, 11/11
+  sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
+  skipped with `listen EPERM`; lint, build, and final diff checks remain part
+  of the completion gate.

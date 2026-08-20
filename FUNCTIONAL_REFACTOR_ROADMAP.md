@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-08-18
+Last updated: 2026-08-19
 
 ## Purpose
 
@@ -264,6 +264,7 @@ Progress note:
 - The latest Step 4 slice centralized overlapping pool-mutation transport specs, so the REST pool patch specs and durable socket pool command specs now specialize one shared declarative family while keeping pool-scoped recrawl submission and pool create/delete routes outside that boundary where those transport differences are intentional.
 - The latest Step 4 slice collapsed the remaining photo/pool patch transport shapers onto one shared builder, so the shared command module now derives both families' route specs and socket specs through the same declarative `route/socket transport family -> interpreter` boundary while preserving route-only loved-photo patches, socket-only metadata reporting, and dynamic feed-config route expansion where those differences are intentional.
 - The latest Step 4 slice collapsed the remaining ad hoc simple config/runtime setter branches onto one shared field-entry reducer shell, so `set-split-portrait`, `set-split-crop`, `set-scale-mode`, `change-theme`, `change-interval`, and `set-screensaver-active` now specialize the same `read entries -> assign changed fields -> maybe persist/effect` boundary while the kiosk launch/kill effect remains explicit in the command table.
+- The latest Step 4 slice collapsed the repeated REST-first client fallback branches onto one higher-order `request -> 404 legacy socket fallback` adapter, so category, screensaver, async-job, and admin-secret actions now provide transport metadata as data while preserving non-404 error propagation.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

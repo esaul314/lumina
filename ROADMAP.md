@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-08-18
+Last updated: 2026-08-19
 
 ## Implementation Companion
 
@@ -25,6 +25,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
 - Latest Step 4 slice: effect and event interpretation now share a small closed handler-record interpreter over the indexed vocabulary helper, removing duplicate lookup setup while preserving silent unknown and inherited-key behavior.
 - Latest Step 4 slice: the Socket.IO command-family adapter now uses that same closed handler-record interpreter, so state-patch, durable-command, async-job, and secret-save specializations remain declarative while unknown and inherited family keys retain their identity fallback.
+- Latest Step 4 slice: the REST-first client API now shares one higher-order 404 fallback adapter across category, screensaver, async-job, and admin-secret mutations, keeping mixed-version Socket.IO compatibility as explicit transport metadata while preserving non-404 failures.
 - Latest Step 4 slice: environment-secret runtime flags now cross a pure normalization projection before the dispatcher shell assigns them, preserving boolean coercion and effect behavior while keeping input shaping deterministic and independently testable.
 - Latest Step 4 slice: feed, pool, and playback reducer builders now share one higher-order payload boundary for invalid-command no-ops, while their distinct mutation, selection, and finalization rules remain explicit.
 - Latest Step 4 slice: route-decode collection and route-guard evaluation now share one curried short-circuit reducer, keeping the decode algebra and guard predicates explicit while avoiding duplicate early-exit reduction ceremony.
