@@ -1899,3 +1899,23 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
   skipped with `listen EPERM`; lint, build, and final diff checks remain part
   of the completion gate.
+
+### 2026-08-19: Share Client Photo-Event Projection
+
+- **Goal**: Continue implementation-companion Step 4 at the client snapshot
+  boundary by removing duplicated primary/secondary Socket.IO update logic.
+- **Implementation**:
+  - Added pure `applyPhotoEvent(snapshot, side, photo)` projection metadata to
+    keep legacy active-photo fields and canonical frame fields synchronized.
+  - Routed both `photo-update` and `second-photo-update` listeners through the
+    same immutable helper while keeping event names and side selection explicit
+    at the Socket.IO shell.
+  - Added regressions for both frame sides, non-mutation, and identity behavior
+    for missing snapshots or unsupported sides.
+- **Learning**: A small side-to-field mapping is clearer than two nearly
+  identical state-updater closures; the pure projection keeps the event shell
+  imperative and the snapshot algebra independently testable.
+- **Verification**: `npm test` passed with 262 tests, 260 assertions, 11/11
+  sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
+  skipped with `listen EPERM`; lint, build, runtime, and final diff checks remain
+  part of the completion gate.
