@@ -2493,9 +2493,47 @@ async function runClientStateTests() {
   });
 
   const {
+    applyPhotoEvent,
     getConfirmedPhotoPatch,
     normalizeSnapshot: normalizeClientSnapshot
   } = await importClientModule('./client/src/state/frameSelectors.js');
+
+  assertTest('client photo event projection updates the selected frame side immutably', () => {
+    const snapshot = normalizeClientSnapshot({
+      activePhoto: { url: 'primary-before' },
+      activeSecondPhoto: { url: 'secondary-before' },
+      currentFrame: {
+        primary: { url: 'primary-before' },
+        secondary: { url: 'secondary-before' },
+        layout: 'split',
+        crop: { primaryPercent: 40, secondaryPercent: 60 },
+        context: { categories: ['Scenic Nature'] }
+      }
+    });
+    const nextPrimary = { url: 'primary-after', title: 'Primary' };
+    const nextSecondary = { url: 'secondary-after', title: 'Secondary' };
+
+    const primaryResult = applyPhotoEvent(snapshot, 'primary', nextPrimary);
+    const secondaryResult = applyPhotoEvent(snapshot, 'secondary', nextSecondary);
+
+    assert.notStrictEqual(primaryResult, snapshot);
+    assert.notStrictEqual(secondaryResult, snapshot);
+    assert.deepStrictEqual(primaryResult.activePhoto, nextPrimary);
+    assert.deepStrictEqual(primaryResult.currentFrame.primary, nextPrimary);
+    assert.deepStrictEqual(primaryResult.currentFrame.secondary, snapshot.currentFrame.secondary);
+    assert.deepStrictEqual(secondaryResult.activeSecondPhoto, nextSecondary);
+    assert.deepStrictEqual(secondaryResult.currentFrame.secondary, nextSecondary);
+    assert.deepStrictEqual(secondaryResult.currentFrame.primary, snapshot.currentFrame.primary);
+    assert.deepStrictEqual(snapshot.activePhoto, { url: 'primary-before' });
+    assert.deepStrictEqual(snapshot.activeSecondPhoto, { url: 'secondary-before' });
+  });
+
+  assertTest('client photo event projection preserves identity for missing snapshots or sides', () => {
+    const snapshot = { activePhoto: { url: 'primary' } };
+
+    assert.strictEqual(applyPhotoEvent(null, 'primary', { url: 'next' }), null);
+    assert.strictEqual(applyPhotoEvent(snapshot, 'unknown', { url: 'next' }), snapshot);
+  });
 
   assertTest('photo mutation UI reconciles source-local metadata from the server response', () => {
     assert.deepStrictEqual(

@@ -64,6 +64,30 @@ export function normalizeSnapshot(snapshot) {
   };
 }
 
+const PHOTO_EVENT_TARGETS = {
+  primary: { activeKey: 'activePhoto', frameKey: 'primary' },
+  secondary: { activeKey: 'activeSecondPhoto', frameKey: 'secondary' }
+};
+
+/**
+ * Apply a server photo event to both the legacy snapshot fields and the
+ * canonical frame projection without mutating the received snapshot.
+ */
+export function applyPhotoEvent(snapshot, side, photo) {
+  const target = PHOTO_EVENT_TARGETS[side];
+  if (!snapshot || !target) {
+    return snapshot;
+  }
+
+  return normalizeSnapshot({
+    ...snapshot,
+    [target.activeKey]: photo,
+    currentFrame: snapshot.currentFrame
+      ? { ...snapshot.currentFrame, [target.frameKey]: photo }
+      : snapshot.currentFrame
+  });
+}
+
 export function patchPhotoInSnapshot(snapshot, url, patch) {
   if (!snapshot || !url || !patch || typeof patch !== 'object') {
     return snapshot;

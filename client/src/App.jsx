@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import Dashboard from './components/Dashboard';
 import RemoteControl from './components/RemoteControl';
-import { normalizeSnapshot } from './state/frameSelectors';
+import { applyPhotoEvent, normalizeSnapshot } from './state/frameSelectors';
 
 // Create a single socket connection to the server
 const socketUrl = window.location.port === '5173'
@@ -53,19 +53,11 @@ function App() {
     });
 
     socket.on('photo-update', (photo) => {
-      setState(prev => prev ? normalizeSnapshot({
-        ...prev,
-        activePhoto: photo,
-        currentFrame: prev.currentFrame ? { ...prev.currentFrame, primary: photo } : prev.currentFrame
-      }) : prev);
+      setState(prev => applyPhotoEvent(prev, 'primary', photo));
     });
 
     socket.on('second-photo-update', (photo) => {
-      setState(prev => prev ? normalizeSnapshot({
-        ...prev,
-        activeSecondPhoto: photo,
-        currentFrame: prev.currentFrame ? { ...prev.currentFrame, secondary: photo } : prev.currentFrame
-      }) : prev);
+      setState(prev => applyPhotoEvent(prev, 'secondary', photo));
     });
 
     socket.on('ip-info', (info) => {
