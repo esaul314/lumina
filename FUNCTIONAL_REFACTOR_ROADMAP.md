@@ -43,6 +43,7 @@ Current checkpoint:
 - The latest Step 4 slice reuses a small higher-order async error adapter for both Google Photos OAuth callback routes, so logging and failure projection are interpreted once while their distinct picker flows remain explicit.
 - The latest Step 4 slice shares one async error-boundary runner across Socket.IO command and transport listeners, preserving decode timing and listener-specific error context while removing duplicate try/catch ceremony.
 - The latest Step 4 slice shares one pure side-aware client photo-event projection between primary and secondary Socket.IO updates, preserving legacy active-photo fields and canonical frame state without duplicating immutable snapshot synchronization.
+- The latest Step 4 slice shares one pure client `projectJobStatus(...)` projection between recrawl and vision-analysis events, preserving job-specific messages/counts while collapsing duplicate Socket.IO listener state-machine branches into one explicit target table.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`

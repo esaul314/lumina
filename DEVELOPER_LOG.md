@@ -1919,3 +1919,23 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
   skipped with `listen EPERM`; lint, build, runtime, and final diff checks remain
   part of the completion gate.
+
+### 2026-08-19: Share Client Job Status Projection
+
+- **Goal**: Continue implementation-companion Step 4 at the remote UI event
+  boundary by removing duplicate recrawl and vision-analysis status machines.
+- **Implementation**:
+  - Added pure `projectJobStatus(...)` data projection for queued/running,
+    succeeded, failed, unsupported, and unknown job states.
+  - Routed both job types through one `job-status` Socket.IO listener and an
+    explicit job-type-to-React-target table, preserving messages, counts, and
+    transient reset timing.
+  - Added focused regression coverage for both job families, fallback text,
+    counts, failures, and ignored job/status values.
+- **Learning**: A shared status algebra makes the event contract reusable while
+  leaving setters and timers in the imperative shell; a general event framework
+  would obscure the two intentional UI targets.
+- **Verification**: `npm test` passed with 263 tests, 261 assertions, 11/11
+  sensor checks, and 0 failures. The client build passed; lint passed with the
+  three pre-existing warnings; the live service is active with zero restarts
+  and serves the rebuilt `index-Bbp4btFi.js` bundle.
