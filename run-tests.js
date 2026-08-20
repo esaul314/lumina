@@ -2686,7 +2686,10 @@ async function runClientStateTests() {
 
     const {
       saveUseApiToken: saveClientUseApiToken,
-      selectCategories: selectClientCategories
+      selectCategories: selectClientCategories,
+      setScreensaverActive: setClientScreensaverActive,
+      startRecrawlJob: startClientRecrawlJob,
+      startVisionAnalysisJob: startClientVisionAnalysisJob
     } = await importClientModule('./client/src/api/luminaClient.js');
     const fallbackResult = await selectClientCategories('Scenic Nature,Liminal Spaces', {
       socket: {
@@ -2694,6 +2697,21 @@ async function runClientStateTests() {
       }
     });
     const fallbackSecretResult = await saveClientUseApiToken('secret-123', {
+      socket: {
+        emit: (...args) => emittedEvents.push(args)
+      }
+    });
+    const fallbackScreensaverResult = await setClientScreensaverActive(false, {
+      socket: {
+        emit: (...args) => emittedEvents.push(args)
+      }
+    });
+    const fallbackRecrawlResult = await startClientRecrawlJob({ categories: ['Scenic Nature'] }, {
+      socket: {
+        emit: (...args) => emittedEvents.push(args)
+      }
+    });
+    const fallbackVisionResult = await startClientVisionAnalysisJob({ categories: ['Scenic Nature'] }, {
       socket: {
         emit: (...args) => emittedEvents.push(args)
       }
@@ -2709,6 +2727,35 @@ async function runClientStateTests() {
     assertTest('saveUseApiToken falls back to the legacy socket event when the REST route is missing', () => {
       assert.strictEqual(fallbackSecretResult, null);
       assert.deepStrictEqual(emittedEvents[1], ['save-useapi-token', { token: 'secret-123' }]);
+    });
+
+    assertTest('the shared client fallback adapter preserves screensaver and job legacy events', () => {
+      assert.deepStrictEqual([
+        fallbackScreensaverResult,
+        fallbackRecrawlResult,
+        fallbackVisionResult
+      ], [null, null, null]);
+      assert.deepStrictEqual(emittedEvents.slice(2), [
+        ['set-screensaver-active', false],
+        ['trigger-recrawl', { categories: ['Scenic Nature'] }],
+        ['trigger-vision-analysis', { categories: ['Scenic Nature'] }]
+      ]);
+    });
+
+    global.fetch = async () => ({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'server unavailable' })
+    });
+    await assertAsyncTest('the shared client fallback adapter rethrows non-404 REST failures', async () => {
+      await assert.rejects(
+        setClientScreensaverActive(false, {
+          socket: {
+            emit: () => { throw new Error('socket fallback should not run'); }
+          }
+        }),
+        /server unavailable/
+      );
     });
   } finally {
     global.window = originalWindow;

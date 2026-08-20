@@ -49,36 +49,40 @@ export function patchState(body) {
   });
 }
 
-export async function selectCategories(categories, { socket } = {}) {
+const withLegacySocketFallback = ({ socket, event, payload }) => async (request) => {
   try {
-    return await requestJson('/api/state/categories', {
-      method: 'POST',
-      body: { categories }
-    });
+    return await request();
   } catch (error) {
-    // ponytail: mixed-version deploys can briefly pair a REST-first client with a daemon
-    // that still only understands the legacy socket mutation for categories.
+    // Mixed-version deploys can briefly pair a REST-first client with a daemon
+    // that still only understands the legacy socket mutation.
     if (error?.status === 404 && socket?.emit) {
-      socket.emit('change-category', categories);
+      socket.emit(event, payload);
       return null;
     }
     throw error;
   }
+};
+
+export function selectCategories(categories, { socket } = {}) {
+  return withLegacySocketFallback({
+    socket,
+    event: 'change-category',
+    payload: categories
+  })(() => requestJson('/api/state/categories', {
+    method: 'POST',
+    body: { categories }
+  }));
 }
 
-export async function setScreensaverActive(active, { socket } = {}) {
-  try {
-    return await requestJson('/api/state/screensaver', {
-      method: 'POST',
-      body: { active }
-    });
-  } catch (error) {
-    if (error?.status === 404 && socket?.emit) {
-      socket.emit('set-screensaver-active', active);
-      return null;
-    }
-    throw error;
-  }
+export function setScreensaverActive(active, { socket } = {}) {
+  return withLegacySocketFallback({
+    socket,
+    event: 'set-screensaver-active',
+    payload: active
+  })(() => requestJson('/api/state/screensaver', {
+    method: 'POST',
+    body: { active }
+  }));
 }
 
 export function patchPhoto(body) {
@@ -134,34 +138,26 @@ export function patchPoolFeedSource(name, source, config) {
   });
 }
 
-async function postAdminSecret(path, body, legacyEvent, { socket } = {}) {
-  try {
-    return await requestJson(path, {
-      method: 'POST',
-      body
-    });
-  } catch (error) {
-    if (error?.status === 404 && socket?.emit) {
-      socket.emit(legacyEvent, body);
-      return null;
-    }
-    throw error;
-  }
+function postAdminSecret(path, body, legacyEvent, { socket } = {}) {
+  return withLegacySocketFallback({
+    socket,
+    event: legacyEvent,
+    payload: body
+  })(() => requestJson(path, {
+    method: 'POST',
+    body
+  }));
 }
 
-export async function startRecrawlJob(body = {}, { socket } = {}) {
-  try {
-    return await requestJson('/api/jobs/recrawl', {
-      method: 'POST',
-      body
-    });
-  } catch (error) {
-    if (error?.status === 404 && socket?.emit) {
-      socket.emit('trigger-recrawl', body);
-      return null;
-    }
-    throw error;
-  }
+export function startRecrawlJob(body = {}, { socket } = {}) {
+  return withLegacySocketFallback({
+    socket,
+    event: 'trigger-recrawl',
+    payload: body
+  })(() => requestJson('/api/jobs/recrawl', {
+    method: 'POST',
+    body
+  }));
 }
 
 export function saveUseApiToken(token, { socket } = {}) {
@@ -172,17 +168,13 @@ export function saveTumblrApiKey(token, { socket } = {}) {
   return postAdminSecret('/api/admin/secrets/tumblr-api-key', { token }, 'save-tumblr-api-key', { socket });
 }
 
-export async function startVisionAnalysisJob(body = {}, { socket } = {}) {
-  try {
-    return await requestJson('/api/jobs/vision-analysis', {
-      method: 'POST',
-      body
-    });
-  } catch (error) {
-    if (error?.status === 404 && socket?.emit) {
-      socket.emit('trigger-vision-analysis', body);
-      return null;
-    }
-    throw error;
-  }
+export function startVisionAnalysisJob(body = {}, { socket } = {}) {
+  return withLegacySocketFallback({
+    socket,
+    event: 'trigger-vision-analysis',
+    payload: body
+  })(() => requestJson('/api/jobs/vision-analysis', {
+    method: 'POST',
+    body
+  }));
 }
