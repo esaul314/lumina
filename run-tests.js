@@ -2497,6 +2497,7 @@ async function runClientStateTests() {
     getConfirmedPhotoPatch,
     normalizeSnapshot: normalizeClientSnapshot
   } = await importClientModule('./client/src/state/frameSelectors.js');
+  const { projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
 
   assertTest('client photo event projection updates the selected frame side immutably', () => {
     const snapshot = normalizeClientSnapshot({
@@ -2533,6 +2534,39 @@ async function runClientStateTests() {
 
     assert.strictEqual(applyPhotoEvent(null, 'primary', { url: 'next' }), null);
     assert.strictEqual(applyPhotoEvent(snapshot, 'unknown', { url: 'next' }), snapshot);
+  });
+
+  assertTest('client job status projection shares recrawl and vision state transitions', () => {
+    assert.deepStrictEqual(projectJobStatus({
+      type: 'recrawl',
+      status: 'running',
+      progress: { message: 'Fetching feeds' }
+    }), {
+      status: 'loading',
+      message: 'Fetching feeds'
+    });
+    assert.deepStrictEqual(projectJobStatus({
+      type: 'vision-analysis',
+      status: 'succeeded',
+      result: { taggedCount: 12 }
+    }), {
+      status: 'success',
+      count: 12,
+      message: 'Vision analysis completed successfully.',
+      reset: true
+    });
+    assert.deepStrictEqual(projectJobStatus({
+      type: 'recrawl',
+      status: 'failed',
+      error: 'Feed source unavailable'
+    }), {
+      status: 'error',
+      message: 'Feed source unavailable',
+      reset: true
+    });
+    assert.strictEqual(projectJobStatus({ type: 'unknown', status: 'running' }), null);
+    assert.strictEqual(projectJobStatus({ type: 'toString', status: 'running' }), null);
+    assert.strictEqual(projectJobStatus({ type: 'recrawl', status: 'cancelled' }), null);
   });
 
   assertTest('photo mutation UI reconciles source-local metadata from the server response', () => {

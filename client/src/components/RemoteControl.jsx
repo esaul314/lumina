@@ -34,6 +34,7 @@ import {
   serializeCategorySelection,
   toggleCategorySelection
 } from '../state/feedMutations';
+import { projectJobStatus } from '../state/jobStatus';
 
 const SPLIT_PREVIEW_PADDING = 6;
 const SPLIT_PREVIEW_GAP = 6;
@@ -250,55 +251,33 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       }, 4000);
     };
 
-    const handleRecrawlJobStatus = (job) => {
-      if (!job || job.type !== 'recrawl') {
-        return;
-      }
-
-      if (job.status === 'queued' || job.status === 'running') {
-        setRecrawlStatus('loading');
-        setRecrawlMessage(job.progress?.message || 'Crawling web feeds & self-healing links...');
-        return;
-      }
-
-      if (job.status === 'succeeded') {
-        setRecrawlStatus('success');
-        setRecrawlCount(job.result?.visibleCount || 0);
-        setRecrawlMessage(job.progress?.message || 'Feed recrawl completed successfully.');
-        scheduleStatusReset(setRecrawlStatus, setRecrawlMessage);
-        return;
-      }
-
-      if (job.status === 'failed') {
-        setRecrawlStatus('error');
-        setRecrawlMessage(job.error || 'Recrawl failed.');
-        scheduleStatusReset(setRecrawlStatus, setRecrawlMessage);
+    const jobStatusTargets = {
+      recrawl: {
+        setStatus: setRecrawlStatus,
+        setMessage: setRecrawlMessage,
+        setCount: setRecrawlCount
+      },
+      'vision-analysis': {
+        setStatus: setVisionAnalysisStatus,
+        setMessage: setVisionAnalysisMessage,
+        setCount: setVisionAnalysisCount
       }
     };
 
-    const handleVisionAnalysisJobStatus = (job) => {
-      if (!job || job.type !== 'vision-analysis') {
+    const handleJobStatus = (job) => {
+      const update = projectJobStatus(job);
+      const target = jobStatusTargets[job?.type];
+      if (!update || !target) {
         return;
       }
 
-      if (job.status === 'queued' || job.status === 'running') {
-        setVisionAnalysisStatus('loading');
-        setVisionAnalysisMessage(job.progress?.message || 'Analyzing photo metadata...');
-        return;
+      target.setStatus(update.status);
+      target.setMessage(update.message);
+      if (update.count !== undefined) {
+        target.setCount(update.count);
       }
-
-      if (job.status === 'succeeded') {
-        setVisionAnalysisStatus('success');
-        setVisionAnalysisCount(job.result?.taggedCount || 0);
-        setVisionAnalysisMessage(job.progress?.message || 'Vision analysis completed successfully.');
-        scheduleStatusReset(setVisionAnalysisStatus, setVisionAnalysisMessage);
-        return;
-      }
-
-      if (job.status === 'failed') {
-        setVisionAnalysisStatus('error');
-        setVisionAnalysisMessage(job.error || 'Vision analysis failed.');
-        scheduleStatusReset(setVisionAnalysisStatus, setVisionAnalysisMessage);
+      if (update.reset) {
+        scheduleStatusReset(target.setStatus, target.setMessage);
       }
     };
 
@@ -334,15 +313,13 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       scheduleTokenStatusReset(setTumblrApiStatus);
     };
 
-    socket.on('job-status', handleRecrawlJobStatus);
-    socket.on('job-status', handleVisionAnalysisJobStatus);
+    socket.on('job-status', handleJobStatus);
     socket.on('recrawl-complete', handleRecrawlComplete);
     socket.on('useapi-token-saved', handleUseApiSaved);
     socket.on('tumblr-api-key-saved', handleTumblrApiSaved);
 
     return () => {
-      socket.off('job-status', handleRecrawlJobStatus);
-      socket.off('job-status', handleVisionAnalysisJobStatus);
+      socket.off('job-status', handleJobStatus);
       socket.off('recrawl-complete', handleRecrawlComplete);
       socket.off('useapi-token-saved', handleUseApiSaved);
       socket.off('tumblr-api-key-saved', handleTumblrApiSaved);
