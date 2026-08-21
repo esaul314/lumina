@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-21: Make Socket Command Selection Explicit
+
+- **Goal**: Continue implementation-companion Step 4 by removing command-runner selection from the Socket.IO listener's async shell.
+- **Implementation**:
+  - Added a pure `createCommandRunner(...)` factory that gives shared domain dispatch precedence over the mixed-version legacy fallback.
+  - Preserved fallback `(command, payload)` forwarding and the silent no-handler identity.
+  - Added focused coverage for all three runner states.
+- **Learning**: A small higher-order runner makes the command pipeline read as `decode -> intercept -> run -> afterDispatch` while keeping transport-specific fallback policy outside the domain command itself.
+- **Verification**: Targeted `node run-tests.js` passed with 268 tests, 266 assertions, and zero failures; the known sandbox-only temporary Unix-socket smoke test skipped on `listen EPERM`.
+
 ### 2026-08-19: Make TV screensaver dismissal an explicit safety path
 
 - **Incident**: The kiosk page received mouse and keyboard events but only

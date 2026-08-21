@@ -48,6 +48,7 @@ Current checkpoint:
 - The latest Step 4 slice extracts one higher-order `createPoolMutationFallback(...)` shell for the mixed-version Socket.IO adapter, sharing pool existence checks, persistence, and broadcasts while keeping keyword, feed-config, and policy updates as explicit injected functions.
 - The latest Step 4 slice extends that selective compatibility-boundary approach with one higher-order curated-photo broadcast shell, preserving source-local Google Photos handling, active-photo recovery, and silent missing-photo broken reports.
 - The latest Step 4 slice shares one closed typed-handler invoker between dispatcher effects and events, preserving their separate sequential result and emission algebras while removing duplicate type lookup ceremony.
+- The latest Step 4 slice extracts one pure Socket.IO command runner for shared-dispatch, legacy-fallback, and no-handler selection, preserving dispatcher precedence and fallback payload forwarding while keeping the async listener shell declarative.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`
