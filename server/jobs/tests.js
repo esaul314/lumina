@@ -3,6 +3,7 @@
 const assert = require('assert');
 const { createRecrawlJobService } = require('./recrawl.js');
 const { createVisionAnalysisJobService } = require('./visionAnalysis.js');
+const { normalizeScopeCategories } = require('./jobService.js');
 
 function createState() {
   return {
@@ -40,6 +41,21 @@ function createDeferred() {
 }
 
 async function runRecrawlJobTests(assertAsyncTest) {
+  await assertAsyncTest('shared async job scope projection normalizes aliases and keeps fallback categories pure', async () => {
+    const collections = createCollections();
+    const requested = [' Liminal Space ', 'missing', 'Liminal Spaces'];
+
+    assert.deepStrictEqual(
+      normalizeScopeCategories(requested, collections, ['Scenic Nature']),
+      ['Liminal Spaces']
+    );
+    assert.deepStrictEqual(requested, [' Liminal Space ', 'missing', 'Liminal Spaces']);
+    assert.deepStrictEqual(
+      normalizeScopeCategories([], {}, ['Liminal Spaces']),
+      ['Liminal Spaces']
+    );
+  });
+
   await assertAsyncTest('recrawl job service runs one shared background pass and emits progress plus terminal events', async () => {
     const state = createState();
     const collections = createCollections();

@@ -1,14 +1,13 @@
 // @ts-check
 
-const { normalizeCategorySelection } = require('../domain/selectors.js');
 const { curry } = require('../utils/fn.js');
+const {
+  JOB_STATUS_EVENT,
+  createAsyncJobService,
+  normalizeScopeCategories
+} = require('./jobService.js');
 
-const JOB_STATUS_EVENT = 'job-status';
 const LEGACY_RECRAWL_COMPLETE_EVENT = 'recrawl-complete';
-const DEFAULT_CATEGORY = 'Scenic Nature';
-
-const toErrorMessage = (error) => error instanceof Error ? error.message : String(error);
-const toIsoString = (value) => value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 const mapCategoryPhoto = curry((category, photo) => ({ ...photo, category }));
 const tagCategoryPhotos = curry((category, photos = []) => photos.map(mapCategoryPhoto(category)));
 const pickRecord = curry((keys, record = {}) => keys.reduce((picked, key) => {
@@ -17,25 +16,6 @@ const pickRecord = curry((keys, record = {}) => keys.reduce((picked, key) => {
   }
   return picked;
 }, {}));
-
-function normalizeScopeCategories(requestedCategories, collections, fallbackCategories = []) {
-  const availableCategories = Object.keys(collections);
-  if (!Array.isArray(requestedCategories) || requestedCategories.length === 0) {
-    return availableCategories.length > 0
-      ? availableCategories
-      : normalizeCategorySelection(
-          fallbackCategories,
-          availableCategories,
-          fallbackCategories[0] || DEFAULT_CATEGORY
-        );
-  }
-
-  return normalizeCategorySelection(
-    requestedCategories,
-    availableCategories,
-    fallbackCategories[0] || availableCategories[0] || DEFAULT_CATEGORY
-  );
-}
 
 function mergeUpdatedCollections(collections, updatedCollections) {
   Object.entries(updatedCollections).forEach(([category, photos]) => {
@@ -137,168 +117,54 @@ function createRecrawlJobService({
   getActiveCategories,
   broadcastStateSync,
   triggerImageAnalysisBackground,
-  now = () => new Date(),
-  createJobId = () => `recrawl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  now,
+  createJobId
 }) {
-  /** @type {Map<string, Record<string, any>>} */
-  const jobs = new Map();
-  /** @type {Promise<void> | null} */
-  let activeRun = null;
-  let latestJobId = null;
-
-  const emitJob = (job) => {
-    io.emit(JOB_STATUS_EVENT, job);
-
-    if (job.status === 'succeeded') {
-      io.emit(LEGACY_RECRAWL_COMPLETE_EVENT, {
-        success: true,
-        count: job.result?.visibleCount || 0
-      });
-    }
-
-    if (job.status === 'failed') {
-      io.emit(LEGACY_RECRAWL_COMPLETE_EVENT, {
-        success: false,
-        error: job.error || 'Recrawl failed.'
-      });
-    }
-  };
-
-  const storeJob = (job) => {
-    jobs.set(job.id, job);
-    latestJobId = job.id;
-    emitJob(job);
-    return job;
-  };
-
-  const updateJob = (jobId, patch) => {
-    const currentJob = jobs.get(jobId);
-    if (!currentJob) {
-      return null;
-    }
-
-    const nextJob = {
-      ...currentJob,
-      ...patch,
-      progress: patch.progress
-        ? {
-            ...(currentJob.progress || {}),
-            ...patch.progress
-          }
-        : currentJob.progress
-    };
-
-    return storeJob(nextJob);
-  };
-
-  const buildTerminalJob = (jobId, status, patch) => updateJob(jobId, {
-    status,
-    completedAt: toIsoString(now()),
-    ...patch
-  });
-
-  const runJob = async (job) => {
-    updateJob(job.id, {
-      status: 'running',
-      startedAt: toIsoString(now()),
-      progress: {
-        phase: 'starting',
-        message: 'Starting feed recrawl job...'
+  return createAsyncJobService({
+    type: 'recrawl',
+    collections,
+    io,
+    getActiveCategories,
+    now,
+    createJobId,
+    queuedMessage: 'Feed recrawl queued.',
+    startingMessage: 'Starting feed recrawl job...',
+    completeMessage: 'Feed recrawl completed successfully.',
+    failureMessage: 'Feed recrawl failed.',
+    emitTerminal: (job) => {
+      if (job.status === 'succeeded') {
+        io.emit(LEGACY_RECRAWL_COMPLETE_EVENT, {
+          success: true,
+          count: job.result?.visibleCount || 0
+        });
       }
-    });
 
-    try {
-      const result = await executeRecrawlPass({
-        state,
-        collections,
-        crawlCollections,
-        persistCollections,
-        buildActiveFeed,
-        getActiveCategories,
-        broadcastStateSync,
-        triggerImageAnalysisBackground,
-        categories: job.scope.categories,
-        emitProgress: (progress) => {
-          updateJob(job.id, { progress });
-        }
-      });
-
-      buildTerminalJob(job.id, 'succeeded', {
-        progress: {
-          phase: 'complete',
-          message: 'Feed recrawl completed successfully.'
-        },
-        result
-      });
-    } catch (error) {
-      buildTerminalJob(job.id, 'failed', {
-        progress: {
-          phase: 'error',
-          message: 'Feed recrawl failed.'
-        },
-        error: toErrorMessage(error)
-      });
-    }
-  };
-
-  async function submit({ categories = [], requestedBy = 'rest' } = {}) {
-    const activeJob = latestJobId ? jobs.get(latestJobId) : null;
-    if (activeJob && (activeJob.status === 'queued' || activeJob.status === 'running')) {
-      return {
-        job: activeJob,
-        reused: true
-      };
-    }
-
-    const scopedCategories = normalizeScopeCategories(categories, collections, getActiveCategories());
-    const requestedAt = toIsoString(now());
-    const job = storeJob({
-      id: createJobId(),
-      type: 'recrawl',
-      status: 'queued',
-      requestedBy,
-      requestedAt,
-      startedAt: null,
-      completedAt: null,
-      scope: {
-        categories: scopedCategories
-      },
-      progress: {
-        phase: 'queued',
-        message: 'Feed recrawl queued.'
-      },
-      result: null,
-      error: null
-    });
-
-    activeRun = runJob(job).finally(() => {
-      activeRun = null;
-    });
-
-    return {
-      job,
-      reused: false
-    };
-  }
-
-  function getLatestJob() {
-    return latestJobId ? jobs.get(latestJobId) || null : null;
-  }
-
-  function waitForIdle() {
-    return activeRun || Promise.resolve();
-  }
-
-  return {
-    getLatestJob,
-    submit,
-    waitForIdle
-  };
+      if (job.status === 'failed') {
+        io.emit(LEGACY_RECRAWL_COMPLETE_EVENT, {
+          success: false,
+          error: job.error || 'Recrawl failed.'
+        });
+      }
+    },
+    execute: (job, emitProgress) => executeRecrawlPass({
+      state,
+      collections,
+      crawlCollections,
+      persistCollections,
+      buildActiveFeed,
+      getActiveCategories,
+      broadcastStateSync,
+      triggerImageAnalysisBackground,
+      categories: job.scope.categories,
+      emitProgress
+    })
+  });
 }
 
 module.exports = {
   JOB_STATUS_EVENT,
   LEGACY_RECRAWL_COMPLETE_EVENT,
   createRecrawlJobService,
-  executeRecrawlPass
+  executeRecrawlPass,
+  normalizeScopeCategories
 };
