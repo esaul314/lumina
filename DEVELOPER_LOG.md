@@ -2071,3 +2071,34 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Verification**: Existing Step 4 regression coverage remains green; the
   closeout gate includes the full test suite, lint, runtime service proof, and
   synchronized Git publication.
+
+### 2026-08-21: Audit the Functional Bar Before Step 5
+
+- **Goal**: Re-evaluate the Step 4 closeout against Lumina's broader standard
+  of functional clarity and the planned TypeScript migration before expanding
+  the roadmap.
+- **Audit**:
+  - Confirmed the backend Step 4 criteria still hold: reducer/result/effect
+    repetition is consolidated, command families have low ceremony, and the
+    reducer shell remains readable.
+  - Found a repeated client boundary in `useLuminaActions`: durable state
+    actions independently rebuilt the same `patchState -> normalize response ->
+    apply snapshot` effect shell.
+  - Confirmed the seam can be split cleanly into pure patch projections and an
+    imperative React/REST interpreter, which is a better TypeScript transition
+    boundary than typing the hook's duplicated closures first.
+- **Implementation**:
+  - Added `client/src/state/actionPlans.js` with JSDoc-covered, partially
+    applicable field and widget patch builders.
+  - Reused those builders from the durable state action family in
+    `useLuminaActions` while preserving the existing REST endpoints and
+    response normalization behavior.
+  - Added direct regression coverage for the pure patch vocabulary.
+- **Roadmap decision**: Keep Step 4 closed against its explicit backend
+  acceptance criteria, but record that the overall functional-programming bar
+  is not complete until the active Step 5 client alignment work is finished.
+  Strengthened Step 5 acceptance criteria to require pure request projections
+  and TypeScript-ready JSDoc contracts.
+- **Learning**: A narrow milestone can be honestly complete while a broader
+  architectural value still needs a later boundary; the roadmap should make
+  that distinction visible instead of reopening a finished step indefinitely.

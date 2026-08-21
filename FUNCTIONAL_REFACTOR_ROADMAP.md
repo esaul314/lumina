@@ -25,6 +25,7 @@ Current checkpoint:
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
 - Step 4 is complete: the shared command/effect pipeline is more composable and legible without hiding straightforward reducer updates.
+- Step 5 is active: the first client slice now shares pure, partially applicable REST state-patch builders instead of repeating field-patch construction in the React action hook.
 - The latest Step 4 slices collapsed the remaining standalone REST single-command registrations in `server/routes.js` onto one local method-aware spec table, then collapsed the remaining socket command-listener registration ceremony onto one shared listener-family table, then aligned the overlapping pool keyword/feed-config REST patch specs with their durable socket command specs through one shared pool transport family, then collapsed the remaining photo/pool patch transport shapers in `server/domain/commands.js` onto one shared builder, then collapsed the remaining ad hoc simple config/runtime setter branches in `server/domain/reducer.js` onto one shared field-entry interpreter, then interpreted reducer effects through an ordered promise-reduce pipeline so sequencing remains explicit without a mutable loop, and now share the route-presence guard algebra across pool and photo resource checks without hiding their distinct predicates or failure policies.
 - The latest Step 4 slice also extracted `createClosedInterpreter`, a small partially applied handler-record adapter over the indexed vocabulary helper, so dispatcher effect and event lookup share one closed boundary without hiding their sequential shells.
 - The latest Step 4 slice keeps environment-secret runtime flags on the same functional-core/imperative-shell boundary: a pure record-to-boolean projection now feeds one explicit shell assignment after persistence.
@@ -278,6 +279,7 @@ Progress note:
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
 - Step 4 closeout audit (2026-08-21): all three acceptance criteria are met. Repeated reducer/result/effect patterns are expressed once, new command branches have low ceremony, and the reducer remains readable to a human learning from the code. No further named Step 4 work remains; mixed-version compatibility fallback and transport-specific telemetry remain intentional boundaries. Step 5 is now the active companion checkpoint.
+- Functional quality audit (2026-08-21): Step 4 remains closed against its defined backend criteria, but the audit found that the overall example bar cannot be claimed until the client control surface receives the same treatment. The repeated `patchState -> normalize response -> apply snapshot` actions are now the first bounded Step 5 seam; this is also the preferred bridge toward typed client request contracts.
 - The latest Step 4 slice routes simple, photo, feed, pool, playback, and patch commands through one ordered reducer-family interpreter, with regression coverage for unsupported and inherited command keys.
 - The latest Step 4 slice captures the dispatcher effect interpreter once before sequential promise reduction, with regression coverage for delayed handler ordering, aligned results, and unhandled effects.
 - The latest Step 4 slice completed the route-decode collector's small algebraic boundary, replacing its mutable accumulation loop with a pure short-circuiting reduction and explicit empty-success identity coverage.
@@ -311,6 +313,8 @@ Acceptance criteria:
 - Client action code reflects the same command/snapshot vocabulary as the server.
 - Remote/admin UI logic does not re-encode server rules locally.
 - Snapshot normalization remains the only compatibility layer for transitional state shapes.
+- Repeated REST action effects use small, pure request/patch projections and one explicit effect interpreter.
+- Client boundary helpers carry JSDoc contracts that can be converted to TypeScript without changing their data shapes.
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 

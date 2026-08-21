@@ -27,6 +27,10 @@ import {
   applyFeedSourceConfigPatch,
   serializeCategorySelection
 } from '../state/feedMutations';
+import {
+  buildFieldPatch,
+  buildWidgetVisibilityPatch
+} from '../state/actionPlans';
 
 export function useLuminaActions(socket, setState) {
   const refreshState = async () => {
@@ -59,6 +63,15 @@ export function useLuminaActions(socket, setState) {
       return null;
     }
   };
+
+  const applyStatePatch = (buildPatch) => (value) => {
+    void runAction(async () => {
+      const nextState = await patchState(buildPatch(value));
+      applyStateResponse(nextState);
+    });
+  };
+
+  const patchStateField = (field) => applyStatePatch(buildFieldPatch(field));
 
   return useMemo(() => ({
     setPhotoCrop: (url, cropPercent, cropPositionY) => {
@@ -110,26 +123,11 @@ export function useLuminaActions(socket, setState) {
         await refreshState();
       }, refreshState);
     },
-    changeInterval: (interval) => {
-      void runAction(async () => {
-        const nextState = await patchState({ slideshowInterval: interval });
-        applyStateResponse(nextState);
-      });
-    },
-    toggleWidget: (widgetName, visible) => {
-      void runAction(async () => {
-        const nextState = await patchState({
-          widgets: { [widgetName]: visible }
-        });
-        applyStateResponse(nextState);
-      });
-    },
-    changeTheme: (themeName) => {
-      void runAction(async () => {
-        const nextState = await patchState({ theme: themeName });
-        applyStateResponse(nextState);
-      });
-    },
+    changeInterval: patchStateField('slideshowInterval'),
+    toggleWidget: (widgetName, visible) => applyStatePatch(
+      buildWidgetVisibilityPatch(widgetName)
+    )(visible),
+    changeTheme: patchStateField('theme'),
     changeCategory: (categoriesStr) => {
       const categories = serializeCategorySelection(categoriesStr);
       if (!categories) {
@@ -192,72 +190,19 @@ export function useLuminaActions(socket, setState) {
         await refreshState();
       });
     },
-    changeScaleMode: (mode) => {
-      void runAction(async () => {
-        const nextState = await patchState({ scaleMode: mode });
-        applyStateResponse(nextState);
-      });
-    },
-    toggleSplitPortrait: (split) => {
-      void runAction(async () => {
-        const nextState = await patchState({ splitPortrait: split });
-        applyStateResponse(nextState);
-      });
-    },
-    changeSplitCrop: (percent) => {
-      void runAction(async () => {
-        const nextState = await patchState({ splitCropPercent: percent });
-        applyStateResponse(nextState);
-      });
-    },
-    toggleAlignTime: (align) => {
-      void runAction(async () => {
-        const nextState = await patchState({ alignTimeOfDay: align });
-        applyStateResponse(nextState);
-      });
-    },
-    changeNightPercentage: (percent) => {
-      void runAction(async () => {
-        const nextState = await patchState({ nightPercentage: percent });
-        applyStateResponse(nextState);
-      });
-    },
-    toggleAlignWeather: (align) => {
-      void runAction(async () => {
-        const nextState = await patchState({ alignWeather: align });
-        applyStateResponse(nextState);
-      });
-    },
+    changeScaleMode: patchStateField('scaleMode'),
+    toggleSplitPortrait: patchStateField('splitPortrait'),
+    changeSplitCrop: patchStateField('splitCropPercent'),
+    toggleAlignTime: patchStateField('alignTimeOfDay'),
+    changeNightPercentage: patchStateField('nightPercentage'),
+    toggleAlignWeather: patchStateField('alignWeather'),
     updateVisionConfig: (config) => {
-      void runAction(async () => {
-        const nextState = await patchState({ visionConfig: config });
-        applyStateResponse(nextState);
-      });
+      patchStateField('visionConfig')(config);
     },
-    toggleAllowOpenAiFallback: (allow) => {
-      void runAction(async () => {
-        const nextState = await patchState({ allowOpenAiFallback: allow });
-        applyStateResponse(nextState);
-      });
-    },
-    toggleAutoLocation: (auto) => {
-      void runAction(async () => {
-        const nextState = await patchState({ autoLocation: auto });
-        applyStateResponse(nextState);
-      });
-    },
-    updateManualLocation: (location) => {
-      void runAction(async () => {
-        const nextState = await patchState({ manualLocation: location });
-        applyStateResponse(nextState);
-      });
-    },
-    updateExcludedKeywords: (keywords) => {
-      void runAction(async () => {
-        const nextState = await patchState({ excludedKeywords: keywords });
-        applyStateResponse(nextState);
-      });
-    },
+    toggleAllowOpenAiFallback: patchStateField('allowOpenAiFallback'),
+    toggleAutoLocation: patchStateField('autoLocation'),
+    updateManualLocation: patchStateField('manualLocation'),
+    updateExcludedKeywords: patchStateField('excludedKeywords'),
     triggerRecrawl: () => runAction(() => startRecrawlJob({}, { socket })),
     triggerVisionAnalysis: () => runAction(() => startVisionAnalysisJob({}, { socket })),
     saveUseapiToken: async (token) => {

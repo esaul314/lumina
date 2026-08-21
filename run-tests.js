@@ -2564,6 +2564,19 @@ async function runClientStateTests() {
     normalizeSnapshot: normalizeClientSnapshot
   } = await importClientModule('./client/src/state/frameSelectors.js');
   const { projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
+  const {
+    buildFieldPatch,
+    buildWidgetVisibilityPatch
+  } = await importClientModule('./client/src/state/actionPlans.js');
+
+  assertTest('client state action plans are pure, partially applicable, and REST-shaped', () => {
+    const buildThemePatch = buildFieldPatch('theme');
+    const buildWidgetPatch = buildWidgetVisibilityPatch('clock');
+
+    assert.deepStrictEqual(buildThemePatch('Cosmic Night'), { theme: 'Cosmic Night' });
+    assert.deepStrictEqual(buildWidgetPatch(false), { widgets: { clock: false } });
+    assert.deepStrictEqual(buildThemePatch(undefined), { theme: undefined });
+  });
 
   assertTest('client photo event projection updates the selected frame side immutably', () => {
     const snapshot = normalizeClientSnapshot({
