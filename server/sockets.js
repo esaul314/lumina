@@ -30,16 +30,7 @@ const resolveCompatibilityFallback = (compatibility, { fallbackKey, fallbackArgs
     ? fallback(...fallbackArgs)
     : fallback;
 };
-const registerCommandSpecs = (listenForCommand) => (specs) => specs.forEach(({
-  event,
-  decode,
-  fallback,
-  intercept,
-  afterDispatch,
-  onError
-}) => {
-  listenForCommand(event, decode, fallback, intercept, afterDispatch, onError);
-});
+const registerCommandSpecs = (listenForCommand) => (specs) => specs.forEach(listenForCommand);
 const createSocketEmitFallback = (socket, eventName, payload) => () => {
   socket.emit(eventName, payload);
 };
@@ -263,14 +254,10 @@ module.exports = function configureSockets({
       socket.emit('active-google-photo-response', { mediaItemId, ...payload });
     };
 
-    const listenForCommand = (eventName, decode, fallback, intercept, afterDispatch, onError) => {
-      socket.on(eventName, createCommandListener({
+    const listenForCommand = (spec) => {
+      socket.on(spec.event, createCommandListener({
         dispatchCommand,
-        decode,
-        fallback,
-        intercept,
-        afterDispatch,
-        onError
+        ...spec
       }));
     };
 
@@ -359,3 +346,4 @@ module.exports = function configureSockets({
 
 module.exports.createSocketCommandSpecInterpreter = createSocketCommandSpecInterpreter;
 module.exports.createCommandRunner = createCommandRunner;
+module.exports.registerCommandSpecs = registerCommandSpecs;

@@ -62,7 +62,11 @@ const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const { buildWeatherResponse } = configureRoutes;
 const configureSockets = require('./server/sockets.js');
-const { createCommandRunner, createSocketCommandSpecInterpreter } = configureSockets;
+const {
+  createCommandRunner,
+  createSocketCommandSpecInterpreter,
+  registerCommandSpecs
+} = configureSockets;
 const { createSensorPlatform } = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
@@ -2277,6 +2281,23 @@ assertAsyncTest('createCommandRunner keeps dispatcher precedence and legacy fall
     ['dispatch', { type: 'shared' }],
     ['fallback', { type: 'legacy' }, { value: 2 }]
   ]);
+});
+
+assertTest('registerCommandSpecs keeps command listener registration data-driven', () => {
+  const received = [];
+  const register = registerCommandSpecs((spec) => received.push(spec));
+  const specs = [{
+    event: 'change-theme',
+    decode: () => ({ type: 'patch-state' }),
+    fallback: () => 'legacy',
+    intercept: () => false,
+    afterDispatch: () => {},
+    onError: () => {}
+  }];
+
+  register(specs);
+
+  assert.deepStrictEqual(received, specs);
 });
 
 assertTest('normalizeRuntimeFlags projects environment flags without mutating its input', () => {
