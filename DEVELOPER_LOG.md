@@ -1939,3 +1939,26 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks, and 0 failures. The client build passed; lint passed with the
   three pre-existing warnings; the live service is active with zero restarts
   and serves the rebuilt `index-Bbp4btFi.js` bundle.
+
+### 2026-08-19: Share Async Job Lifecycle
+
+- **Goal**: Continue implementation-companion Step 4 by removing the duplicated
+  queued/running/terminal state machine from recrawl and vision-analysis jobs.
+- **Implementation**:
+  - Added `server/jobs/jobService.js` with a small higher-order
+    `createAsyncJobService(...)` interpreter for immutable job snapshots,
+    progress merging, active-run reuse, scope normalization, timestamps, and
+    terminal error projection.
+  - Kept crawler-specific collection updates, analyzer-specific payloads, and
+    the recrawl-only legacy completion event in their original job modules.
+  - Added a focused regression proving category alias normalization and
+    fallback selection remain pure while both existing job-service suites now
+    exercise the shared lifecycle.
+- **Learning**: The reusable boundary is the job lifecycle algebra; execution
+  policy belongs in the injected callback and compatibility behavior belongs
+  in the recrawl adapter. This keeps the shared function compositional without
+  turning job-specific work into configuration ceremony.
+- **Verification**: `npm test` passed with 264 tests, 262 assertions, 11/11
+  sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
+  skipped with `listen EPERM`; lint passed with the three pre-existing
+  warnings. This is a server-only change, so no client rebuild is required.
