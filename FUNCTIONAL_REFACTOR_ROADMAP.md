@@ -52,6 +52,27 @@ Current checkpoint:
 - The latest Step 4 slice extracts one pure Socket.IO command runner for shared-dispatch, legacy-fallback, and no-handler selection, preserving dispatcher precedence and fallback payload forwarding while keeping the async listener shell declarative.
 - The latest Step 4 slice lets declarative Socket.IO command listener records flow directly into the registration shell, removing positional argument reshaping while preserving dispatch, fallback, interception, and error behavior.
 
+## Continuous Functional-Excellence Ledger
+
+This ledger is an operating rule for the entire roadmap, not a separate
+milestone:
+
+- Every substantive change must leave a concise improvement record in
+  `DEVELOPER_LOG.md` and update the active roadmap checkpoint when the work
+  changes the implementation direction, acceptance criteria, or next seam.
+- Each record must name the repeated ceremony or design pressure found, the
+  pure/compositional boundary chosen, the intentional imperative shell left in
+  place, and the tests or runtime evidence that support the decision.
+- A deliberate no-change audit is also an improvement record when it explains
+  why another abstraction would reduce readability, weaken TypeScript
+  migration seams, or move business rules rather than remove duplication.
+- Functional clarity is a product requirement: runtime performance is evidence
+  that the architecture is effective, not a substitute for code that is
+  deterministic, compositional, explicit about effects, and teachable.
+- Future agents must continue this ledger automatically as part of each
+  roadmap slice; the record is part of the definition of done, not optional
+  release paperwork.
+
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`
 values. The crawler stamps newly accepted items through an injected clock, and

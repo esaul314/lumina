@@ -2102,3 +2102,21 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Learning**: A narrow milestone can be honestly complete while a broader
   architectural value still needs a later boundary; the roadmap should make
   that distinction visible instead of reopening a finished step indefinitely.
+
+### 2026-08-21: Make the Functional-Excellence Ledger Continuous
+
+- **Decision**: Treat the improvement record as a standing roadmap operating
+  rule rather than a courtesy added only at the end of a refactor slice.
+- **Rule**: Every substantive change and every deliberate no-change audit now
+  records the design pressure found, the pure/compositional boundary selected,
+  the imperative shell intentionally retained, and the supporting evidence.
+  Roadmap status must move with any changed direction, acceptance criterion, or
+  next seam.
+- **Product principle**: Functional clarity, explicit effects, deterministic
+  transformations, and teachable composition are application requirements.
+  Runtime performance is the proof that those choices are effective, not a
+  replacement for them.
+- **Learning**: A reference-quality codebase needs a continuously maintained
+  explanation of why its abstractions exist and where abstraction should stop;
+  otherwise future work can preserve tests while silently losing the design
+  standard.

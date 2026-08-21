@@ -12,6 +12,12 @@ Every time you modify a file, run a test, or implement a feature, identify at le
 * **Tech Debt Logging**: If the fix is complex or requires extensive architectural changes, do not let it pass silently; document it explicitly in the **Tech Debt / Backlog** section in the documentation.
 * **General Cleanup**: Improve comments, add typing guards, eliminate redundant variables, or standardise spelling normalizations wherever possible.
 
+The improvement record is part of the product: substantive changes and
+deliberate no-change audits belong in `DEVELOPER_LOG.md` and the active
+roadmap. Lumina's functional clarity, explicit effects, and teachable
+composition are requirements in their own right; performance is evidence that
+those choices work in production.
+
 ---
 
 ## 🧭 The Nine Maxims
@@ -76,4 +82,3 @@ As an AI agent, you must execute the following procedures without exception:
 5. **No Local Chromium Installations**: Under no circumstances should you attempt to install Chromium, Playwright browser binaries, or system browser dependencies on the local gateway host `filament`. Lumina runs on the dedicated Fedora host named `playwright` (IP `192.168.0.178`), which already has system Chromium installed and configured.
 6. **Stop and Ask If Lost**: If you suspect you are lost, encounter an environmental mismatch, or feel any ambiguity about your execution location, you **must stop immediately and ask Alex for clarification**. Do not proceed with high-risk assumptions.
 7. **Do Not Run Deployment / Backup Scripts Through an Active Mount**: When this workspace is mounted directly from the target host, edits already apply there. Do not run copy, sync, or backup scripts that duplicate project files; they can corrupt the mount or overwrite live configuration.
-
