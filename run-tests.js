@@ -62,7 +62,7 @@ const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const { buildWeatherResponse } = configureRoutes;
 const configureSockets = require('./server/sockets.js');
-const { createSocketCommandSpecInterpreter } = configureSockets;
+const { createCommandRunner, createSocketCommandSpecInterpreter } = configureSockets;
 const { createSensorPlatform } = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
@@ -2248,6 +2248,35 @@ assertTest('createTypedHandlerInvoker shares closed type dispatch for domain ite
   assert.strictEqual(invoke({ type: 'toString', payload: 7 }), undefined);
   assert.strictEqual(invoke({ type: '__proto__', payload: 9 }), undefined);
   assert.deepStrictEqual(seen, ['inspect']);
+});
+
+assertAsyncTest('createCommandRunner keeps dispatcher precedence and legacy fallback payloads explicit', async () => {
+  const calls = [];
+  const dispatchRunner = createCommandRunner({
+    dispatchCommand: async (command) => {
+      calls.push(['dispatch', command]);
+      return 'dispatched';
+    },
+    fallback: (command, payload) => {
+      calls.push(['fallback', command, payload]);
+      return 'fallback';
+    }
+  });
+  const fallbackRunner = createCommandRunner({
+    fallback: (command, payload) => {
+      calls.push(['fallback', command, payload]);
+      return 'fallback';
+    }
+  });
+  const noopRunner = createCommandRunner({});
+
+  assert.strictEqual(await dispatchRunner({ type: 'shared' }, { value: 1 }), 'dispatched');
+  assert.strictEqual(await fallbackRunner({ type: 'legacy' }, { value: 2 }), 'fallback');
+  assert.strictEqual(await noopRunner({ type: 'missing' }, { value: 3 }), undefined);
+  assert.deepStrictEqual(calls, [
+    ['dispatch', { type: 'shared' }],
+    ['fallback', { type: 'legacy' }, { value: 2 }]
+  ]);
 });
 
 assertTest('normalizeRuntimeFlags projects environment flags without mutating its input', () => {

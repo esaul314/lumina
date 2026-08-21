@@ -43,6 +43,17 @@ const registerCommandSpecs = (listenForCommand) => (specs) => specs.forEach(({
 const createSocketEmitFallback = (socket, eventName, payload) => () => {
   socket.emit(eventName, payload);
 };
+const createCommandRunner = ({ dispatchCommand, fallback }) => {
+  if (typeof dispatchCommand === 'function') {
+    return (command) => dispatchCommand(command);
+  }
+
+  if (typeof fallback === 'function') {
+    return (command, payload) => fallback(command, payload);
+  }
+
+  return () => undefined;
+};
 const toViewportDimensions = (payload) => ({
   width: Number(payload?.width),
   height: Number(payload?.height)
@@ -91,6 +102,8 @@ const runWithErrorBoundary = async (handler, onError) => {
  * }} options
  */
 function createCommandListener({ dispatchCommand, decode, fallback, intercept, afterDispatch, onError }) {
+  const runCommand = createCommandRunner({ dispatchCommand, fallback });
+
   return async (payload) => {
     const command = decode(payload);
     if (!command) {
@@ -102,9 +115,7 @@ function createCommandListener({ dispatchCommand, decode, fallback, intercept, a
         return;
       }
 
-      const result = typeof dispatchCommand === 'function'
-        ? await dispatchCommand(command)
-        : (typeof fallback === 'function' ? await fallback(command, payload) : undefined);
+      const result = await runCommand(command, payload);
 
       if (typeof afterDispatch === 'function') {
         await afterDispatch(result, command, payload);
@@ -347,3 +358,4 @@ module.exports = function configureSockets({
 };
 
 module.exports.createSocketCommandSpecInterpreter = createSocketCommandSpecInterpreter;
+module.exports.createCommandRunner = createCommandRunner;
