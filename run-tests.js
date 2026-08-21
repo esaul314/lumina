@@ -51,6 +51,7 @@ const { runDomainTests } = require('./server/domain/tests.js');
 const {
   createDomainDispatcher,
   createEffectInterpreter,
+  createTypedHandlerInvoker,
   normalizeRuntimeFlags
 } = require('./server/domain/dispatch.js');
 const { reduceAsyncSequentially } = require('./server/utils/asyncReduce.js');
@@ -2232,6 +2233,21 @@ assertAsyncTest('createEffectInterpreter keeps inherited effect keys outside the
   ]);
 
   assert.deepStrictEqual(result.map(({ value }) => value), [undefined, undefined, 'persisted']);
+});
+
+assertTest('createTypedHandlerInvoker shares closed type dispatch for domain items', () => {
+  const seen = [];
+  const invoke = createTypedHandlerInvoker({
+    inspect: (item) => {
+      seen.push(item.type);
+      return item.payload;
+    }
+  });
+
+  assert.strictEqual(invoke({ type: 'inspect', payload: 42 }), 42);
+  assert.strictEqual(invoke({ type: 'toString', payload: 7 }), undefined);
+  assert.strictEqual(invoke({ type: '__proto__', payload: 9 }), undefined);
+  assert.deepStrictEqual(seen, ['inspect']);
 });
 
 assertTest('normalizeRuntimeFlags projects environment flags without mutating its input', () => {

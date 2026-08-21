@@ -67,13 +67,28 @@ const createWeatherRefreshEffect = (triggerWeatherUpdate) => async () => {
   return undefined;
 };
 
+/**
+ * Resolve only the declared handler vocabulary for a typed domain item.
+ *
+ * The returned interpreter is data-last at the item boundary: callers keep
+ * their own sequencing/result algebra while sharing closed type dispatch.
+ *
+ * @param {Record<string, (item: any) => any>} handlers
+ * @returns {(item: { type?: string } | null | undefined) => any}
+ */
+const createTypedHandlerInvoker = (handlers) => {
+  const resolveHandler = createClosedInterpreter(handlers);
+
+  return (item) => callIfFunction(resolveHandler(item?.type), item);
+};
+
 const createEffectInterpreter = (effectHandlers) => {
-  const resolveHandler = createClosedInterpreter(effectHandlers);
+  const invokeHandler = createTypedHandlerInvoker(effectHandlers);
   const interpret = async (effectResults, effect) => [
     ...effectResults,
     {
       effect,
-      value: await callIfFunction(resolveHandler(effect?.type), effect)
+      value: await invokeHandler(effect)
     }
   ];
 
@@ -81,11 +96,11 @@ const createEffectInterpreter = (effectHandlers) => {
 };
 
 const createEventEmitter = (eventHandlers) => {
-  const resolveHandler = createClosedInterpreter(eventHandlers);
+  const invokeHandler = createTypedHandlerInvoker(eventHandlers);
 
   return (events = []) => {
     events.forEach((event) => {
-      callIfFunction(resolveHandler(event?.type), event);
+      invokeHandler(event);
     });
   };
 };
@@ -221,5 +236,6 @@ module.exports = {
   createDomainDispatcher,
   createEffectInterpreter,
   createEventEmitter,
+  createTypedHandlerInvoker,
   normalizeRuntimeFlags
 };
