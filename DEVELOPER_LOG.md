@@ -1983,3 +1983,23 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
   skipped with `listen EPERM`; lint and final diff checks remain part of the
   completion gate.
+
+### 2026-08-21: Share Legacy Photo Broadcast Shell
+
+- **Goal**: Continue implementation-companion Step 4 by removing repeated
+  broadcast ceremony from the mixed-version Socket.IO photo compatibility
+  fallback without merging its distinct source and recovery policies.
+- **Implementation**:
+  - Added one higher-order curated-mutation shell that interprets an explicit
+    handled/no-op result before broadcasting.
+  - Kept Google Photos metadata updates on their source-local cache/state path,
+    and kept active-photo recovery inside rating and broken-photo handlers.
+  - Added regression coverage for rating, crop, pairing, and silent missing
+    broken-photo reports.
+- **Learning**: A boolean handled signal is a smaller lawful boundary than a
+  generic mutation framework here: it centralizes the shared effect envelope
+  while preserving each fallback's domain-specific update policy.
+- **Verification**: `npm test` passed with 266 tests, 264 assertions, 11/11
+  sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
+  skipped with `listen EPERM`; lint, runtime, and final diff checks remain part
+  of the completion gate.
