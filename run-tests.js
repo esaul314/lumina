@@ -2568,6 +2568,7 @@ async function runClientStateTests() {
     buildFieldPatch,
     buildWidgetVisibilityPatch
   } = await importClientModule('./client/src/state/actionPlans.js');
+  const { buildMutationPlan } = await importClientModule('./client/src/api/requestPlans.js');
 
   assertTest('client state action plans are pure, partially applicable, and REST-shaped', () => {
     const buildThemePatch = buildFieldPatch('theme');
@@ -2576,6 +2577,38 @@ async function runClientStateTests() {
     assert.deepStrictEqual(buildThemePatch('Cosmic Night'), { theme: 'Cosmic Night' });
     assert.deepStrictEqual(buildWidgetPatch(false), { widgets: { clock: false } });
     assert.deepStrictEqual(buildThemePatch(undefined), { theme: undefined });
+  });
+
+  assertTest('client mutation plans keep REST and legacy payload projections declarative', () => {
+    const buildCategoryPlan = buildMutationPlan({
+      path: '/api/state/categories',
+      event: 'change-category',
+      body: (categories) => ({ categories })
+    });
+    const buildScreensaverPlan = buildMutationPlan({
+      path: '/api/state/screensaver',
+      event: 'set-screensaver-active',
+      body: (active) => ({ active })
+    });
+
+    assert.deepStrictEqual(buildCategoryPlan('Scenic Nature,Liminal Spaces'), {
+      path: '/api/state/categories',
+      method: 'POST',
+      body: { categories: 'Scenic Nature,Liminal Spaces' },
+      legacy: {
+        event: 'change-category',
+        payload: 'Scenic Nature,Liminal Spaces'
+      }
+    });
+    assert.deepStrictEqual(buildScreensaverPlan(false), {
+      path: '/api/state/screensaver',
+      method: 'POST',
+      body: { active: false },
+      legacy: {
+        event: 'set-screensaver-active',
+        payload: false
+      }
+    });
   });
 
   assertTest('client photo event projection updates the selected frame side immutably', () => {

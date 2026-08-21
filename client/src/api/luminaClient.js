@@ -1,5 +1,7 @@
 // @ts-check
 
+import { buildMutationPlan } from './requestPlans.js';
+
 /**
  * @typedef {{
  *   success?: boolean,
@@ -63,26 +65,61 @@ const withLegacySocketFallback = ({ socket, event, payload }) => async (request)
   }
 };
 
-export function selectCategories(categories, { socket } = {}) {
+const runMutationPlan = (buildPlan, input, { socket } = {}) => {
+  const plan = buildPlan(input);
+
   return withLegacySocketFallback({
     socket,
-    event: 'change-category',
-    payload: categories
-  })(() => requestJson('/api/state/categories', {
-    method: 'POST',
-    body: { categories }
+    event: plan.legacy.event,
+    payload: plan.legacy.payload
+  })(() => requestJson(plan.path, {
+    method: plan.method,
+    body: plan.body
   }));
+};
+
+const selectCategoriesMutation = buildMutationPlan({
+  path: '/api/state/categories',
+  event: 'change-category',
+  body: (categories) => ({ categories })
+});
+
+const screensaverMutation = buildMutationPlan({
+  path: '/api/state/screensaver',
+  event: 'set-screensaver-active',
+  body: (active) => ({ active })
+});
+
+const recrawlMutation = buildMutationPlan({
+  path: '/api/jobs/recrawl',
+  event: 'trigger-recrawl'
+});
+
+const visionAnalysisMutation = buildMutationPlan({
+  path: '/api/jobs/vision-analysis',
+  event: 'trigger-vision-analysis'
+});
+
+const useApiTokenMutation = buildMutationPlan({
+  path: '/api/admin/secrets/useapi-token',
+  event: 'save-useapi-token',
+  body: (token) => ({ token }),
+  legacy: (token) => ({ token })
+});
+
+const tumblrApiKeyMutation = buildMutationPlan({
+  path: '/api/admin/secrets/tumblr-api-key',
+  event: 'save-tumblr-api-key',
+  body: (token) => ({ token }),
+  legacy: (token) => ({ token })
+});
+
+export function selectCategories(categories, { socket } = {}) {
+  return runMutationPlan(selectCategoriesMutation, categories, { socket });
 }
 
 export function setScreensaverActive(active, { socket } = {}) {
-  return withLegacySocketFallback({
-    socket,
-    event: 'set-screensaver-active',
-    payload: active
-  })(() => requestJson('/api/state/screensaver', {
-    method: 'POST',
-    body: { active }
-  }));
+  return runMutationPlan(screensaverMutation, active, { socket });
 }
 
 export function patchPhoto(body) {
@@ -138,43 +175,18 @@ export function patchPoolFeedSource(name, source, config) {
   });
 }
 
-function postAdminSecret(path, body, legacyEvent, { socket } = {}) {
-  return withLegacySocketFallback({
-    socket,
-    event: legacyEvent,
-    payload: body
-  })(() => requestJson(path, {
-    method: 'POST',
-    body
-  }));
-}
-
 export function startRecrawlJob(body = {}, { socket } = {}) {
-  return withLegacySocketFallback({
-    socket,
-    event: 'trigger-recrawl',
-    payload: body
-  })(() => requestJson('/api/jobs/recrawl', {
-    method: 'POST',
-    body
-  }));
+  return runMutationPlan(recrawlMutation, body, { socket });
 }
 
 export function saveUseApiToken(token, { socket } = {}) {
-  return postAdminSecret('/api/admin/secrets/useapi-token', { token }, 'save-useapi-token', { socket });
+  return runMutationPlan(useApiTokenMutation, token, { socket });
 }
 
 export function saveTumblrApiKey(token, { socket } = {}) {
-  return postAdminSecret('/api/admin/secrets/tumblr-api-key', { token }, 'save-tumblr-api-key', { socket });
+  return runMutationPlan(tumblrApiKeyMutation, token, { socket });
 }
 
 export function startVisionAnalysisJob(body = {}, { socket } = {}) {
-  return withLegacySocketFallback({
-    socket,
-    event: 'trigger-vision-analysis',
-    payload: body
-  })(() => requestJson('/api/jobs/vision-analysis', {
-    method: 'POST',
-    body
-  }));
+  return runMutationPlan(visionAnalysisMutation, body, { socket });
 }

@@ -23,7 +23,8 @@ Current migration checkpoint:
 - Phase 1 Step 3 complete: category selection, pool lifecycle, and feed-configuration mutations now use REST by default in operator UIs, with Socket.IO retained as the live sync/event transport.
 - Phase 1 Step 4 complete: manual recrawl flows now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
 - Phase 1 Step 5 complete: manual vision-analysis runs now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
-- Implementation companion Step 4 complete: the backend command/effect readability pass meets its acceptance criteria. A quality audit found the broader client boundary still needed the same standard; Step 5 is active and its first slice now uses pure, partially applicable state-patch builders.
+- Implementation companion Step 4 complete: the backend command/effect readability pass meets its acceptance criteria. A quality audit found the broader client boundary still needed the same standard; Step 5 is active with pure state-patch builders and declarative REST-first mutation request plans.
+- `client/src/api/requestPlans.js` keeps REST-first mutation bodies and temporary legacy Socket.IO payloads as pure, JSDoc-covered projections; `luminaClient.js` owns only their fetch/fallback interpretation.
 - Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares curated photo mutation broadcast ceremony through one higher-order shell while preserving Google Photos source-local updates and silent missing-photo broken reports.
 - Latest Step 4 slice: dispatcher effects and events now share one closed typed-handler invoker while keeping their distinct sequencing and emission behavior explicit.
 - Latest Step 4 slice: Socket.IO command listeners now select shared dispatch, legacy fallback, or no-handler behavior through one pure command runner, preserving dispatch precedence and legacy payload forwarding.

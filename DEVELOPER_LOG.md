@@ -2120,3 +2120,29 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   explanation of why its abstractions exist and where abstraction should stop;
   otherwise future work can preserve tests while silently losing the design
   standard.
+
+### 2026-08-21: Make Client Mutation Contracts Declarative
+
+- **Goal**: Continue implementation-companion Step 5 by aligning the
+  REST-first client request boundary with the server's command vocabulary and
+  the planned TypeScript migration.
+- **Implementation**:
+  - Added `client/src/api/requestPlans.js` with a pure, JSDoc-covered
+    `buildMutationPlan` projection for REST path/method/body and temporary
+    legacy Socket.IO event/payload contracts.
+  - Reused one explicit mutation-plan interpreter from `luminaClient.js` for
+    category, screensaver, recrawl, vision-analysis, and admin-secret actions.
+  - Preserved intentional shape differences: screensaver uses `{ active }` in
+    REST and a boolean in the legacy event; category uses `{ categories }` in
+    REST and the serialized selection in the legacy event; secrets use
+    `{ token }` in both transports.
+  - Added direct pure-plan assertions alongside the existing fallback tests.
+- **Functional boundary**: request shape projection is pure and partially
+  applicable; `fetch`, error interpretation, and socket emission remain the
+  named imperative shell.
+- **Learning**: transport compatibility is easier to teach and type when
+  endpoint facts are data, but a single generic payload shape would erase real
+  protocol differences and weaken the migration seam.
+- **Verification**: `node run-tests.js` passed with 271 tests, 269 assertions,
+  and 0 failures; the temporary Unix-socket smoke was skipped because the
+  sandbox denies `listen` with `EPERM`.
