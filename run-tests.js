@@ -3016,6 +3016,42 @@ async function runClientStateTests() {
   });
 
   const fallbackHarness = createSocketHarness();
+  await fallbackHarness.socketHandlers['update-keywords']({
+    category: 'Scenic Nature',
+    keywords: ['forest', 'mist']
+  });
+  await fallbackHarness.socketHandlers['update-feed-config']({
+    category: 'Scenic Nature',
+    source: 'reddit',
+    config: { enabled: false }
+  });
+  await fallbackHarness.socketHandlers['update-pool-policy']({
+    category: 'Scenic Nature',
+    policy: { retentionDays: 14, maxPhotos: 500 }
+  });
+  const poolFallbackBroadcasts = fallbackHarness.ioEmits.length;
+  await fallbackHarness.socketHandlers['update-keywords']({
+    category: 'Missing Pool',
+    keywords: ['ignored']
+  });
+
+  assertTest('legacy pool compatibility mutations share persistence and broadcast boundaries', () => {
+    assert.deepStrictEqual(fallbackHarness.state.searchKeywords['Scenic Nature'], ['forest', 'mist']);
+    assert.deepStrictEqual(fallbackHarness.state.feedConfigs['Scenic Nature'].reddit, { enabled: false });
+    assert.deepStrictEqual(fallbackHarness.state.poolPolicies['Scenic Nature'], {
+      retentionDays: 14,
+      maxPhotos: 500,
+      schedule: {
+        enabled: false,
+        start: '22:00',
+        end: '06:00',
+        priority: 0
+      }
+    });
+    assert.strictEqual(fallbackHarness.ioEmits.length, poolFallbackBroadcasts);
+    assert.strictEqual(fallbackHarness.state.searchKeywords['Missing Pool'], undefined);
+  });
+
   await fallbackHarness.socketHandlers['next-photo']();
 
   assertTest('socket next-photo fallback still advances the active photo through the legacy smart selector', () => {

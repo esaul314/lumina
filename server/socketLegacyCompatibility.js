@@ -89,6 +89,24 @@ function createSocketLegacyCompatibility({
     return applyCurated(command);
   };
 
+  /**
+   * Keep the legacy pool compatibility shell shared while each mutation still
+   * owns its domain-specific state update.
+   *
+   * @param {(payload: Record<string, any>) => void} apply
+   * @returns {(command: Record<string, any>) => void}
+   */
+  const createPoolMutationFallback = (apply) => (command) => {
+    const payload = command.payload || {};
+    if (!collections[payload.name]) {
+      return;
+    }
+
+    apply(payload);
+    saveCuratedCollections(collections, state);
+    broadcast();
+  };
+
   const statePatch = async (command) => {
     const patch = isPlainObject(command.payload) ? command.payload : {};
     const {
@@ -248,24 +266,12 @@ function createSocketLegacyCompatibility({
     })
   });
 
-  const poolKeywords = (command) => {
-    const { name, keywords } = command.payload;
-    if (!collections[name]) {
-      return;
-    }
-
+  const poolKeywords = createPoolMutationFallback(({ name, keywords }) => {
     state.searchKeywords[name] = [...keywords];
-    saveCuratedCollections(collections, state);
     console.log(`[Config Socket] Saved updated search keywords for category "${name}":`, state.searchKeywords[name]);
-    broadcast();
-  };
+  });
 
-  const poolFeedConfig = (command) => {
-    const { name, source, config } = command.payload;
-    if (!collections[name]) {
-      return;
-    }
-
+  const poolFeedConfig = createPoolMutationFallback(({ name, source, config }) => {
     state.feedConfigs ??= {};
     state.feedConfigs[name] ??= {};
     state.feedConfigs[name][source] = {
@@ -273,19 +279,13 @@ function createSocketLegacyCompatibility({
       ...config
     };
 
-    saveCuratedCollections(collections, state);
     console.log(`[Config Socket] Saved updated feed config for category "${name}" source "${source}":`, state.feedConfigs[name][source]);
-    broadcast();
-  };
+  });
 
-  const poolPolicy = (command) => {
-    const { name, policy } = command.payload;
-    if (!collections[name]) return;
+  const poolPolicy = createPoolMutationFallback(({ name, policy }) => {
     state.poolPolicies ??= {};
     state.poolPolicies[name] = { ...policy };
-    saveCuratedCollections(collections, state);
-    broadcast();
-  };
+  });
 
   const addPool = async (command) => {
     const { name, keywords } = command.payload;
