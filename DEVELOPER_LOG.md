@@ -2027,3 +2027,22 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   - Added focused coverage for handled, unknown, and inherited item types.
 - **Learning**: Sharing the type lookup is useful here because it is identical;
   the surrounding effect and event algebras remain intentionally separate.
+
+### 2026-08-21: Keep Socket Command Registration Data-Driven
+
+- **Goal**: Continue implementation-companion Step 4 by removing positional
+  argument reshaping at the Socket.IO command registration boundary.
+- **Implementation**:
+  - Changed the command registrar to forward each declarative listener record
+    directly to its registration callback.
+  - Kept the side-effecting `socket.on` operation in the listener shell while
+    preserving dispatch precedence, legacy fallback payloads, interception,
+    post-dispatch hooks, and error handling.
+  - Added focused regression coverage proving command records remain intact as
+    they pass through the higher-order registrar.
+- **Learning**: The useful functional boundary here is the data-last registrar;
+  it removes an adapter-shaped positional interface without hiding the one
+  intentional imperative registration effect.
+- **Verification**: Targeted `node run-tests.js` passed with 269 tests, 267
+  assertions, and 0 failures. Full lint, runtime, and Git closure remain part
+  of the completion gate.

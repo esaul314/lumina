@@ -49,6 +49,7 @@ Current checkpoint:
 - The latest Step 4 slice extends that selective compatibility-boundary approach with one higher-order curated-photo broadcast shell, preserving source-local Google Photos handling, active-photo recovery, and silent missing-photo broken reports.
 - The latest Step 4 slice shares one closed typed-handler invoker between dispatcher effects and events, preserving their separate sequential result and emission algebras while removing duplicate type lookup ceremony.
 - The latest Step 4 slice extracts one pure Socket.IO command runner for shared-dispatch, legacy-fallback, and no-handler selection, preserving dispatcher precedence and fallback payload forwarding while keeping the async listener shell declarative.
+- The latest Step 4 slice lets declarative Socket.IO command listener records flow directly into the registration shell, removing positional argument reshaping while preserving dispatch, fallback, interception, and error behavior.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`

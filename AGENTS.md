@@ -26,6 +26,7 @@ Current migration checkpoint:
 - Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares curated photo mutation broadcast ceremony through one higher-order shell while preserving Google Photos source-local updates and silent missing-photo broken reports.
 - Latest Step 4 slice: dispatcher effects and events now share one closed typed-handler invoker while keeping their distinct sequencing and emission behavior explicit.
 - Latest Step 4 slice: Socket.IO command listeners now select shared dispatch, legacy fallback, or no-handler behavior through one pure command runner, preserving dispatch precedence and legacy payload forwarding.
+- Latest Step 4 slice: Socket.IO command listener registration now passes declarative records directly into the listener shell, removing positional reshaping while preserving dispatch, fallback, interception, and error behavior.
 - Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares pool existence, persistence, and broadcast ceremony through one higher-order fallback shell while its keyword, feed-config, and policy update functions remain domain-specific.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 

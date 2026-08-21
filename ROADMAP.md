@@ -52,6 +52,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 4 slice: the Google Photos media proxy now reuses the shared async route shell, keeping binary headers, dimension normalization, and its 502 failure projection explicit.
 - Latest Step 4 slice: the Google Photos OAuth callback routes now reuse a small higher-order async error adapter, keeping authorization validation, picker synchronization, redirects, and route-specific failure text explicit.
 - Latest Step 4 slice: Socket.IO command and transport listeners now share one async error-boundary runner, while command context, telemetry behavior, and Google Photos refresh acknowledgements remain explicit.
+- Latest Step 4 slice: Socket.IO command registration now passes declarative listener records directly into the listener shell, removing positional reshaping while preserving dispatch, fallback, interception, and error behavior.
 
 ### Photo timestamp foundation (2026-07-31)
 
