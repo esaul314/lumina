@@ -74,19 +74,29 @@ function createSocketLegacyCompatibility({
     applyCurated,
     buildGoogleMetadata = () => ({}),
     afterGoogleApply
-  }) => (command) => {
-    const url = String(command.payload?.url || '');
-    const handledGooglePhoto = applyGooglePhotoMetadata({
-      url,
-      metadata: buildGoogleMetadata(command),
-      afterApply: () => afterGoogleApply?.(command)
-    });
+  }) => {
+    const applyCuratedWithBroadcast = (command) => {
+      const result = applyCurated(command);
+      if (result !== false) {
+        broadcast();
+      }
+      return result;
+    };
 
-    if (handledGooglePhoto) {
-      return;
-    }
+    return (command) => {
+      const url = String(command.payload?.url || '');
+      const handledGooglePhoto = applyGooglePhotoMetadata({
+        url,
+        metadata: buildGoogleMetadata(command),
+        afterApply: () => afterGoogleApply?.(command)
+      });
 
-    return applyCurated(command);
+      if (handledGooglePhoto) {
+        return;
+      }
+
+      return applyCuratedWithBroadcast(command);
+    };
   };
 
   /**
@@ -206,7 +216,7 @@ function createSocketLegacyCompatibility({
           syncActivePhoto({ io, state }, nextPhoto);
         }
       }
-      broadcast();
+      return true;
     },
     buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
       rating: command.payload?.rating
@@ -222,7 +232,7 @@ function createSocketLegacyCompatibility({
         command.payload.cropPercent,
         command.payload.cropPositionY
       );
-      broadcast();
+      return true;
     },
     buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
       cropPercent: command.payload?.cropPercent,
@@ -241,7 +251,7 @@ function createSocketLegacyCompatibility({
           state.activeSecondPhoto = null;
         }
       }
-      broadcast();
+      return true;
     },
     buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
       preventPairing: command.payload?.preventPairing
@@ -258,7 +268,7 @@ function createSocketLegacyCompatibility({
   });
 
   const photoMetadata = createPhotoMutationFallback({
-    applyCurated: () => {},
+    applyCurated: () => false,
     buildGoogleMetadata: (command) => buildDefinedMetadataPatch({
       orientation: command.payload?.orientation,
       width: command.payload?.width,
@@ -402,7 +412,7 @@ function createSocketLegacyCompatibility({
     applyCurated: (command) => {
       const updated = markPhotoBroken(collections, state, command.payload.url);
       if (!updated) {
-        return;
+        return false;
       }
 
       if (state.activePhoto && state.activePhoto.url === command.payload.url) {
@@ -411,7 +421,7 @@ function createSocketLegacyCompatibility({
           syncActivePhoto({ io, state }, nextPhoto);
         }
       }
-      broadcast();
+      return true;
     },
     buildGoogleMetadata: () => ({ rating: 1, isBroken: true })
   });

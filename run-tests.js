@@ -3052,6 +3052,37 @@ async function runClientStateTests() {
     assert.strictEqual(fallbackHarness.state.searchKeywords['Missing Pool'], undefined);
   });
 
+  const photoFallbackHarness = createSocketHarness();
+  const photoBroadcastStart = photoFallbackHarness.ioEmits.length;
+  await photoFallbackHarness.socketHandlers['rate-photo']({
+    url: 'land-1',
+    rating: 7
+  });
+  await photoFallbackHarness.socketHandlers['set-photo-crop']({
+    url: 'land-1',
+    cropPercent: 62
+  });
+  await photoFallbackHarness.socketHandlers['set-photo-prevent-pairing']({
+    url: 'land-1',
+    preventPairing: true
+  });
+  const photoBroadcastsAfterMutations = photoFallbackHarness.ioEmits.length;
+  await photoFallbackHarness.socketHandlers['mark-photo-broken']({
+    url: 'missing-photo'
+  });
+
+  assertTest('legacy photo compatibility mutations share the broadcast boundary and keep broken-photo no-ops silent', () => {
+    assert.strictEqual(photoBroadcastsAfterMutations - photoBroadcastStart, 3);
+    assert.deepStrictEqual(photoFallbackHarness.state.photosList[0], {
+      url: 'land-1',
+      title: 'Forest',
+      rating: 7,
+      cropPercent: 62,
+      preventPairing: true
+    });
+    assert.strictEqual(photoFallbackHarness.ioEmits.length, photoBroadcastsAfterMutations);
+  });
+
   await fallbackHarness.socketHandlers['next-photo']();
 
   assertTest('socket next-photo fallback still advances the active photo through the legacy smart selector', () => {
