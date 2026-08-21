@@ -24,6 +24,7 @@ Current migration checkpoint:
 - Phase 1 Step 4 complete: manual recrawl flows now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
 - Phase 1 Step 5 complete: manual vision-analysis runs now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
 - Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares curated photo mutation broadcast ceremony through one higher-order shell while preserving Google Photos source-local updates and silent missing-photo broken reports.
+- Latest Step 4 slice: dispatcher effects and events now share one closed typed-handler invoker while keeping their distinct sequencing and emission behavior explicit.
 - Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares pool existence, persistence, and broadcast ceremony through one higher-order fallback shell while its keyword, feed-config, and policy update functions remain domain-specific.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 

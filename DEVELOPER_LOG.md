@@ -2003,3 +2003,17 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
   skipped with `listen EPERM`; lint, runtime, and final diff checks remain part
   of the completion gate.
+
+### 2026-08-21: Share Dispatcher Typed Handler Invocation
+
+- **Goal**: Continue implementation-companion Step 4 by removing duplicate
+  closed type-handler lookup ceremony from dispatcher effects and events.
+- **Implementation**:
+  - Added the small `createTypedHandlerInvoker(...)` boundary, which resolves
+    only declared item types and invokes their handlers without opening
+    inherited object keys.
+  - Reused it from both effect interpretation and event emission while keeping
+    ordered effect results and synchronous event emission as separate shells.
+  - Added focused coverage for handled, unknown, and inherited item types.
+- **Learning**: Sharing the type lookup is useful here because it is identical;
+  the surrounding effect and event algebras remain intentionally separate.

@@ -47,6 +47,7 @@ Current checkpoint:
 - The latest Step 4 slice extracts one small `createAsyncJobService(...)` lifecycle interpreter for recrawl and vision-analysis jobs, sharing immutable progress/status updates, scope normalization, active-run reuse, and terminal error projection while keeping each job's execution callback and legacy-event policy explicit.
 - The latest Step 4 slice extracts one higher-order `createPoolMutationFallback(...)` shell for the mixed-version Socket.IO adapter, sharing pool existence checks, persistence, and broadcasts while keeping keyword, feed-config, and policy updates as explicit injected functions.
 - The latest Step 4 slice extends that selective compatibility-boundary approach with one higher-order curated-photo broadcast shell, preserving source-local Google Photos handling, active-photo recovery, and silent missing-photo broken reports.
+- The latest Step 4 slice shares one closed typed-handler invoker between dispatcher effects and events, preserving their separate sequential result and emission algebras while removing duplicate type lookup ceremony.
 
 Metadata foundation note (2026-07-31): `server/domain/photoTimestamps.js`
 provides pure normalization and immutable stamping for per-photo `addedAt`
