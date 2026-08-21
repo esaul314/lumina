@@ -1962,3 +1962,24 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
   skipped with `listen EPERM`; lint passed with the three pre-existing
   warnings. This is a server-only change, so no client rebuild is required.
+
+### 2026-08-21: Share Legacy Pool Mutation Shell
+
+- **Goal**: Continue implementation-companion Step 4 by removing repeated
+  persistence and broadcast ceremony from the mixed-version Socket.IO pool
+  compatibility fallback.
+- **Implementation**:
+  - Added the higher-order `createPoolMutationFallback(...)` shell to share
+    pool existence checks, collection persistence, and state broadcasts.
+  - Kept keyword replacement, feed-source merging, and policy assignment as
+    explicit injected updates so the compatibility adapter does not hide their
+    distinct domain rules.
+  - Added regression coverage for canonical policy normalization, all three
+    pool mutation families, and missing-pool no-op behavior.
+- **Learning**: A compatibility boundary can benefit from a small imperative
+  interpreter when its side-effect envelope is identical; the injected update
+  remains the functional seam and prevents a generic legacy command framework.
+- **Verification**: `npm test` passed with 265 tests, 263 assertions, 11/11
+  sensor checks, and 0 failures. The known sandbox-only Unix-socket smoke test
+  skipped with `listen EPERM`; lint and final diff checks remain part of the
+  completion gate.
