@@ -2046,3 +2046,28 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Verification**: Targeted `node run-tests.js` passed with 269 tests, 267
   assertions, and 0 failures. Full lint, runtime, and Git closure remain part
   of the completion gate.
+
+### 2026-08-21: Close Implementation Companion Step 4
+
+- **Goal**: Complete the bounded command/effect readability pass after the
+  final acceptance audit, instead of allowing selective cleanup to become an
+  indefinite milestone.
+- **Audit**:
+  - Confirmed standardized reducer result builders, immutable patch specs,
+    shared reducer-family interpretation, ordered effect interpretation,
+    route-decode composition, guarded REST shells, and declarative Socket.IO
+    listener families are covered by the existing regression suite.
+  - Confirmed the remaining direct stateful code is either the functional core
+    reducer/dispatcher shell or the intentional mixed-version compatibility
+    and transport-specific telemetry boundaries.
+  - Found no additional Step 4 seam whose abstraction would be clearer than
+    the existing explicit code.
+- **Decision**: Mark Step 4 complete against its three acceptance criteria and
+  advance the implementation companion to Step 5, the client control-surface
+  alignment track.
+- **Learning**: A selective functional refactor needs an explicit stopping
+  rule; once repetition is removed and the shells stay legible, further
+  abstraction is maintenance rather than roadmap progress.
+- **Verification**: Existing Step 4 regression coverage remains green; the
+  closeout gate includes the full test suite, lint, runtime service proof, and
+  synchronized Git publication.
