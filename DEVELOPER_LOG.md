@@ -2173,3 +2173,37 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Roadmap**: the next Step 5 seam is snapshot normalization and live-sync
   projection, beginning with `useLuminaActions` response application and the
   app-level `state-sync` path.
+
+### 2026-08-21: Reflow the Image Feeds Administration Workspace
+
+- **Goal**: fix the Pool Lifecycle time controls overflowing the narrow remote
+  card and reduce the vertical density of the growing Image Feeds tab on both
+  desktop and mobile.
+- **Research**: [Material responsive UI guidance](https://m1.material.io/layout/responsive-ui.html)
+  recommends breakpoint-aware layouts and [bounded fluid text fields](https://m2.material.io/design/components/text-fields.html);
+  [PatternFly form guidance](https://www.patternfly.org/components/forms/form/design-guidelines/)
+  favors titled field groups for complex forms; and [Carbon's time-picker guidance](https://carbondesignsystem.com/components/date-picker/usage/)
+  treats time input as a constrained field group whose parts must not
+  horizontally scroll. These patterns support a compact card/grid treatment
+  rather than forcing the existing five-column row into a 480px surface.
+- **Implementation**:
+  - Added `client/src/state/poolLifecycleView.js`, a JSDoc-covered pure
+    projection for lifecycle rows and schedule summaries.
+  - Reworked the Image Feeds page into a bounded desktop workspace with
+    compact lifecycle cards, an explicit automatic-activation fieldset, and
+    a two-column source manager that becomes one column on narrow screens.
+  - Constrained number/time inputs with `min-width: 0`, `max-width: 100%`, and
+    flexible grid tracks so native browser time controls stay inside their
+    card.
+- **Functional boundary**: lifecycle row selection and schedule labeling are
+  deterministic data projections; React retains the imperative draft/save
+  shell, and CSS remains the declarative responsive interpreter. No generic
+  form abstraction or UI dependency was introduced because it would add
+  ceremony without improving this focused TypeScript migration seam.
+- **Verification**: focused view-model and source-structure assertions pass as
+  part of `npm test` (275 tests, 273 assertions); the client production build
+  succeeds. The temporary Unix-socket smoke remains skipped under sandbox
+  `listen EPERM`.
+- **Roadmap**: Step 5 remains active. The next seam is still client snapshot
+  normalization and live-sync projection, beginning with `useLuminaActions`
+  response application and the app-level `state-sync` path.
