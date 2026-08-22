@@ -18,6 +18,67 @@ import {
 } from './googlePhotosPicker';
 import { parseFeedParameterInput, splitKeywordInput } from '../../state/keywordInput';
 import { getPoolLifecycleRows } from '../../state/poolLifecycleView';
+import {
+  createImageFeedsPanelState,
+  IMAGE_FEEDS_PANEL_IDS,
+  toggleImageFeedsPanel,
+  toggleImageFeedsPanelMaximized
+} from '../../state/imageFeedsPanels';
+
+const ImageFeedsPanel = ({
+  panelId,
+  title,
+  description,
+  panelState,
+  setPanelState,
+  children
+}) => {
+  const isOpen = Boolean(panelState.open?.[panelId]);
+  const isMaximized = panelState.maximized === panelId;
+  const titleId = `image-feeds-${panelId}-title`;
+  const contentId = `image-feeds-${panelId}-content`;
+  const panelClassName = [
+    'remote-card',
+    'image-feeds-card',
+    'image-feeds-panel',
+    `image-feeds-${panelId}`,
+    !isOpen && 'is-panel-collapsed',
+    isMaximized && 'is-panel-maximized'
+  ].filter(Boolean).join(' ');
+
+  return (
+    <section className={panelClassName} aria-labelledby={titleId}>
+      <header className="image-feeds-panel-header">
+        <div className="image-feeds-panel-heading">
+          <span id={titleId} className="remote-section-title">{title}</span>
+          {description && <span className="image-feeds-panel-description">{description}</span>}
+        </div>
+        <div className="image-feeds-panel-actions">
+          <button
+            type="button"
+            className="image-feeds-panel-action"
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            onClick={() => setPanelState((state) => toggleImageFeedsPanel(state, panelId))}
+          >
+            {isOpen ? 'Minimize' : 'Expand'}
+            <ChevronDown className="image-feeds-panel-chevron" size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="image-feeds-panel-action image-feeds-panel-focus-action"
+            aria-pressed={isMaximized}
+            aria-label={isMaximized ? `Restore ${title}` : `Maximize ${title}`}
+            onClick={() => setPanelState((state) => toggleImageFeedsPanelMaximized(state, panelId))}
+          >
+            {isMaximized ? 'Restore' : 'Maximize'}
+          </button>
+        </div>
+      </header>
+      {isOpen && <div id={contentId} className="image-feeds-panel-body">{children}</div>}
+    </section>
+  );
+};
 
 function ImageFeedsTab({
   state,
@@ -57,6 +118,7 @@ function ImageFeedsTab({
   const cropTimeoutRef = useRef(null);
   const ratingDeckPreviewContainerRef = useRef(null);
   const [ratingDeckPreviewBounds, setRatingDeckPreviewBounds] = useState(DEFAULT_TV_PREVIEW_DIMENSIONS);
+  const [panelState, setPanelState] = useState(createImageFeedsPanelState);
 
   const activeGalleryPhoto = state.photosList && state.photosList[galleryIndex] ? state.photosList[galleryIndex] : null;
   const ratingDeckTvFrame = fitTvPreviewFrame(ratingDeckPreviewBounds, tvAspectRatio);
@@ -460,20 +522,14 @@ function ImageFeedsTab({
         </div>
       </div>
 
-      <div className="image-feeds-workspace">
-      <div className="remote-card image-feeds-card image-feeds-rating">
-        <span className="remote-section-title">Independent Rating Deck</span>
-        {tvPreviewMetaLabel && (
-          <div style={{
-            fontSize: '0.72rem',
-            color: 'rgba(255,255,255,0.4)',
-            marginTop: '-14px',
-            marginBottom: '4px',
-            letterSpacing: '0.02em'
-          }}>
-            📺 {tvPreviewMetaLabel}
-          </div>
-        )}
+      <div className={`image-feeds-workspace${panelState.maximized ? ' is-panel-maximized' : ''}`}>
+      <ImageFeedsPanel
+        panelId={IMAGE_FEEDS_PANEL_IDS.RATING}
+        title="Independent Rating Deck"
+        description={tvPreviewMetaLabel ? `📺 ${tvPreviewMetaLabel}` : undefined}
+        panelState={panelState}
+        setPanelState={setPanelState}
+      >
         {state.photosList && state.photosList.length > 0 ? (
           (() => {
             const photo = state.photosList[galleryIndex];
@@ -807,10 +863,14 @@ function ImageFeedsTab({
             No photos in active pool to display.
           </div>
         )}
-      </div>
+      </ImageFeedsPanel>
 
-      <div className="remote-card image-feeds-card image-feeds-source">
-        <span className="remote-section-title">Scenic Feed Source Manager</span>
+      <ImageFeedsPanel
+        panelId={IMAGE_FEEDS_PANEL_IDS.SOURCES}
+        title="Scenic Feed Source Manager"
+        panelState={panelState}
+        setPanelState={setPanelState}
+      >
         <p style={{ fontSize: '0.72rem', opacity: 0.5, lineHeight: '1.35', marginTop: '6px', marginBottom: '12px' }}>
           Configure search keywords, subreddits, Tumblr blogs, or Tumblr tags for each image source in this scenic pool.
         </p>
@@ -1049,7 +1109,7 @@ function ImageFeedsTab({
             );
           })}
         </div>
-      </div>
+      </ImageFeedsPanel>
       </div>
 
       <section className="remote-card image-feeds-card image-feeds-google" aria-labelledby="google-photos-picker-title" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>

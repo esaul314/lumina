@@ -978,6 +978,37 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(imageFeedsSource, /<details className="pool-lifecycle-card"/);
   assert.match(imageFeedsSource, /Configure <ChevronDown/);
   assert.match(imageFeedsSource, /className="image-feed-source-grid"/);
+  assert.match(imageFeedsSource, /className="image-feeds-panel-action"/);
+  assert.match(imageFeedsSource, /Maximize/);
+  assert.match(imageFeedsSource, /Minimize/);
+  assert.match(imageFeedsSource, /aria-controls=\{contentId\}/);
+});
+
+assertAsyncTest('Image Feeds workspace panel state is pure, immutable, and focusable', async () => {
+  const {
+    createImageFeedsPanelState,
+    IMAGE_FEEDS_PANEL_IDS,
+    toggleImageFeedsPanel,
+    toggleImageFeedsPanelMaximized
+  } = await importClientModule('./client/src/state/imageFeedsPanels.js');
+  const initialState = createImageFeedsPanelState();
+  const collapsedState = toggleImageFeedsPanel(initialState, IMAGE_FEEDS_PANEL_IDS.RATING);
+  const focusedState = toggleImageFeedsPanelMaximized(collapsedState, IMAGE_FEEDS_PANEL_IDS.RATING);
+  const restoredState = toggleImageFeedsPanelMaximized(focusedState, IMAGE_FEEDS_PANEL_IDS.RATING);
+
+  assert.deepStrictEqual(initialState, {
+    open: { rating: true, sources: true },
+    maximized: null
+  });
+  assert.strictEqual(collapsedState.open.rating, false);
+  assert.strictEqual(collapsedState.open.sources, true);
+  assert.strictEqual(collapsedState.maximized, null);
+  assert.strictEqual(focusedState.open.rating, true);
+  assert.strictEqual(focusedState.maximized, IMAGE_FEEDS_PANEL_IDS.RATING);
+  assert.strictEqual(restoredState.maximized, null);
+  assert.strictEqual(restoredState.open.rating, true);
+  assert.notStrictEqual(collapsedState, initialState);
+  assert.notStrictEqual(collapsedState.open, initialState.open);
 });
 
 assertAsyncTest('pool policy drafts preserve a just-edited maximum through synchronous save reads', async () => {
