@@ -1,7 +1,7 @@
 // @ts-check
 
 const { normalizeCategorySelection } = require('../domain/selectors.js');
-const { resolveScheduledPool } = require('../domain/poolSchedule.js');
+const { appendUniqueCategory, resolveScheduledPool } = require('../domain/poolSchedule.js');
 
 const sameCategories = (left = [], right = []) => (
   left.length === right.length && left.every((category, index) => category === right[index])
@@ -26,6 +26,7 @@ function createPoolScheduleRuntime({
   let transitionInProgress = false;
   let activeIdentity = null;
   let scheduledCategories = [];
+  let activationCategories = null;
   let baselineCategories = null;
   let manualOverride = false;
 
@@ -64,6 +65,7 @@ function createPoolScheduleRuntime({
           const restoreCategories = baselineCategories || currentCategories;
           activeIdentity = null;
           scheduledCategories = [];
+          activationCategories = null;
           baselineCategories = null;
           manualOverride = false;
           await dispatchSelection(restoreCategories);
@@ -78,12 +80,16 @@ function createPoolScheduleRuntime({
           : currentCategories;
         activeIdentity = scheduledPool.identity;
         scheduledCategories = [scheduledPool.category];
+        activationCategories = appendUniqueCategory(
+          baselineCategories || currentCategories,
+          scheduledPool.category
+        );
         manualOverride = false;
-        await dispatchSelection(scheduledCategories);
-        return scheduledCategories;
+        await dispatchSelection(activationCategories);
+        return activationCategories;
       }
 
-      if (!manualOverride && !sameCategories(currentCategories, scheduledCategories)) {
+      if (!manualOverride && !sameCategories(currentCategories, activationCategories || currentCategories)) {
         manualOverride = true;
       }
 
@@ -115,6 +121,7 @@ function createPoolScheduleRuntime({
     getStatus: () => ({
       activeIdentity,
       scheduledCategories: [...scheduledCategories],
+      activationCategories: activationCategories ? [...activationCategories] : null,
       baselineCategories: baselineCategories ? [...baselineCategories] : null,
       manualOverride
     })

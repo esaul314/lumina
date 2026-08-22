@@ -14,6 +14,17 @@ const scheduleIdentity = (category, schedule) => [
   schedule.priority
 ].join('|');
 
+/**
+ * Add a scheduled category without replacing the user's active selection.
+ *
+ * @param {string[]} categories
+ * @param {string} category
+ * @returns {string[]}
+ */
+const appendUniqueCategory = (categories = [], category) => (
+  categories.includes(category) ? [...categories] : [...categories, category]
+);
+
 const isPoolScheduleActive = (schedule, now = new Date()) => {
   const normalized = normalizePoolSchedule(schedule);
   return normalized.enabled && isTimeInSchedule(
@@ -49,5 +60,6 @@ module.exports = {
   formatLocalTime,
   isPoolScheduleActive,
   resolveScheduledPool,
-  scheduleIdentity
+  scheduleIdentity,
+  appendUniqueCategory
 };

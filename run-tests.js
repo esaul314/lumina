@@ -1046,13 +1046,14 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
 
 assertAsyncTest('pool schedule runtime activates a pool, honors manual override, and restores the baseline', async () => {
   const state = {
-    currentCategory: 'Scenic Nature',
+    currentCategory: 'Scenic Nature,Liminal Spaces',
     poolPolicies: {
       'Night Mood': { schedule: { enabled: true, start: '22:00', end: '06:00' } }
     }
   };
   const collections = {
     'Scenic Nature': [],
+    'Liminal Spaces': [],
     'Night Mood': [],
     'Day Mood': []
   };
@@ -1069,14 +1070,17 @@ assertAsyncTest('pool schedule runtime activates a pool, honors manual override,
   });
 
   await runtime.tick();
-  assert.strictEqual(state.currentCategory, 'Night Mood');
+  assert.strictEqual(state.currentCategory, 'Scenic Nature,Liminal Spaces,Night Mood');
   state.currentCategory = 'Day Mood';
   await runtime.tick();
   assert.strictEqual(runtime.getStatus().manualOverride, true);
   now = new Date('2026-08-19T06:00:00');
   await runtime.tick();
-  assert.strictEqual(state.currentCategory, 'Scenic Nature');
-  assert.deepStrictEqual(dispatched.map(({ payload }) => payload.categories), [['Night Mood'], ['Scenic Nature']]);
+  assert.strictEqual(state.currentCategory, 'Scenic Nature,Liminal Spaces');
+  assert.deepStrictEqual(dispatched.map(({ payload }) => payload.categories), [
+    ['Scenic Nature', 'Liminal Spaces', 'Night Mood'],
+    ['Scenic Nature', 'Liminal Spaces']
+  ]);
 });
 
 assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {

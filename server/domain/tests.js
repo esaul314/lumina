@@ -57,7 +57,7 @@ const {
   stampNewPhotos
 } = require('./photoTimestamps.js');
 const { normalizePoolPolicy, pruneExpiredPhotos } = require('./poolRetention.js');
-const { resolveScheduledPool } = require('./poolSchedule.js');
+const { appendUniqueCategory, resolveScheduledPool } = require('./poolSchedule.js');
 const { createEventEmitter } = require('./dispatch.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
@@ -2339,6 +2339,11 @@ function runDomainTests({ logSuite, assertTest }) {
       availableCategories: ['Night Mood'],
       now: new Date('2026-08-18T06:00:00')
     }), null);
+    const baseline = ['Scenic Nature', 'Liminal Spaces'];
+    const activated = appendUniqueCategory(baseline, 'Night Mood');
+    assert.deepStrictEqual(activated, ['Scenic Nature', 'Liminal Spaces', 'Night Mood']);
+    assert.deepStrictEqual(baseline, ['Scenic Nature', 'Liminal Spaces']);
+    assert.deepStrictEqual(appendUniqueCategory(baseline, 'Scenic Nature'), baseline);
   });
 
   assertTest('persistence codec keeps explicit zero-valued crop defaults', () => {
