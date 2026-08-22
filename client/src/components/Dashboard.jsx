@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
+import { readJson } from '../api/jsonClient.js';
 import { selectCategories, setScreensaverActive as requestScreensaverState } from '../api/luminaClient';
 import {
   isCategorySelected,
@@ -96,8 +97,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     let cancelled = false;
     const fetchEnvironment = async () => {
       try {
-        const res = await fetch('/api/environment');
-        const data = await res.json();
+        const data = await readJson('/api/environment');
         if (!cancelled && data && !data.error) setEnvironment(data);
       } catch (error) {
         console.error('Failed to load indoor environment data', error);
@@ -143,8 +143,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   // 2. Weather Fetch
   const fetchWeather = async () => {
     try {
-      const res = await fetch('/api/weather');
-      const data = await res.json();
+      const data = await readJson('/api/weather');
       if (data && !data.error) {
         setWeather(data);
       }
@@ -167,8 +166,7 @@ function Dashboard({ state, socket, connectionInfo }) {
     if (primaryPhoto?.url) return;
 
     try {
-      const res = await fetch(`/api/photos?category=${encodeURIComponent(category)}`);
-      const photos = await res.json();
+      const photos = await readJson(`/api/photos?category=${encodeURIComponent(category)}`);
       if (photos && photos.length > 0) {
         // Randomly select one photo to start with
         const rand = photos[Math.floor(Math.random() * photos.length)];

@@ -2146,3 +2146,30 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Verification**: `node run-tests.js` passed with 271 tests, 269 assertions,
   and 0 failures; the temporary Unix-socket smoke was skipped because the
   sandbox denies `listen` with `EPERM`.
+
+### 2026-08-21: Consolidate Client JSON Transport Contracts
+
+- **Goal**: Continue Step 5 by removing repeated direct JSON `fetch` handling
+  from the dashboard, environment administration, and Google credential views.
+- **Implementation**:
+  - Added `client/src/api/jsonClient.js` with `@ts-check`, reusable JSON
+    request/read/post functions, media-type classification, and structured
+    request errors.
+  - Reused the transport from `luminaClient.js` and migrated the three client
+    view boundaries without moving view-specific state, cancellation, or
+    presentation policy into the API module.
+  - Preserved the environment panel's protection against an HTML/Vite error
+    response by making `readJson` enforce the JSON media-type contract.
+  - Added focused tests for pure media-type/error projections, read/post
+    request shapes, and HTML-response rejection.
+- **Functional boundary**: request construction and response interpretation
+  are one explicit effectful interpreter; media-type classification and error
+  construction are pure values that remain straightforward TypeScript seams.
+  React effects still own scheduling, cancellation, state updates, and user
+  messaging.
+- **Learning**: a shared transport boundary is useful when it removes wire
+  ceremony without erasing the caller's policy; the API module should not
+  decide how a dashboard, settings editor, or auth form presents a response.
+- **Roadmap**: the next Step 5 seam is snapshot normalization and live-sync
+  projection, beginning with `useLuminaActions` response application and the
+  app-level `state-sync` path.

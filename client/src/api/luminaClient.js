@@ -1,44 +1,7 @@
 // @ts-check
 
 import { buildMutationPlan } from './requestPlans.js';
-
-/**
- * @typedef {{
- *   success?: boolean,
- *   photo?: Record<string, unknown>,
- *   activePhoto?: Record<string, unknown>,
- *   screensaverActive?: boolean
- * }} LuminaApiResponse
- */
-
-function getApiBaseUrl() {
-  return window.location.port === '5173'
-    ? `${window.location.protocol}//${window.location.hostname}:5000`
-    : window.location.origin;
-}
-
-async function requestJson(path, { method = 'GET', body } = {}) {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined
-  });
-
-  /** @type {LuminaApiResponse | { error?: string, message?: string }} */
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const errorMessage = typeof payload?.error === 'string'
-      ? payload.error
-      : (typeof payload?.message === 'string' ? payload.message : `Request failed: ${response.status}`);
-    const error = new Error(errorMessage);
-    error.status = response.status;
-    error.path = path;
-    throw error;
-  }
-
-  return payload;
-}
+import { requestJson } from './jsonClient.js';
 
 export function getStateSnapshot() {
   return requestJson('/api/state');

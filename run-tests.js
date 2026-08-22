@@ -2569,6 +2569,12 @@ async function runClientStateTests() {
     buildWidgetVisibilityPatch
   } = await importClientModule('./client/src/state/actionPlans.js');
   const { buildMutationPlan } = await importClientModule('./client/src/api/requestPlans.js');
+  const {
+    createJsonUnavailableError,
+    isJsonContentType,
+    postJson,
+    readJson
+  } = await importClientModule('./client/src/api/jsonClient.js');
 
   assertTest('client state action plans are pure, partially applicable, and REST-shaped', () => {
     const buildThemePatch = buildFieldPatch('theme');
@@ -2609,6 +2615,14 @@ async function runClientStateTests() {
         payload: false
       }
     });
+  });
+
+  assertTest('client JSON response contracts classify media types without transport state', () => {
+    assert.strictEqual(isJsonContentType('application/json; charset=utf-8'), true);
+    assert.strictEqual(isJsonContentType('application/problem+json'), true);
+    assert.strictEqual(isJsonContentType('application/jsonp'), false);
+    assert.strictEqual(isJsonContentType('text/html'), false);
+    assert.strictEqual(createJsonUnavailableError(502).message, 'JSON API unavailable (502)');
   });
 
   assertTest('client photo event projection updates the selected frame side immutably', () => {
@@ -2861,13 +2875,6 @@ async function runClientStateTests() {
       }
     };
 
-    const emittedEvents = [];
-    global.fetch = async () => ({
-      ok: false,
-      status: 404,
-      json: async () => ({})
-    });
-
     const {
       saveUseApiToken: saveClientUseApiToken,
       selectCategories: selectClientCategories,
@@ -2875,6 +2882,55 @@ async function runClientStateTests() {
       startRecrawlJob: startClientRecrawlJob,
       startVisionAnalysisJob: startClientVisionAnalysisJob
     } = await importClientModule('./client/src/api/luminaClient.js');
+
+    const requestCalls = [];
+    global.fetch = async (url, options) => {
+      requestCalls.push({ url, options });
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json; charset=utf-8' },
+        json: async () => ({ success: true })
+      };
+    };
+    const readResult = await readJson('/api/environment');
+    const postResult = await postJson('/api/environment/settings', { enabled: true });
+
+    assertTest('shared client JSON transport keeps read and post effects at one boundary', () => {
+      assert.deepStrictEqual(readResult, { success: true });
+      assert.deepStrictEqual(postResult, { success: true });
+      assert.deepStrictEqual(requestCalls, [
+        {
+          url: 'http://127.0.0.1:5000/api/environment',
+          options: { method: 'GET', headers: undefined, body: undefined }
+        },
+        {
+          url: 'http://127.0.0.1:5000/api/environment/settings',
+          options: {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true })
+          }
+        }
+      ]);
+    });
+
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/html' },
+      json: async () => ({})
+    });
+    await assertAsyncTest('shared read contract rejects an HTML response before view-specific presentation', async () => {
+      await assert.rejects(readJson('/api/environment'), /JSON API unavailable \(200\)/);
+    });
+
+    const emittedEvents = [];
+    global.fetch = async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({})
+    });
     const fallbackResult = await selectClientCategories('Scenic Nature,Liminal Spaces', {
       socket: {
         emit: (...args) => emittedEvents.push(args)

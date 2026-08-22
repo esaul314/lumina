@@ -27,17 +27,7 @@ import {
   selectEnvironmentDevice,
   upsertEnvironmentDevice
 } from '../../state/environmentHistory';
-
-const readJson = async path => {
-  const response = await fetch(path);
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    throw new Error(`Environment API unavailable (${response.status})`);
-  }
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error || 'Environment request failed');
-  return body;
-};
+import { postJson, readJson } from '../../api/jsonClient.js';
 
 const UNIT_FIELDS = [
   ['temperature', 'Temperature', ['C', 'F']],
@@ -168,13 +158,7 @@ function EnvironmentSettingsTab({ state, handleToggleWidget }) {
     setSaving(true);
     setMessage(null);
     try {
-      const response = await fetch('/api/environment/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nextSettings)
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body?.error || 'Could not save sensor settings');
+      const body = await postJson('/api/environment/settings', nextSettings);
       applyServerSettings(body.settings, preferredDeviceId);
       setMessage({ tone: 'success', text: successMessage || 'Environment settings saved.' });
       await refreshReadings({ quiet: true });

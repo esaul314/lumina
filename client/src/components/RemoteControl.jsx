@@ -12,6 +12,7 @@ import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import { useCropDrag } from '../hooks/useCropDrag';
 import { useActivePhotoSync } from '../hooks/useActivePhotoSync';
 import { useImagePreloader } from '../hooks/useImagePreloader';
+import { postJson } from '../api/jsonClient.js';
 import {
   DEFAULT_TV_PREVIEW_DIMENSIONS,
   fitTvPreviewFrame,
@@ -417,12 +418,10 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
     e.preventDefault();
     if (googleClientId && googleClientSecret) {
       try {
-        const res = await fetch('/api/auth/google/credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId: googleClientId, clientSecret: googleClientSecret })
+        const data = await postJson('/api/auth/google/credentials', {
+          clientId: googleClientId,
+          clientSecret: googleClientSecret
         });
-        const data = await res.json();
         if (data.success) {
           setIsSavedEnv(true);
           window.location.href = '/api/auth/google/login';
