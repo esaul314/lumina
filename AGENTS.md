@@ -228,6 +228,7 @@ The client is built using React (Vite) and styled with raw vanilla CSS to enable
 * **Mood Aesthetics Panel**: Toggles the overall theme profile of the screensaver.
 * **System Switchboard**: Enables remote control of individual TV widgets (clock, particles, weather, aura backlights, Ken Burns pan-and-zoom) and transitions.
 * **Google Photos Connector Layout**: A configuration interface ready to receive Google OAuth client credentials for direct private album casting.
+* **Image Feeds workspace**: The Independent Rating Deck and Scenic Feed Source Manager use immutable local panel state for accessible collapse/expand and maximize/restore interactions. Keep future drag-reordering behind an explicit ordered-panel model and keyboard/touch contract; the rating deck already uses pointer gestures for crop positioning.
 
 ---
 

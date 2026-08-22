@@ -2258,3 +2258,29 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Verification**: `npm test` passes with 275 tests, 273 assertions, and 0
   failures; the temporary Unix-socket smoke remains skipped because the
   sandbox denies `listen` with `EPERM`.
+
+### 2026-08-21: Focusable Image Feeds Workspace Panels
+
+- **Goal**: make the two largest Image Feeds work areas approachable when the
+  page contains many controls, while preserving the existing responsive
+  desktop/mobile layout.
+- **Implementation**: added pure `imageFeedsPanels` state transitions for
+  immutable collapse/expand and maximize/restore behavior. The Rating Deck
+  and Source Manager now expose labeled buttons with `aria-expanded`,
+  `aria-controls`, and `aria-pressed`; focused mode gives one panel the full
+  workspace and temporarily hides the other.
+- **Functional boundary**: panel identifiers and transitions are pure and
+  JSDoc-typed; React interprets them through one small panel component, while
+  CSS remains the declarative responsive/focused-layout interpreter.
+- **Design decision**: drag-reordering is deferred. A useful implementation
+  needs persisted order semantics plus keyboard and touch behavior that does
+  not interfere with the Rating Deck crop gesture. Collapse and focused
+  editing address the immediate density problem with less interaction risk.
+- **Regression coverage**: pure panel-state tests cover immutability,
+  independent collapse, automatic reopening on maximize, and restore; source
+  assertions cover the accessible controls. Headless Chromium also verified
+  maximize/restore, panel-scoped collapse, and the stacked 390px header.
+- **Verification**: `npm test` passes with 276 tests and 274 assertions; the
+  client production build succeeds; lint passes with the three existing
+  warnings; the live service is active with zero restarts and serves the new
+  bundle.
