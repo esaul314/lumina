@@ -17,6 +17,7 @@ import {
   getGooglePhotosPickerStatus
 } from './googlePhotosPicker';
 import { parseFeedParameterInput, splitKeywordInput } from '../../state/keywordInput';
+import { getPoolLifecycleRows } from '../../state/poolLifecycleView';
 
 function ImageFeedsTab({
   state,
@@ -117,6 +118,7 @@ function ImageFeedsTab({
   const poolPolicy = (category) => readPoolPolicy(state.poolPolicies, category);
   const getDraftPolicy = readPoolPolicyDraft(poolPolicy);
   const draftPolicy = (category) => getDraftPolicy(policyDrafts, category);
+  const lifecycleRows = getPoolLifecycleRows(categories, draftPolicy);
   const updatePolicyDraft = (category, field, value) => {
     const nextDrafts = mergePoolPolicyDraft(poolPolicy)(policyDraftsRef.current, category, field, value);
     policyDraftsRef.current = nextDrafts;
@@ -143,10 +145,10 @@ function ImageFeedsTab({
   };
 
   return (
-    <>
-      <div className="remote-card">
+    <div className="image-feeds-page">
+      <div className="remote-card image-feeds-card image-feeds-overview">
         <span className="remote-section-title">Curated Scenic Categories</span>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="image-feed-category-list">
           {categories.map((cat) => {
             const isActive = isCategorySelected(selectedCategorySnapshot, cat);
             return (
@@ -209,47 +211,64 @@ function ImageFeedsTab({
           })}
         </div>
 
-        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <span className="remote-section-title">Pool Lifecycle</span>
+        <section className="pool-lifecycle-section" aria-labelledby="pool-lifecycle-title">
+          <span id="pool-lifecycle-title" className="remote-section-title">Pool Lifecycle</span>
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', margin: '4px 0 12px' }}>
             New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept. Enable a daily local-time window to activate a pool automatically, including overnight windows.
           </p>
-          {categories.filter((category) => category !== 'Google Photos').map((category) => {
-            const policy = draftPolicy(category);
+          <div className="pool-lifecycle-grid">
+          {lifecycleRows.map(({ category, policy, scheduleLabel }) => {
             return (
-              <div key={category} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 90px minmax(0, 1.5fr) auto', gap: '8px', alignItems: 'end', marginBottom: '10px' }}>
-                <label style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>{category}</label>
-                <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Keep days
-                  <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
-                </label>
-                <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Max photos
-                  <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr 70px', gap: '5px', alignItems: 'end' }}>
-                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Schedule
+              <article className="pool-lifecycle-card" key={category}>
+                <div className="pool-lifecycle-heading">
+                  <div>
+                    <h3>{category}</h3>
+                    <span className="pool-lifecycle-summary">{scheduleLabel}</span>
+                  </div>
+                  <button type="button" className="remote-btn pool-lifecycle-save" onClick={() => savePoolPolicy(category)}>Save</button>
+                </div>
+                <div className="pool-lifecycle-limits">
+                  <label className="pool-lifecycle-field">Keep photos for
+                    <span className="pool-lifecycle-input-wrap">
+                      <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} onBlur={() => savePoolPolicy(category)} />
+                      <span>days</span>
+                    </span>
+                  </label>
+                  <label className="pool-lifecycle-field">Maximum photos
+                    <span className="pool-lifecycle-input-wrap">
+                      <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} onBlur={() => savePoolPolicy(category)} />
+                      <span>photos</span>
+                    </span>
+                  </label>
+                </div>
+                <fieldset className="pool-schedule-fieldset">
+                  <legend>Automatic activation</legend>
+                  <label className="pool-schedule-toggle">
                     <input
                       type="checkbox"
                       checked={Boolean(policy.schedule?.enabled)}
                       onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, enabled: event.target.checked })}
                       onBlur={() => savePoolPolicy(category)}
-                      style={{ display: 'block', marginTop: '7px' }}
                     />
+                    <span>Enable daily window</span>
                   </label>
-                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>From
-                    <input type="time" value={policy.schedule?.start || '22:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, start: event.target.value })} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
-                  </label>
-                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Until
-                    <input type="time" value={policy.schedule?.end || '06:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, end: event.target.value })} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
-                  </label>
-                  <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>Priority
-                    <input type="number" min="-10000" max="10000" value={policy.schedule?.priority ?? 0} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, priority: event.target.value })} onBlur={() => savePoolPolicy(category)} style={{ width: '100%', marginTop: '4px' }} />
-                  </label>
-                </div>
-                <button type="button" className="remote-btn" onClick={() => savePoolPolicy(category)} style={{ padding: '7px 9px', fontSize: '0.72rem' }}>Save</button>
-              </div>
+                  <div className="pool-schedule-fields">
+                    <label className="pool-lifecycle-field">From
+                      <input type="time" value={policy.schedule?.start || '22:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, start: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                    </label>
+                    <label className="pool-lifecycle-field">Until
+                      <input type="time" value={policy.schedule?.end || '06:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, end: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                    </label>
+                    <label className="pool-lifecycle-field">Priority
+                      <input type="number" min="-10000" max="10000" value={policy.schedule?.priority ?? 0} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, priority: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                    </label>
+                  </div>
+                </fieldset>
+              </article>
             );
           })}
-        </div>
+          </div>
+        </section>
 
         {/* Create New Scenic Pool Form */}
         <div style={{
@@ -429,7 +448,8 @@ function ImageFeedsTab({
         </div>
       </div>
 
-      <div className="remote-card">
+      <div className="image-feeds-workspace">
+      <div className="remote-card image-feeds-card image-feeds-rating">
         <span className="remote-section-title">Independent Rating Deck</span>
         {tvPreviewMetaLabel && (
           <div style={{
@@ -777,7 +797,7 @@ function ImageFeedsTab({
         )}
       </div>
 
-      <div className="remote-card">
+      <div className="remote-card image-feeds-card image-feeds-source">
         <span className="remote-section-title">Scenic Feed Source Manager</span>
         <p style={{ fontSize: '0.72rem', opacity: 0.5, lineHeight: '1.35', marginTop: '6px', marginBottom: '12px' }}>
           Configure search keywords, subreddits, Tumblr blogs, or Tumblr tags for each image source in this scenic pool.
@@ -811,7 +831,7 @@ function ImageFeedsTab({
         </div>
 
         {/* List of feed sources */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="image-feed-source-grid">
           {[
             { key: 'unsplash', name: 'Unsplash Scenic', param: 'keywords', placeholder: 'Add keyword (e.g. mountains)...' },
             { key: 'wallhaven', name: 'Wallhaven SFW', param: 'keywords', placeholder: 'Add keyword (e.g. nature)...' },
@@ -1018,8 +1038,9 @@ function ImageFeedsTab({
           })}
         </div>
       </div>
+      </div>
 
-      <section className="remote-card" aria-labelledby="google-photos-picker-title" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>
+      <section className="remote-card image-feeds-card image-feeds-google" aria-labelledby="google-photos-picker-title" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>
         <details>
           <summary style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', listStyle: 'none' }}>
             <span style={{ fontSize: '1.4rem' }}>🖼️</span>
@@ -1079,7 +1100,7 @@ function ImageFeedsTab({
         </details>
       </section>
 
-    </>
+    </div>
   );
 }
 

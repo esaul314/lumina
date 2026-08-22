@@ -973,6 +973,9 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.ok(imageFeedsSource.indexOf('Curated Scenic Categories') < imageFeedsSource.indexOf('google-photos-picker-title'));
   assert.match(imageFeedsSource, /<details>\s*<summary/);
   assert.doesNotMatch(imageFeedsSource, /<details\s+open/);
+  assert.match(imageFeedsSource, /className="image-feeds-page"/);
+  assert.match(imageFeedsSource, /className="pool-lifecycle-grid"/);
+  assert.match(imageFeedsSource, /className="image-feed-source-grid"/);
 });
 
 assertAsyncTest('pool policy drafts preserve a just-edited maximum through synchronous save reads', async () => {
@@ -994,6 +997,31 @@ assertAsyncTest('pool policy drafts preserve a just-edited maximum through synch
     schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
   });
   assert.strictEqual(readDraft({}, 'Scenic Nature').maxPhotos, 2000);
+});
+
+assertAsyncTest('pool lifecycle view models keep schedule presentation pure and responsive', async () => {
+  const {
+    formatPoolSchedule,
+    getPoolLifecycleRows
+  } = await importClientModule('./client/src/state/poolLifecycleView.js');
+  const policyFor = (category) => category === 'Night Mood'
+    ? { schedule: { enabled: true, start: '22:00', end: '06:00' } }
+    : { schedule: { enabled: false } };
+
+  assert.strictEqual(formatPoolSchedule({ enabled: true, start: '22:00', end: '06:00' }), '22:00–06:00');
+  assert.strictEqual(formatPoolSchedule({ enabled: false }), 'Manual activation');
+  assert.deepStrictEqual(getPoolLifecycleRows(['Google Photos', 'Night Mood', 'Day Mood'], policyFor), [
+    {
+      category: 'Night Mood',
+      policy: { schedule: { enabled: true, start: '22:00', end: '06:00' } },
+      scheduleLabel: '22:00–06:00'
+    },
+    {
+      category: 'Day Mood',
+      policy: { schedule: { enabled: false } },
+      scheduleLabel: 'Manual activation'
+    }
+  ]);
 });
 
 assertAsyncTest('pool schedule runtime activates a pool, honors manual override, and restores the baseline', async () => {

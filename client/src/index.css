@@ -533,6 +533,173 @@ body {
   margin-bottom: 16px;
 }
 
+/* --- IMAGE FEEDS ADMIN WORKSPACE --- */
+.image-feeds-page {
+  width: 100%;
+  max-width: 1120px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.image-feeds-page .image-feeds-card {
+  max-width: none;
+  margin: 0;
+}
+
+.image-feeds-overview {
+  gap: 16px;
+}
+
+.image-feed-category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.pool-lifecycle-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pool-lifecycle-section > .remote-section-title {
+  margin-bottom: 0;
+}
+
+.pool-lifecycle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 12px;
+}
+
+.pool-lifecycle-card {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.pool-lifecycle-heading,
+.pool-schedule-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pool-lifecycle-heading h3 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.pool-lifecycle-summary {
+  display: block;
+  margin-top: 3px;
+  color: var(--accent-color);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pool-lifecycle-save {
+  flex: none;
+  padding: 7px 11px;
+  font-size: 0.72rem;
+}
+
+.pool-lifecycle-limits,
+.pool-schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pool-lifecycle-field {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.7rem;
+}
+
+.pool-lifecycle-field input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.pool-lifecycle-input-wrap {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.pool-lifecycle-input-wrap > span {
+  color: rgba(255, 255, 255, 0.36);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.pool-schedule-fieldset {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+}
+
+.pool-schedule-fieldset legend {
+  padding: 0 5px;
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 0.68rem;
+}
+
+.pool-schedule-toggle {
+  justify-content: flex-start;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.76rem;
+}
+
+.pool-schedule-toggle input {
+  accent-color: var(--accent-color);
+  flex: none;
+}
+
+.pool-schedule-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.image-feeds-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.45fr);
+  gap: 16px;
+}
+
+.image-feed-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.image-feeds-source {
+  min-width: 0;
+}
+
 .remote-section-title {
   font-size: 0.9rem;
   font-weight: 600;
@@ -1148,6 +1315,10 @@ body {
 }
 
 @media (max-width: 839px) {
+  .image-feeds-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .environment-overview-grid,
   .environment-secondary-grid,
   .environment-device-manager {
@@ -1160,6 +1331,29 @@ body {
 }
 
 @media (max-width: 599px) {
+  .image-feeds-page .remote-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .image-feed-category-list,
+  .image-feed-source-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pool-lifecycle-heading {
+    align-items: flex-start;
+  }
+
+  .pool-lifecycle-limits,
+  .pool-schedule-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pool-schedule-fields .pool-lifecycle-field:last-child {
+    grid-column: 1 / -1;
+  }
+
   .environment-page-header,
   .environment-devices-heading {
     align-items: stretch;
