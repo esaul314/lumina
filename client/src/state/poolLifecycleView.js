@@ -4,7 +4,7 @@
  * @typedef {Object} PoolLifecycleRow
  * @property {string} category
  * @property {Object} policy
- * @property {string} scheduleLabel
+ * @property {{retention: string, maximum: string, schedule: string}} summary
  */
 
 const DEFAULT_START = '22:00';
@@ -17,6 +17,16 @@ const DEFAULT_END = '06:00';
 export const formatPoolSchedule = (schedule = {}) => schedule?.enabled
   ? `${schedule.start || DEFAULT_START}–${schedule.end || DEFAULT_END}`
   : 'Manual activation';
+
+/**
+ * @param {Object} policy
+ * @returns {{retention: string, maximum: string, schedule: string}}
+ */
+export const formatPoolLifecycleSummary = ({ retentionDays, maxPhotos, schedule } = {}) => ({
+  retention: `${retentionDays} days`,
+  maximum: `${maxPhotos} photos`,
+  schedule: formatPoolSchedule(schedule)
+});
 
 /**
  * Build the presentation rows for the lifecycle editor without coupling the
@@ -33,6 +43,6 @@ export const getPoolLifecycleRows = (categories = [], policyFor) => categories
     return {
       category,
       policy,
-      scheduleLabel: formatPoolSchedule(policy.schedule)
+      summary: formatPoolLifecycleSummary(policy)
     };
   });

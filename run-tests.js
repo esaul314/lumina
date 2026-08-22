@@ -975,6 +975,8 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.doesNotMatch(imageFeedsSource, /<details\s+open/);
   assert.match(imageFeedsSource, /className="image-feeds-page"/);
   assert.match(imageFeedsSource, /className="pool-lifecycle-grid"/);
+  assert.match(imageFeedsSource, /<details className="pool-lifecycle-card"/);
+  assert.match(imageFeedsSource, /Configure <ChevronDown/);
   assert.match(imageFeedsSource, /className="image-feed-source-grid"/);
 });
 
@@ -1001,25 +1003,43 @@ assertAsyncTest('pool policy drafts preserve a just-edited maximum through synch
 
 assertAsyncTest('pool lifecycle view models keep schedule presentation pure and responsive', async () => {
   const {
+    formatPoolLifecycleSummary,
     formatPoolSchedule,
     getPoolLifecycleRows
   } = await importClientModule('./client/src/state/poolLifecycleView.js');
   const policyFor = (category) => category === 'Night Mood'
-    ? { schedule: { enabled: true, start: '22:00', end: '06:00' } }
-    : { schedule: { enabled: false } };
+    ? { retentionDays: 30, maxPhotos: 2000, schedule: { enabled: true, start: '22:00', end: '06:00' } }
+    : { retentionDays: 14, maxPhotos: 500, schedule: { enabled: false } };
 
   assert.strictEqual(formatPoolSchedule({ enabled: true, start: '22:00', end: '06:00' }), '22:00–06:00');
   assert.strictEqual(formatPoolSchedule({ enabled: false }), 'Manual activation');
+  assert.deepStrictEqual(formatPoolLifecycleSummary({
+    retentionDays: 30,
+    maxPhotos: 2000,
+    schedule: { enabled: false }
+  }), {
+    retention: '30 days',
+    maximum: '2000 photos',
+    schedule: 'Manual activation'
+  });
   assert.deepStrictEqual(getPoolLifecycleRows(['Google Photos', 'Night Mood', 'Day Mood'], policyFor), [
     {
       category: 'Night Mood',
-      policy: { schedule: { enabled: true, start: '22:00', end: '06:00' } },
-      scheduleLabel: '22:00–06:00'
+      policy: { retentionDays: 30, maxPhotos: 2000, schedule: { enabled: true, start: '22:00', end: '06:00' } },
+      summary: {
+        retention: '30 days',
+        maximum: '2000 photos',
+        schedule: '22:00–06:00'
+      }
     },
     {
       category: 'Day Mood',
-      policy: { schedule: { enabled: false } },
-      scheduleLabel: 'Manual activation'
+      policy: { retentionDays: 14, maxPhotos: 500, schedule: { enabled: false } },
+      summary: {
+        retention: '14 days',
+        maximum: '500 photos',
+        schedule: 'Manual activation'
+      }
     }
   ]);
 });

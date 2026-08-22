@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, ChevronDown, Plus } from 'lucide-react';
 import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
 import {
   DEFAULT_COVER_CROP_PERCENT,
@@ -217,54 +217,66 @@ function ImageFeedsTab({
             New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept. Enable a daily local-time window to activate a pool automatically, including overnight windows.
           </p>
           <div className="pool-lifecycle-grid">
-          {lifecycleRows.map(({ category, policy, scheduleLabel }) => {
+          {lifecycleRows.map(({ category, policy, summary }) => {
             return (
-              <article className="pool-lifecycle-card" key={category}>
-                <div className="pool-lifecycle-heading">
-                  <div>
-                    <h3>{category}</h3>
-                    <span className="pool-lifecycle-summary">{scheduleLabel}</span>
-                  </div>
-                  <button type="button" className="remote-btn pool-lifecycle-save" onClick={() => savePoolPolicy(category)}>Save</button>
-                </div>
-                <div className="pool-lifecycle-limits">
-                  <label className="pool-lifecycle-field">Keep photos for
-                    <span className="pool-lifecycle-input-wrap">
-                      <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} onBlur={() => savePoolPolicy(category)} />
-                      <span>days</span>
+              <details className="pool-lifecycle-card" key={category}>
+                <summary className="pool-lifecycle-summary-row">
+                  <span className="pool-lifecycle-summary-content">
+                    <span className="pool-lifecycle-summary-name" role="heading" aria-level="3">{category}</span>
+                    <span className="pool-lifecycle-summary-pills" aria-label={`${category} lifecycle summary`}>
+                      <span>{summary.retention}</span>
+                      <span>{summary.maximum}</span>
+                      <span className={policy.schedule?.enabled ? 'is-scheduled' : ''}>{summary.schedule}</span>
                     </span>
-                  </label>
-                  <label className="pool-lifecycle-field">Maximum photos
-                    <span className="pool-lifecycle-input-wrap">
-                      <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} onBlur={() => savePoolPolicy(category)} />
-                      <span>photos</span>
-                    </span>
-                  </label>
-                </div>
-                <fieldset className="pool-schedule-fieldset">
-                  <legend>Automatic activation</legend>
-                  <label className="pool-schedule-toggle">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(policy.schedule?.enabled)}
-                      onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, enabled: event.target.checked })}
-                      onBlur={() => savePoolPolicy(category)}
-                    />
-                    <span>Enable daily window</span>
-                  </label>
-                  <div className="pool-schedule-fields">
-                    <label className="pool-lifecycle-field">From
-                      <input type="time" value={policy.schedule?.start || '22:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, start: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                  </span>
+                  <span className="pool-lifecycle-summary-action">
+                    Configure <ChevronDown className="pool-lifecycle-chevron" size={18} aria-hidden="true" />
+                  </span>
+                </summary>
+                <div className="pool-lifecycle-panel">
+                  <div className="pool-lifecycle-limits">
+                    <label className="pool-lifecycle-field">Keep photos for
+                      <span className="pool-lifecycle-input-wrap">
+                        <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} onBlur={() => savePoolPolicy(category)} />
+                        <span>days</span>
+                      </span>
                     </label>
-                    <label className="pool-lifecycle-field">Until
-                      <input type="time" value={policy.schedule?.end || '06:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, end: event.target.value })} onBlur={() => savePoolPolicy(category)} />
-                    </label>
-                    <label className="pool-lifecycle-field">Priority
-                      <input type="number" min="-10000" max="10000" value={policy.schedule?.priority ?? 0} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, priority: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                    <label className="pool-lifecycle-field">Maximum photos
+                      <span className="pool-lifecycle-input-wrap">
+                        <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} onBlur={() => savePoolPolicy(category)} />
+                        <span>photos</span>
+                      </span>
                     </label>
                   </div>
-                </fieldset>
-              </article>
+                  <fieldset className="pool-schedule-fieldset">
+                    <legend>Automatic activation</legend>
+                    <label className="pool-schedule-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(policy.schedule?.enabled)}
+                        onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, enabled: event.target.checked })}
+                        onBlur={() => savePoolPolicy(category)}
+                      />
+                      <span>Enable daily window</span>
+                    </label>
+                    <div className="pool-schedule-fields">
+                      <label className="pool-lifecycle-field">From
+                        <input type="time" value={policy.schedule?.start || '22:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, start: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                      </label>
+                      <label className="pool-lifecycle-field">Until
+                        <input type="time" value={policy.schedule?.end || '06:00'} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, end: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                      </label>
+                      <label className="pool-lifecycle-field">Priority
+                        <input type="number" min="-10000" max="10000" value={policy.schedule?.priority ?? 0} onChange={(event) => updatePolicyDraft(category, 'schedule', { ...policy.schedule, priority: event.target.value })} onBlur={() => savePoolPolicy(category)} />
+                      </label>
+                    </div>
+                  </fieldset>
+                  <div className="pool-lifecycle-footer">
+                    <span>Changes save when a field loses focus.</span>
+                    <button type="button" className="remote-btn pool-lifecycle-save" onClick={() => savePoolPolicy(category)}>Save changes</button>
+                  </div>
+                </div>
+              </details>
             );
           })}
           </div>
