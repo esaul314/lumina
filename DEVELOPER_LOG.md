@@ -2207,3 +2207,33 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Roadmap**: Step 5 remains active. The next seam is still client snapshot
   normalization and live-sync projection, beginning with `useLuminaActions`
   response application and the app-level `state-sync` path.
+
+### 2026-08-21: Add Progressive Disclosure to Pool Lifecycle Editing
+
+- **Goal**: reduce the intimidation and visual noise of showing retention,
+  maximum-photo, and schedule controls for every pool at the same time.
+- **Research**: [Material expansion panels](https://m1.material.io/components/expansion-panels.html)
+  recommend collapsed panels that expose summary information before opening a
+  lightweight editor. [Carbon accordion guidance](https://carbondesignsystem.com/components/accordion/usage/)
+  supports progressive disclosure for long settings surfaces but warns that
+  hidden content must remain discoverable. [GOV.UK Details guidance](https://design-system.service.gov.uk/components/details/)
+  recommends short descriptive disclosure labels and highlights assistive
+  technology considerations. The resulting pattern is a native disclosure
+  panel, not a modal or a second settings page.
+- **Implementation**:
+  - Pool cards are closed by default and expose the current retention, maximum,
+    and schedule state as readable summary pills.
+  - `Configure` is a clear, keyboard-focusable native summary action with a
+    rotating chevron; the expanded panel keeps the existing field-level save
+    behavior and adds an explicit `Save changes` action.
+  - Summary formatting remains in the pure
+    `formatPoolLifecycleSummary(...)` projection; no React expansion state or
+    imperative accordion controller was added.
+- **Functional boundary**: the policy-to-summary mapping is deterministic and
+  tested; `<details>` owns disclosure state as a browser primitive; React
+  retains only draft updates and persistence effects.
+- **Verification**: the complete test suite remains green at 275 tests and
+  273 assertions; client build and lint pass with the three existing warnings.
+- **Roadmap**: Step 5 remains active, with snapshot normalization and live
+  `state-sync` projection still the next engineering seam after this UI
+  refinement.
