@@ -2237,3 +2237,24 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Roadmap**: Step 5 remains active, with snapshot normalization and live
   `state-sync` projection still the next engineering seam after this UI
   refinement.
+
+### 2026-08-21: Preserve Unrelated Pools During Scheduled Activation
+
+- **Incident**: scheduled activation dispatched a singleton
+  `select-categories` payload, replacing the user's complete active selection
+  with the scheduled pool and silently deactivating every other pool.
+- **Correction**: added the pure `appendUniqueCategory(...)` domain helper and
+  changed the scheduler to derive `baseline + scheduled pool` immutably. The
+  runtime remembers the exact activation selection for manual-override
+  detection, then restores the original baseline at the next schedule
+  boundary.
+- **Functional boundary**: category-set projection and deduplication remain
+  pure; the scheduler retains only time evaluation, manual-override state, and
+  the explicit dispatch effect.
+- **Regression coverage**: the runtime test now starts with Scenic Nature and
+  Liminal Spaces active, verifies Night Mood is appended, and verifies both
+  baseline preservation and boundary restoration. Domain tests also verify
+  helper immutability and duplicate handling.
+- **Verification**: `npm test` passes with 275 tests, 273 assertions, and 0
+  failures; the temporary Unix-socket smoke remains skipped because the
+  sandbox denies `listen` with `EPERM`.
