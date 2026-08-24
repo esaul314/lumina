@@ -33,6 +33,36 @@ function saveCache() {
   }
 }
 
+const normalizeApiBaseUrl = (value) => String(value || '').trim().replace(/\/$/, '');
+
+const isVisionModelId = (modelId) => {
+  const normalized = String(modelId || '').toLowerCase();
+  return normalized.includes('vision') || normalized.includes('vl') || normalized.includes('multimodal');
+};
+
+/**
+ * Resolve only a model that is present in the live OpenAI-compatible catalog.
+ * A persisted model id is a preference, not proof that the single-card host
+ * currently serves that capability.
+ */
+async function discoverVisionModel(apiBaseUrl, configuredModel = '') {
+  const response = await fetch(`${apiBaseUrl}/models`, { signal: AbortSignal.timeout(5000) });
+  if (!response.ok) return null;
+  const data = await response.json();
+  const models = Array.isArray(data.data) ? data.data : [];
+  const liveIds = models
+    .map((model) => String(model?.id || '').trim())
+    .filter(Boolean);
+  const preferred = String(configuredModel || '').trim();
+  if (preferred && liveIds.includes(preferred) && isVisionModelId(preferred)) {
+    return preferred;
+  }
+  if (preferred && !liveIds.includes(preferred)) {
+    console.warn(`[Vision Service] Configured vision model "${preferred}" is not live; using capability discovery.`);
+  }
+  return liveIds.find(isVisionModelId) || null;
+}
+
 /**
  * 🖼️ fetchImageBase64
  * Downloads a remote image from URL and returns its base64 string.
@@ -67,12 +97,25 @@ async function analyzeImageContent(imageUrl, title = '') {
 
   // Retrieve configuration from screensaverState
   const config = screensaverState.visionConfig || {};
-  const primaryUrl = config.apiUrl ? config.apiUrl.trim() : '';
-  const primaryModel = config.model ? config.model.trim() : '';
+  const primaryUrl = normalizeApiBaseUrl(config.apiUrl);
+  const primaryModel = String(config.model || '').trim();
   const primaryKey = config.apiKey ? config.apiKey.trim() : '';
 
   if (!primaryUrl) {
     console.warn('[Vision Service] Vision API is not configured. Skipping background content analysis.');
+    return null;
+  }
+
+  let activeModel;
+  try {
+    activeModel = await discoverVisionModel(primaryUrl, primaryModel);
+  } catch (err) {
+    console.warn('[Vision Service] Failed to discover a live vision model:', err.message);
+    return null;
+  }
+
+  if (!activeModel) {
+    console.warn('[Vision Service] No live vision-capable model is exposed by the primary API.');
     return null;
   }
 
@@ -92,35 +135,6 @@ async function analyzeImageContent(imageUrl, title = '') {
                      '"isSnowy" is true if it has snow, ice, or winter alpine frost. ' +
                      '"isNight" is true if it is dark, sunset, starry space, twilight, or night. ' +
                      'Do not include any markdown block formatting, code backticks, or extra text.';
-
-  // Determine active model to use
-  let activeModel = primaryModel;
-  if (!activeModel) {
-    // Attempt dynamic discovery from /models endpoint
-    try {
-      console.log(`[Vision Service] Model ID unspecified. Querying ${primaryUrl}/models for discovery...`);
-      const response = await fetch(`${primaryUrl}/models`, { signal: AbortSignal.timeout(5000) });
-      if (response.ok) {
-        const data = await response.json();
-        const models = data.data || [];
-        // Scan for common vision/VL model strings
-        const match = models.find(m =>
-          m.id &&
-          (m.id.toLowerCase().includes('vl') || m.id.toLowerCase().includes('vision'))
-        );
-        if (match) {
-          activeModel = match.id;
-          console.log(`[Vision Service] Dynamically resolved vision model: "${activeModel}"`);
-        }
-      }
-    } catch (err) {
-      console.warn('[Vision Service] Failed to dynamically query models from primary API:', err.message);
-    }
-  }
-
-  if (!activeModel) {
-    activeModel = 'qwen-vl'; // Generic default fallback if still empty
-  }
 
   const payload = {
     model: activeModel,
@@ -247,5 +261,8 @@ async function analyzeImageContent(imageUrl, title = '') {
 }
 
 module.exports = {
-  analyzeImageContent
+  analyzeImageContent,
+  discoverVisionModel,
+  isVisionModelId,
+  normalizeApiBaseUrl
 };

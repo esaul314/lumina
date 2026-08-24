@@ -2284,3 +2284,18 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   client production build succeeds; lint passes with the three existing
   warnings; the live service is active with zero restarts and serves the new
   bundle.
+
+### 2026-08-24: Resolve Vision Routes Through the Live Capability Catalog
+
+- **Problem**: persisted vision configuration could name a model that the
+  single-card Luminatus router no longer served, causing Lumina image requests
+  to target a stale model and receive a 404.
+- **Implementation**: normalize the configured API base, query the live
+  OpenAI-compatible `/models` catalog, honor the configured model only when it
+  is live and vision-capable, and otherwise select a live vision/multimodal
+  model. If discovery cannot find one, the request fails closed without
+  inventing a model id.
+- **Regression coverage**: added a deterministic routing test covering live
+  preference, stale preference discovery, and the no-live-VLM case.
+- **Verification**: remote `node run-tests.js` passes with 306 assertions;
+  targeted vision routing tests pass.
