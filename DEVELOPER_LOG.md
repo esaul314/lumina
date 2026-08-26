@@ -6,6 +6,16 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-26: Extend Default Day Hours to 9 AM – 6 PM for Environment Stats
+
+- **Goal**: Update the day and night hour designations for environmental stats queries and Grafana panels to 9am till 6pm.
+- **Implementation**:
+  - Updated `server/services/sensorHistory.js` to default `dayStart = 9` (09:00) and `dayEnd = 18` (18:00) with matching integer clamping fallbacks.
+  - Day hours are designated as `[09:00, 18:00)` (hours 9–17) and Night hours as `[18:00, 09:00)` (hours 18–8).
+  - Updated `run-tests.js` test assertions to verify default and invalid-option fallback behavior for `day_start: 9` and `day_end: 18`.
+- **Learning**: Explicit default parameters in SQLite aggregation helpers ensure that both parameterized Grafana queries and raw API consumers stay synchronized.
+- **Verification**: `npm test` passed with 306/306 assertions and 11/11 sensor adapter tests. `lumina.service` restarted cleanly and live queries via the loopback relay confirmed `day_start: 9` and `day_end: 18`.
+
 ### 2026-08-21: Make Socket Command Selection Explicit
 
 - **Goal**: Continue implementation-companion Step 4 by removing command-runner selection from the Socket.IO listener's async shell.

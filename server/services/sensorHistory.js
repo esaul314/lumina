@@ -145,10 +145,11 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
   );
 
   // Keep aggregation in SQLite so the API does not materialize the full history.
-  const stats = ({ days = 7, dayStart = 7, dayEnd = 19 } = {}) => {
+  // ponytail: defaults dayStart to 9 (9am) and dayEnd to 18 (6pm) for home environment day/night periods
+  const stats = ({ days = 7, dayStart = 9, dayEnd = 18 } = {}) => {
     const validDays = clampInteger(days, 7, 1, 90);
-    const validStart = clampInteger(dayStart, 7, 0, 23);
-    const validEnd = clampInteger(dayEnd, 19, 0, 23);
+    const validStart = clampInteger(dayStart, 9, 0, 23);
+    const validEnd = clampInteger(dayEnd, 18, 0, 23);
 
     const summarySql = 'SELECT ' +
       "CASE WHEN CAST(strftime('%H', observed_at, 'localtime') AS INTEGER) >= ? " +

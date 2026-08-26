@@ -1800,8 +1800,13 @@ assertTest('stores one latest reading per hour and exports queryable CSV', () =>
 
   const invalidOptions = store.stats({ days: 'invalid', dayStart: 'invalid', dayEnd: 'invalid' });
   assert.strictEqual(invalidOptions.days, 7);
-  assert.strictEqual(invalidOptions.day_start, 7);
-  assert.strictEqual(invalidOptions.day_end, 19);
+  assert.strictEqual(invalidOptions.day_start, 9);
+  assert.strictEqual(invalidOptions.day_end, 18);
+
+  const defaultStats = store.stats();
+  assert.strictEqual(defaultStats.days, 7);
+  assert.strictEqual(defaultStats.day_start, 9);
+  assert.strictEqual(defaultStats.day_end, 18);
   store.close();
 });
 
