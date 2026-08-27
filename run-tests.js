@@ -970,6 +970,10 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
     path.join(__dirname, 'client/src/components/remote/ImageFeedsTab.jsx'),
     'utf8'
   );
+  const imageFeedsCss = fs.readFileSync(
+    path.join(__dirname, 'client/src/index.css'),
+    'utf8'
+  );
   assert.ok(imageFeedsSource.indexOf('Curated Scenic Categories') < imageFeedsSource.indexOf('IMAGE_FEEDS_PANEL_IDS.GOOGLE'));
   assert.match(imageFeedsSource, /className="image-feeds-page"/);
   assert.match(imageFeedsSource, /className="pool-lifecycle-grid"/);
@@ -989,8 +993,23 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(imageFeedsSource, /aria-pressed=\{isActive\}/);
   assert.match(imageFeedsSource, /htmlFor="new-scenic-pool-name"/);
   assert.match(imageFeedsSource, /className="image-feeds-rating-scale"/);
+  assert.match(imageFeedsSource, /className="image-feeds-rating-preview"/);
+  assert.match(imageFeedsSource, /aspectRatio: tvAspectRatio/);
+  assert.match(imageFeedsSource, /\[galleryIndex, imageStatus, panelState\.focused\]/);
   assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.CATEGORIES/);
   assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.GOOGLE/);
+  assert.match(imageFeedsCss, /\.image-feeds-rating-preview\s*\{[\s\S]*?max-height: 320px/);
+  assert.match(imageFeedsCss, /\.image-feeds-rating\.is-panel-focused \.image-feeds-rating-preview\s*\{[\s\S]*?max-height: min\(58vh, 560px\)/);
+});
+
+assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
+  const { fitTvPreviewFrame } = await importClientModule('./client/src/components/remote/tvPreview.js');
+  const normalFrame = fitTvPreviewFrame({ width: 414, height: 233 }, 16 / 9);
+  const focusedFrame = fitTvPreviewFrame({ width: 1078, height: 522 }, 16 / 9);
+
+  assert.deepStrictEqual(normalFrame, { width: 414, height: 232.875 });
+  assert.deepStrictEqual(focusedFrame, { width: 928, height: 522 });
+  assert.ok(focusedFrame.width > normalFrame.width * 2, 'focused preview should materially enlarge the image surface');
 });
 
 assertAsyncTest('Image Feeds workspace panel state is pure, immutable, focusable, and ordered', async () => {

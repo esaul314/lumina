@@ -218,7 +218,7 @@ function ImageFeedsTab({
     window.addEventListener('resize', updatePreviewBounds);
 
     return () => window.removeEventListener('resize', updatePreviewBounds);
-  }, [galleryIndex, imageStatus]);
+  }, [galleryIndex, imageStatus, panelState.focused]);
 
   useEffect(() => {
     writeImageFeedsPanelPreferences(panelStorage, panelState);
@@ -626,11 +626,12 @@ function ImageFeedsTab({
                 {imageStatus === 'loading' && (
                   <div 
                     ref={ratingDeckPreviewContainerRef}
+                    className="image-feeds-rating-preview"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      height: '180px'
+                      aspectRatio: tvAspectRatio
                     }}
                   >
                     <div style={tvFrameShellStyle}>
@@ -661,11 +662,12 @@ function ImageFeedsTab({
                 {imageStatus === 'failed' && (
                   <div 
                     ref={ratingDeckPreviewContainerRef}
+                    className="image-feeds-rating-preview"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      height: '180px'
+                      aspectRatio: tvAspectRatio
                     }}
                   >
                     <div style={tvFrameShellStyle}>
@@ -727,11 +729,12 @@ function ImageFeedsTab({
                 {imageStatus === 'loaded' && (
                   <div 
                     ref={ratingDeckPreviewContainerRef}
+                    className="image-feeds-rating-preview"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      height: '180px'
+                      aspectRatio: tvAspectRatio
                     }}
                   >
                     <div style={tvFrameShellStyle}>
