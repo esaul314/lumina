@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-26: Give Image Feed Panel Ordering Controls Their Own Responsive Lane
+
+- **Review finding**: at tablet-sized desktop widths, the two-column workspace compressed Scenic Feed Source Manager to roughly one narrow source-card column. Its labeled Move earlier/later controls then sat too close to the title-row Expand and Focus actions, making the panel feel crowded even when the boxes did not geometrically intersect.
+- **Correction**: the workspace now switches to one column through 959px, giving the Source Manager and its two-column source grid enough room before the mobile breakpoint. The order toolbar also has its own top border and vertical rhythm instead of being pulled toward the header with a negative margin.
+- **Functional boundary**: no panel state or event changes were needed. CSS remains the declarative interpreter of responsive geometry; the pure order transitions and accessible button contract are unchanged.
+- **Regression coverage**: source-level CSS assertions pin the dedicated order-toolbar separation and the 959px single-column contract. Served Playwright checks should continue to cover desktop, tablet, and 390px mobile widths for no overlap and no horizontal overflow.
+- **Learning**: responsive breakpoints should be chosen from the minimum comfortable control/content width, not only from the point where a layout technically overflows. A distinct visual lane also makes related but different actions easier to scan.
+
 ### 2026-08-26: Make Rating Deck Focus Mode Fill the Preview Surface
 
 - **Review finding**: Focus mode enlarged the panel shell but left the Rating Deck preview constrained to its original 334×180 frame, creating empty space around the primary image-review task.
