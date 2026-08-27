@@ -999,6 +999,8 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(imageFeedsSource, /\[galleryIndex, imageStatus, panelState\.focused\]/);
   assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.CATEGORIES/);
   assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.GOOGLE/);
+  assert.match(imageFeedsCss, /\.image-feeds-panel-order-bar[\s\S]*?border-top: 1px solid/);
+  assert.match(imageFeedsCss, /@media \(max-width: 959px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(imageFeedsCss, /\.image-feeds-rating-preview\s*\{[\s\S]*?max-height: 320px/);
   assert.match(imageFeedsCss, /\.image-feeds-rating-preview > div\s*\{[\s\S]*?max-width: 100%;[\s\S]*?max-height: 100%/);
   assert.match(imageFeedsCss, /\.image-feeds-rating\.is-panel-focused \.image-feeds-rating-preview\s*\{[\s\S]*?max-height: min\(58vh, 560px\)/);
