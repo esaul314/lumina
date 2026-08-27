@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-26: Make Rating Deck Focus Mode Fill the Preview Surface
+
+- **Review finding**: Focus mode enlarged the panel shell but left the Rating Deck preview constrained to its original 334×180 frame, creating empty space around the primary image-review task.
+- **Correction**: the preview slot now uses the active TV aspect ratio as a responsive surface. Normal mode caps the surface at 320px high; focused mode grows it up to `min(58vh, 560px)`, so the pure `fitTvPreviewFrame(...)` projection receives the expanded bounds and enlarges the actual frame.
+- **Responsive contract**: the slot remeasures after focus transitions and remains width-constrained on narrow screens. The mobile rating scale keeps its 44px touch targets without forcing a desktop-width minimum-content row.
+- **Learning**: a focus state is only meaningful when the primary content—not merely its containing card—gets the visual emphasis. Review the measured child geometry in every presentation mode, then let the pure frame-fit helper derive the final media dimensions.
+- **Regression coverage**: added pure focused-versus-normal frame-fit assertions, source/CSS contracts for the responsive preview slot, and live Playwright measurements at desktop and 390px widths.
+
 ### 2026-08-26: Make Image Feeds a Four-Panel Accessible Workspace
 
 - **Goal**: Treat the four operator areas as first-class workspace panels while keeping Pool Lifecycle as a separate nested progressive-disclosure layer.

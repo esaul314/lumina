@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-08-21
+Last updated: 2026-08-26
 
 ## Implementation Companion
 
@@ -36,6 +36,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 5 refinement: pool lifecycle cards now use closed native disclosure panels by default; each summary retains the current retention, photo-cap, and schedule facts while advanced fields appear only after an explicit Configure action.
 - Latest Step 5 refinement: the Image Feeds workspace now treats Curated Scenic Categories, Independent Rating Deck, Scenic Feed Source Manager, and Google Photos Picker as four first-class panels. The pure panel-state algebra supports immutable collapse/expand, transient focus/Escape restoration, and keyboard-accessible earlier/later ordering; browser storage persists only open preferences and order.
 - Latest Step 5 UX refinement: the workspace grid now aligns panels to their content height so the Rating Deck does not stretch beside the longer Source Manager. Its title row keeps only compact disclosure/focus controls; labeled order actions live in a separate toolbar, and category/rating/chip controls use real keyboard-accessible buttons with mobile touch sizing.
+- Latest Step 5 focus refinement: Rating Deck Focus mode now expands the responsive TV preview surface itself, capped by viewport height, and remeasures the pure frame-fit projection after focus changes. The mobile rating scale remains touch-sized without introducing horizontal overflow.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Next Step 5 target: audit remaining client snapshot normalization and live-sync projections, beginning with the response-to-state boundary in `useLuminaActions` and the app-level `state-sync` path.
