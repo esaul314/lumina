@@ -1000,6 +1000,7 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.GOOGLE/);
   assert.match(imageFeedsCss, /\.image-feeds-rating-preview\s*\{[\s\S]*?max-height: 320px/);
   assert.match(imageFeedsCss, /\.image-feeds-rating\.is-panel-focused \.image-feeds-rating-preview\s*\{[\s\S]*?max-height: min\(58vh, 560px\)/);
+  assert.match(imageFeedsCss, /\.image-feeds-rating-scale\s*\{[\s\S]*?grid-template-columns: repeat\(5, minmax\(44px, 1fr\)\)/);
 });
 
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {

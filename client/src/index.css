@@ -1679,6 +1679,12 @@ body {
   .image-feeds-rating-scale .remote-btn {
     height: 44px !important;
     min-height: 44px;
+    min-width: 44px;
+  }
+
+  .image-feeds-rating-scale {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(44px, 1fr));
   }
 
   .image-feeds-panel-show-all {
