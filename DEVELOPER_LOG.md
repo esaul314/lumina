@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-26: Make Image Feeds a Four-Panel Accessible Workspace
+
+- **Goal**: Treat the four operator areas as first-class workspace panels while keeping Pool Lifecycle as a separate nested progressive-disclosure layer.
+- **Implementation**:
+  - Expanded `imageFeedsPanels.js` to a closed vocabulary of Curated Scenic Categories, Independent Rating Deck, Scenic Feed Source Manager, and Google Photos Picker.
+  - Added pure immutable collapse/expand, transient focus, Escape exit, invalid-identifier no-ops, normalized ordering, and earlier/later transitions.
+  - Added a pure preference codec and injected browser-storage adapter. Open preferences and order persist; focused mode never does.
+  - Reused one panel shell with status summaries, accessible disclosure/focus/order labels, `aria-expanded`, `aria-controls`, `aria-pressed`, visible focus styling, and an always-visible Show all panels action while focused.
+  - Added document-level Escape handling only in focus mode and restored focus to the initiating control.
+  - Made Categories span the desktop workspace, kept Rating Deck and Source Manager in the primary two-column area, placed Google Photos below, and collapsed all controls to a single narrow-screen column with 44px touch targets.
+- **Functional boundary**: Panel transitions, order normalization, and storage interpretation remain pure. React owns only browser effects and focus restoration; CSS owns layout. Pool Lifecycle stays native `<details>/<summary>` inside Categories rather than adding a competing accordion layer.
+- **Accessibility and interaction decision**: Keyboard order controls satisfy the initial accessible reordering contract. Pointer drag handles remain deferred because the Rating Deck's crop gesture needs an isolated, non-conflicting pointer surface; the Carbon, GOV.UK, and Material expansion-panel guidance informed the concise-summary and progressive-disclosure treatment: [GOV.UK Accordion guidance](https://design-system.service.gov.uk/components/accordion/), [Carbon Accordion guidance](https://carbondesignsystem.com/components/accordion/usage/), [Material expansion-panel guidance](https://m1.material.io/components/expansion-panels.html).
+- **Regression coverage**: Pure tests cover all four IDs, immutable transitions, focus invariants, invalid IDs, ordering boundaries, malformed/partial/legacy storage values, and the no-focus persistence invariant. Source assertions cover accessible controls and document Escape wiring. Playwright verified all four focus/restore cycles, Escape focus restoration, collapse/expand, keyboard ordering, and 390px no-overflow/44px controls.
+- **Verification**: `npm test` passes with 275 assertions; client production build succeeds; lint remains at the three pre-existing warnings; live service served the new bundle. Diagnostics report Chromium/Wayland/PulseAudio available, no active kiosk, and Mutter DBus unavailable in the non-GNOME/restricted session.
+
 ### 2026-08-26: Extend Default Day Hours to 9 AM – 6 PM for Environment Stats
 
 - **Goal**: Update the day and night hour designations for environmental stats queries and Grafana panels to 9am till 6pm.
