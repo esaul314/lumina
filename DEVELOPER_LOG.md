@@ -14,6 +14,14 @@ This document serves as a public-facing, generic history of technical developmen
 - **Learning**: a focus state is only meaningful when the primary content—not merely its containing card—gets the visual emphasis. Review the measured child geometry in every presentation mode, then let the pure frame-fit helper derive the final media dimensions.
 - **Regression coverage**: added pure focused-versus-normal frame-fit assertions, source/CSS contracts for the responsive preview slot, and live Playwright measurements at desktop and 390px widths.
 
+### 2026-08-26: Contain Rating Deck Geometry After Focus Exit
+
+- **Bug**: leaving Rating Deck Focus mode could leave one render with the focused frame width. That stale child width enlarged the normal preview slot and let the image extend into the neighboring panel.
+- **Correction**: the Rating Deck content wrapper now has an explicit `width: 100%`, `min-width: 0`, and `max-width: 100%` contract. The preview frame independently clamps to its slot with `max-width` and `max-height: 100%`, allowing the existing focus-triggered remeasurement to converge to the normal 414×233 frame.
+- **Functional boundary**: no new runtime state or imperative resize correction was added. CSS expresses containment; the existing pure `fitTvPreviewFrame(...)` projection continues to derive frame geometry from measured bounds.
+- **Regression coverage**: source assertions cover both containment layers, and served Playwright verification covers focused 928×522 to normal 414×233 return geometry, panel containment, and zero horizontal overflow.
+- **Learning**: responsive focus layouts need bounded ancestors as well as bounded media. Otherwise stale inline geometry can become the next measurement’s input and create a self-reinforcing layout drift.
+
 ### 2026-08-26: Make Image Feeds a Four-Panel Accessible Workspace
 
 - **Goal**: Treat the four operator areas as first-class workspace panels while keeping Pool Lifecycle as a separate nested progressive-disclosure layer.
