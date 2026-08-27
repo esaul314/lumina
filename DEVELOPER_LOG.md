@@ -21,6 +21,13 @@ This document serves as a public-facing, generic history of technical developmen
 - **Regression coverage**: Pure tests cover all four IDs, immutable transitions, focus invariants, invalid IDs, ordering boundaries, malformed/partial/legacy storage values, and the no-focus persistence invariant. Source assertions cover accessible controls and document Escape wiring. Playwright verified all four focus/restore cycles, Escape focus restoration, collapse/expand, keyboard ordering, and 390px no-overflow/44px controls.
 - **Verification**: `npm test` passes with 275 assertions; client production build succeeds; lint remains at the three pre-existing warnings; live service served the new bundle. Diagnostics report Chromium/Wayland/PulseAudio available, no active kiosk, and Mutter DBus unavailable in the non-GNOME/restricted session.
 
+### 2026-08-26: Rubber-Duck the Image Feeds Workspace for Visual Hierarchy
+
+- **Review finding**: the first four-panel pass still let the long Source Manager stretch the Rating Deck to the same grid-row height, leaving a large dead area. Its title row also carried too many controls, and category tiles used a faux button containing a real delete button.
+- **Correction**: aligned the workspace grid to the start, moved labeled panel-order actions into their own toolbar, kept only disclosure/focus icons in the title row, raised panel metadata legibility, and gave category selection a real button sibling to deletion. Pool creation labels, removable keyword controls, rating pressed states, and mobile rating touch targets now have explicit accessible contracts.
+- **Learning**: a visually consistent shell is not enough when grid stretch, control density, and nested interactive semantics undermine the primary task. Review the rendered proportions and keyboard surface together; the Rating Deck should size to its work, while the Source Manager is allowed to be long.
+- **Verification**: served Playwright checks report Rating Deck 588px versus Source Manager 957px, all four panel focus/Escape cycles restore correctly, category rows contain no nested buttons, and the 390px viewport has no overflow with 44px rating and panel controls. `npm test` remains at 275 assertions with 11/11 sensor tests; build and lint pass with the three pre-existing warnings.
+
 ### 2026-08-26: Extend Default Day Hours to 9 AM – 6 PM for Environment Stats
 
 - **Goal**: Update the day and night hour designations for environmental stats queries and Grafana panels to 9am till 6pm.
