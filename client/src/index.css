@@ -917,6 +917,17 @@ body {
   overflow: hidden;
 }
 
+.image-feeds-rating-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.image-feeds-rating-preview > div {
+  max-width: 100%;
+  max-height: 100%;
+}
+
 .image-feeds-rating.is-panel-focused .image-feeds-rating-preview {
   max-height: min(58vh, 560px);
 }

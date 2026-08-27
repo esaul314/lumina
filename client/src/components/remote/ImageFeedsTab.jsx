@@ -621,7 +621,7 @@ function ImageFeedsTab({
             const photoRating = photo.rating !== undefined ? photo.rating : 10;
             
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="image-feeds-rating-content" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {/* Thumbnail Preview with loading and error boundaries */}
                 {imageStatus === 'loading' && (
                   <div 
