@@ -70,11 +70,11 @@ const ImageFeedsPanel = ({
             type="button"
             className="image-feeds-panel-action"
             aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${title}`}
+            title={`${isOpen ? 'Collapse' : 'Expand'} ${title}`}
             aria-expanded={isOpen}
             aria-controls={contentId}
             onClick={() => setPanelState((state) => toggleImageFeedsPanel(state, panelId))}
           >
-            {isOpen ? 'Collapse' : 'Expand'}
             <ChevronDown className="image-feeds-panel-chevron" size={16} aria-hidden="true" />
           </button>
           <button
@@ -82,38 +82,43 @@ const ImageFeedsPanel = ({
             className="image-feeds-panel-action image-feeds-panel-focus-action"
             aria-pressed={isFocused}
             aria-label={isFocused ? `Exit focus mode for ${title}` : `Focus ${title}`}
+            title={isFocused ? `Exit focus mode for ${title}` : `Focus ${title}`}
             onClick={(event) => isFocused ? onExitFocus() : onFocusPanel(panelId, event.currentTarget)}
           >
             <Focus size={15} aria-hidden="true" />
-            {isFocused ? 'Exit focus' : 'Focus'}
           </button>
           {isFocused && (
             <button type="button" className="image-feeds-panel-action image-feeds-panel-show-all" onClick={onExitFocus}>
               Show all panels
             </button>
           )}
-          <button
-            type="button"
-            className="image-feeds-panel-action image-feeds-panel-order-action"
-            aria-label={`Move ${title} earlier`}
-            title={`Move ${title} earlier`}
-            disabled={panelIndex <= 0}
-            onClick={() => onMovePanel(panelId, 'earlier')}
-          >
-            <ArrowUp size={15} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="image-feeds-panel-action image-feeds-panel-order-action"
-            aria-label={`Move ${title} later`}
-            title={`Move ${title} later`}
-            disabled={panelIndex < 0 || panelIndex >= panelState.order.length - 1}
-            onClick={() => onMovePanel(panelId, 'later')}
-          >
-            <ArrowDown size={15} aria-hidden="true" />
-          </button>
         </div>
       </header>
+      <div className="image-feeds-panel-order-bar" role="toolbar" aria-label={`Reorder ${title} panel`}>
+        <span className="image-feeds-panel-order-label">Panel {panelIndex + 1} of {panelState.order.length}</span>
+        <button
+          type="button"
+          className="image-feeds-panel-action image-feeds-panel-order-action"
+          aria-label={`Move ${title} earlier`}
+          title={`Move ${title} earlier`}
+          disabled={panelIndex <= 0}
+          onClick={() => onMovePanel(panelId, 'earlier')}
+        >
+          <ArrowUp size={15} aria-hidden="true" />
+          <span>Move earlier</span>
+        </button>
+        <button
+          type="button"
+          className="image-feeds-panel-action image-feeds-panel-order-action"
+          aria-label={`Move ${title} later`}
+          title={`Move ${title} later`}
+          disabled={panelIndex < 0 || panelIndex >= panelState.order.length - 1}
+          onClick={() => onMovePanel(panelId, 'later')}
+        >
+          <ArrowDown size={15} aria-hidden="true" />
+          <span>Move later</span>
+        </button>
+      </div>
       {isOpen && <div id={contentId} className="image-feeds-panel-body">{children}</div>}
     </section>
   );
@@ -297,60 +302,47 @@ function ImageFeedsTab({
           {categories.map((cat) => {
             const isActive = isCategorySelected(selectedCategorySnapshot, cat);
             return (
-              <div 
+              <div
                 key={cat}
-                onClick={() => handleCategoryChange(cat)}
-                className="remote-btn"
-                role="button"
                 style={{
                   background: isActive ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-                  borderColor: isActive ? 'var(--accent-color)' : 'rgba(255, 255, 255, 0.06)',
-                  justifyContent: 'space-between',
-                  padding: '16px',
+                  border: `1px solid ${isActive ? 'var(--accent-color)' : 'rgba(255, 255, 255, 0.06)'}`,
+                  borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
-                  cursor: 'pointer',
                   width: '100%'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '1.2rem' }}>
-                    {cat === 'Scenic Nature' ? '⛰️' :
-                     cat === 'Cosmic Space' ? '✨' :
-                     cat === 'Abstract Art' ? '🎨' :
-                     cat === 'Liminal Spaces' ? '🚪' :
-                     cat === 'AI Creations' ? '🤖' :
-                     cat === 'Google Photos' ? '📸' : '🖼️'}
+                <button
+                  type="button"
+                  className="image-feed-category-select"
+                  aria-pressed={isActive}
+                  onClick={() => handleCategoryChange(cat)}
+                >
+                  <span className="image-feed-category-label">
+                    <span style={{ fontSize: '1.2rem' }}>
+                      {cat === 'Scenic Nature' ? '⛰️' :
+                       cat === 'Cosmic Space' ? '✨' :
+                       cat === 'Abstract Art' ? '🎨' :
+                       cat === 'Liminal Spaces' ? '🚪' :
+                       cat === 'AI Creations' ? '🤖' :
+                       cat === 'Google Photos' ? '📸' : '🖼️'}
+                    </span>
+                    <span style={{ fontWeight: 500 }}>{cat} Feed</span>
                   </span>
-                  <span style={{ fontWeight: 500 }}>{cat} Feed</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {isActive && <Check size={18} style={{ color: 'var(--accent-color)' }} />}
-                  {cat !== 'Google Photos' && !['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations'].includes(cat) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteCategory(cat);
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'rgba(255,255,255,0.4)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '4px',
-                        borderRadius: '4px',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
-                      title={`Delete ${cat} Pool`}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
+                  {isActive && <Check size={18} style={{ color: 'var(--accent-color)' }} aria-hidden="true" />}
+                </button>
+                {cat !== 'Google Photos' && !['Scenic Nature', 'Cosmic Space', 'Abstract Art', 'Liminal Spaces', 'AI Creations'].includes(cat) && (
+                  <button
+                    type="button"
+                    className="image-feed-category-delete"
+                    onClick={() => handleDeleteCategory(cat)}
+                    title={`Delete ${cat} Pool`}
+                    aria-label={`Delete ${cat} Pool`}
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
+                )}
               </div>
             );
           })}
@@ -436,9 +428,11 @@ function ImageFeedsTab({
           flexDirection: 'column',
           gap: '10px'
         }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Create New Scenic Pool</span>
+          <span className="image-feeds-form-title">Create New Scenic Pool</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label className="image-feeds-form-label" htmlFor="new-scenic-pool-name">Pool name</label>
             <input
+              id="new-scenic-pool-name"
               type="text"
               placeholder="Pool Name (e.g. Classic Art)"
               value={newCategoryName}
@@ -457,6 +451,7 @@ function ImageFeedsTab({
             />
             
             {/* Tag/Chip Input for Pool Keywords */}
+            <label className="image-feeds-form-label" htmlFor="new-scenic-pool-keywords">Initial keywords</label>
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -486,9 +481,13 @@ function ImageFeedsTab({
                       }}
                     >
                       <span>{chip}</span>
-                      <span
+                      <button
+                        type="button"
+                        aria-label={`Remove keyword ${chip}`}
                         onClick={() => handleRemoveChip(chip)}
                         style={{
+                          border: 'none',
+                          background: 'transparent',
                           cursor: 'pointer',
                           fontWeight: 'bold',
                           color: 'rgba(255, 255, 255, 0.5)',
@@ -498,7 +497,7 @@ function ImageFeedsTab({
                         }}
                       >
                         ×
-                      </span>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -507,6 +506,8 @@ function ImageFeedsTab({
               {/* Input field */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <textarea
+                  id="new-scenic-pool-keywords"
+                  aria-label="Initial pool keywords"
                   rows="2"
                   placeholder={activeChips.length === 0 ? 'Keywords (one phrase per line or comma-separated)' : 'Add more keywords...'}
                   value={keywordInput}
@@ -818,12 +819,15 @@ function ImageFeedsTab({
                        `📈 ${photoRating} (Weight: ${photoRating / 10})`}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
+                  <div className="image-feeds-rating-scale" style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
                       const isCurrent = photoRating === num;
                       return (
                         <button
                           key={num}
+                          type="button"
+                          aria-label={`Set rating ${num} for ${photo.title}`}
+                          aria-pressed={isCurrent}
                           onClick={() => actions.ratePhoto(photo.url, num)}
                           className="remote-btn"
                           style={{
@@ -1073,12 +1077,16 @@ function ImageFeedsTab({
                               : `[${val.timeStart}-${val.timeEnd}] ${(Array.isArray(val.keywords) ? val.keywords : [val.keywords]).join(', ')}`
                             }
                           </span>
-                          <span
+                          <button
+                            type="button"
+                            aria-label={`Remove ${typeof val === 'string' ? val : 'this parameter'}`}
                             onClick={() => {
                               const nextParams = paramsList.filter((_, pIdx) => pIdx !== idx);
                               actions.updateFeedConfig(keywordCategory, src.key, { [src.param]: nextParams });
                             }}
                             style={{
+                              border: 'none',
+                              background: 'transparent',
                               cursor: 'pointer',
                               fontWeight: 'bold',
                               color: 'rgba(239, 68, 68, 0.8)',
@@ -1087,7 +1095,7 @@ function ImageFeedsTab({
                             }}
                           >
                             ×
-                          </span>
+                          </button>
                         </div>
                       ))}
                       {paramsList.length === 0 && (

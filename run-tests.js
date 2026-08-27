@@ -985,6 +985,10 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(imageFeedsSource, /Escape/);
   assert.match(imageFeedsSource, /aria-controls=\{contentId\}/);
   assert.match(imageFeedsSource, /aria-expanded=\{isOpen\}/);
+  assert.match(imageFeedsSource, /className="image-feed-category-select"/);
+  assert.match(imageFeedsSource, /aria-pressed=\{isActive\}/);
+  assert.match(imageFeedsSource, /htmlFor="new-scenic-pool-name"/);
+  assert.match(imageFeedsSource, /className="image-feeds-rating-scale"/);
   assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.CATEGORIES/);
   assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.GOOGLE/);
 });
