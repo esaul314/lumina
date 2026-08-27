@@ -547,10 +547,6 @@ body {
   margin: 0;
 }
 
-.image-feeds-overview {
-  gap: 16px;
-}
-
 .image-feed-category-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -767,14 +763,27 @@ body {
   display: grid;
   grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.45fr);
   gap: 16px;
+  min-width: 0;
 }
 
-.image-feeds-workspace.is-panel-maximized {
+.image-feeds-categories,
+.image-feeds-google {
+  grid-column: 1 / -1;
+}
+
+.image-feeds-workspace:has(.is-panel-focused) {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.image-feeds-workspace.is-panel-maximized .image-feeds-panel:not(.is-panel-maximized) {
+.image-feeds-workspace:has(.is-panel-focused) .image-feeds-panel:not(.is-panel-focused) {
   display: none;
+}
+
+.image-feeds-panel.is-panel-focused {
+  grid-column: 1 / -1;
+  min-height: 420px;
+  border-color: color-mix(in srgb, var(--accent-color) 42%, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
 }
 
 .image-feeds-panel {
@@ -787,12 +796,6 @@ body {
 
 .image-feeds-panel.is-panel-collapsed {
   gap: 0;
-}
-
-.image-feeds-panel.is-panel-maximized {
-  min-height: 420px;
-  border-color: color-mix(in srgb, var(--accent-color) 42%, rgba(255, 255, 255, 0.08));
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
 }
 
 .image-feeds-panel-header {
@@ -829,7 +832,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 30px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 5px 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -839,6 +843,11 @@ body {
   font-size: 0.66rem;
   cursor: pointer;
   transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.image-feeds-panel-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
 }
 
 .image-feeds-panel-action:hover,
@@ -865,6 +874,7 @@ body {
   min-width: 0;
   display: grid;
   gap: 16px;
+  overflow-wrap: anywhere;
 }
 
 .image-feed-source-grid {
@@ -1496,6 +1506,12 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .image-feeds-categories,
+  .image-feeds-google,
+  .image-feeds-panel.is-panel-focused {
+    grid-column: 1;
+  }
+
   .environment-overview-grid,
   .environment-secondary-grid,
   .environment-device-manager {
@@ -1524,7 +1540,17 @@ body {
   }
 
   .image-feeds-panel-actions {
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+    width: 100%;
+  }
+
+  .image-feeds-panel-action {
+    justify-content: center;
+  }
+
+  .image-feeds-panel-show-all {
+    grid-column: span 2;
   }
 
   .pool-lifecycle-summary-row {

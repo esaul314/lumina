@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, ChevronDown, Plus } from 'lucide-react';
+import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, ChevronDown, Plus, Focus, ArrowUp, ArrowDown } from 'lucide-react';
 import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
 import {
   DEFAULT_COVER_CROP_PERCENT,
@@ -21,20 +21,31 @@ import { getPoolLifecycleRows } from '../../state/poolLifecycleView';
 import {
   createImageFeedsPanelState,
   IMAGE_FEEDS_PANEL_IDS,
+  readImageFeedsPanelPreferences,
+  writeImageFeedsPanelPreferences,
+  enterImageFeedsPanelFocus,
+  exitImageFeedsPanelFocus,
+  moveImageFeedsPanelEarlier,
+  moveImageFeedsPanelLater,
   toggleImageFeedsPanel,
-  toggleImageFeedsPanelMaximized
 } from '../../state/imageFeedsPanels';
 
 const ImageFeedsPanel = ({
   panelId,
   title,
   description,
+  summary,
   panelState,
   setPanelState,
-  children
+  children,
+  style,
+  onFocusPanel,
+  onExitFocus,
+  onMovePanel
 }) => {
   const isOpen = Boolean(panelState.open?.[panelId]);
-  const isMaximized = panelState.maximized === panelId;
+  const isFocused = panelState.focused === panelId;
+  const panelIndex = panelState.order.indexOf(panelId);
   const titleId = `image-feeds-${panelId}-title`;
   const contentId = `image-feeds-${panelId}-content`;
   const panelClassName = [
@@ -43,35 +54,63 @@ const ImageFeedsPanel = ({
     'image-feeds-panel',
     `image-feeds-${panelId}`,
     !isOpen && 'is-panel-collapsed',
-    isMaximized && 'is-panel-maximized'
+    isFocused && 'is-panel-focused'
   ].filter(Boolean).join(' ');
 
   return (
-    <section className={panelClassName} aria-labelledby={titleId}>
+    <section className={panelClassName} style={style} aria-labelledby={titleId}>
       <header className="image-feeds-panel-header">
         <div className="image-feeds-panel-heading">
-          <span id={titleId} className="remote-section-title">{title}</span>
+          <h2 id={titleId} className="remote-section-title">{title}</h2>
           {description && <span className="image-feeds-panel-description">{description}</span>}
+          {summary && <span className="image-feeds-panel-summary">{summary}</span>}
         </div>
         <div className="image-feeds-panel-actions">
           <button
             type="button"
             className="image-feeds-panel-action"
+            aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${title}`}
             aria-expanded={isOpen}
             aria-controls={contentId}
             onClick={() => setPanelState((state) => toggleImageFeedsPanel(state, panelId))}
           >
-            {isOpen ? 'Minimize' : 'Expand'}
+            {isOpen ? 'Collapse' : 'Expand'}
             <ChevronDown className="image-feeds-panel-chevron" size={16} aria-hidden="true" />
           </button>
           <button
             type="button"
             className="image-feeds-panel-action image-feeds-panel-focus-action"
-            aria-pressed={isMaximized}
-            aria-label={isMaximized ? `Restore ${title}` : `Maximize ${title}`}
-            onClick={() => setPanelState((state) => toggleImageFeedsPanelMaximized(state, panelId))}
+            aria-pressed={isFocused}
+            aria-label={isFocused ? `Exit focus mode for ${title}` : `Focus ${title}`}
+            onClick={(event) => isFocused ? onExitFocus() : onFocusPanel(panelId, event.currentTarget)}
           >
-            {isMaximized ? 'Restore' : 'Maximize'}
+            <Focus size={15} aria-hidden="true" />
+            {isFocused ? 'Exit focus' : 'Focus'}
+          </button>
+          {isFocused && (
+            <button type="button" className="image-feeds-panel-action image-feeds-panel-show-all" onClick={onExitFocus}>
+              Show all panels
+            </button>
+          )}
+          <button
+            type="button"
+            className="image-feeds-panel-action image-feeds-panel-order-action"
+            aria-label={`Move ${title} earlier`}
+            title={`Move ${title} earlier`}
+            disabled={panelIndex <= 0}
+            onClick={() => onMovePanel(panelId, 'earlier')}
+          >
+            <ArrowUp size={15} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="image-feeds-panel-action image-feeds-panel-order-action"
+            aria-label={`Move ${title} later`}
+            title={`Move ${title} later`}
+            disabled={panelIndex < 0 || panelIndex >= panelState.order.length - 1}
+            onClick={() => onMovePanel(panelId, 'later')}
+          >
+            <ArrowDown size={15} aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -118,7 +157,11 @@ function ImageFeedsTab({
   const cropTimeoutRef = useRef(null);
   const ratingDeckPreviewContainerRef = useRef(null);
   const [ratingDeckPreviewBounds, setRatingDeckPreviewBounds] = useState(DEFAULT_TV_PREVIEW_DIMENSIONS);
-  const [panelState, setPanelState] = useState(createImageFeedsPanelState);
+  const panelStorage = typeof window === 'undefined' ? null : window.localStorage;
+  const [panelState, setPanelState] = useState(() => createImageFeedsPanelState(
+    readImageFeedsPanelPreferences(panelStorage)
+  ));
+  const focusOriginRef = useRef(null);
 
   const activeGalleryPhoto = state.photosList && state.photosList[galleryIndex] ? state.photosList[galleryIndex] : null;
   const ratingDeckTvFrame = fitTvPreviewFrame(ratingDeckPreviewBounds, tvAspectRatio);
@@ -172,6 +215,24 @@ function ImageFeedsTab({
     return () => window.removeEventListener('resize', updatePreviewBounds);
   }, [galleryIndex, imageStatus]);
 
+  useEffect(() => {
+    writeImageFeedsPanelPreferences(panelStorage, panelState);
+  }, [panelState.open, panelState.order, panelStorage]);
+
+  useEffect(() => {
+    if (!panelState.focused) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setPanelState(exitImageFeedsPanelFocus);
+      window.requestAnimationFrame(() => focusOriginRef.current?.focus());
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [panelState.focused]);
+
   const activeChips = splitKeywordInput(newCategoryKeyword);
   const selectedCategorySnapshot = selectedCategories?.length
     ? { playback: { selectedCategories } }
@@ -187,6 +248,21 @@ function ImageFeedsTab({
     setPolicyDrafts(nextDrafts);
   };
   const savePoolPolicy = (category) => actions.updatePoolPolicy(category, getDraftPolicy(policyDraftsRef.current, category));
+  const handleFocusPanel = (panelId, control) => {
+    focusOriginRef.current = control;
+    setPanelState((state) => enterImageFeedsPanelFocus(state, panelId));
+  };
+  const handleExitFocus = () => {
+    setPanelState(exitImageFeedsPanelFocus);
+    window.requestAnimationFrame(() => focusOriginRef.current?.focus());
+  };
+  const handleMovePanel = (panelId, direction) => {
+    setPanelState((state) => direction === 'earlier'
+      ? moveImageFeedsPanelEarlier(state, panelId)
+      : moveImageFeedsPanelLater(state, panelId));
+  };
+  const panelStyle = (panelId) => ({ order: panelState.order.indexOf(panelId) });
+  const panelProps = { panelState, setPanelState, onFocusPanel: handleFocusPanel, onExitFocus: handleExitFocus, onMovePanel: handleMovePanel };
 
   const handleAddChip = (text) => {
     const clean = text.trim();
@@ -208,8 +284,15 @@ function ImageFeedsTab({
 
   return (
     <div className="image-feeds-page">
-      <div className="remote-card image-feeds-card image-feeds-overview">
-        <span className="remote-section-title">Curated Scenic Categories</span>
+      <div className="image-feeds-workspace">
+      <ImageFeedsPanel
+        panelId={IMAGE_FEEDS_PANEL_IDS.CATEGORIES}
+        title="Curated Scenic Categories"
+        description="Choose scenic pools and manage their lifecycle policies."
+        summary={`${categories.length} pools · ${selectedCategories?.length || 0} active`}
+        style={panelStyle(IMAGE_FEEDS_PANEL_IDS.CATEGORIES)}
+        {...panelProps}
+      >
         <div className="image-feed-category-list">
           {categories.map((cat) => {
             const isActive = isCategorySelected(selectedCategorySnapshot, cat);
@@ -520,15 +603,15 @@ function ImageFeedsTab({
             Create Pool
           </button>
         </div>
-      </div>
+      </ImageFeedsPanel>
 
-      <div className={`image-feeds-workspace${panelState.maximized ? ' is-panel-maximized' : ''}`}>
       <ImageFeedsPanel
         panelId={IMAGE_FEEDS_PANEL_IDS.RATING}
         title="Independent Rating Deck"
         description={tvPreviewMetaLabel ? `📺 ${tvPreviewMetaLabel}` : undefined}
-        panelState={panelState}
-        setPanelState={setPanelState}
+        summary={state.photosList?.length ? `${state.photosList.length} photos · card ${galleryIndex + 1}` : 'No photos in the active pool'}
+        style={panelStyle(IMAGE_FEEDS_PANEL_IDS.RATING)}
+        {...panelProps}
       >
         {state.photosList && state.photosList.length > 0 ? (
           (() => {
@@ -868,8 +951,9 @@ function ImageFeedsTab({
       <ImageFeedsPanel
         panelId={IMAGE_FEEDS_PANEL_IDS.SOURCES}
         title="Scenic Feed Source Manager"
-        panelState={panelState}
-        setPanelState={setPanelState}
+        description="Configure search keywords and public feeds for the selected scenic pool."
+        style={panelStyle(IMAGE_FEEDS_PANEL_IDS.SOURCES)}
+        {...panelProps}
       >
         <p style={{ fontSize: '0.72rem', opacity: 0.5, lineHeight: '1.35', marginTop: '6px', marginBottom: '12px' }}>
           Configure search keywords, subreddits, Tumblr blogs, or Tumblr tags for each image source in this scenic pool.
@@ -1110,25 +1194,15 @@ function ImageFeedsTab({
           })}
         </div>
       </ImageFeedsPanel>
-      </div>
-
-      <section className="remote-card image-feeds-card image-feeds-google" aria-labelledby="google-photos-picker-title" style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}>
-        <details>
-          <summary style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', listStyle: 'none' }}>
-            <span style={{ fontSize: '1.4rem' }}>🖼️</span>
-            <span>
-              <span style={{ display: 'block', fontSize: '0.68rem', color: '#8ab4f8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                {GOOGLE_PHOTOS_PICKER_COPY.eyebrow}
-              </span>
-              <span id="google-photos-picker-title" className="remote-section-title" style={{ color: '#4285f4', marginBottom: 0 }}>
-                {GOOGLE_PHOTOS_PICKER_COPY.title}
-              </span>
-            </span>
-            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)' }}>
-              Optional · expand to configure
-            </span>
-          </summary>
-          <div style={{ paddingTop: '16px' }}>
+      <ImageFeedsPanel
+        panelId={IMAGE_FEEDS_PANEL_IDS.GOOGLE}
+        title={GOOGLE_PHOTOS_PICKER_COPY.title}
+        description={GOOGLE_PHOTOS_PICKER_COPY.eyebrow}
+        summary="Optional · independent of scenic pools"
+        style={{ ...panelStyle(IMAGE_FEEDS_PANEL_IDS.GOOGLE), background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}
+        {...panelProps}
+      >
+          <div>
             <p style={{ fontSize: '0.85rem', lineHeight: 1.4, color: 'rgba(255,255,255,0.7)', marginBottom: '8px' }}>
               {googlePhotosPickerStatus.description}
             </p>
@@ -1169,8 +1243,8 @@ function ImageFeedsTab({
               </form>
             )}
           </div>
-        </details>
-      </section>
+      </ImageFeedsPanel>
+      </div>
 
     </div>
   );
