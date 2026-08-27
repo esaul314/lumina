@@ -970,45 +970,107 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
     path.join(__dirname, 'client/src/components/remote/ImageFeedsTab.jsx'),
     'utf8'
   );
-  assert.ok(imageFeedsSource.indexOf('Curated Scenic Categories') < imageFeedsSource.indexOf('google-photos-picker-title'));
-  assert.match(imageFeedsSource, /<details>\s*<summary/);
-  assert.doesNotMatch(imageFeedsSource, /<details\s+open/);
+  assert.ok(imageFeedsSource.indexOf('Curated Scenic Categories') < imageFeedsSource.indexOf('IMAGE_FEEDS_PANEL_IDS.GOOGLE'));
   assert.match(imageFeedsSource, /className="image-feeds-page"/);
   assert.match(imageFeedsSource, /className="pool-lifecycle-grid"/);
   assert.match(imageFeedsSource, /<details className="pool-lifecycle-card"/);
   assert.match(imageFeedsSource, /Configure <ChevronDown/);
   assert.match(imageFeedsSource, /className="image-feed-source-grid"/);
   assert.match(imageFeedsSource, /className="image-feeds-panel-action"/);
-  assert.match(imageFeedsSource, /Maximize/);
-  assert.match(imageFeedsSource, /Minimize/);
+  assert.match(imageFeedsSource, /Focus/);
+  assert.match(imageFeedsSource, /Show all panels/);
+  assert.match(imageFeedsSource, /Move \$\{title\} earlier/);
+  assert.match(imageFeedsSource, /Move \$\{title\} later/);
+  assert.match(imageFeedsSource, /onKeyDown/);
+  assert.match(imageFeedsSource, /Escape/);
   assert.match(imageFeedsSource, /aria-controls=\{contentId\}/);
+  assert.match(imageFeedsSource, /aria-expanded=\{isOpen\}/);
+  assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.CATEGORIES/);
+  assert.match(imageFeedsSource, /IMAGE_FEEDS_PANEL_IDS\.GOOGLE/);
 });
 
-assertAsyncTest('Image Feeds workspace panel state is pure, immutable, and focusable', async () => {
+assertAsyncTest('Image Feeds workspace panel state is pure, immutable, focusable, and ordered', async () => {
   const {
     createImageFeedsPanelState,
     IMAGE_FEEDS_PANEL_IDS,
     toggleImageFeedsPanel,
-    toggleImageFeedsPanelMaximized
+    enterImageFeedsPanelFocus,
+    exitImageFeedsPanelFocus,
+    moveImageFeedsPanelEarlier,
+    moveImageFeedsPanelLater,
+    normalizeImageFeedsPanelOrder
   } = await importClientModule('./client/src/state/imageFeedsPanels.js');
   const initialState = createImageFeedsPanelState();
   const collapsedState = toggleImageFeedsPanel(initialState, IMAGE_FEEDS_PANEL_IDS.RATING);
-  const focusedState = toggleImageFeedsPanelMaximized(collapsedState, IMAGE_FEEDS_PANEL_IDS.RATING);
-  const restoredState = toggleImageFeedsPanelMaximized(focusedState, IMAGE_FEEDS_PANEL_IDS.RATING);
+  const focusedState = enterImageFeedsPanelFocus(collapsedState, IMAGE_FEEDS_PANEL_IDS.RATING);
+  const restoredState = exitImageFeedsPanelFocus(focusedState);
+  const reorderedState = moveImageFeedsPanelLater(initialState, IMAGE_FEEDS_PANEL_IDS.CATEGORIES);
+  const restoredOrder = moveImageFeedsPanelEarlier(reorderedState, IMAGE_FEEDS_PANEL_IDS.CATEGORIES);
 
   assert.deepStrictEqual(initialState, {
-    open: { rating: true, sources: true },
-    maximized: null
+    open: { categories: true, rating: true, sources: true, google: true },
+    focused: null,
+    order: ['categories', 'rating', 'sources', 'google']
   });
   assert.strictEqual(collapsedState.open.rating, false);
   assert.strictEqual(collapsedState.open.sources, true);
-  assert.strictEqual(collapsedState.maximized, null);
+  assert.strictEqual(collapsedState.focused, null);
   assert.strictEqual(focusedState.open.rating, true);
-  assert.strictEqual(focusedState.maximized, IMAGE_FEEDS_PANEL_IDS.RATING);
-  assert.strictEqual(restoredState.maximized, null);
+  assert.strictEqual(focusedState.focused, IMAGE_FEEDS_PANEL_IDS.RATING);
+  assert.strictEqual(restoredState.focused, null);
   assert.strictEqual(restoredState.open.rating, true);
+  assert.deepStrictEqual(reorderedState.order, ['rating', 'categories', 'sources', 'google']);
+  assert.deepStrictEqual(restoredOrder.order, initialState.order);
+  assert.deepStrictEqual(normalizeImageFeedsPanelOrder(['sources', 'sources', 'invalid']), ['sources', 'categories', 'rating', 'google']);
+  assert.strictEqual(toggleImageFeedsPanel(focusedState, IMAGE_FEEDS_PANEL_IDS.RATING), focusedState);
+  assert.strictEqual(toggleImageFeedsPanel(initialState, 'invalid'), initialState);
+  assert.strictEqual(enterImageFeedsPanelFocus(initialState, 'invalid'), initialState);
+  assert.strictEqual(moveImageFeedsPanelEarlier(initialState, IMAGE_FEEDS_PANEL_IDS.CATEGORIES), initialState);
   assert.notStrictEqual(collapsedState, initialState);
   assert.notStrictEqual(collapsedState.open, initialState.open);
+});
+
+assertAsyncTest('Image Feeds panel preferences survive storage codecs without restoring focus', async () => {
+  const {
+    createImageFeedsPanelState,
+    IMAGE_FEEDS_PANEL_IDS,
+    encodeImageFeedsPanelPreferences,
+    decodeImageFeedsPanelPreferences,
+    readImageFeedsPanelPreferences,
+    writeImageFeedsPanelPreferences
+  } = await importClientModule('./client/src/state/imageFeedsPanels.js');
+  const state = {
+    ...createImageFeedsPanelState(),
+    open: { categories: false, rating: true, sources: false, google: true },
+    focused: IMAGE_FEEDS_PANEL_IDS.SOURCES,
+    order: ['google', 'categories', 'sources', 'rating']
+  };
+  const storage = {
+    values: new Map(),
+    getItem(key) { return this.values.get(key) || null; },
+    setItem(key, value) { this.values.set(key, value); }
+  };
+  const key = 'test-image-feeds-panels';
+
+  assert.strictEqual(writeImageFeedsPanelPreferences(storage, state, key), true);
+  assert.deepStrictEqual(decodeImageFeedsPanelPreferences(encodeImageFeedsPanelPreferences(state)), {
+    open: { categories: false, rating: true, sources: false, google: true },
+    order: ['google', 'categories', 'sources', 'rating']
+  });
+  assert.deepStrictEqual(readImageFeedsPanelPreferences(storage, key), {
+    open: { categories: false, rating: true, sources: false, google: true },
+    order: ['google', 'categories', 'sources', 'rating']
+  });
+  assert.deepStrictEqual(decodeImageFeedsPanelPreferences('{not json'), {});
+  assert.deepStrictEqual(decodeImageFeedsPanelPreferences(JSON.stringify({ open: { rating: false }, focused: 'rating', maximized: 'sources' })), {
+    open: { rating: false }
+  });
+  assert.deepStrictEqual(createImageFeedsPanelState({ open: { rating: false }, order: ['google'] }), {
+    open: { categories: true, rating: false, sources: true, google: true },
+    focused: null,
+    order: ['google', 'categories', 'rating', 'sources']
+  });
+  assert.strictEqual(writeImageFeedsPanelPreferences(null, state, key), true);
 });
 
 assertAsyncTest('pool policy drafts preserve a just-edited maximum through synchronous save reads', async () => {
