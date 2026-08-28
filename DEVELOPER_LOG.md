@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-28: Align the Initial Snapshot Read with the JSON Boundary
+
+- **Finding**: `getStateSnapshot()` was the remaining client read that called the permissive `requestJson(...)` primitive directly, while dashboard and environment reads used strict `readJson(...)` media-type validation.
+- **Correction**: routed the initial `/api/state` read through `readJson(...)`, preserving the transport shell while making non-JSON fallback responses fail before they can be applied as client state.
+- **Functional boundary**: no new framework was needed; the API wrapper selects the existing strict read effect, and snapshot normalization remains a pure state projection.
+- **Regression coverage**: added a client test proving an HTML response is rejected for the initial state read with the shared `JSON API unavailable` contract.
+- **Learning**: a shared transport abstraction is only a real boundary when every entry point uses its strict contract; a single permissive outlier can still reintroduce the failure mode the abstraction was meant to remove.
+
 ### 2026-08-28: Share the Client Snapshot Response Boundary
 
 - **Review finding**: `useLuminaActions` separately normalized direct REST reads and unwrapped mutation responses, while `App.jsx` normalized live `state-sync` payloads at a different call site. The compatibility rule was small but repeated at the client transport/state boundary.
