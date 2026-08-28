@@ -2739,7 +2739,8 @@ async function runClientStateTests() {
   const {
     applyPhotoEvent,
     getConfirmedPhotoPatch,
-    normalizeSnapshot: normalizeClientSnapshot
+    normalizeSnapshot: normalizeClientSnapshot,
+    normalizeSnapshotResponse
   } = await importClientModule('./client/src/state/frameSelectors.js');
   const { projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
   const {
@@ -2972,6 +2973,25 @@ async function runClientStateTests() {
     assert.strictEqual(nextSnapshot.currentCategory, 'Liminal Spaces,Google Photos');
     assert.deepStrictEqual(nextSnapshot.playback.selectedCategories, ['Liminal Spaces', 'Google Photos']);
     assert.deepStrictEqual(nextSnapshot.currentFrame.context.categories, ['Liminal Spaces', 'Google Photos']);
+  });
+
+  assertTest('normalizeSnapshotResponse composes direct and mutation response snapshots without mutation', () => {
+    const sourceSnapshot = {
+      currentCategory: 'Scenic Nature',
+      playback: { selectedCategories: ['Liminal Space'] },
+      activePhoto: { url: 'land-1' }
+    };
+    const direct = normalizeSnapshotResponse(sourceSnapshot);
+    const enveloped = normalizeSnapshotResponse({ state: sourceSnapshot });
+
+    assert.deepStrictEqual(enveloped, direct);
+    assert.deepStrictEqual(sourceSnapshot, {
+      currentCategory: 'Scenic Nature',
+      playback: { selectedCategories: ['Liminal Space'] },
+      activePhoto: { url: 'land-1' }
+    });
+    assert.strictEqual(normalizeSnapshotResponse(null), null);
+    assert.strictEqual(normalizeSnapshotResponse(undefined), undefined);
   });
 
   assertTest('applyCategorySelection patches both top-level and nested playback selection state', () => {

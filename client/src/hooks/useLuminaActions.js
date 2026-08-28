@@ -19,7 +19,7 @@ import {
 } from '../api/luminaClient';
 import {
   getConfirmedPhotoPatch,
-  normalizeSnapshot,
+  normalizeSnapshotResponse,
   patchPhotoInSnapshot
 } from '../state/frameSelectors';
 import {
@@ -35,7 +35,7 @@ import {
 export function useLuminaActions(socket, setState) {
   const refreshState = async () => {
     const snapshot = await getStateSnapshot();
-    setState(normalizeSnapshot(snapshot));
+    setState(normalizeSnapshotResponse(snapshot));
   };
 
   const applySnapshotPatch = (updater) => {
@@ -48,7 +48,7 @@ export function useLuminaActions(socket, setState) {
 
   const applyStateResponse = (nextState) => {
     if (nextState) {
-      setState(normalizeSnapshot(nextState.state || nextState));
+      setState(normalizeSnapshotResponse(nextState));
     }
   };
 

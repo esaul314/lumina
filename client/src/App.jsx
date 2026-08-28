@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import Dashboard from './components/Dashboard';
 import RemoteControl from './components/RemoteControl';
-import { applyPhotoEvent, normalizeSnapshot } from './state/frameSelectors';
+import {
+  applyPhotoEvent,
+  normalizeSnapshotResponse
+} from './state/frameSelectors';
 
 // Create a single socket connection to the server
 const socketUrl = window.location.port === '5173'
@@ -49,7 +52,7 @@ function App() {
     });
 
     socket.on('state-sync', (syncedState) => {
-      setState(normalizeSnapshot(syncedState));
+      setState(normalizeSnapshotResponse(syncedState));
     });
 
     socket.on('photo-update', (photo) => {

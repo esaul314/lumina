@@ -64,6 +64,21 @@ export function normalizeSnapshot(snapshot) {
   };
 }
 
+/**
+ * Normalize either a direct snapshot or the `{ state: snapshot }` response
+ * envelope used by durable mutations.
+ *
+ * Keeping the envelope compatibility rule beside snapshot normalization gives
+ * reads, mutations, and live sync one pure boundary without coupling callers
+ * to a transport-specific response shape.
+ *
+ * @param {unknown} response
+ * @returns {unknown}
+ */
+export const normalizeSnapshotResponse = (response) => (
+  normalizeSnapshot(response?.state || response)
+);
+
 const PHOTO_EVENT_TARGETS = {
   primary: { activeKey: 'activePhoto', frameKey: 'primary' },
   secondary: { activeKey: 'activeSecondPhoto', frameKey: 'secondary' }
