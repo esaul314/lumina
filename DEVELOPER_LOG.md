@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-28: Share the Client Snapshot Response Boundary
+
+- **Review finding**: `useLuminaActions` separately normalized direct REST reads and unwrapped mutation responses, while `App.jsx` normalized live `state-sync` payloads at a different call site. The compatibility rule was small but repeated at the client transport/state boundary.
+- **Correction**: added pure `normalizeSnapshotResponse(...)` beside the existing snapshot normalization. It accepts either a direct snapshot or the durable mutation `{ state: snapshot }` envelope, then projects both through the same canonical frame/category normalization.
+- **Functional boundary**: `frameSelectors.js` owns compatibility shaping; `useLuminaActions` and the app-level Socket.IO listener remain explicit effect shells that only apply the normalized value. No generic response framework or view-specific presentation was introduced.
+- **Regression coverage**: direct and enveloped snapshots are asserted to produce the same normalized value, source snapshots remain unchanged, and null/undefined inputs retain their identity behavior.
+- **Learning**: when several transports carry one domain snapshot with a transitional envelope, a small pure projection is a better compatibility seam than repeating `state || response` at every effect boundary.
+
 ### 2026-08-26: Give Image Feed Panel Ordering Controls Their Own Responsive Lane
 
 - **Review finding**: at tablet-sized desktop widths, the two-column workspace compressed Scenic Feed Source Manager to roughly one narrow source-card column. Its labeled Move earlier/later controls then sat too close to the title-row Expand and Focus actions, making the panel feel crowded even when the boxes did not geometrically intersect.
