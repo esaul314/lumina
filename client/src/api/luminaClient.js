@@ -1,10 +1,10 @@
 // @ts-check
 
 import { buildMutationPlan } from './requestPlans.js';
-import { requestJson } from './jsonClient.js';
+import { readJson, requestJson } from './jsonClient.js';
 
 export function getStateSnapshot() {
-  return requestJson('/api/state');
+  return readJson('/api/state');
 }
 
 export function patchState(body) {

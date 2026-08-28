@@ -3074,6 +3074,7 @@ async function runClientStateTests() {
     };
 
     const {
+      getStateSnapshot: getClientStateSnapshot,
       saveUseApiToken: saveClientUseApiToken,
       selectCategories: selectClientCategories,
       setScreensaverActive: setClientScreensaverActive,
@@ -3121,6 +3122,9 @@ async function runClientStateTests() {
     });
     await assertAsyncTest('shared read contract rejects an HTML response before view-specific presentation', async () => {
       await assert.rejects(readJson('/api/environment'), /JSON API unavailable \(200\)/);
+    });
+    await assertAsyncTest('state snapshot reads use the shared strict JSON contract', async () => {
+      await assert.rejects(getClientStateSnapshot(), /JSON API unavailable \(200\)/);
     });
 
     const emittedEvents = [];
