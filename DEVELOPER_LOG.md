@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-28: Keep Dashboard Live Sync on the Canonical State Path
+
+- **Finding**: `Dashboard.jsx` subscribed directly to raw `state-sync` only to mirror `screensaverActive`, duplicating the normalized subscription already owned by `App.jsx`.
+- **Correction**: removed the view-level Socket.IO listener and derived particle lifecycle from the canonical `state.screensaverActive` prop. The local dismissal-pending ref remains because it represents an in-flight UI effect, not synchronized domain state.
+- **Functional boundary**: `App.jsx` is the live snapshot effect shell; `frameSelectors.js` remains the pure compatibility projection; Dashboard keeps only presentation effects and its local transient request guard.
+- **Regression coverage**: added a source contract asserting that Dashboard has no raw `state-sync` subscription and that its particle effect depends on canonical screensaver state.
+- **Learning**: once a parent owns transport normalization, child views should consume the projected state rather than re-subscribing to the wire; local optimistic guards are appropriate only for transient effect coordination.
+
 ### 2026-08-28: Align the Initial Snapshot Read with the JSON Boundary
 
 - **Finding**: `getStateSnapshot()` was the remaining client read that called the permissive `requestJson(...)` primitive directly, while dashboard and environment reads used strict `readJson(...)` media-type validation.
