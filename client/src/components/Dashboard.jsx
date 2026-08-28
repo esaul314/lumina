@@ -65,7 +65,6 @@ function Dashboard({ state, socket, connectionInfo }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
   const [environment, setEnvironment] = useState(null);
-  const [isScreensaverActive, setIsScreensaverActive] = useState(() => Boolean(state.screensaverActive));
   const [activeSlides, setActiveSlides] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showCursor, setShowCursor] = useState(true);
@@ -419,10 +418,8 @@ function Dashboard({ state, socket, connectionInfo }) {
     }
 
     dismissalPendingRef.current = true;
-    setIsScreensaverActive(false);
     void requestScreensaverState(false, { socket }).catch((error) => {
       dismissalPendingRef.current = false;
-      setIsScreensaverActive(true);
       console.error('[Dashboard] Failed to dismiss screensaver:', error);
     });
   };
@@ -484,7 +481,6 @@ function Dashboard({ state, socket, connectionInfo }) {
   }, [state.screensaverActive]);
 
   useEffect(() => {
-    setIsScreensaverActive(Boolean(state.screensaverActive));
     dismissalPendingRef.current = false;
   }, [state.screensaverActive]);
 
@@ -513,18 +509,6 @@ function Dashboard({ state, socket, connectionInfo }) {
       }
     };
   }, [isSettingsOpen]);
-
-  // Receive sync events from socket for toggle widgets
-  useEffect(() => {
-    const handleSync = (syncedState) => {
-      setIsScreensaverActive(syncedState.screensaverActive);
-      dismissalPendingRef.current = false;
-    };
-    socket.on('state-sync', handleSync);
-    return () => {
-      socket.off('state-sync', handleSync);
-    };
-  }, [socket]);
 
   // 5. Bokeh HTML5 Canvas Particle Engine
   useEffect(() => {
@@ -596,7 +580,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [state.widgets.particles, isScreensaverActive]);
+  }, [state.widgets.particles, state.screensaverActive]);
 
   // Construct mobile remote URL
   const localIp = connectionInfo.localIps[0] || window.location.hostname;

@@ -3633,6 +3633,10 @@ async function runClientRenderingTests() {
     isEscapeKey,
     isScreensaverDismissalActivity
   } = await importClientModule('./client/src/state/screensaverActivity.js');
+  const dashboardSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/components/Dashboard.jsx'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3687,6 +3691,14 @@ async function runClientRenderingTests() {
       screensaverActive: false,
       event: { type: 'keydown', key: 'Escape' }
     }), false);
+  });
+
+  assertTest('Dashboard derives screensaver-dependent effects from canonical App state', () => {
+    assert.strictEqual(dashboardSource.includes("socket.on('state-sync'"), false);
+    assert.match(
+      dashboardSource,
+      /\}, \[state\.widgets\.particles, state\.screensaverActive\]\);/
+    );
   });
 }
 
