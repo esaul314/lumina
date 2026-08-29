@@ -2967,8 +2967,11 @@ async function runClientStateTests() {
     serializeCategorySelection,
     toggleCategorySelection
   } = await importClientModule('./client/src/state/feedMutations.js');
+  const { normalizeCategoryName } = await importClientModule('./client/src/state/categorySelection.js');
 
   assertTest('toggleCategorySelection normalizes commas and toggles without duplicating categories', () => {
+    const sourceSelection = [' Scenic Nature ', 'Liminal Space', 'Liminal Space'];
+
     assert.deepStrictEqual(
       toggleCategorySelection('Liminal Spaces', 'Scenic Nature, Liminal Spaces'),
       ['Scenic Nature']
@@ -2985,6 +2988,12 @@ async function runClientStateTests() {
       serializeCategorySelection([' Scenic Nature ', 'AI Creations', 'Scenic Nature']),
       'Scenic Nature,AI Creations'
     );
+    assert.strictEqual(normalizeCategoryName('AI Creation'), 'AI Creations');
+    assert.deepStrictEqual(normalizeCategorySelection(sourceSelection), [
+      'Scenic Nature',
+      'Liminal Spaces'
+    ]);
+    assert.deepStrictEqual(sourceSelection, [' Scenic Nature ', 'Liminal Space', 'Liminal Space']);
   });
 
   assertTest('client category helpers prefer canonical playback selection over stale top-level category strings', () => {
@@ -3709,6 +3718,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/frameSelectors.js'),
     'utf8'
   );
+  const categorySelectionSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/categorySelection.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3789,6 +3802,14 @@ async function runClientRenderingTests() {
     assert.match(frameSelectorsSource, /@typedef \{Record<string, unknown> & \{/);
     assert.match(frameSelectorsSource, /@param \{ClientSnapshot\|null\|undefined\} snapshot/);
     assert.match(frameSelectorsSource, /@returns \{PhotoEventProjection\|null\}/);
+  });
+
+  assertTest('category selection exposes a checked pure selection contract', () => {
+    assert.match(categorySelectionSource, /^\/\/ @ts-check/);
+    assert.match(categorySelectionSource, /@typedef \{string\[\]\} CategorySelection/);
+    assert.match(categorySelectionSource, /@typedef \{Record<string, unknown> & \{/);
+    assert.match(categorySelectionSource, /@param \{unknown\} category/);
+    assert.match(categorySelectionSource, /@returns \{CategorySelection\}/);
   });
 }
 
