@@ -25,7 +25,7 @@ Current checkpoint:
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
 - Step 4 is complete: the shared command/effect pipeline is more composable and legible without hiding straightforward reducer updates.
-- Step 5 is active: the client now shares pure, partially applicable REST state-patch builders and REST-first mutation request plans instead of repeating patch or legacy-fallback payload construction in the React/API boundary.
+- Step 5 is complete: the client now shares pure, partially applicable REST state-patch builders, REST-first mutation request plans, and normalized live-sync projections instead of repeating patch, fallback, or event-envelope construction in the React/API boundary.
 - The first Step 5 snapshot seam is complete: `normalizeSnapshotResponse(...)` is the pure direct-or-enveloped response projection shared by `useLuminaActions` and the app-level `state-sync` listener.
 - The initial state read now uses the shared strict `readJson(...)` contract, so the snapshot acquisition effect rejects non-JSON fallback responses consistently with the other client reads.
 - The Dashboard now derives screensaver-dependent effects from the canonical normalized state prop; its duplicate raw `state-sync` listener was removed while the local dismissal-pending guard remains an explicit effect concern.
@@ -34,7 +34,7 @@ Current checkpoint:
 - App photo acknowledgements now use one pure event-envelope projection and declarative listener table; primary and secondary frame-side application remains explicit in the existing immutable snapshot transform.
 - The latest Step 5 UI slice adds a pure `getPoolLifecycleRows(...)` presentation projection and keeps the React shell responsible only for draft updates and save effects; CSS handles the desktop/mobile field layout without introducing a generic form framework.
 - The latest Step 5 snapshot slice keeps the `{ state: snapshot }` compatibility rule at the functional boundary, so REST reads, mutation responses, and live sync all enter React as the same normalized snapshot shape without duplicating envelope checks.
-- The next Step 5 seam is any remaining live-sync consumer audit; view-specific state effects stay outside the pure snapshot projection.
+- The Step 5 live-sync audit is complete: view-specific state effects remain outside the pure snapshot projection, and no further repeated client consumer policy was identified.
 - The current live-sync audit has removed the remaining duplicated credential acknowledgement branch; continue with any other repeated view-specific status consumer only when the repetition is concrete.
 - The latest live-sync audit removed the duplicated legacy/modern recrawl status application branch; continue with another view-specific status consumer only when its policy is genuinely repeated.
 - The latest UI refinement uses native `<details>/<summary>` disclosure for each pool: collapsed summary state is pure projected data, while browser disclosure, focus behavior, and field effects remain explicit at the presentation shell.
@@ -321,7 +321,7 @@ Progress note:
 - The latest Step 5 slice extracts `projectCredentialSaveStatus(...)` for the two RemoteControl credential acknowledgement events. Their event names, input setters, and status reset timing remain explicit at the effect boundary.
 - The latest Step 5 slice extracts `projectJobEvent(...)` for `job-status` and `recrawl-complete`, adapting both envelopes to `projectJobStatus(...)` before one declarative RemoteControl application shell updates the selected job target.
 - The latest Step 5 slice extracts `projectPhotoEvent(...)` for `photo-update` and `second-photo-update`, adapting both wire events to the existing side-aware frame projection before App applies the immutable snapshot update.
-- Step 5 next seam: audit any remaining client snapshot normalization and live-sync projections after the shared response projection, preserving explicit transport effects and view-specific state application.
+- Step 5 closeout: snapshot normalization and live-sync projections now have one pure boundary per repeated vocabulary, with explicit transport effects and view-specific state application; Step 6 is the next focus.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

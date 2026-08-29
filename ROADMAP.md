@@ -22,15 +22,16 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: implementation companion Step 3. `server/app.js` now delegates active-feed refresh, environment refresh, kiosk/browser lifecycle, and idle-daemon orchestration to dedicated runtime modules.
 - Done: implementation companion Step 4 is complete. Its acceptance criteria are met: repeated reducer/result/effect patterns are shared, new command branches have low ceremony, and the reducer/transport shells remain readable. The final audit found no remaining named Step 4 requirement; future cleanup is maintenance-only and must remain selective.
 - Step 4 audit result: its backend acceptance criteria remain satisfied, but the broader functional-programming bar also requires the client action boundary to be compositional and TypeScript-ready; that work belongs in implementation companion Step 5 rather than being hidden inside Step 4.
-- In progress: implementation companion Step 5 now shares pure, partially applicable client state-patch builders and declarative REST-first mutation request plans.
+- Done: implementation companion Step 5 now shares pure, partially applicable client state-patch builders and declarative REST-first mutation request plans; its live-sync audit is complete.
 - Done: the first Step 5 snapshot seam now normalizes direct snapshots and `{ state: snapshot }` mutation responses through one pure response projection used by actions and live `state-sync`.
 - Done: the initial client state read now uses the strict shared JSON read contract, so HTML or other non-JSON fallback pages fail before snapshot application.
 - Done: the Dashboard no longer subscribes directly to raw `state-sync`; screensaver-dependent effects derive from the canonical normalized state owned by `App.jsx`.
 - Done: remaining credential-save live acknowledgements now share one pure status projection and declarative RemoteControl subscription table; Socket.IO remains the effectful status shell.
 - Done: modern `job-status` and legacy `recrawl-complete` acknowledgements now share one pure job-event projection and declarative RemoteControl listener table; job-specific React targets remain explicit.
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
-- Next: continue Step 5 by auditing the remaining client live-sync consumers without moving view-specific presentation into the snapshot boundary.
-- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 4 are complete and Step 5 is active.
+- Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
+- Next: begin implementation companion Step 6 by expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
+- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is next.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
 - Latest Step 4 slice: effect and event interpretation now share a small closed handler-record interpreter over the indexed vocabulary helper, removing duplicate lookup setup while preserving silent unknown and inherited-key behavior.
@@ -53,7 +54,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 5 responsive correction: the Image Feeds workspace now leaves the two-column layout at 959px so Source Manager ordering controls have a dedicated, separated toolbar and do not compete with title-row Expand/Focus actions in compressed tablet widths.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
-- Next Step 5 target: audit any remaining client live-sync consumers after the response-to-state boundary, keeping compatibility shaping pure and transport/view effects explicit.
+- Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.
 - Latest Step 4 slice: the client Socket.IO photo-update handlers now share one pure side-aware snapshot projection, keeping primary and secondary frame updates immutable while removing duplicate legacy/canonical state synchronization.
 - Latest Step 4 slice: the remote UI now projects recrawl and vision-analysis job events through one pure status algebra, so one Socket.IO listener applies the shared queued/running/completed/failed semantics while job-specific React targets remain explicit.
 - Latest Step 4 slice: recrawl and vision-analysis services now share one declarative async-job lifecycle interpreter for scope normalization, progress merging, active-run reuse, terminal status, and error projection while their crawler/analyzer execution and legacy event policy remain explicit.
@@ -168,7 +169,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: Steps 1 through 4 of the implementation companion are complete and Step 5 is active. The client now has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, and one direct-or-enveloped snapshot projection for REST reads, mutation responses, and live `state-sync`; the remaining work should stay limited to client seams that still show real repeated ceremony.
+  - Next focus: Steps 1 through 5 of the implementation companion are complete and Step 6 is next. The client now has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, and normalized event projections for REST reads, mutation responses, live `state-sync`, paired photos, credentials, and jobs.
 
 ### Shared domain flow
 

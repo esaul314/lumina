@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Close the Step 5 Live-Sync Audit
+
+- **Finding**: after the paired photo-event boundary was normalized, all remaining client Socket.IO listeners had distinct policies: connection lifecycle, canonical snapshots, telemetry, credential acknowledgements, or job status.
+- **Decision**: close implementation companion Step 5 and carry the roadmap to Step 6, with no generic live-sync framework added for the remaining policy-specific effects.
+- **Functional boundary**: repeated event vocabularies use pure projections and declarative subscriptions; transport effects and view-specific state application remain explicit at the edge.
+- **Verification**: the full regression suite, lint, client build, served-bundle check, and diff validation passed during the completed Step 5 slices.
+- **Learning**: a functional refactor is complete when the remaining imperative code expresses distinct policy clearly, not when every effect has been forced through one abstraction.
+
 ### 2026-08-29: Normalize Paired Photo Acknowledgements
 
 - **Finding**: `App.jsx` registered primary and secondary photo-update events with duplicated listener logic whose only difference was the target frame side.
