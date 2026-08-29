@@ -2694,7 +2694,10 @@ async function runClientStateTests() {
 
   const {
     createEnvironmentDevice,
+    convertPressure,
+    convertTemperature,
     formatEnvironmentMetric,
+    formatEnvironmentTimestamp,
     getActiveEnvironmentDevice,
     getEnvironmentStatus,
     normalizeEnvironmentSettingsDraft,
@@ -2707,6 +2710,11 @@ async function runClientStateTests() {
   assertTest('environment UI helpers present normalized sensor status and safe metric fallbacks', () => {
     assert.strictEqual(formatEnvironmentMetric(24.75, '°C'), '24.8°C');
     assert.strictEqual(formatEnvironmentMetric(null, '%'), '—');
+    assert.strictEqual(convertTemperature(20, 'F'), 68);
+    assert.strictEqual(convertTemperature('not-a-number', 'F'), null);
+    assert.strictEqual(convertPressure(1013.25, 'hPa'), 1013.25);
+    assert.strictEqual(convertPressure(1013.25, 'inHg'), 29.921255347112236);
+    assert.strictEqual(formatEnvironmentTimestamp('not-a-timestamp'), 'No reading yet');
     assert.deepStrictEqual(getEnvironmentStatus({ enabled: true, stale: false, indoor: { temperatureC: 22 } }), {
       label: 'Online',
       color: '#10b981'
@@ -3749,6 +3757,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/feedMutations.js'),
     'utf8'
   );
+  const environmentHistorySource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/environmentHistory.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3854,6 +3866,13 @@ async function runClientRenderingTests() {
     assert.match(feedMutationsSource, /@param \{unknown\} selection/);
     assert.match(feedMutationsSource, /@param \{unknown\} configPatch/);
     assert.match(feedMutationsSource, /@returns \{ClientMutationSnapshot\|null\|undefined\}/);
+  });
+
+  assertTest('environment presentation exposes a checked pure status contract', () => {
+    assert.match(environmentHistorySource, /^\/\/ @ts-check/);
+    assert.match(environmentHistorySource, /@typedef \{object\} EnvironmentStatusSnapshot/);
+    assert.match(environmentHistorySource, /@param \{unknown\} value/);
+    assert.match(environmentHistorySource, /@returns \{EnvironmentStatus\}/);
   });
 }
 

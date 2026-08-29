@@ -1,15 +1,52 @@
+// @ts-check
+
+/**
+ * The environment response is intentionally structural: the client only
+ * needs these fields for presentation and leaves adapter-specific readings
+ * opaque to this module.
+ *
+ * @typedef {object} EnvironmentStatusSnapshot
+ * @property {boolean=} enabled
+ * @property {boolean=} stale
+ * @property {Record<string, unknown>|null=} indoor
+ */
+
+/** @typedef {{label: string, color: string}} EnvironmentStatus */
+
+/**
+ * Format a numeric metric without allowing malformed or missing sensor data
+ * to leak into the view.
+ *
+ * @param {unknown} value
+ * @param {string} [suffix='']
+ * @returns {string}
+ */
 export const formatEnvironmentMetric = (value, suffix = '') => {
   if (value === null || value === undefined || value === '') return '—';
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? `${numericValue.toFixed(1)}${suffix}` : '—';
 };
 
+/**
+ * Convert a Celsius reading into the requested display unit.
+ *
+ * @param {unknown} value
+ * @param {string} [unit='C']
+ * @returns {number|null}
+ */
 export const convertTemperature = (value, unit = 'C') => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return null;
   return unit === 'F' ? (numericValue * 9) / 5 + 32 : numericValue;
 };
 
+/**
+ * Convert an hPa reading into the requested display unit.
+ *
+ * @param {unknown} value
+ * @param {string} [unit='hPa']
+ * @returns {number|null}
+ */
 export const convertPressure = (value, unit = 'hPa') => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return null;
@@ -87,6 +124,12 @@ export const parseEnvironmentSettingsJson = (value) => {
   }
 };
 
+/**
+ * Format a persisted observation timestamp for the operator views.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
 export const formatEnvironmentTimestamp = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'No reading yet' : date.toLocaleString([], {
@@ -95,6 +138,13 @@ export const formatEnvironmentTimestamp = (value) => {
   });
 };
 
+/**
+ * Project an environment response into the small status vocabulary shared by
+ * the TV and remote presentations.
+ *
+ * @param {EnvironmentStatusSnapshot|null|undefined} environment
+ * @returns {EnvironmentStatus}
+ */
 export const getEnvironmentStatus = (environment) => {
   if (!environment) return { label: 'Backend unavailable', color: '#ef4444' };
   if (!environment.enabled) return { label: 'Not configured', color: '#94a3b8' };
