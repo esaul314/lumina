@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Add a Checked Contract to Environment Presentation
+
+- **Finding**: TV and remote views shared pure environment metric, conversion, timestamp, and status helpers, but their accepted values and returned status vocabulary were undocumented at the TypeScript migration boundary.
+- **Correction**: added local `@ts-check` contracts for the structural environment status snapshot, scalar conversion inputs, formatted values, and shared status result without changing settings or transport behavior.
+- **Functional boundary**: scalar conversions and status projection remain pure; malformed readings produce safe display fallbacks, while adapter-specific payloads and React effects stay outside the module.
+- **Regression coverage**: added conversion, invalid-reading, timestamp-fallback, and checked-source assertions; the standard project gates follow this entry.
+- **Learning**: shared presentation helpers are useful migration anchors when their input vocabulary is explicit but their adapter payload remains intentionally opaque.
+
 ### 2026-08-29: Add a Checked Contract to Feed Mutations
 
 - **Finding**: the pure category and feed-source snapshot projections already preserved immutable canonical and legacy aliases, but their snapshot and edit inputs were undocumented at the TypeScript migration boundary.
