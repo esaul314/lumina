@@ -2743,6 +2743,7 @@ async function runClientStateTests() {
     normalizeSnapshotResponse
   } = await importClientModule('./client/src/state/frameSelectors.js');
   const { projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
+  const { projectCredentialSaveStatus } = await importClientModule('./client/src/state/credentialStatus.js');
   const {
     buildFieldPatch,
     buildWidgetVisibilityPatch
@@ -2872,6 +2873,19 @@ async function runClientStateTests() {
     assert.strictEqual(projectJobStatus({ type: 'unknown', status: 'running' }), null);
     assert.strictEqual(projectJobStatus({ type: 'toString', status: 'running' }), null);
     assert.strictEqual(projectJobStatus({ type: 'recrawl', status: 'cancelled' }), null);
+  });
+
+  assertTest('credential save acknowledgements share a pure status projection', () => {
+    assert.deepStrictEqual(projectCredentialSaveStatus({ success: true }), {
+      status: 'success',
+      clearInput: true
+    });
+    assert.deepStrictEqual(projectCredentialSaveStatus({ success: false }), {
+      status: 'error',
+      clearInput: false
+    });
+    assert.strictEqual(projectCredentialSaveStatus({ success: 'true' }), null);
+    assert.strictEqual(projectCredentialSaveStatus(null), null);
   });
 
   assertTest('photo mutation UI reconciles source-local metadata from the server response', () => {

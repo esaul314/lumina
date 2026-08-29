@@ -36,6 +36,7 @@ import {
   toggleCategorySelection
 } from '../state/feedMutations';
 import { projectJobStatus } from '../state/jobStatus';
+import { projectCredentialSaveStatus } from '../state/credentialStatus';
 
 const SPLIT_PREVIEW_PADDING = 6;
 const SPLIT_PREVIEW_GAP = 6;
@@ -294,36 +295,43 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       scheduleStatusReset(setRecrawlStatus, setRecrawlMessage);
     };
 
-    const handleUseApiSaved = (data) => {
-      if (data.success) {
-        setUseapiStatus('success');
-        setUseapiToken('');
-      } else {
-        setUseapiStatus('error');
+    const credentialSaveSubscriptions = [
+      {
+        event: 'useapi-token-saved',
+        setStatus: setUseapiStatus,
+        clearInput: () => setUseapiToken('')
+      },
+      {
+        event: 'tumblr-api-key-saved',
+        setStatus: setTumblrApiStatus,
+        clearInput: () => setTumblrApiKey('')
       }
-      scheduleTokenStatusReset(setUseapiStatus);
-    };
+    ];
+    const credentialSaveHandlers = credentialSaveSubscriptions.map(({ event, setStatus, clearInput }) => {
+      const handleSaved = (data) => {
+        const update = projectCredentialSaveStatus(data);
+        if (!update) {
+          return;
+        }
 
-    const handleTumblrApiSaved = (data) => {
-      if (data.success) {
-        setTumblrApiStatus('success');
-        setTumblrApiKey('');
-      } else {
-        setTumblrApiStatus('error');
-      }
-      scheduleTokenStatusReset(setTumblrApiStatus);
-    };
+        setStatus(update.status);
+        if (update.clearInput) {
+          clearInput();
+        }
+        scheduleTokenStatusReset(setStatus);
+      };
+
+      socket.on(event, handleSaved);
+      return [event, handleSaved];
+    });
 
     socket.on('job-status', handleJobStatus);
     socket.on('recrawl-complete', handleRecrawlComplete);
-    socket.on('useapi-token-saved', handleUseApiSaved);
-    socket.on('tumblr-api-key-saved', handleTumblrApiSaved);
 
     return () => {
       socket.off('job-status', handleJobStatus);
       socket.off('recrawl-complete', handleRecrawlComplete);
-      socket.off('useapi-token-saved', handleUseApiSaved);
-      socket.off('tumblr-api-key-saved', handleTumblrApiSaved);
+      credentialSaveHandlers.forEach(([event, handler]) => socket.off(event, handler));
     };
   }, [socket]);
 
