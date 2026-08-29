@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Normalize Modern and Legacy Job Acknowledgements
+
+- **Finding**: `RemoteControl.jsx` applied the same recrawl status policy separately for modern `job-status` events and legacy `recrawl-complete` acknowledgements.
+- **Correction**: extracted pure `projectJobEvent(...)` to adapt both envelopes to the existing `projectJobStatus(...)` algebra, then registered both event names through one declarative listener table and application path.
+- **Functional boundary**: event-envelope compatibility and status derivation remain pure; React target selection, state setters, Socket.IO registration, and transient reset timers remain the imperative shell.
+- **Regression coverage**: added direct assertions for modern running events, legacy successful and failed completions, and unknown event identity.
+- **Learning**: compatibility events can share a functional status algebra without flattening the distinct view targets or transport effects that still belong at the edge.
+
 ### 2026-08-29: Share Remote Credential Acknowledgement Projection
 
 - **Finding**: `RemoteControl.jsx` had two credential-save Socket.IO handlers with identical success/error status policy and transient reset timing.
