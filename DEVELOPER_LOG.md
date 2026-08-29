@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Add a Checked Contract to Job Status Projections
+
+- **Finding**: the shared job-status algebra already unified recrawl and vision-analysis acknowledgements, but its server envelopes and legacy completion shape were undocumented and unchecked.
+- **Correction**: added local `@ts-check` structural aliases for supported job types, status updates, modern job events, and legacy recrawl completions. The existing projection functions and event names remain unchanged.
+- **Functional boundary**: payloads enter as unknown at the pure event boundary, compatibility is projected into one status algebra, and React target selection plus reset effects remain outside the module.
+- **Regression coverage**: added checked-source assertions plus queued fallback and null-envelope behavior assertions; the full suite remains the compatibility gate.
+- **Learning**: a closed event vocabulary can be made TypeScript-ready without forcing transport validation or UI policy into the pure projection layer.
+
 ### 2026-08-29: Add a Checked Contract to Category Selection
 
 - **Finding**: the pure category-selection module was shared by frame normalization, feed mutations, and both operator views, but its snapshot fallback and toggle inputs were undocumented and unchecked.
