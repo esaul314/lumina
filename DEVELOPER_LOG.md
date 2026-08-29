@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Add a Checked Contract to the Client Frame Boundary
+
+- **Finding**: the pure snapshot/frame selector module was already the stable client boundary for REST responses, live sync, paired photos, and crop presentation, but it had no explicit JSDoc contract or `@ts-check` coverage.
+- **Correction**: added local structural types for client photos, current frames, snapshots, photo-event envelopes, and crop selectors. The types remain browser-owned instead of importing server domain modules, keeping a future TypeScript conversion layer-independent.
+- **Functional boundary**: normalization, event projection, and selector functions remain pure; the new annotations describe their existing data-in/data-out contract without adding runtime validation or transport behavior.
+- **Regression coverage**: added a source contract asserting the checked module and its snapshot/event aliases; the full test suite and lint passed.
+- **Learning**: TypeScript readiness starts with stable shapes at effect boundaries. A small local contract is more useful than a cross-layer type dependency when a client shape intentionally accepts legacy aliases.
+
 ### 2026-08-29: Close the Step 5 Live-Sync Audit
 
 - **Finding**: after the paired photo-event boundary was normalized, all remaining client Socket.IO listeners had distinct policies: connection lifecycle, canonical snapshots, telemetry, credential acknowledgements, or job status.
