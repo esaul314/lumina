@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Share Remote Credential Acknowledgement Projection
+
+- **Finding**: `RemoteControl.jsx` had two credential-save Socket.IO handlers with identical success/error status policy and transient reset timing.
+- **Correction**: extracted pure `projectCredentialSaveStatus(...)` and applied it through one declarative subscription table. Credential event names and input setters remain explicit because they are transport and view-specific.
+- **Functional boundary**: the projection returns only the status algebra and whether the corresponding input should clear; React setters, Socket.IO registration, and timeout scheduling remain the imperative shell.
+- **Regression coverage**: added direct pure-function assertions for success, failure, malformed, and null acknowledgements; the full suite passed with no failures.
+- **Learning**: small live-status acknowledgements benefit from the same functional-core boundary as snapshots, while source-specific UI effects should stay visible at the edge.
+
 ### 2026-08-28: Keep Dashboard Live Sync on the Canonical State Path
 
 - **Finding**: `Dashboard.jsx` subscribed directly to raw `state-sync` only to mirror `screensaverActive`, duplicating the normalized subscription already owned by `App.jsx`.
