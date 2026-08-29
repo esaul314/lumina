@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Add a Checked Contract to Feed Mutations
+
+- **Finding**: the pure category and feed-source snapshot projections already preserved immutable canonical and legacy aliases, but their snapshot and edit inputs were undocumented at the TypeScript migration boundary.
+- **Correction**: added local `@ts-check` structural aliases and unknown-safe contracts to `applyCategorySelection(...)` and `applyFeedSourceConfigPatch(...)`; the existing data-first signatures and normalization behavior remain unchanged.
+- **Functional boundary**: the helpers project values through pure immutable transforms, while malformed edit inputs return the original snapshot by identity. React state application and API effects remain outside the module.
+- **Regression coverage**: added checked-source assertions, source immutability checks, and invalid-input identity checks; the standard project gates follow this entry.
+- **Learning**: TypeScript readiness is clearest when the functional core names both its accepted compatibility shape and its no-op identity law without introducing runtime ceremony.
+
 ### 2026-08-29: Add a Checked Contract to Job Status Projections
 
 - **Finding**: the shared job-status algebra already unified recrawl and vision-analysis acknowledgements, but its server envelopes and legacy completion shape were undocumented and unchecked.
