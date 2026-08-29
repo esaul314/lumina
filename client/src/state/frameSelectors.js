@@ -1,8 +1,52 @@
+// @ts-check
+
 import {
   getSelectedCategories,
   serializeCategorySelection
 } from './categorySelection.js';
 
+/**
+ * @typedef {object} ClientPhoto
+ * @property {string} url
+ * @property {string=} title
+ * @property {string=} author
+ * @property {string=} category
+ * @property {number=} cropPercent
+ * @property {number=} cropPositionY
+ * @property {string=} orientation
+ * @property {boolean=} loved
+ * @property {boolean=} preventPairing
+ * @property {number=} rating
+ */
+
+/**
+ * @typedef {object} ClientFrame
+ * @property {ClientPhoto|null} primary
+ * @property {ClientPhoto|null} secondary
+ * @property {'single'|'split'} layout
+ * @property {{primaryPercent?: number|null, primaryPositionY?: number|null, secondaryPercent?: number|null, secondaryPositionY?: number|null}} crop
+ * @property {{category?: string|null, categories: string[], photoCount?: number, orientation?: string, splitEligible?: boolean}} context
+ */
+
+/**
+ * The client accepts the server snapshot plus a small set of legacy aliases
+ * while the REST and Socket.IO envelopes converge on the same frame shape.
+ *
+ * @typedef {Record<string, unknown> & {
+ *   activePhoto?: ClientPhoto|null,
+ *   activeSecondPhoto?: ClientPhoto|null,
+ *   currentCategory?: string,
+ *   currentFrame?: ClientFrame|null,
+ *   playback?: {selectedCategories?: string[]}|null,
+ *   photosList?: ClientPhoto[]|null,
+ *   splitCropPercent?: number
+ * }} ClientSnapshot
+ */
+
+/** @typedef {'primary'|'secondary'} PhotoEventSide */
+/** @typedef {{side: PhotoEventSide, photo: ClientPhoto}} PhotoEventProjection */
+
+/** @param {ClientSnapshot} snapshot @returns {ClientFrame} */
 function buildFallbackFrame(snapshot) {
   const categories = getSelectedCategories(snapshot);
   const primary = snapshot?.activePhoto || null;
@@ -29,6 +73,13 @@ function buildFallbackFrame(snapshot) {
   };
 }
 
+/**
+ * Normalize a legacy or canonical client snapshot into the shared frame
+ * vocabulary without mutating the input value.
+ *
+ * @param {ClientSnapshot|null|undefined} snapshot
+ * @returns {ClientSnapshot|null|undefined}
+ */
 export function normalizeSnapshot(snapshot) {
   if (!snapshot) {
     return snapshot;
@@ -73,17 +124,19 @@ export function normalizeSnapshot(snapshot) {
  * to a transport-specific response shape.
  *
  * @param {unknown} response
- * @returns {unknown}
+ * @returns {ClientSnapshot|null|undefined}
  */
 export const normalizeSnapshotResponse = (response) => (
-  normalizeSnapshot(response?.state || response)
+  normalizeSnapshot(/** @type {ClientSnapshot|null|undefined} */ (response?.state || response))
 );
 
+/** @type {Record<PhotoEventSide, {activeKey: 'activePhoto'|'activeSecondPhoto', frameKey: 'primary'|'secondary'}>} */
 const PHOTO_EVENT_TARGETS = {
   primary: { activeKey: 'activePhoto', frameKey: 'primary' },
   secondary: { activeKey: 'activeSecondPhoto', frameKey: 'secondary' }
 };
 
+/** @type {Record<string, PhotoEventSide>} */
 const PHOTO_EVENT_SIDES = Object.freeze({
   'photo-update': 'primary',
   'second-photo-update': 'secondary'
@@ -92,6 +145,10 @@ const PHOTO_EVENT_SIDES = Object.freeze({
 /**
  * Project a wire-level photo event into the side-aware snapshot vocabulary.
  * The Socket.IO shell remains responsible for applying the immutable update.
+ *
+ * @param {string} event
+ * @param {ClientPhoto} photo
+ * @returns {PhotoEventProjection|null}
  */
 export function projectPhotoEvent(event, photo) {
   const side = Object.prototype.hasOwnProperty.call(PHOTO_EVENT_SIDES, event)
@@ -103,6 +160,11 @@ export function projectPhotoEvent(event, photo) {
 /**
  * Apply a server photo event to both the legacy snapshot fields and the
  * canonical frame projection without mutating the received snapshot.
+ *
+ * @param {ClientSnapshot|null|undefined} snapshot
+ * @param {PhotoEventSide|string} side
+ * @param {ClientPhoto} photo
+ * @returns {ClientSnapshot|null|undefined}
  */
 export function applyPhotoEvent(snapshot, side, photo) {
   const target = PHOTO_EVENT_TARGETS[side];
@@ -119,6 +181,14 @@ export function applyPhotoEvent(snapshot, side, photo) {
   });
 }
 
+/**
+ * Apply a confirmed photo metadata patch across all client snapshot aliases.
+ *
+ * @param {ClientSnapshot|null|undefined} snapshot
+ * @param {string} url
+ * @param {Record<string, unknown>} patch
+ * @returns {ClientSnapshot|null|undefined}
+ */
 export function patchPhotoInSnapshot(snapshot, url, patch) {
   if (!snapshot || !url || !patch || typeof patch !== 'object') {
     return snapshot;
@@ -164,6 +234,11 @@ export function patchPhotoInSnapshot(snapshot, url, patch) {
  * Prefer the server's canonical photo identity and metadata after a mutation.
  * This matters for source-local photos such as Google Photos, whose durable
  * metadata is keyed by the proxy-backed photo returned by the server.
+ *
+ * @param {string} requestedUrl
+ * @param {Record<string, unknown>} requestedPatch
+ * @param {unknown} response
+ * @returns {{url: string, patch: Record<string, unknown>}}
  */
 export function getConfirmedPhotoPatch(requestedUrl, requestedPatch, response) {
   const confirmedPhoto = response?.photo;
@@ -177,23 +252,37 @@ export function getConfirmedPhotoPatch(requestedUrl, requestedPatch, response) {
   };
 }
 
+/** @param {ClientSnapshot|null|undefined} state @returns {ClientFrame} */
 export function getCurrentFrame(state) {
-  return state?.currentFrame || buildFallbackFrame(state || {});
+  return state?.currentFrame || buildFallbackFrame(state || /** @type {ClientSnapshot} */ ({}));
 }
 
+/**
+ * @param {ClientSnapshot|null|undefined} state
+ * @param {PhotoEventSide} [side='primary']
+ * @returns {ClientPhoto|null}
+ */
 export function getFramePhoto(state, side = 'primary') {
   const frame = getCurrentFrame(state);
   return side === 'secondary' ? frame.secondary : frame.primary;
 }
 
+/** @param {ClientSnapshot|null|undefined} state @returns {boolean} */
 export function isSplitFrameActive(state) {
   return getCurrentFrame(state).layout === 'split';
 }
 
+/** @param {ClientSnapshot|null|undefined} state @returns {string} */
 export function getFrameOrientation(state) {
   return getCurrentFrame(state).context?.orientation || 'unknown';
 }
 
+/**
+ * @param {ClientSnapshot|null|undefined} state
+ * @param {string} url
+ * @param {ClientPhoto|null} [fallback=null]
+ * @returns {ClientPhoto|null}
+ */
 export function findPhotoByUrl(state, url, fallback = null) {
   if (!url) {
     return fallback;
@@ -209,6 +298,13 @@ export function findPhotoByUrl(state, url, fallback = null) {
   ].find((photo) => photo?.url === url) || fallback;
 }
 
+/**
+ * @param {ClientSnapshot|null|undefined} state
+ * @param {string} url
+ * @param {number} [fallbackPercent]
+ * @param {number} [fallbackPositionY]
+ * @returns {{cropPercent: number|undefined, cropPositionY: number|undefined}}
+ */
 export function getPhotoCropState(state, url, fallbackPercent = undefined, fallbackPositionY = undefined) {
   const frame = getCurrentFrame(state);
 

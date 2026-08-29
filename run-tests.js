@@ -3705,6 +3705,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/components/Dashboard.jsx'),
     'utf8'
   );
+  const frameSelectorsSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/frameSelectors.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3778,6 +3782,13 @@ async function runClientRenderingTests() {
     assert.match(appSource, /\['photo-update', 'second-photo-update'\]\.map\(\(event\)/);
     assert.strictEqual(appSource.includes("socket.on('photo-update'"), false);
     assert.strictEqual(appSource.includes("socket.on('second-photo-update'"), false);
+  });
+
+  assertTest('frame selectors expose a stable checked snapshot contract', () => {
+    assert.match(frameSelectorsSource, /^\/\/ @ts-check/);
+    assert.match(frameSelectorsSource, /@typedef \{Record<string, unknown> & \{/);
+    assert.match(frameSelectorsSource, /@param \{ClientSnapshot\|null\|undefined\} snapshot/);
+    assert.match(frameSelectorsSource, /@returns \{PhotoEventProjection\|null\}/);
   });
 }
 
