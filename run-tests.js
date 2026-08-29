@@ -2890,6 +2890,11 @@ async function runClientStateTests() {
     assert.strictEqual(projectJobStatus({ type: 'unknown', status: 'running' }), null);
     assert.strictEqual(projectJobStatus({ type: 'toString', status: 'running' }), null);
     assert.strictEqual(projectJobStatus({ type: 'recrawl', status: 'cancelled' }), null);
+    assert.deepStrictEqual(projectJobStatus({ type: 'recrawl', status: 'queued' }), {
+      status: 'loading',
+      message: 'Crawling web feeds & self-healing links...'
+    });
+    assert.strictEqual(projectJobStatus(null), null);
   });
 
   assertTest('client job event projection normalizes legacy recrawl completion', () => {
@@ -2927,6 +2932,10 @@ async function runClientStateTests() {
       }
     });
     assert.strictEqual(projectJobEvent('unknown', {}), null);
+    assert.deepStrictEqual(projectJobEvent('job-status', null), {
+      type: undefined,
+      update: null
+    });
   });
 
   assertTest('credential save acknowledgements share a pure status projection', () => {
@@ -3722,6 +3731,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/categorySelection.js'),
     'utf8'
   );
+  const jobStatusSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/jobStatus.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3810,6 +3823,15 @@ async function runClientRenderingTests() {
     assert.match(categorySelectionSource, /@typedef \{Record<string, unknown> & \{/);
     assert.match(categorySelectionSource, /@param \{unknown\} category/);
     assert.match(categorySelectionSource, /@returns \{CategorySelection\}/);
+  });
+
+  assertTest('job status exposes a checked shared event contract', () => {
+    assert.match(jobStatusSource, /^\/\/ @ts-check/);
+    assert.match(jobStatusSource, /@typedef \{'recrawl'\|'vision-analysis'\} JobType/);
+    assert.match(jobStatusSource, /@typedef \{object\} JobStatusEvent/);
+    assert.match(jobStatusSource, /@param \{unknown\} job/);
+    assert.match(jobStatusSource, /@returns \{JobStatusUpdate\|null\}/);
+    assert.match(jobStatusSource, /@returns \{JobEventProjection\|null\}/);
   });
 }
 
