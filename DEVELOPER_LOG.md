@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Normalize Paired Photo Acknowledgements
+
+- **Finding**: `App.jsx` registered primary and secondary photo-update events with duplicated listener logic whose only difference was the target frame side.
+- **Correction**: extracted pure `projectPhotoEvent(...)` and registered both wire events through one declarative subscription table before applying the existing immutable snapshot transform.
+- **Functional boundary**: event-to-side compatibility remains pure; React state application, Socket.IO registration, and cleanup remain the effect shell.
+- **Regression coverage**: added direct projection assertions and a source contract proving the paired events use one handler table.
+- **Learning**: a small event vocabulary can remove transport ceremony while leaving the actual multi-frame state policy visible at the application boundary.
+
 ### 2026-08-29: Normalize Modern and Legacy Job Acknowledgements
 
 - **Finding**: `RemoteControl.jsx` applied the same recrawl status policy separately for modern `job-status` events and legacy `recrawl-complete` acknowledgements.
