@@ -35,7 +35,7 @@ import {
   serializeCategorySelection,
   toggleCategorySelection
 } from '../state/feedMutations';
-import { projectJobStatus } from '../state/jobStatus';
+import { projectJobEvent } from '../state/jobStatus';
 import { projectCredentialSaveStatus } from '../state/credentialStatus';
 
 const SPLIT_PREVIEW_PADDING = 6;
@@ -266,9 +266,8 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       }
     };
 
-    const handleJobStatus = (job) => {
-      const update = projectJobStatus(job);
-      const target = jobStatusTargets[job?.type];
+    const applyJobUpdate = (type, update) => {
+      const target = jobStatusTargets[type];
       if (!update || !target) {
         return;
       }
@@ -283,17 +282,15 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       }
     };
 
-    const handleRecrawlComplete = (data) => {
-      if (data.success) {
-        setRecrawlStatus('success');
-        setRecrawlCount(data.count);
-        setRecrawlMessage('Feed recrawl completed successfully.');
-      } else {
-        setRecrawlStatus('error');
-        setRecrawlMessage(data.error || 'Recrawl failed.');
-      }
-      scheduleStatusReset(setRecrawlStatus, setRecrawlMessage);
-    };
+    const jobEventHandlers = ['job-status', 'recrawl-complete'].map((event) => {
+      const handleJobEvent = (payload) => {
+        const projected = projectJobEvent(event, payload);
+        applyJobUpdate(projected?.type, projected?.update);
+      };
+
+      socket.on(event, handleJobEvent);
+      return [event, handleJobEvent];
+    });
 
     const credentialSaveSubscriptions = [
       {
@@ -325,12 +322,8 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
       return [event, handleSaved];
     });
 
-    socket.on('job-status', handleJobStatus);
-    socket.on('recrawl-complete', handleRecrawlComplete);
-
     return () => {
-      socket.off('job-status', handleJobStatus);
-      socket.off('recrawl-complete', handleRecrawlComplete);
+      jobEventHandlers.forEach(([event, handler]) => socket.off(event, handler));
       credentialSaveHandlers.forEach(([event, handler]) => socket.off(event, handler));
     };
   }, [socket]);

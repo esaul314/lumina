@@ -2742,7 +2742,7 @@ async function runClientStateTests() {
     normalizeSnapshot: normalizeClientSnapshot,
     normalizeSnapshotResponse
   } = await importClientModule('./client/src/state/frameSelectors.js');
-  const { projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
+  const { projectJobEvent, projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
   const { projectCredentialSaveStatus } = await importClientModule('./client/src/state/credentialStatus.js');
   const {
     buildFieldPatch,
@@ -2873,6 +2873,43 @@ async function runClientStateTests() {
     assert.strictEqual(projectJobStatus({ type: 'unknown', status: 'running' }), null);
     assert.strictEqual(projectJobStatus({ type: 'toString', status: 'running' }), null);
     assert.strictEqual(projectJobStatus({ type: 'recrawl', status: 'cancelled' }), null);
+  });
+
+  assertTest('client job event projection normalizes legacy recrawl completion', () => {
+    assert.deepStrictEqual(projectJobEvent('job-status', {
+      type: 'vision-analysis',
+      status: 'running'
+    }), {
+      type: 'vision-analysis',
+      update: {
+        status: 'loading',
+        message: 'Analyzing photo metadata...'
+      }
+    });
+    assert.deepStrictEqual(projectJobEvent('recrawl-complete', {
+      success: true,
+      count: 18
+    }), {
+      type: 'recrawl',
+      update: {
+        status: 'success',
+        count: 18,
+        message: 'Feed recrawl completed successfully.',
+        reset: true
+      }
+    });
+    assert.deepStrictEqual(projectJobEvent('recrawl-complete', {
+      success: false,
+      error: 'Feed source unavailable'
+    }), {
+      type: 'recrawl',
+      update: {
+        status: 'error',
+        message: 'Feed source unavailable',
+        reset: true
+      }
+    });
+    assert.strictEqual(projectJobEvent('unknown', {}), null);
   });
 
   assertTest('credential save acknowledgements share a pure status projection', () => {

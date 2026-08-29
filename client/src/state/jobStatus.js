@@ -53,3 +53,30 @@ export function projectJobStatus(job) {
 
   return null;
 }
+
+/**
+ * Normalize the modern and mixed-version job event envelopes into one pure
+ * projection. The caller still owns applying the update to its view target.
+ */
+export function projectJobEvent(event, payload) {
+  if (event === 'job-status') {
+    return {
+      type: payload?.type,
+      update: projectJobStatus(payload)
+    };
+  }
+
+  if (event === 'recrawl-complete') {
+    return {
+      type: 'recrawl',
+      update: projectJobStatus({
+        type: 'recrawl',
+        status: payload?.success ? 'succeeded' : 'failed',
+        result: { visibleCount: payload?.count },
+        error: payload?.error
+      })
+    };
+  }
+
+  return null;
+}
