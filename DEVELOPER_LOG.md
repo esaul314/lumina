@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-29: Add a Checked Contract to Category Selection
+
+- **Finding**: the pure category-selection module was shared by frame normalization, feed mutations, and both operator views, but its snapshot fallback and toggle inputs were undocumented and unchecked.
+- **Correction**: added local `@ts-check` structural aliases plus unknown-safe JSDoc contracts for canonical alias normalization, composed selection serialization, snapshot fallback lookup, membership checks, and immutable toggles.
+- **Functional boundary**: the existing category-first/data-second interface and `pipe(splitCategories, compactStrings, unique)` normalization remain unchanged; annotations describe the pure algebra without adding runtime validation or cross-layer imports.
+- **Regression coverage**: added checked-source assertions and direct alias/immutability assertions; the full suite passed with no failures.
+- **Learning**: a stable type boundary can grow from the smallest shared vocabulary outward, preserving compatibility while making later TypeScript conversion mechanical.
+
 ### 2026-08-29: Add a Checked Contract to the Client Frame Boundary
 
 - **Finding**: the pure snapshot/frame selector module was already the stable client boundary for REST responses, live sync, paired photos, and crop presentation, but it had no explicit JSDoc contract or `@ts-check` coverage.
