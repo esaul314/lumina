@@ -3113,6 +3113,9 @@ async function runClientStateTests() {
     assert.strictEqual(nextSnapshot.currentCategory, 'Scenic Nature,Liminal Spaces');
     assert.deepStrictEqual(nextSnapshot.playback.selectedCategories, ['Scenic Nature', 'Liminal Spaces']);
     assert.deepStrictEqual(nextSnapshot.currentFrame.context.categories, ['Scenic Nature', 'Liminal Spaces']);
+    assert.deepStrictEqual(snapshot.playback.selectedCategories, ['Scenic Nature']);
+    assert.deepStrictEqual(snapshot.currentFrame.context.categories, ['Scenic Nature']);
+    assert.strictEqual(applyCategorySelection(null, 'Scenic Nature'), null);
   });
 
   assertTest('applyFeedSourceConfigPatch merges source patches without dropping sibling fields', () => {
@@ -3144,6 +3147,13 @@ async function runClientStateTests() {
       enabled: true,
       subreddits: ['SkyPorn']
     });
+    assert.deepStrictEqual(snapshot.feedConfigs['Scenic Nature'].reddit, {
+      enabled: false,
+      subreddits: ['EarthPorn']
+    });
+    assert.strictEqual(applyFeedSourceConfigPatch(snapshot, '', 'reddit', {}), snapshot);
+    assert.strictEqual(applyFeedSourceConfigPatch(snapshot, 'Scenic Nature', '', {}), snapshot);
+    assert.strictEqual(applyFeedSourceConfigPatch(snapshot, 'Scenic Nature', 'reddit', null), snapshot);
   });
 
   const originalWindow = global.window;
@@ -3735,6 +3745,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/jobStatus.js'),
     'utf8'
   );
+  const feedMutationsSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/feedMutations.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3832,6 +3846,14 @@ async function runClientRenderingTests() {
     assert.match(jobStatusSource, /@param \{unknown\} job/);
     assert.match(jobStatusSource, /@returns \{JobStatusUpdate\|null\}/);
     assert.match(jobStatusSource, /@returns \{JobEventProjection\|null\}/);
+  });
+
+  assertTest('feed mutations expose checked pure snapshot contracts', () => {
+    assert.match(feedMutationsSource, /^\/\/ @ts-check/);
+    assert.match(feedMutationsSource, /@typedef \{Record<string, unknown> & \{/);
+    assert.match(feedMutationsSource, /@param \{unknown\} selection/);
+    assert.match(feedMutationsSource, /@param \{unknown\} configPatch/);
+    assert.match(feedMutationsSource, /@returns \{ClientMutationSnapshot\|null\|undefined\}/);
   });
 }
 
