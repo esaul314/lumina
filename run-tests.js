@@ -2740,7 +2740,8 @@ async function runClientStateTests() {
     applyPhotoEvent,
     getConfirmedPhotoPatch,
     normalizeSnapshot: normalizeClientSnapshot,
-    normalizeSnapshotResponse
+    normalizeSnapshotResponse,
+    projectPhotoEvent
   } = await importClientModule('./client/src/state/frameSelectors.js');
   const { projectJobEvent, projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
   const { projectCredentialSaveStatus } = await importClientModule('./client/src/state/credentialStatus.js');
@@ -2840,6 +2841,22 @@ async function runClientStateTests() {
 
     assert.strictEqual(applyPhotoEvent(null, 'primary', { url: 'next' }), null);
     assert.strictEqual(applyPhotoEvent(snapshot, 'unknown', { url: 'next' }), snapshot);
+  });
+
+  assertTest('client photo event envelopes select the canonical frame side', () => {
+    const primary = { url: 'primary' };
+    const secondary = { url: 'secondary' };
+
+    assert.deepStrictEqual(projectPhotoEvent('photo-update', primary), {
+      side: 'primary',
+      photo: primary
+    });
+    assert.deepStrictEqual(projectPhotoEvent('second-photo-update', secondary), {
+      side: 'secondary',
+      photo: secondary
+    });
+    assert.strictEqual(projectPhotoEvent('unknown-photo-event', primary), null);
+    assert.strictEqual(projectPhotoEvent('toString', primary), null);
   });
 
   assertTest('client job status projection shares recrawl and vision state transitions', () => {
@@ -3750,6 +3767,17 @@ async function runClientRenderingTests() {
       dashboardSource,
       /\}, \[state\.widgets\.particles, state\.screensaverActive\]\);/
     );
+  });
+
+  assertTest('App registers paired photo events through one declarative handler table', () => {
+    const appSource = fs.readFileSync(
+      path.join(__dirname, 'client/src/App.jsx'),
+      'utf8'
+    );
+
+    assert.match(appSource, /\['photo-update', 'second-photo-update'\]\.map\(\(event\)/);
+    assert.strictEqual(appSource.includes("socket.on('photo-update'"), false);
+    assert.strictEqual(appSource.includes("socket.on('second-photo-update'"), false);
   });
 }
 

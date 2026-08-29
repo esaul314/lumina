@@ -4,7 +4,8 @@ import Dashboard from './components/Dashboard';
 import RemoteControl from './components/RemoteControl';
 import {
   applyPhotoEvent,
-  normalizeSnapshotResponse
+  normalizeSnapshotResponse,
+  projectPhotoEvent
 } from './state/frameSelectors';
 
 // Create a single socket connection to the server
@@ -55,12 +56,18 @@ function App() {
       setState(normalizeSnapshotResponse(syncedState));
     });
 
-    socket.on('photo-update', (photo) => {
-      setState(prev => applyPhotoEvent(prev, 'primary', photo));
-    });
+    const photoEventHandlers = ['photo-update', 'second-photo-update'].map((event) => {
+      const handlePhotoEvent = (photo) => {
+        const projected = projectPhotoEvent(event, photo);
+        if (!projected) {
+          return;
+        }
 
-    socket.on('second-photo-update', (photo) => {
-      setState(prev => applyPhotoEvent(prev, 'secondary', photo));
+        setState(prev => applyPhotoEvent(prev, projected.side, projected.photo));
+      };
+
+      socket.on(event, handlePhotoEvent);
+      return [event, handlePhotoEvent];
     });
 
     socket.on('ip-info', (info) => {
@@ -76,8 +83,7 @@ function App() {
       socket.off('connect');
       socket.off('disconnect');
       socket.off('state-sync');
-      socket.off('photo-update');
-      socket.off('second-photo-update');
+      photoEventHandlers.forEach(([event, handler]) => socket.off(event, handler));
       socket.off('ip-info');
     };
   }, []);

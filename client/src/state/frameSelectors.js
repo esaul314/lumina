@@ -84,6 +84,22 @@ const PHOTO_EVENT_TARGETS = {
   secondary: { activeKey: 'activeSecondPhoto', frameKey: 'secondary' }
 };
 
+const PHOTO_EVENT_SIDES = Object.freeze({
+  'photo-update': 'primary',
+  'second-photo-update': 'secondary'
+});
+
+/**
+ * Project a wire-level photo event into the side-aware snapshot vocabulary.
+ * The Socket.IO shell remains responsible for applying the immutable update.
+ */
+export function projectPhotoEvent(event, photo) {
+  const side = Object.prototype.hasOwnProperty.call(PHOTO_EVENT_SIDES, event)
+    ? PHOTO_EVENT_SIDES[event]
+    : null;
+  return side ? { side, photo } : null;
+}
+
 /**
  * Apply a server photo event to both the legacy snapshot fields and the
  * canonical frame projection without mutating the received snapshot.
