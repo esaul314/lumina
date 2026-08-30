@@ -18,6 +18,7 @@ import { toCssImageUrl } from '../state/cssImage.js';
 import { formatClockParts } from '../state/clock.js';
 import { convertPressure, convertTemperature } from '../state/environmentHistory.js';
 import { isEscapeKey, isScreensaverDismissalActivity } from '../state/screensaverActivity.js';
+import { buildMediaOriginProbeUrl, decideMediaFailure } from '../state/mediaRecovery.js';
 
 /**
  * 🖼️ loadImageMeta
@@ -326,61 +327,72 @@ function Dashboard({ state, socket, connectionInfo }) {
       return meta;
     };
 
-    const preloadAndMount = async () => {
+    const probeMediaHost = async (url) => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return false;
+      }
+
+      const probeUrl = buildMediaOriginProbeUrl(url, window.location.origin);
+      if (!probeUrl) {
+        return false;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
       try {
-        if (!primaryPhoto) return;
-
-        const meta = await getImageMeta(primaryPhoto.url);
-        if (!active) return;
-
-        consecutiveFailuresRef.current = 0; // Reset failure counter on successful load
-
-        socket.emit('report-photo-metadata', {
-          url: primaryPhoto.url,
-          orientation: meta.orientation,
-          width: meta.w,
-          height: meta.h
+        await fetch(probeUrl, {
+          method: 'HEAD',
+          mode: 'no-cors',
+          cache: 'no-store',
+          signal: controller.signal
         });
+        return true;
+      } catch (_error) {
+        return false;
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
 
-        if (expectedSplit && secondaryPhoto) {
-          let secondaryLoaded = false;
-          try {
-            const secondaryMeta = await getImageMeta(secondaryPhoto.url);
-            if (active) {
-              socket.emit('report-photo-metadata', {
-                url: secondaryPhoto.url,
-                orientation: secondaryMeta.orientation,
-                width: secondaryMeta.w,
-                height: secondaryMeta.h
-              });
-              secondaryLoaded = true;
-            }
-          } catch (error) {
-            console.warn('Failed to load secondary wallpaper image:', secondaryPhoto.url);
-            if (active) {
-              socket.emit('mark-photo-broken', { url: secondaryPhoto.url });
-            }
-          }
-          if (active) {
-            if (secondaryLoaded) {
-              addSplitSlide(primaryPhoto, secondaryPhoto);
-            } else {
-              // Fallback to single slide since secondary photo is broken
-              addSingleSlide(primaryPhoto);
-            }
-          }
-        } else {
-          if (active) {
-            addSingleSlide(primaryPhoto);
-          }
+    const waitForRetry = (delayMs) => new Promise((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
+
+    const loadWithRecovery = async (url, attempt = 0) => {
+      try {
+        return {
+          meta: await getImageMeta(url),
+          decision: { action: 'loaded', attempt }
+        };
+      } catch (error) {
+        const hostReachable = await probeMediaHost(url);
+        if (!active) return null;
+
+        const decision = decideMediaFailure({ attempt, hostReachable });
+        if (decision.action === 'retry') {
+          await waitForRetry(decision.delayMs);
+          return active ? loadWithRecovery(url, decision.attempt) : null;
         }
-      } catch (err) {
-        if (!active) return;
-        console.warn('Failed to load wallpaper image:', primaryPhoto.url);
+
+        return { error, decision };
+      }
+    };
+
+    const preloadAndMount = async () => {
+      if (!primaryPhoto) return;
+
+      const primaryResult = await loadWithRecovery(primaryPhoto.url);
+      if (!active || !primaryResult) return;
+
+      if (primaryResult.decision.action !== 'loaded') {
+        if (primaryResult.decision.action === 'hold') {
+          console.warn('Holding current wallpaper while its image host is unreachable:', primaryPhoto.url);
+          return;
+        }
 
         const maxFailures = state.photosList ? state.photosList.length : 5;
         if (consecutiveFailuresRef.current >= maxFailures) {
-          console.error('All photos in current feed failed to load. Network might be down. Stopping infinite skip loop.');
+          console.error('All photos in current feed failed to load. Stopping infinite skip loop.');
           socket.emit('report-media-failure', {
             category: state.currentCategory,
             failedUrls: state.photosList ? state.photosList.map(p => p.url) : [primaryPhoto.url],
@@ -389,18 +401,49 @@ function Dashboard({ state, socket, connectionInfo }) {
           return;
         }
 
-        if (consecutiveFailuresRef.current < 3) {
-          console.log('Reporting specific broken link to server:', primaryPhoto.url);
-          socket.emit('mark-photo-broken', { url: primaryPhoto.url });
-        }
-
+        console.log('Reporting confirmed broken link to server:', primaryPhoto.url);
+        socket.emit('mark-photo-broken', { url: primaryPhoto.url });
+        socket.emit('next-photo');
         consecutiveFailuresRef.current += 1;
+        return;
+      }
 
-        setTimeout(() => {
-          if (active) {
-            socket.emit('next-photo');
-          }
-        }, 1500);
+      consecutiveFailuresRef.current = 0;
+      const meta = primaryResult.meta;
+      socket.emit('report-photo-metadata', {
+        url: primaryPhoto.url,
+        orientation: meta.orientation,
+        width: meta.w,
+        height: meta.h
+      });
+
+      let secondaryLoaded = false;
+      if (expectedSplit && secondaryPhoto) {
+        const secondaryResult = await loadWithRecovery(secondaryPhoto.url);
+        if (!active || !secondaryResult) return;
+
+        if (secondaryResult.decision.action === 'skip') {
+          console.log('Reporting confirmed broken secondary link to server:', secondaryPhoto.url);
+          socket.emit('mark-photo-broken', { url: secondaryPhoto.url });
+        } else if (secondaryResult.decision.action === 'hold') {
+          console.warn('Keeping a single-image slide while the secondary image host is unreachable:', secondaryPhoto.url);
+        } else {
+          const secondaryMeta = secondaryResult.meta;
+          socket.emit('report-photo-metadata', {
+            url: secondaryPhoto.url,
+            orientation: secondaryMeta.orientation,
+            width: secondaryMeta.w,
+            height: secondaryMeta.h
+          });
+          secondaryLoaded = true;
+        }
+      }
+
+      if (!active) return;
+      if (secondaryLoaded) {
+        addSplitSlide(primaryPhoto, secondaryPhoto);
+      } else {
+        addSingleSlide(primaryPhoto);
       }
     };
 
@@ -691,17 +734,6 @@ function Dashboard({ state, socket, connectionInfo }) {
               {isSplit ? (
                 <div className="split-slide-container">
                   <div className="slide-half">
-                    {slide.url && (
-                      <img
-                        src={slide.url}
-                        style={{ display: 'none' }}
-                        onError={() => {
-                          console.warn('Split slide primary image failed in DOM:', slide.url);
-                          socket.emit('mark-photo-broken', { url: slide.url });
-                          socket.emit('next-photo');
-                        }}
-                      />
-                    )}
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
                       style={getSplitImageStyle(slide.url, slide.w, slide.h, slide.cropPercent, slide.cropPositionY)}
@@ -712,17 +744,6 @@ function Dashboard({ state, socket, connectionInfo }) {
                     </div>
                   </div>
                   <div className="slide-half">
-                    {slide.url2 && (
-                      <img
-                        src={slide.url2}
-                        style={{ display: 'none' }}
-                        onError={() => {
-                          console.warn('Split slide secondary image failed in DOM:', slide.url2);
-                          socket.emit('mark-photo-broken', { url: slide.url2 });
-                          setActiveSlides(prev => prev.map(s => s.key === slide.key ? { ...s, isSplit: false } : s));
-                        }}
-                      />
-                    )}
                     <div 
                       className={`slide-half-image ${shouldAnimate ? 'animated' : ''}`}
                       style={getSplitImageStyle(slide.url2, slide.w2, slide.h2, slide.cropPercent2, slide.cropPositionY2)}

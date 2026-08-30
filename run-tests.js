@@ -3734,6 +3734,11 @@ async function runClientRenderingTests() {
   const { toCssImageUrl } = await importClientModule('./client/src/state/cssImage.js');
   const { formatClockParts } = await importClientModule('./client/src/state/clock.js');
   const {
+    MEDIA_RETRY_DELAYS_MS,
+    buildMediaOriginProbeUrl,
+    decideMediaFailure
+  } = await importClientModule('./client/src/state/mediaRecovery.js');
+  const {
     isEscapeKey,
     isScreensaverDismissalActivity
   } = await importClientModule('./client/src/state/screensaverActivity.js');
@@ -3800,6 +3805,43 @@ async function runClientRenderingTests() {
     );
   });
 
+  assertTest('media recovery uses bounded exponential retry delays', () => {
+    assert.deepStrictEqual(MEDIA_RETRY_DELAYS_MS, [1000, 2000, 4000, 8000]);
+    assert.deepStrictEqual(decideMediaFailure({ attempt: 0, hostReachable: false }), {
+      action: 'retry',
+      attempt: 1,
+      delayMs: 1000
+    });
+    assert.deepStrictEqual(decideMediaFailure({ attempt: 3, hostReachable: true }), {
+      action: 'retry',
+      attempt: 4,
+      delayMs: 8000
+    });
+  });
+
+  assertTest('media recovery holds unreachable hosts and skips only reachable broken URLs', () => {
+    assert.deepStrictEqual(decideMediaFailure({ attempt: 4, hostReachable: false }), {
+      action: 'hold',
+      attempt: 4
+    });
+    assert.deepStrictEqual(decideMediaFailure({ attempt: 4, hostReachable: true }), {
+      action: 'skip',
+      attempt: 4
+    });
+  });
+
+  assertTest('media connectivity probes target only the image origin', () => {
+    assert.strictEqual(
+      buildMediaOriginProbeUrl('https://images.example.test/path/photo.jpg?size=large', 'http://localhost:5000'),
+      'https://images.example.test'
+    );
+    assert.strictEqual(
+      buildMediaOriginProbeUrl('/media/photo.jpg', 'http://localhost:5000'),
+      'http://localhost:5000'
+    );
+    assert.strictEqual(buildMediaOriginProbeUrl('http://[invalid', 'http://localhost:5000'), null);
+  });
+
   assertTest('screensaver activity treats Escape and ordinary input as dismissal signals', () => {
     assert.strictEqual(isEscapeKey({ key: 'Escape' }), true);
     assert.strictEqual(isEscapeKey({ code: 'Escape' }), true);
@@ -3823,6 +3865,13 @@ async function runClientRenderingTests() {
       dashboardSource,
       /\}, \[state\.widgets\.particles, state\.screensaverActive\]\);/
     );
+  });
+
+  assertTest('Dashboard uses one preloaded image path with host-aware recovery', () => {
+    assert.ok(dashboardSource.includes('decideMediaFailure'));
+    assert.ok(dashboardSource.includes("method: 'HEAD'"));
+    assert.strictEqual(dashboardSource.includes('Split slide primary image failed in DOM:'), false);
+    assert.strictEqual(dashboardSource.includes('style={{ display: \'none\' }}'), false);
   });
 
   assertTest('App registers paired photo events through one declarative handler table', () => {
