@@ -1,175 +1,203 @@
-# 🌌 Lumina
+# Lumina
 
-Lumina is an elegant, ambient smart display dashboard and Chromecast-style screensaver built for Linux (GNOME/Mutter desktops). Designed to run continuously on dedicated HTPC or home theater setups (such as living room TV PCs), Lumina fuses real-time atmospheric conditions, Google News RSS sentiment analysis, generative AI art, and classical art feeds with native system power control and smart media detection.
+Lumina turns a Linux desktop into a calm, network-aware ambient display: curated images, quiet widgets, weather, local sensor readings, and a phone-friendly remote control for the room.
 
-It features a dynamically coupled mobile remote control web app that allows full control, swipe-to-navigate gesture pads, and widgets management.
+It is designed for a dedicated HTPC or living-room display running GNOME/Mutter. The project is deliberately local-first: one Node.js daemon owns durable state and system integration, while a React client provides the TV and remote experiences.
 
----
+<p align="center">
+  <img src="screenshots/tv_dashboard.png" alt="Lumina TV dashboard" width="49%" />
+  <img src="screenshots/remote_control.png" alt="Lumina mobile remote control" width="49%" />
+</p>
 
-## 📸 Screenshots
+## What it does
 
-| 📺 TV Dashboard Display | 📱 Mobile Remote Control |
-| :---: | :---: |
-| ![TV Dashboard](screenshots/tv_dashboard.png) | ![Mobile Remote](screenshots/remote_control.png) |
+- **Ambient TV view** — cross-faded wallpapers, clock and weather widgets, optional bokeh, atmospheric overlays, themes, crop controls, and portrait split-screen presentation.
+- **Remote control** — a responsive mobile UI for categories, pools, ratings, loved photos, feed sources, system settings, screensaver control, and Google Photos.
+- **Many image sources** — configurable combinations of Reddit, Tumblr, Unsplash, Wallhaven, Lorem Picsum, Bing, NASA APOD, the Metropolitan Museum of Art, the Art Institute of Chicago, and AI-oriented sources. Provider availability and credentials vary by feed.
+- **Mood-aware selection** — Open-Meteo weather and Google News RSS sentiment can influence the visual atmosphere. Manual location settings are supported, with an optional IP-geolocation fallback.
+- **Local environment telemetry** — an Ecowitt-compatible LAN HTTP adapter reads indoor temperature, humidity, and pressure; hourly readings can be retained in SQLite and exported for analysis.
+- **Curation tools** — rate or ban images, keep loved images in the collection, edit crops, exclude keywords, configure pools and schedules, and optionally run background vision analysis.
+- **Desktop integration** — a GNOME/Mutter idle monitor launches the Chromium kiosk after inactivity, while PulseAudio/PipeWire activity prevents interruption during playback.
+- **Resilient slideshow behavior** — the TV preloads the next frame through one authoritative path, retries transient media failures at 1, 2, 4, and 8 seconds, and holds the current image when its host is unreachable.
 
----
+Lumina keeps the browser’s slideshow bounded to at most two slide elements. That is a memory-conscious design constraint, not a promise of a fixed whole-process RAM footprint; Chromium, GPU drivers, image dimensions, and enabled effects still matter.
 
-## ✨ Features
+## Architecture at a glance
 
-* **🎭 Dynamic Multi-Source Visual Feeds**: Pulls wallpapers dynamically from a rich array of keyless and API aggregators:
-  * **Unsplash Search API** (NAPI direct CDN resolution to prevent broken links).
-  * **Reddit Subreddits** (including `/r/EarthPorn`, `/r/spaceporn`, `/r/astrophotography`, `/r/AbstractArt`, `/r/Generative`, `/r/LiminalSpace`).
-  * **Bing Image of the Day API** (high-definition curated daily photography).
-  * **NASA Astronomy Picture of the Day (APOD)**.
-  * **Lorem Picsum** random HD photography.
-  * **AI Creations fallback**: Automatically uses Lexica.art (surreal dreamscapes) and Wallhaven.cc (cyberpunk) keyless pipelines if no paid `USEAPI_TOKEN` is configured.
-  * **Public Art Museums**: Imports classical artworks from the Metropolitan Museum of Art and Art Institute of Chicago (AIC).
-* **🌦️ Fused Meteorological & RSS News Sentiment Alignment**:
-  * Scrapes Google News RSS top headlines in real-time, matching words against heuristic positive and negative lexicons to calculate a net emotional score.
-  * Positive headlines map to sunny/golden wallpapers, negative to stormy/rainy, and neutral to cloudy/moody.
-  * Integrates active weather conditions (via Open-Meteo) so that active precipitation (snow, rain) overrides news sentiment.
-  * Wallpaper candidates matching these states are served with an **80% preference weight**.
-* **🌡️ Local Indoor Environment & Sensor Telemetry Platform**:
-  * **Ecowitt-compatible Local HTTP Adapter**: Connects directly to a family of local weather gateways and consoles to read indoor temperature, humidity, barometric pressure, and sensor telemetry without third-party cloud dependencies. GW1200 is the first verified device, not the adapter boundary.
-  * **Quiet TV Display Overlay**: Renders a subtle, non-intrusive indoor environmental data line inside the weather widget on the TV View.
-  * **SQLite Persistent Sensor Storage**: Logs hourly sensor snapshots into `sensor_history.db`, retaining full raw telemetry payloads (`gateway_metrics`).
-  * **Grafana & CSV Export API**: Exposes `GET /api/environment/history/export?format=csv` (as well as JSON endpoints) for seamless Grafana Infinity plugin integration, spreadsheet analytics, and long-term storage.
-  * **Adaptive Device Manager & Pasteable JSON Setup**: Admin controls under Remote Control → System → Environment provide a phone-friendly and expanded desktop layout for adding, naming, editing, retaining, and selecting compatible sources with pasteable JSON payload support. Lumina polls one active device profile at a time, discoverable via `GET /api/environment/adapters`.
-* **📺 Continuous Ambient TV Smart Display**:
-  * Continuous smart display presentation with glassmorphic widgets, smooth slideshow cross-fades, particle effects, and weather animations, backed by an intelligent 3-second cursor auto-hiding mechanism for clean living room TV setups.
-* **❤️ Permanent Collection & Loved Photos**:
-  * Flag favorite wallpapers into a permanent collection (`loved: true`). Loved items bypass standard rotating pool eviction caps, ensuring user favorites stay in active slideshow rotation permanently.
-* **🔳 Dynamic QR Code Badge Widget**:
-  * On-demand QR code widget toggle on both TV View and Remote Control for fast mobile device coupling.
-* **📱 Touch-Optimized Mobile Remote Control**:
-  * Interactive swipe pad featuring a darkened real-time preview of the active TV background image.
-  * Widgets Switchboard: Toggle TV overlays (clock, particles, weather, QR code badge, aura backlights, Ken Burns pan-and-zoom) on the fly.
-  * Mood Theme Selector: Change color schemes instantly (Zen Retreat, Cosmic Night, Art Museum, Cyberpunk Rain).
-  * System & Environment Controls: Manage local gateway settings, sensor display units, location settings, and screensaver overrides over REST.
-  * Google Photos casting control (direct configuration for OAuth client credentials).
-* **🎵 Smart Media Playback Guard**:
-  * Actively monitors PulseAudio/PipeWire sink streams via `pactl list sink-inputs`.
-  * If a movie is playing or music is active (e.g. Plex, YouTube, Spotify), screensaver activation is automatically bypassed to avoid interrupting entertainment.
-* **⚡ CPU Governor Orchestration**:
-  * Scales the CPU governor to `performance` when screensaver transitions or particle systems are active for fluid 60fps animations.
-  * Restores governor to energy-saving `schedutil` (or powersave) when the screensaver is dismissed (achieving near 0% background CPU impact).
-* **🧠 Under 80MB RAM Footprint**:
-  * Implements strict V8 engine heap limits (`--max-old-space-size=256`).
-  * Uses a client-side image double-buffer slideshow system that preloads incoming wallpapers in the background and mounts at most two slide elements in the DOM, eliminating typical memory locks.
-  * Downscales the canvas particles engine by 0.25x (scaled back up via CSS GPU compositor) to halve CPU rendering usage.
-* **🔒 Safe Read-Merge-Write Persistence & Ratings Engine**:
-  * Perform read-merge-write operations to prevent crawler runs from overwriting manually curated metadata, rating configurations, and search keywords.
-  * Banning a photo (rating "1") instantly prunes it from the feed and triggers an immediate transition on all active displays.
+```mermaid
+flowchart LR
+    TV[Chromium TV view] <-->|REST + Socket.IO| Core[Node.js / Express daemon]
+    Remote[Phone or desktop remote] <-->|REST + Socket.IO| Core
+    Core --> Feeds[Image feed crawlers]
+    Core --> Weather[Weather + news sentiment]
+    Core --> Sensors[Ecowitt LAN adapter]
+    Core --> System[GNOME idle + audio + kiosk control]
+    Core --> Data[(Local JSON + SQLite)]
+```
 
----
+The control surface is REST-first for durable mutations. Socket.IO remains the live-sync and progress channel, with compatibility handlers retained during the migration. The client keeps snapshot normalization at one boundary so TV and remote views consume the same state shape.
 
-## 🛠️ Architecture
+## Runtime requirements
 
-Lumina uses a decoupled client-server architecture with a REST-first control surface and Socket.IO live event synchronization:
-* **Server (Node.js/Express)**: Spawns the GNOME Mutter idle state DBus monitor (running every 2s, dynamically querying `uid` and `homedir`), manages local network discovery, processes news sentiment and weather geolocated coordinates, polls local Ecowitt sensor gateways, logs hourly environmental history to SQLite (`sensor_history.db`), orchestrates CPU governors, and serves REST API endpoints.
-* **Client (React/Vite/Vanilla CSS)**: Auto-detects device type (loading Mobile Remote Control or TV Dashboard Kiosk) and renders layouts with glassmorphic styles, bokeh particle canvas systems, customized weather overlays, and quiet indoor environmental telemetry line.
+Lumina targets a Linux desktop session with:
 
-### 🌐 Key REST API Endpoints
+- Node.js 18 or newer
+- Chromium or a Chromium-compatible kiosk binary
+- GNOME/Mutter session utilities: `busctl` and a working user D-Bus session
+- PulseAudio or PipeWire’s `pactl` command for the media-playback guard
+- A display session available to the logged-in user when kiosk mode is enabled
 
-* `GET /api/environment`: Current normalized indoor environment reading and gateway status.
-* `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, `limit`).
-* `GET /api/environment/history/stats`: Returns rolling day/night temperature and humidity aggregates (supports `days`, `dayStart`, and `dayEnd`).
-* `GET /api/environment/history/export?format=csv`: Exports environment history as CSV (or JSON without `format=csv`) for Grafana or spreadsheets.
-* `GET /api/environment/settings` / `POST /api/environment/settings`: Read/update saved sensor device profiles, the active source, connection timing, and display unit preferences. Legacy flat Ecowitt settings remain accepted.
-* `GET /api/environment/adapters`: List registered protocol adapters and compatibility metadata for the device manager.
-* `GET /api/weather`: Outdoor weather forecast & conditions from Open-Meteo.
-* `GET /api/photos?category=...`: Returns current photos list for the category.
-* `PATCH /api/photos`: Batch update photo ratings, loved status, crops, or pairing rules.
-* `POST /api/photos/next` / `POST /api/photos/prev`: Advance or rewind photo selection.
-* `POST /api/jobs/recrawl`: Queue a background recrawl job with live Socket.IO progress status.
-* `POST /api/jobs/vision-analysis`: Queue a background vision-analysis job with live Socket.IO status updates.
-* `POST /api/pools` / `DELETE /api/pools/:name` / `PATCH /api/pools/:name`: Create, delete, or update pool configurations and feed sources.
-* `GET /api/state` / `PATCH /api/state`: Read or patch system state and widget settings.
-* `POST /api/state/categories`: Switch active photo category.
-* `POST /api/state/screensaver`: Remote trigger or dismissal of the screensaver kiosk.
+The server listens on port `5000` by default and serves the production client from `client/dist`. The idle daemon uses a 10-minute inactivity threshold by default. The development client uses Vite on port `5173` and routes API/socket traffic to the server.
 
-## 🗺️ Roadmap
+## Quick start
 
-The source of truth for Lumina's product and platform direction is [ROADMAP.md](./ROADMAP.md).
-
-- `ROADMAP.md` tracks the real delivery phases, checkpoints, and acceptance criteria.
-- `FUNCTIONAL_REFACTOR_ROADMAP.md` is a supporting Phase 1 implementation companion for the engineering cleanup sequence behind that roadmap. Its step numbering is local to that refactor track.
-
----
-
-## 🚀 Quick Start
-
-### 1. Requirements
-Ensure you have Node.js (v18+) and standard Linux utilities (`chromium`, `busctl`, `pactl`) installed on your target machine.
-
-### 2. Installation
-Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/esaul314/lumina.git
 cd lumina
 npm run install-all
-```
-
-### 3. Setup Configuration
-Lumina uses two local configuration files:
-1. `config.json` for non-secret runtime overrides (port, geolocated coordinates, etc.).
-2. `.env` for secrets and API keys.
-
-The quickest setup path is Remote Control → System → Environment → **Add device**. Give the source a friendly name, choose **Ecowitt-compatible LAN gateway**, and enter its local address. Adding the first source makes it active; additional profiles remain saved so they can be selected without re-entering connection details. Lumina deliberately polls one active device at a time.
-
-The same settings are persisted locally under `ecowitt` in the gitignored `config.json`. Existing flat `enabled`/`baseUrl` configurations migrate into one device profile automatically, and the API continues projecting the active profile into those legacy fields for compatibility. Lumina stores canonical sensor values in metric units, while configured units control the TV and remote displays.
-
-Compatibility is based on Ecowitt’s published local HTTP API, specifically `GET /get_livedata_info`. Consult the [official Ecowitt HTTP API protocol](https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf) to check whether a gateway exposes the sensor payloads you need.
-
-The Advanced settings JSON disclosure exposes the same profile document for repeatable setup. JSON is validated configuration only; it cannot install or execute adapter code.
-
-Initialize default configurations:
-```bash
 cp config.json.example config.json
 cp .env.example .env
 ```
 
-*(Both `config.json` and `.env` are gitignored and will never be committed to your repository.)*
+Edit `config.json` for local, non-secret settings such as the port, location, Ecowitt gateway, units, and sensor-history retention. Put credentials and API tokens in `.env`; both files are ignored by Git.
 
-### 4. Running Lumina
-For development mode:
+Start the development server and Vite client:
+
 ```bash
 npm run dev
 ```
 
-For production daemon:
+Open one of these views:
+
+| View | URL |
+| --- | --- |
+| TV dashboard | <http://localhost:5173/?mode=tv> |
+| Remote control | <http://localhost:5173/?mode=remote> |
+
+Without `mode`, Lumina chooses a view from the viewport and user agent. A desktop-sized browser defaults to the TV view; a small or mobile browser defaults to the remote.
+
+## Production deployment
+
+Build the client before starting the daemon:
+
 ```bash
-chmod +x launch.sh
+npm --prefix client run build
 ./launch.sh
 ```
-* **Screensaver/TV Display**: `http://localhost:5000/?mode=tv`
-* **Mobile Remote Control**: `http://localhost:5000/`
 
-### 5. Installing as a Persistent `systemd` User Service
-For the dedicated host, run the service under the logged-in user's systemd manager to grant access to the active GNOME session, Mutter DBus, PulseAudio, and kiosk display:
+The launcher starts the Node server and refuses to create a duplicate instance when port `5000` is already owned. The production URLs are:
+
+- TV: <http://localhost:5000/?mode=tv>
+- Remote: <http://localhost:5000/?mode=remote>
+
+For a persistent desktop installation, use the user service installer. It derives the current user, home directory, Node path, D-Bus address, and runtime directory instead of requiring a hand-edited unit:
+
 ```bash
 ./scripts/install-systemd-user-service.sh
-loginctl enable-linger "$(id -un)"
+loginctl enable-linger "$(id -un)"   # optional: start the user service without an active login
 ```
 
-Common service commands:
+Useful diagnostics:
+
 ```bash
 systemctl --user status lumina
 systemctl --user restart lumina
 journalctl --user -u lumina -n 100 --no-pager
 ```
 
----
+## Configuration and integrations
 
-## 🧪 Testing
+### Image feeds
 
-Lumina includes a custom, zero-dependency unit and integration regression test suite:
+The remote’s **Image Feeds** workspace manages categories, keywords, source toggles, pool retention, and scheduled activation. The built-in categories are Scenic Nature, Cosmic Space, Abstract Art, Liminal Spaces, and AI Creations, but pools are extensible.
+
+Some integrations are keyless; others are optional:
+
+| Environment variable | Used for |
+| --- | --- |
+| `NASA_API_KEY` | NASA Astronomy Picture of the Day; the example uses `DEMO_KEY` |
+| `USEAPI_TOKEN` | Optional UseAPI/Midjourney source for AI Creations |
+| `TUMBLR_API_KEY` | Optional Tumblr tagged-search source |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Photos OAuth setup |
+
+Feeds are network-dependent and can be rate-limited or unavailable. A failed provider should reduce that provider’s contribution, not invalidate the local collection.
+Review each provider’s terms, rate limits, attribution requirements, and image licensing before enabling a feed for anything beyond personal use.
+
+### Ecowitt-compatible sensors
+
+In **Remote → System → Environment**, add an Ecowitt-compatible LAN gateway and select the active source. Lumina polls one active profile at a time through `GET /get_livedata_info`, normalizes canonical metric values, and keeps the configured display units separate from storage.
+
+The adapter boundary currently covers temperature, humidity, pressure, and the raw gateway payload. Compatibility includes GW1100, GW1200, GW2000, GW3000, and compatible consoles that expose the generic LAN API. Check the [official Ecowitt HTTP API protocol](https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf) for device-specific payload support.
+
+### Weather and location
+
+Lumina uses Open-Meteo for outdoor conditions and daily forecasts. The configured location is the normal source; the weather service can fall back to IP geolocation when automatic location is enabled. Weather alignment and time-of-day alignment are independently configurable from the remote.
+
+### Google Photos
+
+The remote can register Google OAuth credentials, complete the local OAuth flow, and use the Google Photos picker. Selected media is cached as an external collection and proxied by the server so the TV can display it without exposing provider tokens to the browser.
+
+## REST API surface
+
+The API is intentionally small and inspectable. Examples:
+
 ```bash
-npm test
+curl http://localhost:5000/api/state
+curl http://localhost:5000/api/photos?category=Scenic%20Nature
+curl http://localhost:5000/api/environment
+curl http://localhost:5000/api/environment/history/export?format=csv
 ```
 
----
+The main routes are:
 
-## 🛡️ License
+| Area | Routes |
+| --- | --- |
+| State and display | `GET /api/state`, `PATCH /api/state`, `POST /api/state/categories`, `POST /api/state/screensaver` |
+| Photos | `GET /api/photos`, `PATCH /api/photos`, `POST /api/photos/rate`, `POST /api/photos/next`, `POST /api/photos/prev`, `POST /api/photos/preview` |
+| Pools and feeds | `GET /api/pools`, `POST /api/pools`, `PATCH /api/pools/:name`, `DELETE /api/pools/:name`, `GET /api/pools/:name/photos`, `PATCH /api/pools/:name/feed-sources/:source`, `POST /api/pools/:name/crawl`, `POST /api/config/keywords` |
+| Background work | `POST /api/jobs/recrawl`, `POST /api/jobs/vision-analysis` |
+| Environment | `GET/POST /api/environment/settings`, `GET /api/environment`, `GET /api/environment/adapters`, `GET /api/environment/history`, `GET /api/environment/history/stats`, `GET /api/environment/history/export` |
+| Integrations | `GET /api/weather`, `GET /api/config`, admin-secret routes, Google Photos auth and media proxy routes |
 
-Distributed under the MIT License. See `LICENSE` for details (if applicable). Made for home theater enthusiasts and autonomous developers.
+Socket.IO broadcasts `state-sync`, photo updates, job status, connection information, and live progress. Durable changes should use REST; sockets are still useful for low-latency UI synchronization and legacy clients.
+
+## Development workflow
+
+Run the baseline checks from the repository root:
+
+```bash
+npm test
+npm run lint
+git diff --check
+npm run test:integration
+```
+
+For a production-client check:
+
+```bash
+npm --prefix client run build
+```
+
+The repository’s tests cover domain reducers and selectors, request/response boundaries, feed and sensor behavior, job services, and focused integration smoke paths. See [CONVENTIONS.md](CONVENTIONS.md) for the functional-core/effect-shell style and [AGENTS.md](AGENTS.md) for the operational guide.
+
+## Repository map
+
+```text
+client/src/              React TV and remote UI, API adapters, pure state helpers
+server/domain/           Functional core: commands, reducers, selectors, contracts
+server/runtime/          Idle, kiosk, feed, schedule, and environment runtimes
+server/services/         Crawlers and integrations: weather, sensors, vision, Google Photos
+server/routes.js         REST route registration and transport decoding
+server/sockets.js        Socket.IO live synchronization and compatibility boundary
+config.json.example      Non-secret configuration template
+.env.example             Secret/integration variable template
+ROADMAP.md               Product and platform delivery source of truth
+```
+
+## Project status and boundaries
+
+Lumina is an active, evolving personal project. [ROADMAP.md](ROADMAP.md) is the source of truth for product direction; [FUNCTIONAL_REFACTOR_ROADMAP.md](FUNCTIONAL_REFACTOR_ROADMAP.md) tracks the supporting architecture work. Runtime-generated collections, credentials, caches, and sensor history are intentionally local and ignored by Git.
+
+The server is designed for a trusted home LAN and currently enables broad CORS for local control. Do not expose it directly to the public Internet without adding authentication, access controls, and an appropriate reverse-proxy boundary.
+
+This repository does not currently include a checked-in `LICENSE` file. Treat reuse and redistribution accordingly until explicit licensing terms are added.
