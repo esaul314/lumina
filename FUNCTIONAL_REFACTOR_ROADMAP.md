@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 ## Purpose
 
@@ -39,6 +39,7 @@ Current checkpoint:
 - The latest live-sync audit removed the duplicated legacy/modern recrawl status application branch; continue with another view-specific status consumer only when its policy is genuinely repeated.
 - The latest Step 6 slice adds a checked client-owned contract to `client/src/state/feedMutations.js`: category selection and feed-source patches remain pure, data-first snapshot projections, while malformed edit inputs retain identity and React/API effects stay outside the module.
 - The latest Step 6 slice adds a checked environment presentation contract to `client/src/state/environmentHistory.js`: metric conversion, timestamp formatting, and status projection remain pure and client-owned, while adapter-specific readings and transport effects stay outside the module.
+- The latest Step 6 slice extracts `client/src/state/mediaRecovery.js` as a pure media-failure decision algebra: bounded retry scheduling, reachable-host skip policy, and origin URL projection are deterministic, while fetch probes, timers, logging, and socket effects remain explicit in the Dashboard shell.
 - The latest UI refinement uses native `<details>/<summary>` disclosure for each pool: collapsed summary state is pure projected data, while browser disclosure, focus behavior, and field effects remain explicit at the presentation shell.
 - The latest UI refinement expands `client/src/state/imageFeedsPanels.js` into a four-panel JSDoc-typed state algebra. Immutable collapse/expand, transient focus/Escape restoration, normalized ordering, and a storage codec are pure; the React shell owns document Escape listeners, focus restoration, and the browser-storage effect while CSS interprets the responsive/focused layout.
 - The four panel identifiers are Curated Scenic Categories, Independent Rating Deck, Scenic Feed Source Manager, and Google Photos Picker. Pool Lifecycle remains a nested native disclosure under Categories. Keyboard earlier/later actions now persist normalized order; pointer drag-reordering remains intentionally deferred because isolated drag handles must not compete with the Rating Deck crop gesture.

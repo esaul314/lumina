@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-30: Hold Wallpaper Changes During Network Media Failures
+
+- **Finding**: transient DNS/network failures caused the detached preload and the rendered split-slide image handlers to report the same visible URL as broken. The server then advanced the active photo repeatedly, making wallpapers appear to change every second or so even though the configured slideshow interval was two minutes.
+- **Correction**: made the native-image preload the sole media validation path, removed the duplicate hidden image requests, and added a deterministic 1s/2s/4s/8s retry schedule. After retries, the client probes the image origin: an unreachable host holds the current slide, while a reachable host permits one confirmed-broken skip.
+- **Functional boundary**: `client/src/state/mediaRecovery.js` contains the pure retry/hold/skip decision and origin projection. The Dashboard retains only browser effects—fetch, abort timeout, timer waiting, logging, and Socket.IO reporting—at the imperative edge.
+- **Regression coverage**: added direct policy and URL-projection tests plus a Dashboard source contract asserting the origin probe and absence of the former hidden-image error path. The full suite and lint gates pass with the existing warnings only.
+- **Learning**: when a browser requests the same media through multiple validation paths, an ordinary network outage can be misclassified as a bad URL. One authoritative loader plus host-aware bounded recovery preserves the visible frame and avoids destructive state changes during infrastructure failure.
+
 ### 2026-08-29: Add a Checked Contract to Environment Presentation
 
 - **Finding**: TV and remote views shared pure environment metric, conversion, timestamp, and status helpers, but their accepted values and returned status vocabulary were undocumented at the TypeScript migration boundary.
