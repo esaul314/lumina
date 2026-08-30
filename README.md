@@ -4,10 +4,18 @@ Lumina turns a Linux desktop into a calm, network-aware ambient display: curated
 
 It is designed for a dedicated HTPC or living-room display running GNOME/Mutter. The project is deliberately local-first: one Node.js daemon owns durable state and system integration, while a React client provides the TV and remote experiences.
 
-<p align="center">
-  <img src="screenshots/tv_dashboard.png" alt="Lumina TV dashboard" width="49%" />
-  <img src="screenshots/remote_control.png" alt="Lumina mobile remote control" width="49%" />
-</p>
+<table>
+  <tr>
+    <td align="center" valign="top">
+      <strong>TV dashboard</strong><br />
+      <img src="screenshots/tv_dashboard.png" alt="Lumina TV dashboard" height="420" />
+    </td>
+    <td align="center" valign="top">
+      <strong>Mobile remote</strong><br />
+      <img src="screenshots/remote_control.png" alt="Lumina mobile remote control" height="420" />
+    </td>
+  </tr>
+</table>
 
 ## What it does
 
