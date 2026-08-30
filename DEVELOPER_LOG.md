@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-08-30: Add a Checked Contract to Photo-Crop Scalars
+
+- **Finding**: the shared photo-crop helper was already a pure boundary used by the remote, direct-control, and image-feed views, but its display-mode and numeric contracts were undocumented.
+- **Correction**: added local `@ts-check` aliases and JSDoc for the contain/cover baseline and crop-blend helpers without changing their data-first signatures, formulas, or absent-mode cover fallback.
+- **Functional boundary**: crop defaults and interpolation remain pure scalar projections; React preview geometry and input effects stay outside the module.
+- **Regression coverage**: added direct baseline/blend assertions, malformed-scale fallback checks, and checked-source assertions in `run-tests.js`.
+- **Learning**: the most useful TypeScript migration seams can be very small: explicit scalar contracts make shared presentation math mechanically portable without adding runtime validation or a generic abstraction.
+
 ### 2026-08-30: Hold Wallpaper Changes During Network Media Failures
 
 - **Finding**: transient DNS/network failures caused the detached preload and the rendered split-slide image handlers to report the same visible URL as broken. The server then advanced the active photo repeatedly, making wallpapers appear to change every second or so even though the configured slideshow interval was two minutes.

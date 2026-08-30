@@ -3734,6 +3734,13 @@ async function runClientRenderingTests() {
   const { toCssImageUrl } = await importClientModule('./client/src/state/cssImage.js');
   const { formatClockParts } = await importClientModule('./client/src/state/clock.js');
   const {
+    DEFAULT_CONTAIN_CROP_PERCENT,
+    DEFAULT_COVER_CROP_PERCENT,
+    MAX_PHOTO_CROP_PERCENT,
+    getDefaultPhotoCropPercent,
+    getPhotoCropBlend
+  } = await importClientModule('./client/src/state/photoCrop.js');
+  const {
     MEDIA_RETRY_DELAYS_MS,
     buildMediaOriginProbeUrl,
     decideMediaFailure
@@ -3766,6 +3773,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/environmentHistory.js'),
     'utf8'
   );
+  const photoCropSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/photoCrop.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3789,6 +3800,28 @@ async function runClientRenderingTests() {
     assert.notStrictEqual(afternoonClock.period, '');
     assert.strictEqual(morningClock.time.includes('AM'), false);
     assert.strictEqual(afternoonClock.time.includes('PM'), false);
+  });
+
+  assertTest('photo crop helpers preserve pure baselines and blend math', () => {
+    assert.strictEqual(DEFAULT_CONTAIN_CROP_PERCENT, 0);
+    assert.strictEqual(DEFAULT_COVER_CROP_PERCENT, 100);
+    assert.strictEqual(MAX_PHOTO_CROP_PERCENT, 200);
+    assert.strictEqual(getDefaultPhotoCropPercent('contain'), 0);
+    assert.strictEqual(getDefaultPhotoCropPercent('cover'), 100);
+    assert.strictEqual(getDefaultPhotoCropPercent(null), 100);
+    assert.strictEqual(getDefaultPhotoCropPercent(undefined), 100);
+    assert.strictEqual(getPhotoCropBlend(0), 0);
+    assert.strictEqual(getPhotoCropBlend(50), 0.5);
+    assert.strictEqual(getPhotoCropBlend(MAX_PHOTO_CROP_PERCENT), 2);
+  });
+
+  assertTest('photo crop helpers expose a local checked scalar contract', () => {
+    assert.match(photoCropSource, /^\/\/ @ts-check/);
+    assert.match(photoCropSource, /@typedef \{'contain'\|'cover'\} PhotoScaleMode/);
+    assert.match(photoCropSource, /@typedef \{number\} PhotoCropPercent/);
+    assert.match(photoCropSource, /@param \{PhotoScaleMode\|null\|undefined\} scaleMode/);
+    assert.match(photoCropSource, /@param \{PhotoCropPercent\} cropPercent/);
+    assert.match(photoCropSource, /@returns \{PhotoCropPercent\}/);
   });
 
   assertTest('toCssImageUrl quotes and encodes whitespace-safe image URLs', () => {
