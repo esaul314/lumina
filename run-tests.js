@@ -3878,6 +3878,7 @@ async function runClientRenderingTests() {
   assertTest('screensaver activity treats Escape and ordinary input as dismissal signals', () => {
     assert.strictEqual(isEscapeKey({ key: 'Escape' }), true);
     assert.strictEqual(isEscapeKey({ code: 'Escape' }), true);
+    assert.strictEqual(isEscapeKey({ key: 'Enter', code: 'Enter' }), false);
     assert.strictEqual(isScreensaverDismissalActivity({
       screensaverActive: true,
       event: { type: 'keydown', key: 'Enter' }
@@ -3890,6 +3891,34 @@ async function runClientRenderingTests() {
       screensaverActive: false,
       event: { type: 'keydown', key: 'Escape' }
     }), false);
+    assert.strictEqual(isScreensaverDismissalActivity({
+      screensaverActive: true,
+      event: null
+    }), false);
+    assert.strictEqual(isScreensaverDismissalActivity({
+      screensaverActive: true,
+      event: { type: 'wheel' }
+    }), false);
+  });
+
+  assertTest('screensaver activity exposes a local checked event contract', () => {
+    const screensaverActivitySource = fs.readFileSync(
+      path.join(__dirname, 'client/src/state/screensaverActivity.js'),
+      'utf8'
+    );
+
+    assert.match(screensaverActivitySource, /^\/\/ @ts-check/);
+    assert.match(screensaverActivitySource, /@typedef \{\{key\?: string, code\?: string\}\} KeyboardActivity/);
+    assert.match(screensaverActivitySource, /@typedef \{\{type\?: string\}\} ActivityEvent/);
+    assert.match(
+      screensaverActivitySource,
+      /@typedef \{\{screensaverActive: boolean, event\?: ActivityEvent\|null\}\} ScreensaverActivity/
+    );
+    assert.match(
+      screensaverActivitySource,
+      /@param \{KeyboardActivity\|null\|undefined\} event/
+    );
+    assert.match(screensaverActivitySource, /@param \{ScreensaverActivity\} input/);
   });
 
   assertTest('Dashboard derives screensaver-dependent effects from canonical App state', () => {

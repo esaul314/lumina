@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-02: Add a Checked Contract to Screensaver Activity
+
+- **Finding**: the Dashboard's Escape and activity classifier was already a pure safety boundary, but its browser-facing event shape and active-state gating were undocumented at the TypeScript migration boundary.
+- **Correction**: added local `@ts-check` structural aliases and JSDoc for keyboard activity and dismissal input without changing the event vocabulary, Escape semantics, or inactive-screen behavior.
+- **Functional boundary**: event records are projected to a boolean decision through a pure predicate; browser listeners, REST dismissal requests, and lifecycle effects remain outside the module.
+- **Regression coverage**: added active/inactive, null, unknown-event, and source-contract assertions in `run-tests.js`.
+- **Learning**: safety-sensitive client predicates are strong migration anchors when the accepted event shape and no-op law are explicit without introducing runtime event-class validation.
+
 ### 2026-08-30: Add a Checked Contract to Photo-Crop Scalars
 
 - **Finding**: the shared photo-crop helper was already a pure boundary used by the remote, direct-control, and image-feed views, but its display-mode and numeric contracts were undocumented.
