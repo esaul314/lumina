@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-08-30
+Last updated: 2026-09-05
 
 ## Purpose
 
@@ -42,6 +42,7 @@ Current checkpoint:
 - The latest Step 6 slice adds a checked scalar contract to `client/src/state/photoCrop.js`: contain/cover defaults and crop-blend interpolation remain pure, data-in/data-out helpers, with the existing absent-mode cover fallback preserved for compatibility.
 - The latest Step 6 slice adds a checked activity contract to `client/src/state/screensaverActivity.js`: Escape detection and active-screensaver dismissal classification remain pure, browser event classes stay outside the boundary, and unknown events remain inert.
 - The latest Step 6 slice adds checked policy and draft contracts to `client/src/state/poolPolicyDrafts.js`: normalized defaults and nested schedule completion remain pure, while form-string values and React save effects stay at their existing boundaries.
+- The latest Step 6 slice adds a checked parser contract to `client/src/state/keywordInput.js`: pasted phrases and timed feed parameters remain pure, exact keyword text is preserved, and malformed input retains its empty-list identity.
 - The latest Step 6 slice extracts `client/src/state/mediaRecovery.js` as a pure media-failure decision algebra: bounded retry scheduling, reachable-host skip policy, and origin URL projection are deterministic, while fetch probes, timers, logging, and socket effects remain explicit in the Dashboard shell.
 - The latest UI refinement uses native `<details>/<summary>` disclosure for each pool: collapsed summary state is pure projected data, while browser disclosure, focus behavior, and field effects remain explicit at the presentation shell.
 - The latest UI refinement expands `client/src/state/imageFeedsPanels.js` into a four-panel JSDoc-typed state algebra. Immutable collapse/expand, transient focus/Escape restoration, normalized ordering, and a storage codec are pure; the React shell owns document Escape listeners, focus restoration, and the browser-storage effect while CSS interprets the responsive/focused layout.
@@ -334,6 +335,7 @@ Progress note:
 - Step 6 fourth slice: `photoCrop.js` now has a local checked scalar contract for display-mode baselines and crop interpolation. Its numeric formulas and absent-mode cover fallback remain unchanged, keeping the shared preview helpers ready for mechanical TypeScript conversion.
 - Step 6 fifth slice: `screensaverActivity.js` now has a local checked event contract for Escape detection and active-screensaver dismissal classification. The safety-sensitive event vocabulary and inactive/unknown no-op behavior remain unchanged.
 - Step 6 sixth slice: `poolPolicyDrafts.js` now has local checked contracts for normalized policy defaults, nested schedules, and the partially applied immutable draft merge. Draft form strings remain representable without moving coercion into the pure client boundary.
+- Step 6 seventh slice: `keywordInput.js` now has a local checked contract for unknown-safe pasted keyword input and timed feed-parameter parsing. Its data-first parser signatures and exact phrase preservation remain runtime-compatible with the Image Feeds editor.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-05: Add a Checked Contract to Keyword Input Parsing
+
+- **Finding**: the Image Feeds keyword parser was already a pure compatibility boundary, but its pasted-input and timed-parameter output shapes were undocumented for the TypeScript readiness pass.
+- **Correction**: added local `@ts-check` aliases and JSDoc for unknown-safe phrase splitting and timed-or-untimed feed parameters without changing the data-first parser signatures or exact keyword text.
+- **Functional boundary**: separator splitting, regex matching, trimming, and empty-list fallbacks remain pure; browser input events, validation policy, and persistence stay outside the module.
+- **Regression coverage**: added malformed-input identity checks and checked-source assertions alongside the existing multiline/comma/semicolon compatibility cases.
+- **Learning**: a small union output contract makes a form parser mechanically portable while preserving the useful distinction between timed records and untimed phrases.
+
 ### 2026-09-05: Add a Checked Contract to Pool Policy Drafts
 
 - **Finding**: the Image Feeds lifecycle editor already used pure policy defaults and a partially applied draft merge, but its normalized policy shape and form-string inputs were undocumented at the TypeScript migration boundary.
