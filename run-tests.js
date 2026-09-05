@@ -2274,6 +2274,10 @@ assertAsyncTest('keyword entry accepts one phrase per line as well as comma-sepa
     parseFeedParameterInput,
     splitKeywordInput
   } = await importClientModule('./client/src/state/keywordInput.js');
+  const keywordInputSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/keywordInput.js'),
+    'utf8'
+  );
   const timeRangePattern = /^\[((?:[0-1]?[0-9]|2[0-3]):[0-5][0-9])-((?:[0-1]?[0-9]|2[0-3]):[0-5][0-9])\]\s+(.+)$/;
 
   assert.deepStrictEqual(
@@ -2287,6 +2291,14 @@ assertAsyncTest('keyword entry accepts one phrase per line as well as comma-sepa
       'forest trail'
     ]
   );
+  assert.strictEqual(splitKeywordInput(null).length, 0);
+  assert.strictEqual(parseFeedParameterInput(null, timeRangePattern).length, 0);
+  assert.match(keywordInputSource, /^\/\/ @ts-check/);
+  assert.match(keywordInputSource, /@typedef \{\{timeStart: string, timeEnd: string, keywords: string\[\]\}\} FeedParameter/);
+  assert.match(keywordInputSource, /@typedef \{FeedParameter\|string\} ParsedFeedParameter/);
+  assert.match(keywordInputSource, /@param \{unknown\} value/);
+  assert.match(keywordInputSource, /@param \{RegExp\} timeRangePattern/);
+  assert.match(keywordInputSource, /@returns \{ParsedFeedParameter\[\]\}/);
 
   const { decodeAddPoolCommand, decodePoolKeywordsCommand } = require('./server/domain/commands.js');
   assert.deepStrictEqual(
