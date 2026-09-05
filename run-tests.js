@@ -1122,6 +1122,59 @@ assertAsyncTest('pool policy drafts preserve a just-edited maximum through synch
   assert.strictEqual(readDraft({}, 'Scenic Nature').maxPhotos, 2000);
 });
 
+assertAsyncTest('pool policy drafts expose a checked pure and partially applied contract', async () => {
+  const {
+    DEFAULT_POOL_POLICY,
+    DEFAULT_POOL_SCHEDULE,
+    mergePoolPolicyDraft,
+    readPoolPolicy
+  } = await importClientModule('./client/src/state/poolPolicyDrafts.js');
+  const source = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/poolPolicyDrafts.js'),
+    'utf8'
+  );
+  const policies = {
+    'Night Mood': {
+      retentionDays: 14,
+      schedule: { enabled: true, start: '20:00' }
+    }
+  };
+  const policyFor = (category) => readPoolPolicy(policies, category);
+  const mergeDraft = mergePoolPolicyDraft(policyFor);
+  const drafts = mergeDraft({}, 'Night Mood', 'maxPhotos', '500');
+  const nextDrafts = mergeDraft(drafts, 'Night Mood', 'schedule', {
+    ...drafts['Night Mood'].schedule,
+    end: '07:00'
+  });
+
+  assert.deepStrictEqual(DEFAULT_POOL_SCHEDULE, {
+    enabled: false,
+    start: '22:00',
+    end: '06:00',
+    priority: 0
+  });
+  assert.deepStrictEqual(DEFAULT_POOL_POLICY, {
+    retentionDays: 30,
+    maxPhotos: 2000,
+    schedule: DEFAULT_POOL_SCHEDULE
+  });
+  assert.deepStrictEqual(readPoolPolicy(policies, 'Night Mood'), {
+    retentionDays: 14,
+    maxPhotos: 2000,
+    schedule: { enabled: true, start: '20:00', end: '06:00', priority: 0 }
+  });
+  assert.strictEqual(nextDrafts['Night Mood'].maxPhotos, '500');
+  assert.strictEqual(nextDrafts['Night Mood'].schedule.end, '07:00');
+  assert.strictEqual(drafts['Night Mood'].schedule.end, '06:00');
+  assert.notStrictEqual(nextDrafts, drafts);
+  assert.notStrictEqual(nextDrafts['Night Mood'], drafts['Night Mood']);
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{\{enabled: boolean, start: string, end: string, priority: number\|string\}\} PoolSchedule/);
+  assert.match(source, /@typedef \{Record<string, PoolPolicyInput>\} PoolPolicyDrafts/);
+  assert.match(source, /@param \{PoolPolicyReader\} policyFor/);
+  assert.match(source, /field: PoolPolicyField/);
+});
+
 assertAsyncTest('pool lifecycle view models keep schedule presentation pure and responsive', async () => {
   const {
     formatPoolLifecycleSummary,
