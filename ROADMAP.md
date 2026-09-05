@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-09-02
+Last updated: 2026-09-05
 
 ## Implementation Companion
 
@@ -52,6 +52,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `client/src/state/environmentHistory.js` now exposes checked contracts for pure metric conversion, timestamp formatting, and environment-status presentation shared by TV and remote views; adapter-specific data remains outside the client vocabulary.
 - Latest Step 6 slice: `client/src/state/photoCrop.js` now exposes a checked scalar contract for contain/cover baselines and crop interpolation; its historical absent-mode fallback and pure numeric formulas remain unchanged.
 - Latest Step 6 slice: `client/src/state/screensaverActivity.js` now exposes a checked pure activity contract for Escape and dismissal-event classification; active-state gating and unknown-event no-ops remain unchanged.
+- Latest Step 6 slice: `client/src/state/poolPolicyDrafts.js` now exposes checked contracts for normalized policy defaults and immutable, partially applied draft merges; HTML form strings and nested schedule updates remain compatible at the pure boundary.
 - Latest Step 6 slice: the TV slideshow now keeps media loading authoritative and connectivity-aware: `client/src/state/mediaRecovery.js` projects a bounded 1s/2s/4s/8s retry policy, while the Dashboard probes the image origin before classifying a URL as broken and holds the current slide during an unreachable-host outage.
 - Latest Step 5 slice: the Image Feeds admin surface now uses a bounded desktop workspace, compact responsive pool-lifecycle cards, constrained time controls, and a two-column source manager that collapses to one column on narrow displays; lifecycle row presentation is derived through a pure view-model helper.
 - Latest Step 5 refinement: pool lifecycle cards now use closed native disclosure panels by default; each summary retains the current retention, photo-cap, and schedule facts while advanced fields appear only after an explicit Configure action.
@@ -177,7 +178,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Next focus: Steps 1 through 5 of the implementation companion are complete and Step 6 is next. The client now has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, and normalized event projections for REST reads, mutation responses, live `state-sync`, paired photos, credentials, and jobs.
+  - Current focus: implementation companion Step 6 is active. The client now has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, normalized event projections, and checked contracts across the stable client state seams.
 
 ### Shared domain flow
 

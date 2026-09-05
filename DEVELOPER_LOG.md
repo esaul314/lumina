@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-05: Add a Checked Contract to Pool Policy Drafts
+
+- **Finding**: the Image Feeds lifecycle editor already used pure policy defaults and a partially applied draft merge, but its normalized policy shape and form-string inputs were undocumented at the TypeScript migration boundary.
+- **Correction**: added local `@ts-check` structural aliases and JSDoc for policy defaults, nested schedules, draft readers, and immutable field merges; the existing data-first signatures remain compatible.
+- **Functional boundary**: policy completion and draft projection remain pure and non-mutating, with one captured reader per merge factory; HTML input coercion and save effects remain in the React shell.
+- **Regression coverage**: added nested-default, form-string, curried-reuse, immutability, and checked-source assertions; the standard project gates follow this entry.
+- **Learning**: a small typed vocabulary can describe a form-backed state algebra without forcing validation or coercion into the functional core; preserving the no-mutation law keeps draft edits predictable.
+
 ### 2026-09-02: Add a Checked Contract to Screensaver Activity
 
 - **Finding**: the Dashboard's Escape and activity classifier was already a pure safety boundary, but its browser-facing event shape and active-state gating were undocumented at the TypeScript migration boundary.
