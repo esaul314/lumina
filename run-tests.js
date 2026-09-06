@@ -96,6 +96,7 @@ const {
   getChromiumAccelerationProfile
 } = require('./server/services/system.js');
 const { isDisallowedUnsplashPhoto } = require('./server/utils/photoPolicy.js');
+const { applyPoolPolicy } = require('./server/domain/poolRetention.js');
 
 // Formatting constants for clean terminal reports
 const COLORS = {
@@ -962,9 +963,9 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
     getGooglePhotosPickerStatus
   } = await importClientModule('./client/src/components/remote/googlePhotosPicker.js');
 
-  assert.match(GOOGLE_PHOTOS_PICKER_COPY.description, /independent of the scenic pools/i);
+  assert.match(GOOGLE_PHOTOS_PICKER_COPY.description, /own pool lifecycle controls/i);
   assert.strictEqual(getGooglePhotosPickerStatus(false).actionLabel, 'Set up Google Photos Picker');
-  assert.match(getGooglePhotosPickerStatus(true).description, /not added to the selected scenic pool/i);
+  assert.match(getGooglePhotosPickerStatus(true).description, /own pool lifecycle policy/i);
 
   const imageFeedsSource = fs.readFileSync(
     path.join(__dirname, 'client/src/components/remote/ImageFeedsTab.jsx'),
@@ -1005,6 +1006,23 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(imageFeedsCss, /\.image-feeds-rating-preview > div\s*\{[\s\S]*?max-width: 100%;[\s\S]*?max-height: 100%/);
   assert.match(imageFeedsCss, /\.image-feeds-rating\.is-panel-focused \.image-feeds-rating-preview\s*\{[\s\S]*?max-height: min\(58vh, 560px\)/);
   assert.match(imageFeedsCss, /\.image-feeds-rating-scale\s*\{[\s\S]*?grid-template-columns: repeat\(5, minmax\(44px, 1fr\)\)/);
+});
+
+assertTest('Google Photos lifecycle policy keeps loved photos, ages dated items, and caps the working pool', () => {
+  const photos = applyPoolPolicy('2026-09-06T00:00:00Z', { retentionDays: 30, maxPhotos: 2 })([
+    { id: 'old', addedAt: '2026-07-01T00:00:00Z' },
+    { id: 'legacy' },
+    ...Array.from({ length: 12 }, (_, index) => ({
+      id: `fresh-${index + 1}`,
+      addedAt: `2026-09-${String(index + 1).padStart(2, '0')}T00:00:00Z`
+    })),
+    { id: 'loved', addedAt: '2026-01-01T00:00:00Z', loved: true }
+  ]);
+
+  assert.strictEqual(photos.length, 12, 'the normalized minimum pool cap should be enforced');
+  assert.ok(photos.some(({ id }) => id === 'loved'));
+  assert.ok(!photos.some(({ id }) => id === 'old'));
+  assert.ok(photos.some(({ id }) => id === 'fresh-12'));
 });
 
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
@@ -1198,6 +1216,15 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
   });
   assert.deepStrictEqual(getPoolLifecycleRows(['Google Photos', 'Night Mood', 'Day Mood'], policyFor), [
     {
+      category: 'Google Photos',
+      policy: { retentionDays: 14, maxPhotos: 500, schedule: { enabled: false } },
+      summary: {
+        retention: '14 days',
+        maximum: '500 photos',
+        schedule: 'Manual activation'
+      }
+    },
+    {
       category: 'Night Mood',
       policy: { retentionDays: 30, maxPhotos: 2000, schedule: { enabled: true, start: '22:00', end: '06:00' } },
       summary: {
@@ -1275,6 +1302,14 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
   assert.strictEqual(item.googlePickerSessionId, 'session-abc');
   assert.strictEqual(item.width, 4032);
   assert.strictEqual(item.height, 3024);
+  assert.ok(item.addedAt, 'newly synced Google Photos items need a retention timestamp');
+  const refreshed = buildCachedMediaItem(
+    { id: 'picker-123', mediaFile: { baseUrl: 'https://lh3.googleusercontent.com/picker-item' } },
+    'session-abc',
+    { addedAt: '2026-01-01T00:00:00.000Z' },
+    '2026-09-06T00:00:00Z'
+  );
+  assert.strictEqual(refreshed.addedAt, '2026-01-01T00:00:00.000Z');
   assert.strictEqual(item.mimeType, 'image/jpeg');
 });
 
@@ -2707,6 +2742,30 @@ assertAsyncTest('createDomainDispatcher interprets external photo persistence ef
   assert.strictEqual(result.effectResults[0].effect.type, 'persist-external-photo-metadata');
   assert.strictEqual(state.photosList[0].cropPercent, 42);
   assert.deepStrictEqual(ioEmits.map(([event]) => event), ['state-sync']);
+});
+
+assertAsyncTest('createDomainDispatcher refreshes the active feed after a Google Photos policy update', async () => {
+  const refreshed = [];
+  const { dispatcher, runtimeContext, state } = createDispatcherHarness({
+    refreshActiveFeed: ({ categories } = {}) => {
+      refreshed.push(categories);
+    }
+  });
+  state.currentCategory = 'Google Photos';
+  runtimeContext.externalCollections = { 'Google Photos': [{ url: 'google-1', category: 'Google Photos' }] };
+
+  const result = await dispatcher.dispatchCommand({
+    type: 'set-pool-policy',
+    payload: { name: 'Google Photos', policy: { retentionDays: 45, maxPhotos: 300 } }
+  });
+
+  assert.deepStrictEqual(refreshed, [['Google Photos']]);
+  assert.strictEqual(result.effectResults[1].effect.type, 'refresh-active-feed');
+  assert.deepStrictEqual(state.poolPolicies['Google Photos'], {
+    retentionDays: 45,
+    maxPhotos: 300,
+    schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
+  });
 });
 
 assertAsyncTest('createDomainDispatcher stays silent for no-op pool config commands', async () => {
@@ -4752,6 +4811,43 @@ async function runIntegrationTests() {
     assert.strictEqual(response.status, 404);
     assert.strictEqual(response.body.error, 'Pool "Missing Pool" not found.');
     assert.strictEqual(dispatched, false);
+  });
+
+  await assertAsyncTest('PATCH /api/pools/Google Photos accepts the dedicated lifecycle policy', async () => {
+    const state = {
+      currentCategory: 'Google Photos',
+      photosList: [],
+      widgets: { clock: true },
+      theme: 'Zen Retreat',
+      feedConfigs: {},
+      searchKeywords: {},
+      poolPolicies: {},
+      excludedKeywords: [],
+      hasUseApiToken: false,
+      hasTumblrApiKey: false
+    };
+    const dispatched = [];
+    const app = buildConfiguredRoutesApp({
+      state,
+      dispatchCommand: async (command) => {
+        dispatched.push(command);
+        state.poolPolicies['Google Photos'] = command.payload.policy;
+        return { reducerResult: { events: [{ type: 'state-sync' }], effects: [{ type: 'persist' }] } };
+      }
+    });
+
+    const response = await invokeRoute(app, 'patch', '/api/pools/:name', {
+      params: { name: 'Google Photos' },
+      body: { policy: { retentionDays: 45, maxPhotos: 300 } }
+    });
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(dispatched[0].type, 'set-pool-policy');
+    assert.deepStrictEqual(dispatched[0].payload.policy, {
+      retentionDays: 45,
+      maxPhotos: 300,
+      schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
+    });
   });
 
   await assertAsyncTest('GET /api/pools/:name/photos reuses the shared pool guard for missing pools', async () => {

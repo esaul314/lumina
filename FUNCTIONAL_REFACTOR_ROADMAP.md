@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-09-05
+Last updated: 2026-09-06
 
 ## Purpose
 
@@ -33,6 +33,7 @@ Current checkpoint:
 - RemoteControl job acknowledgements now use one pure event-envelope projection and declarative listener table; modern job status and legacy recrawl completion share status application while React targets and reset effects remain explicit.
 - App photo acknowledgements now use one pure event-envelope projection and declarative listener table; primary and secondary frame-side application remains explicit in the existing immutable snapshot transform.
 - The latest Step 5 UI slice adds a pure `getPoolLifecycleRows(...)` presentation projection and keeps the React shell responsible only for draft updates and save effects; CSS handles the desktop/mobile field layout without introducing a generic form framework.
+- The latest Image Feeds correction extends that pure lifecycle projection to the external Google Photos pool and reuses the shared pool-policy projection at the server boundary, so retention/cap behavior and active-feed refresh remain explicit without coupling the UI to the Google cache implementation.
 - The latest Step 5 snapshot slice keeps the `{ state: snapshot }` compatibility rule at the functional boundary, so REST reads, mutation responses, and live sync all enter React as the same normalized snapshot shape without duplicating envelope checks.
 - The Step 5 live-sync audit is complete: view-specific state effects remain outside the pure snapshot projection, and no further repeated client consumer policy was identified.
 - The current live-sync audit has removed the remaining duplicated credential acknowledgement branch; continue with any other repeated view-specific status consumer only when the repetition is concrete.

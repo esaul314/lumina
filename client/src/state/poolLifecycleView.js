@@ -37,7 +37,6 @@ export const formatPoolLifecycleSummary = ({ retentionDays, maxPhotos, schedule 
  * @returns {PoolLifecycleRow[]}
  */
 export const getPoolLifecycleRows = (categories = [], policyFor) => categories
-  .filter(category => category !== 'Google Photos')
   .map(category => {
     const policy = policyFor(category);
     return {

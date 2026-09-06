@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readEnvVar, persistEnvVars } = require('../config/env.js');
+const { applyPoolPolicy } = require('../domain/poolRetention.js');
 
 const CACHE_PATH = process.env.LUMINA_GOOGLE_PHOTOS_CACHE_PATH
   || path.join(__dirname, '..', 'config', 'google_photos_cache.json');
@@ -109,9 +110,11 @@ function extractLegacyBaseUrl(url) {
   return baseUrl || '';
 }
 
-function buildCachedMediaItem(item, sessionId, existing = {}) {
+function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now()) {
   const { width, height } = getPickerItemDimensions(item);
   const googleBaseUrl = getPickerItemBaseUrl(item) || existing.googleBaseUrl || extractLegacyBaseUrl(existing.url);
+  const existingAddedAt = existing.addedAt;
+  const normalizedAddedAt = existingAddedAt || new Date(addedAt).toISOString();
 
   return {
     id: item.id,
@@ -122,6 +125,7 @@ function buildCachedMediaItem(item, sessionId, existing = {}) {
     googleBaseUrl,
     googlePickerSessionId: sessionId || existing.googlePickerSessionId,
     googleBaseUrlFetchedAt: googleBaseUrl ? Date.now() : existing.googleBaseUrlFetchedAt,
+    addedAt: normalizedAddedAt,
     mimeType: getPickerItemMimeType(item) || existing.mimeType || 'image/jpeg',
     width,
     height,
@@ -507,7 +511,7 @@ async function getValidToken() {
  * 💾 syncGoogleAlbum
  * Retrieves selected items from the Google Photos Picker session and caches them.
  */
-async function syncGoogleAlbum(sessionId) {
+async function syncGoogleAlbum(sessionId, { poolPolicy, now = new Date() } = {}) {
   try {
     if (!tokens.accessToken) {
       throw new Error('Google Photos Service: No active token session.');
@@ -531,14 +535,16 @@ async function syncGoogleAlbum(sessionId) {
         if (mimeType && !mimeType.startsWith('image')) continue;
 
         const existing = existingById.get(item.id) || {};
-        const nextItem = buildCachedMediaItem(item, sessionId, existing);
+        const nextItem = buildCachedMediaItem(item, sessionId, existing, now);
         syncedItems.push(nextItem);
       }
     }
 
-    const cachedItemsToKeep = mergeSyncedMediaItems(syncedItems, cachedItems);
+    const cachedItemsToKeep = applyPoolPolicy(now, poolPolicy)(
+      mergeSyncedMediaItems(syncedItems, cachedItems)
+    );
     writeCachedMediaItems(cachedItemsToKeep);
-    console.log(`Google Photos Service: Synced and cached ${syncedItems.length} selected items plus ${cachedItemsToKeep.length - syncedItems.length} loved permanent items for session ${sessionId}.`);
+    console.log(`Google Photos Service: Synced and cached ${syncedItems.length} selected items within a ${cachedItemsToKeep.length}-photo lifecycle pool for session ${sessionId}.`);
 
     // Clean orphaned files and kick off background download of new files
     cleanOrphanedMediaFiles(cachedItemsToKeep);

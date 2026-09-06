@@ -15,6 +15,7 @@ const { screensaverState, buildFeedConfigsFromKeywords } = require('./config/sta
 const { defaultCuratedCollections, saveCuratedCollections } = require('./config/collections.js');
 const { loadCollectionsSnapshot } = require('./config/collectionsCodec.js');
 const { createDomainDispatcher } = require('./domain/dispatch.js');
+const { applyPoolPolicy } = require('./domain/poolRetention.js');
 const {
   buildBalancedFeed,
   filterPhotosForNight,
@@ -266,8 +267,13 @@ function combineFeedsBalanced(categories, collections) {
 }
 
 function getExternalCollections() {
+  const googlePhotosPolicy = screensaverState.poolPolicies?.['Google Photos'];
+  const googlePhotosItems = applyPoolPolicy(new Date(), googlePhotosPolicy)(
+    googlePhotos.getCachedMediaItems()
+  );
+
   return {
-    'Google Photos': googlePhotos.getCachedMediaItems().map((photo) => ({ ...photo, category: 'Google Photos' }))
+    'Google Photos': googlePhotosItems.map((photo) => ({ ...photo, category: 'Google Photos' }))
   };
 }
 
@@ -584,6 +590,7 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   killKioskBrowser: kioskControlRuntime.killKioskBrowser,
   setManualOverride: kioskControlRuntime.setManualOverride,
   persistExternalPhotoMetadata,
+  refreshActiveFeed: ({ categories } = {}) => activeFeedRuntime.refreshActiveFeedIfIncluded(categories),
   runCrawler,
   startRecrawlJob: (payload) => recrawlJobService?.submit(payload),
   startVisionAnalysisJob: (payload) => visionAnalysisJobService?.submit(payload),

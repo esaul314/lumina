@@ -37,6 +37,7 @@ const {
 } = require('./utils/routeDecode.js');
 const { reduceAsyncSequentially } = require('./utils/asyncReduce.js');
 const { reduceUntil } = require('./utils/fn.js');
+const { applyPoolPolicy } = require('./domain/poolRetention.js');
 
 const DEFAULT_CATEGORY = 'Scenic Nature';
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
@@ -170,7 +171,10 @@ module.exports = function configureRoutes({
     return false;
   };
   const buildExternalCollections = () => ({
-    [GOOGLE_PHOTOS_CATEGORY]: googlePhotos.getCachedMediaItems().map((photo) => ({
+    [GOOGLE_PHOTOS_CATEGORY]: applyPoolPolicy(
+      new Date(),
+      state.poolPolicies?.[GOOGLE_PHOTOS_CATEGORY]
+    )(googlePhotos.getCachedMediaItems()).map((photo) => ({
       ...photo,
       category: GOOGLE_PHOTOS_CATEGORY
     }))
@@ -239,7 +243,7 @@ module.exports = function configureRoutes({
     name,
     keywords: (state.searchKeywords && state.searchKeywords[name]) || [],
     feedConfigs: (state.feedConfigs && state.feedConfigs[name]) || {},
-    photosCount: Array.isArray(collections[name]) ? collections[name].length : 0
+    photosCount: (buildExternalCollections()[name] || collections[name] || []).length
   });
   const findKnownPhoto = (url, fallbackPhoto = null) => (
     findPhotoInFeed(state.photosList, url)
@@ -252,13 +256,18 @@ module.exports = function configureRoutes({
     404,
     (name) => `Pool "${name}" not found.`
   );
+  const ensurePoolPolicyTarget = createPresenceGuard(
+    (name) => name === GOOGLE_PHOTOS_CATEGORY || hasPool(name),
+    404,
+    (name) => `Pool "${name}" not found.`
+  );
   const ensurePoolKnown = createPresenceGuard(
     (name) => hasPool(name) || hasPoolConfig(name),
     404,
     (name) => `Pool "${name}" not found.`
   );
   const ensurePoolMissing = createPresenceGuard(
-    (name) => !(hasPool(name) || hasPoolConfig(name)),
+    (name) => name !== GOOGLE_PHOTOS_CATEGORY && !(hasPool(name) || hasPoolConfig(name)),
     409,
     (name) => `Pool "${name}" already exists.`
   );
@@ -601,7 +610,9 @@ module.exports = function configureRoutes({
         console.log(`Google Picker Poller: Session ${sessionId} completed. Syncing items...`);
         clearInterval(intervalId);
 
-        await googlePhotos.syncGoogleAlbum(sessionId);
+        await googlePhotos.syncGoogleAlbum(sessionId, {
+          poolPolicy: state.poolPolicies?.[GOOGLE_PHOTOS_CATEGORY]
+        });
 
         if (getSelectedCategories().includes(GOOGLE_PHOTOS_CATEGORY)) {
           refreshActiveFeed();
@@ -750,7 +761,9 @@ module.exports = function configureRoutes({
     async (req, res) => {
       await googlePhotos.exchangeGoogleCode('sandbox-code', '');
       const session = await googlePhotos.createPickerSession();
-      await googlePhotos.syncGoogleAlbum(session.id);
+      await googlePhotos.syncGoogleAlbum(session.id, {
+        poolPolicy: state.poolPolicies?.[GOOGLE_PHOTOS_CATEGORY]
+      });
 
       if (getSelectedCategories().includes(GOOGLE_PHOTOS_CATEGORY)) {
         refreshActiveFeed();
@@ -803,7 +816,7 @@ module.exports = function configureRoutes({
   registerRouteSpecs(REST_ASYNC_JOB_ROUTE_SPECS, createAsyncJobRoute);
 
   app.get('/api/pools', (_req, res) => {
-    res.json(Object.keys(collections).map(buildPoolResponse));
+    res.json([...Object.keys(collections), GOOGLE_PHOTOS_CATEGORY].map(buildPoolResponse));
   });
 
   app.patch('/api/pools/:name', createBatchCommandRoute({
@@ -813,7 +826,7 @@ module.exports = function configureRoutes({
     allowNoop: true,
     unavailableMessage: 'Pool dispatcher unavailable.',
     guards: [
-      ({ decoded }) => ensurePoolExists(decoded.name)
+      ({ decoded }) => ensurePoolPolicyTarget(decoded.name)
     ],
     present: ({ decoded }) => ({
       state: buildStateResponse(),
@@ -838,13 +851,13 @@ module.exports = function configureRoutes({
 
   app.get('/api/pools/:name/photos', (req, res) => {
     const name = req.params.name.trim();
-    const guardFailure = ensurePoolExists(name);
+    const guardFailure = ensurePoolPolicyTarget(name);
     if (guardFailure) {
       sendRouteFailure(res, guardFailure, { name });
       return;
     }
 
-    res.json(collections[name]);
+    res.json(name === GOOGLE_PHOTOS_CATEGORY ? buildExternalCollections()[name] : collections[name]);
   });
 
   app.patch('/api/photos', createBatchCommandRoute({

@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-09-05
+Last updated: 2026-09-06
 
 ## Implementation Companion
 
@@ -62,6 +62,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 5 focus refinement: Rating Deck Focus mode now expands the responsive TV preview surface itself, capped by viewport height, and remeasures the pure frame-fit projection after focus changes. The mobile rating scale uses a five-by-two, 44px-minimum grid without introducing horizontal overflow.
 - Latest Step 5 focus correction: Rating Deck content and media now clamp to their containing slot, preventing a stale focused frame from widening the normal two-column layout when Escape returns to all-panels mode.
 - Latest Step 5 responsive correction: the Image Feeds workspace now leaves the two-column layout at 959px so Source Manager ordering controls have a dedicated, separated toolbar and do not compete with title-row Expand/Focus actions in compressed tablet widths.
+- Latest Image Feeds correction: Google Photos now appears in the nested Pool Lifecycle editor, accepts the shared policy REST path, and applies its retention and maximum-photo policy to the external cache while preserving loved and legacy undated items.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.

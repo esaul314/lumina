@@ -46,6 +46,16 @@ const normalizePoolPolicy = (policy = {}) => ({
   schedule: normalizePoolSchedule(policy.schedule)
 });
 
+const capPoolPhotos = (photos = [], maxPhotos = 2000) => {
+  const limit = Math.max(0, Math.round(Number(maxPhotos) || 0));
+  const lovedPhotos = photos.filter((photo) => photo?.loved === true);
+  const regularPhotos = photos.filter((photo) => photo?.loved !== true);
+
+  return lovedPhotos.length >= limit
+    ? lovedPhotos
+    : lovedPhotos.concat(regularPhotos.slice(-Math.max(0, limit - lovedPhotos.length)));
+};
+
 const pruneExpiredPhotos = (now, policy) => (photos = []) => {
   const { retentionDays } = normalizePoolPolicy(policy);
   const cutoff = new Date(now).getTime() - retentionDays * 24 * 60 * 60 * 1000;
@@ -56,6 +66,14 @@ const pruneExpiredPhotos = (now, policy) => (photos = []) => {
   });
 };
 
+const applyPoolPolicy = (now, policy) => (photos = []) => {
+  const normalizedPolicy = normalizePoolPolicy(policy);
+  return capPoolPhotos(
+    pruneExpiredPhotos(now, normalizedPolicy)(photos),
+    normalizedPolicy.maxPhotos
+  );
+};
+
 module.exports = {
   DEFAULT_POOL_SCHEDULE,
   DEFAULT_POOL_RETENTION_DAYS,
@@ -63,5 +81,7 @@ module.exports = {
   normalizePoolSchedule,
   normalizePoolRetentionDays,
   normalizePoolPolicy,
-  pruneExpiredPhotos
+  pruneExpiredPhotos,
+  capPoolPhotos,
+  applyPoolPolicy
 };

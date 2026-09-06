@@ -351,7 +351,7 @@ function ImageFeedsTab({
         <section className="pool-lifecycle-section" aria-labelledby="pool-lifecycle-title">
           <span id="pool-lifecycle-title" className="remote-section-title">Pool Lifecycle</span>
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', margin: '4px 0 12px' }}>
-            New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept. Enable a daily local-time window to activate a pool automatically, including overnight windows.
+            New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept. Google Photos has an independent pool here, with the same size, retention, and optional daily activation controls.
           </p>
           <div className="pool-lifecycle-grid">
           {lifecycleRows.map(({ category, policy, summary }) => {

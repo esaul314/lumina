@@ -2148,7 +2148,7 @@ function runDomainTests({ logSuite, assertTest }) {
       maxPhotos: 500,
       schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
     });
-    assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist']);
+    assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist', 'refresh-active-feed']);
   });
 
   assertTest('shared pool transport specs keep overlapping REST patch and socket pool commands in one declarative family', () => {

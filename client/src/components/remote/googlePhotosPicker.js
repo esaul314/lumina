@@ -10,10 +10,10 @@
 export const GOOGLE_PHOTOS_PICKER_COPY = Object.freeze({
   eyebrow: 'External Photo Source',
   title: 'Google Photos Picker',
-  description: 'Select photos from your private Google Photos library through Google\'s secure Picker flow. This source is independent of the scenic pools below.',
+  description: 'Select photos from your private Google Photos library through Google\'s secure Picker flow. Google Photos has its own pool lifecycle controls below.',
   credentialNote: 'OAuth client credentials are stored in Lumina\'s shared .env file and are only needed to start the Picker flow.',
   readyHeading: 'Google Photos Picker ready',
-  readyDescription: 'Google Photos authorization is configured. Selected items are added to the Google Photos feed; they are not added to the selected scenic pool.',
+  readyDescription: 'Google Photos authorization is configured. Selected items are added to the Google Photos feed and follow its own pool lifecycle policy.',
   setupActionLabel: 'Set up Google Photos Picker',
   readyActionLabel: 'Choose photos in Google Photos'
 });

@@ -6,6 +6,13 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-06: Add Google Photos Pool Lifecycle Controls
+
+- **Finding**: Google Photos was intentionally filtered out of the Pool Lifecycle rows, and its external cache was not accepted by the pool-policy route or constrained by the saved policy.
+- **Correction**: included Google Photos in the lifecycle editor, allowed its policy-only pool patch, and applied retention plus maximum-photo projection to the external cache and active feed.
+- **Functional boundary**: shared policy projection preserves loved photos and undated legacy rows; newly synced Google items receive an acquisition timestamp so retention days have deterministic semantics.
+- **Regression coverage**: covered the Google lifecycle row, REST policy route, policy cap/retention behavior, and updated Picker copy contracts.
+
 ### 2026-09-05: Add a Checked Contract to Keyword Input Parsing
 
 - **Finding**: the Image Feeds keyword parser was already a pure compatibility boundary, but its pasted-input and timed-parameter output shapes were undocumented for the TypeScript readiness pass.

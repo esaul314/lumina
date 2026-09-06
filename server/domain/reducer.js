@@ -31,6 +31,8 @@ const {
 } = require('./statePatch.js');
 const { normalizePoolPolicy } = require('./poolRetention.js');
 
+const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
+
 function cloneState(state) {
   return {
     config: {
@@ -495,7 +497,8 @@ function buildPoolCommandReducer({
   apply,
   effects,
   persist = false,
-  requireExistingPool = true
+  requireExistingPool = true,
+  poolExists = hasPool
 }) {
   return withCommandPayload(readPayload, (state, command, payload) => {
     const options = {
@@ -506,7 +509,7 @@ function buildPoolCommandReducer({
     };
 
     return requireExistingPool
-      ? reducePoolMutation(state, payload.name, options)
+      ? reducePoolMutation(state, payload.name, { ...options, poolExists })
       : reduceStateMutation(state, options);
   });
 }
@@ -727,7 +730,7 @@ function removePoolState(nextState, name) {
 }
 
 function reducePoolMutation(state, name, options = {}) {
-  if (!hasPool(state, name)) {
+  if (!(options.poolExists || hasPool)(state, name)) {
     return unchangedResult(state);
   }
 
@@ -1133,6 +1136,11 @@ const reducePoolCommand = {
   'set-pool-policy': buildPoolCommandReducer({
     readPayload: readPoolPolicyPayload,
     persist: true,
+    effects: ({ name }) => [{
+      type: 'refresh-active-feed',
+      payload: { categories: [name] }
+    }],
+    poolExists: (state, name) => hasPool(state, name) || name === GOOGLE_PHOTOS_CATEGORY,
     apply: (nextState, { name, policy }) => assignPoolPolicy(nextState, name, policy)
   })
 };
