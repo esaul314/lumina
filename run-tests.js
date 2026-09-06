@@ -85,6 +85,7 @@ const {
   mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
   isUsableCachedMediaItem,
+  dedupeMediaItemsById,
   mergeSyncedMediaItems,
   difference,
   getOrphanedFiles,
@@ -1411,6 +1412,36 @@ assertTest('Google Photos resync preserves loved cache rows outside the new Pick
     'selected-now',
     'loved-still-selected',
     'loved-from-previous-session'
+  ]);
+});
+
+assertTest('Google Photos media deduplication keeps the first row for each stable media id', () => {
+  const duplicateRows = [
+    { id: 'picker-123', title: 'first metadata' },
+    { id: 'picker-123', title: 'second metadata' },
+    { id: 'picker-456', title: 'another photo' }
+  ];
+
+  assert.deepStrictEqual(dedupeMediaItemsById(duplicateRows), [
+    duplicateRows[0],
+    duplicateRows[2]
+  ]);
+});
+
+assertTest('Google Photos sync merge removes duplicate incoming and legacy cached rows', () => {
+  const merged = mergeSyncedMediaItems([
+    { id: 'picker-123', title: 'selected first' },
+    { id: 'picker-123', title: 'selected duplicate' }
+  ], [
+    { id: 'picker-123', loved: true },
+    { id: 'picker-123', loved: true },
+    { id: 'picker-456', loved: true },
+    { id: 'picker-456', loved: false }
+  ]);
+
+  assert.deepStrictEqual(merged, [
+    { id: 'picker-123', title: 'selected first' },
+    { id: 'picker-456', loved: true }
   ]);
 });
 

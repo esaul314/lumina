@@ -6,6 +6,12 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-06: Deduplicate Google Photos Cache Rows by Media ID
+
+- **Finding**: repeated Google Photos selections normally reused an existing row, but duplicate IDs in one Picker response or legacy cache could still be written more than once.
+- **Correction**: added a source-local first-occurrence deduplication boundary keyed by the stable Google media item ID before cache persistence and while merging Picker selections with loved rows.
+- **Regression coverage**: verified first-row metadata preservation and duplicate removal across both incoming selections and existing cached rows.
+
 ### 2026-09-06: Add Google Photos Pool Lifecycle Controls
 
 - **Finding**: Google Photos was intentionally filtered out of the Pool Lifecycle rows, and its external cache was not accepted by the pool-policy route or constrained by the saved policy.

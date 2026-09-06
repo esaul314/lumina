@@ -172,6 +172,25 @@ function isUsableCachedMediaItem(item) {
   return Boolean(item.googleBaseUrl || item.googlePickerSessionId);
 }
 
+/**
+ * Keep one source-local cache row per stable Google Photos media item id.
+ * The first occurrence wins so a repeated Picker selection cannot overwrite
+ * the metadata attached to the earlier row.
+ */
+function dedupeMediaItemsById(items = []) {
+  const seenIds = new Set();
+
+  return items.filter((item) => {
+    const mediaItemId = String(item?.id || '').trim();
+    if (!mediaItemId || seenIds.has(mediaItemId)) {
+      return false;
+    }
+
+    seenIds.add(mediaItemId);
+    return true;
+  });
+}
+
 function readCachedMediaItemsRaw() {
   if (!fs.existsSync(CACHE_PATH)) {
     return [];
@@ -203,12 +222,14 @@ function updateCachedMediaItem(item) {
  * replaceable pool; loved cache rows are durable display choices.
  */
 function mergeSyncedMediaItems(syncedItems, cachedItems = []) {
-  const syncedIds = new Set(syncedItems.map((item) => item?.id).filter(Boolean));
-  const preservedLovedItems = cachedItems.filter((item) => (
+  const uniqueSyncedItems = dedupeMediaItemsById(syncedItems);
+  const uniqueCachedItems = dedupeMediaItemsById(cachedItems);
+  const syncedIds = new Set(uniqueSyncedItems.map((item) => item.id));
+  const preservedLovedItems = uniqueCachedItems.filter((item) => (
     item?.loved === true && item.id && !syncedIds.has(item.id)
   ));
 
-  return [...syncedItems, ...preservedLovedItems];
+  return [...uniqueSyncedItems, ...preservedLovedItems];
 }
 
 function buildGooglePhotoMetadataPatch(metadata = {}) {
@@ -908,10 +929,10 @@ const downloadSyncMediaItems = async (items) => {
  */
 function getCachedMediaItems() {
   const rawItems = readCachedMediaItemsRaw();
-  const normalizedItems = rawItems
+  const normalizedItems = dedupeMediaItemsById(rawItems
     .map(normalizeCachedMediaItem)
     .filter(Boolean)
-    .filter(isUsableCachedMediaItem);
+    .filter(isUsableCachedMediaItem));
 
   if (JSON.stringify(rawItems) !== JSON.stringify(normalizedItems) && process.env.NODE_ENV !== 'test') {
     writeCachedMediaItems(normalizedItems);
@@ -950,6 +971,7 @@ module.exports = {
   mergeCachedMediaItemMetadata,
   normalizeCachedMediaItem,
   isUsableCachedMediaItem,
+  dedupeMediaItemsById,
   mergeSyncedMediaItems,
   updateCachedMediaItemMetadata,
   difference,
