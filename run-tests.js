@@ -1409,7 +1409,7 @@ assertTest('legacy Google Photos cache rows without baseUrl or picker session ar
   assert.strictEqual(isUsableCachedMediaItem(healthy), true, 'Rows with picker session metadata should remain eligible');
 });
 
-assertTest('Google Photos resync preserves loved cache rows outside the new Picker working set', () => {
+assertTest('Google Photos Picker merges accumulate ordinary cache rows across sessions', () => {
   const syncedItems = [
     { id: 'selected-now', loved: false },
     { id: 'loved-still-selected', loved: true }
@@ -1424,9 +1424,10 @@ assertTest('Google Photos resync preserves loved cache rows outside the new Pick
   const merged = mergeSyncedMediaItems(syncedItems, cachedItems);
 
   assert.deepStrictEqual(merged.map((item) => item.id), [
+    'loved-from-previous-session',
+    'ordinary-from-previous-session',
     'selected-now',
-    'loved-still-selected',
-    'loved-from-previous-session'
+    'loved-still-selected'
   ]);
 });
 
@@ -1454,10 +1455,161 @@ assertTest('Google Photos sync merge removes duplicate incoming and legacy cache
     { id: 'picker-456', loved: false }
   ]);
 
-  assert.deepStrictEqual(merged, [
-    { id: 'picker-123', title: 'selected first' },
-    { id: 'picker-456', loved: true }
-  ]);
+  assert.deepStrictEqual(merged.map(({ id }) => id), ['picker-456', 'picker-123']);
+  assert.strictEqual(merged[0].loved, true, 'legacy duplicate metadata should remain on the retained row');
+  assert.strictEqual(merged[1].title, 'selected duplicate', 'the latest synced representation should win');
+  assert.strictEqual(merged[1].loved, true, 'existing user metadata should survive a later sync');
+});
+
+assertTest('Google Photos retention runs after accumulated union and preserves loved rows', () => {
+  const merged = mergeSyncedMediaItems(
+    [{ id: 'fresh', addedAt: '2026-09-05T00:00:00Z' }],
+    [
+      { id: 'expired', addedAt: '2026-07-01T00:00:00Z' },
+      { id: 'loved-expired', addedAt: '2026-07-01T00:00:00Z', loved: true }
+    ]
+  );
+  const retained = applyPoolPolicy('2026-09-06T00:00:00Z', {
+    retentionDays: 30,
+    maxPhotos: 12
+  })(merged);
+
+  assert.deepStrictEqual(retained.map(({ id }) => id), ['loved-expired', 'fresh']);
+});
+
+assertTest('Google Photos cap runs after accumulation and keeps the newest ordinary rows', () => {
+  const existing = Array.from({ length: 4999 }, (_, index) => ({
+    id: `existing-${index}`,
+    addedAt: '2026-09-01T00:00:00Z'
+  }));
+  const merged = mergeSyncedMediaItems(
+    Array.from({ length: 2 }, (_, index) => ({
+      id: `incoming-${index}`,
+      addedAt: '2026-09-06T00:00:00Z'
+    })),
+    existing
+  );
+  const retained = applyPoolPolicy('2026-09-06T00:00:00Z', {
+    retentionDays: 30,
+    maxPhotos: 5000
+  })(merged);
+
+  assert.strictEqual(merged.length, 5001);
+  assert.strictEqual(retained.length, 5000);
+  assert.ok(retained.some(({ id }) => id === 'incoming-0'));
+  assert.ok(retained.some(({ id }) => id === 'incoming-1'));
+  assert.ok(!retained.some(({ id }) => id === 'existing-0'));
+});
+
+assertAsyncTest('Google Photos Picker sync accumulates sessions and preserves metadata through empty or failed syncs', async () => {
+  const existing = buildCachedMediaItem(
+    { id: 'session-one', baseUrl: 'https://photos.example/session-one-v1', mimeType: 'image/jpeg' },
+    'previous-session',
+    { rating: 7, cropPercent: 42, preventPairing: true, loved: true },
+    '2026-09-01T00:00:00Z'
+  );
+  let cacheItems = [existing];
+  const readCache = () => cacheItems;
+  const writeCache = (items) => { cacheItems = items; };
+  const syncOptions = {
+    poolPolicy: { retentionDays: 3650, maxPhotos: 5000 },
+    readCache,
+    writeCache,
+    cleanMediaFiles: () => {},
+    downloadMediaItems: async () => {}
+  };
+
+  try {
+    const listMediaItems = async (sessionId) => ({
+      mediaItems: sessionId === 'session-1'
+        ? [
+          { id: 'session-one', baseUrl: 'https://photos.example/session-one-v2', mimeType: 'image/jpeg' },
+          { id: 'session-two', baseUrl: 'https://photos.example/session-two', mimeType: 'image/jpeg' }
+        ]
+        : [
+          { id: 'session-two', baseUrl: 'https://photos.example/session-two-v2', mimeType: 'image/jpeg' },
+          { id: 'session-three', baseUrl: 'https://photos.example/session-three', mimeType: 'image/jpeg' }
+        ]
+    });
+    await googlePhotos.syncGoogleAlbum('session-1', {
+      now: new Date('2026-09-02T00:00:00Z'),
+      ...syncOptions,
+      listMediaItems
+    });
+    await googlePhotos.syncGoogleAlbum('session-2', {
+      now: new Date('2026-09-03T00:00:00Z'),
+      ...syncOptions,
+      listMediaItems
+    });
+
+    const accumulated = readCache();
+    assert.deepStrictEqual(accumulated.map(({ id }) => id), [
+      'session-one',
+      'session-two',
+      'session-three'
+    ]);
+    assert.strictEqual(accumulated.find(({ id }) => id === 'session-two').googleBaseUrl, 'https://photos.example/session-two-v2');
+    assert.strictEqual(accumulated.find(({ id }) => id === 'session-one').rating, 7);
+    assert.strictEqual(accumulated.find(({ id }) => id === 'session-one').cropPercent, 42);
+    assert.strictEqual(accumulated.find(({ id }) => id === 'session-one').preventPairing, true);
+    assert.strictEqual(accumulated.find(({ id }) => id === 'session-one').loved, true);
+
+    const originalGetCachedMediaItems = googlePhotos.getCachedMediaItems;
+    googlePhotos.getCachedMediaItems = () => readCache();
+    try {
+      const poolApp = buildConfiguredRoutesApp();
+      const poolsResponse = await invokeRoute(poolApp, 'get', '/api/pools');
+      const googlePool = poolsResponse.body.find(({ name }) => name === 'Google Photos');
+      assert.strictEqual(googlePool.photosCount, 3);
+      const googlePhotosResponse = await invokeRoute(
+        poolApp,
+        'get',
+        '/api/pools/:name/photos',
+        { params: { name: 'Google Photos' } }
+      );
+      assert.strictEqual(googlePhotosResponse.body.length, 3);
+
+      const mixedFeed = combineFeedsBalanced(
+        ['Scenic Nature', 'Google Photos'],
+        {
+          'Scenic Nature': [
+            { url: 'scenic-one' },
+            { url: 'scenic-two' },
+            { url: 'scenic-three' }
+          ]
+        }
+      );
+      assert.deepStrictEqual(mixedFeed.map(({ category }) => category), [
+        'Scenic Nature',
+        'Google Photos',
+        'Scenic Nature',
+        'Google Photos',
+        'Scenic Nature',
+        'Google Photos'
+      ]);
+    } finally {
+      googlePhotos.getCachedMediaItems = originalGetCachedMediaItems;
+    }
+
+    const afterSuccessfulSync = cacheItems;
+    await googlePhotos.syncGoogleAlbum('empty-session', {
+      now: new Date('2026-09-03T00:00:00Z'),
+      ...syncOptions,
+      listMediaItems: async () => ({ mediaItems: [] })
+    });
+    assert.deepStrictEqual(cacheItems, afterSuccessfulSync);
+
+    await assert.rejects(
+      googlePhotos.syncGoogleAlbum('failed-session', {
+        ...syncOptions,
+        listMediaItems: async () => { throw new Error('picker unavailable'); }
+      }),
+      /picker unavailable/
+    );
+    assert.deepStrictEqual(cacheItems, afterSuccessfulSync);
+  } finally {
+    cacheItems = [];
+  }
 });
 
 assertTest('difference functional helper computes set difference correctly', () => {

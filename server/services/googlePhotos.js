@@ -174,8 +174,7 @@ function isUsableCachedMediaItem(item) {
 
 /**
  * Keep one source-local cache row per stable Google Photos media item id.
- * The first occurrence wins so a repeated Picker selection cannot overwrite
- * the metadata attached to the earlier row.
+ * The first occurrence wins so legacy cache normalization remains stable.
  */
 function dedupeMediaItemsById(items = []) {
   const seenIds = new Set();
@@ -189,6 +188,26 @@ function dedupeMediaItemsById(items = []) {
     seenIds.add(mediaItemId);
     return true;
   });
+}
+
+const GOOGLE_PHOTOS_USER_METADATA_FIELDS = [
+  'rating',
+  'cropPercent',
+  'cropPositionY',
+  'preventPairing',
+  'loved'
+];
+
+function mergeSyncedItemWithExistingMetadata(existing, synced) {
+  const merged = { ...existing, ...synced };
+
+  GOOGLE_PHOTOS_USER_METADATA_FIELDS.forEach((field) => {
+    if (existing?.[field] !== undefined) {
+      merged[field] = existing[field];
+    }
+  });
+
+  return merged;
 }
 
 function readCachedMediaItemsRaw() {
@@ -217,19 +236,44 @@ function updateCachedMediaItem(item) {
 }
 
 /**
- * Keep loved items in the source-local permanent collection when a later
- * Picker session selects a different working set. The Picker response is the
- * replaceable pool; loved cache rows are durable display choices.
+ * Accumulate usable Picker rows in one source-local collection.
+ *
+ * Existing rows stay available when a later Picker session selects a
+ * different working set. A repeated media ID is represented once, with the
+ * latest synced representation winning while user-owned display metadata is
+ * retained. New and refreshed rows are placed at the end so the shared pool
+ * retention/cap projection can treat them as the newest part of the union.
  */
 function mergeSyncedMediaItems(syncedItems, cachedItems = []) {
-  const uniqueSyncedItems = dedupeMediaItemsById(syncedItems);
   const uniqueCachedItems = dedupeMediaItemsById(cachedItems);
-  const syncedIds = new Set(uniqueSyncedItems.map((item) => item.id));
-  const preservedLovedItems = uniqueCachedItems.filter((item) => (
-    item?.loved === true && item.id && !syncedIds.has(item.id)
-  ));
+  const syncedById = new Map();
+  const syncedOrder = [];
 
-  return [...uniqueSyncedItems, ...preservedLovedItems];
+  (syncedItems || []).forEach((item) => {
+    const mediaItemId = String(item?.id || '').trim();
+    if (!mediaItemId) {
+      return;
+    }
+
+    if (!syncedById.has(mediaItemId)) {
+      syncedOrder.push(mediaItemId);
+    }
+    syncedById.set(mediaItemId, item);
+  });
+
+  const merged = uniqueCachedItems
+    .filter((item) => !syncedById.has(item.id))
+    .map((item) => ({ ...item }));
+
+  syncedOrder.forEach((mediaItemId) => {
+    const syncedItem = syncedById.get(mediaItemId);
+    const existingItem = uniqueCachedItems.find((item) => item.id === mediaItemId);
+    merged.push(existingItem
+      ? mergeSyncedItemWithExistingMetadata(existingItem, syncedItem)
+      : syncedItem);
+  });
+
+  return merged;
 }
 
 function buildGooglePhotoMetadataPatch(metadata = {}) {
@@ -532,9 +576,17 @@ async function getValidToken() {
  * 💾 syncGoogleAlbum
  * Retrieves selected items from the Google Photos Picker session and caches them.
  */
-async function syncGoogleAlbum(sessionId, { poolPolicy, now = new Date() } = {}) {
+async function syncGoogleAlbum(sessionId, {
+  poolPolicy,
+  now = new Date(),
+  listMediaItems = listPickerMediaItems,
+  readCache = getCachedMediaItems,
+  writeCache = writeCachedMediaItems,
+  cleanMediaFiles = cleanOrphanedMediaFiles,
+  downloadMediaItems = downloadSyncMediaItems
+} = {}) {
   try {
-    if (!tokens.accessToken) {
+    if (!tokens.accessToken && listMediaItems === listPickerMediaItems) {
       throw new Error('Google Photos Service: No active token session.');
     }
 
@@ -544,9 +596,9 @@ async function syncGoogleAlbum(sessionId, { poolPolicy, now = new Date() } = {})
     }
 
     console.log(`Google Photos Service: Syncing selected items from session ${sessionId}...`);
-    const { mediaItems } = await listPickerMediaItems(sessionId);
+    const { mediaItems } = await listMediaItems(sessionId);
 
-    const cachedItems = getCachedMediaItems();
+    const cachedItems = readCache();
     const existingById = new Map(cachedItems.map((item) => [item.id, item]));
 
     const syncedItems = [];
@@ -561,15 +613,19 @@ async function syncGoogleAlbum(sessionId, { poolPolicy, now = new Date() } = {})
       }
     }
 
-    const cachedItemsToKeep = applyPoolPolicy(now, poolPolicy)(
-      mergeSyncedMediaItems(syncedItems, cachedItems)
+    const mergedItems = mergeSyncedMediaItems(syncedItems, cachedItems);
+    const cachedItemsToKeep = applyPoolPolicy(now, poolPolicy)(mergedItems);
+    writeCache(cachedItemsToKeep);
+    console.log(
+      `Google Photos Service: Picker sync session ${sessionId}: `
+      + `incoming=${syncedItems.length}, existing=${cachedItems.length}, `
+      + `merged=${mergedItems.length}, retained=${cachedItemsToKeep.length}, `
+      + `policyDropped=${mergedItems.length - cachedItemsToKeep.length}.`
     );
-    writeCachedMediaItems(cachedItemsToKeep);
-    console.log(`Google Photos Service: Synced and cached ${syncedItems.length} selected items within a ${cachedItemsToKeep.length}-photo lifecycle pool for session ${sessionId}.`);
 
     // Clean orphaned files and kick off background download of new files
-    cleanOrphanedMediaFiles(cachedItemsToKeep);
-    downloadSyncMediaItems(cachedItemsToKeep).catch((err) => {
+    cleanMediaFiles(cachedItemsToKeep);
+    downloadMediaItems(cachedItemsToKeep).catch((err) => {
       console.error('Google Photos Service: Error in background downloader:', err.message);
     });
 
