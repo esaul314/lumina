@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-24: Add a Checked Contract to CSS Image Projection
+
+- **Finding**: the shared CSS image helper was already a pure boundary used by TV and remote views, but its unknown-input fallback and string output were not documented for the TypeScript readiness pass.
+- **Correction**: added local `@ts-check` and an unknown-safe JSDoc contract without changing CSS quoting, URL encoding, or the empty-input `none` identity.
+- **Functional boundary**: value normalization remains pure; React style application and browser rendering stay outside the helper.
+- **Regression coverage**: added checked-source assertions plus null and blank-input identity checks alongside the existing encoding cases.
+- **Learning**: tiny presentation codecs are useful migration seams when their fallback identity and escaping policy are explicit without introducing runtime validation ceremony.
+
 ### 2026-09-24: Add a Checked Contract to Credential Save Status
 
 - **Finding**: the remote credential acknowledgement projection was already a small pure boundary, but its success/error result shape was the remaining unchecked seam beside the normalized job and snapshot projections.
