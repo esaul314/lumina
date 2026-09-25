@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-09-06
+Last updated: 2026-09-24
 
 ## Purpose
 
@@ -48,6 +48,7 @@ Current checkpoint:
 - The latest Step 6 slice adds a checked acknowledgement contract to `client/src/state/credentialStatus.js`: credential-save success/error projection remains pure and unknown-safe, while transport event names and input clearing stay in the effect shell.
 - The latest Step 6 slice adds a checked presentation contract to `client/src/state/cssImage.js`: CSS image projection remains pure and unknown-safe, with empty values mapping to `none` and URL escaping kept inside the helper.
 - The latest Step 6 slice adds a checked clock-parts contract to `client/src/state/clock.js`: locale/options composition and the separate `{ time, period }` projection remain pure, with formatter and rendering effects outside the helper.
+- The latest Step 6 slice adds a checked preview-geometry contract to `client/src/components/remote/tvPreview.js`: measured-dimension fallbacks and aspect-ratio fitting remain pure, with DOM measurement and style effects outside the helper.
 - The latest Step 6 slice extracts `client/src/state/mediaRecovery.js` as a pure media-failure decision algebra: bounded retry scheduling, reachable-host skip policy, and origin URL projection are deterministic, while fetch probes, timers, logging, and socket effects remain explicit in the Dashboard shell.
 - The latest UI refinement uses native `<details>/<summary>` disclosure for each pool: collapsed summary state is pure projected data, while browser disclosure, focus behavior, and field effects remain explicit at the presentation shell.
 - The latest UI refinement expands `client/src/state/imageFeedsPanels.js` into a four-panel JSDoc-typed state algebra. Immutable collapse/expand, transient focus/Escape restoration, normalized ordering, and a storage codec are pure; the React shell owns document Escape listeners, focus restoration, and the browser-storage effect while CSS interprets the responsive/focused layout.

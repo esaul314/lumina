@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-24: Add a Checked Contract to TV Preview Geometry
+
+- **Finding**: the Rating Deck preview fitter was already a pure responsive geometry projection, but its dimension fallback and aspect-ratio result shape were not documented for the TypeScript readiness pass.
+- **Correction**: added local `@ts-check` dimension aliases and JSDoc without changing the default frame, invalid-dimension fallback, or contain-style fitting behavior.
+- **Functional boundary**: measured dimensions and aspect ratio enter as data; DOM measurement and style application remain in the React shell.
+- **Regression coverage**: extended the focused-preview test with fallback identities, invalid viewport handling, and checked-source assertions.
+- **Learning**: responsive geometry is a useful typed seam when the browser supplies measurements but the fit calculation itself remains a deterministic pure function.
+
 ### 2026-09-24: Add a Checked Contract to Clock Parts
 
 - **Finding**: the clock formatter was already a pure locale-aware projection, but its closed `{ time, period }` result and caller-supplied formatter options were not documented for the TypeScript readiness pass.
