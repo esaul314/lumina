@@ -1027,13 +1027,28 @@ assertTest('Google Photos lifecycle policy keeps loved photos, ages dated items,
 });
 
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
-  const { fitTvPreviewFrame } = await importClientModule('./client/src/components/remote/tvPreview.js');
+  const {
+    DEFAULT_TV_PREVIEW_DIMENSIONS,
+    fitTvPreviewFrame,
+    getTvAspectRatio
+  } = await importClientModule('./client/src/components/remote/tvPreview.js');
+  const tvPreviewSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/components/remote/tvPreview.js'),
+    'utf8'
+  );
   const normalFrame = fitTvPreviewFrame({ width: 414, height: 233 }, 16 / 9);
   const focusedFrame = fitTvPreviewFrame({ width: 1078, height: 522 }, 16 / 9);
 
   assert.deepStrictEqual(normalFrame, { width: 414, height: 232.875 });
   assert.deepStrictEqual(focusedFrame, { width: 928, height: 522 });
   assert.ok(focusedFrame.width > normalFrame.width * 2, 'focused preview should materially enlarge the image surface');
+  const defaultContainerRatio = DEFAULT_TV_PREVIEW_DIMENSIONS.width / DEFAULT_TV_PREVIEW_DIMENSIONS.height;
+  assert.deepStrictEqual(fitTvPreviewFrame(null, defaultContainerRatio), DEFAULT_TV_PREVIEW_DIMENSIONS);
+  assert.deepStrictEqual(fitTvPreviewFrame({ width: 0, height: 0 }, defaultContainerRatio), DEFAULT_TV_PREVIEW_DIMENSIONS);
+  assert.strictEqual(getTvAspectRatio({ width: 0, height: 522 }), 16 / 9);
+  assert.match(tvPreviewSource, /^\/\/ @ts-check/);
+  assert.match(tvPreviewSource, /@typedef \{\{width: number, height: number\}\} TvDimensions/);
+  assert.match(tvPreviewSource, /@returns \{TvDimensions\}/);
 });
 
 assertAsyncTest('Image Feeds workspace panel state is pure, immutable, focusable, and ordered', async () => {
