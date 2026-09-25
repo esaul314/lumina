@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-24: Add a Checked Contract to Clock Parts
+
+- **Finding**: the clock formatter was already a pure locale-aware projection, but its closed `{ time, period }` result and caller-supplied formatter options were not documented for the TypeScript readiness pass.
+- **Correction**: added local `@ts-check` and a named result alias without changing the data-first signature, locale defaults, or period separation.
+- **Functional boundary**: `Intl.DateTimeFormat` configuration and value projection remain pure; React rendering and timer effects stay outside the helper.
+- **Regression coverage**: added checked-source assertions and a 24-hour options case confirming caller formatter options continue to compose with the helper defaults.
+- **Learning**: a small result alias is enough to make a locale-sensitive presentation projection mechanically portable when option composition remains explicit.
+
 ### 2026-09-24: Add a Checked Contract to CSS Image Projection
 
 - **Finding**: the shared CSS image helper was already a pure boundary used by TV and remote views, but its unknown-input fallback and string output were not documented for the TypeScript readiness pass.
