@@ -3952,6 +3952,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/cssImage.js'),
     'utf8'
   );
+  const clockSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/clock.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -3975,6 +3979,22 @@ async function runClientRenderingTests() {
     assert.notStrictEqual(afternoonClock.period, '');
     assert.strictEqual(morningClock.time.includes('AM'), false);
     assert.strictEqual(afternoonClock.time.includes('PM'), false);
+  });
+
+  assertTest('formatClockParts preserves caller formatter options at the pure boundary', () => {
+    const twentyFourHourClock = formatClockParts(
+      new Date('2026-01-02T17:07:00.000Z'),
+      'en-US',
+      { timeZone: 'UTC', hour12: false }
+    );
+
+    assert.deepStrictEqual(twentyFourHourClock, { time: '17:07', period: '' });
+  });
+
+  assertTest('formatClockParts exposes a local checked presentation contract', () => {
+    assert.match(clockSource, /^\/\/ @ts-check/);
+    assert.match(clockSource, /@typedef \{\{time: string, period: string\}\} ClockParts/);
+    assert.match(clockSource, /@returns \{ClockParts\}/);
   });
 
   assertTest('photo crop helpers preserve pure baselines and blend math', () => {

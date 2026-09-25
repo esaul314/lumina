@@ -1,3 +1,7 @@
+// @ts-check
+
+/** @typedef {{time: string, period: string}} ClockParts */
+
 /**
  * Format the clock's numeric time and day-period independently so locale
  * whitespace and punctuation cannot become part of the period layout.
@@ -5,7 +9,7 @@
  * @param {Date} date
  * @param {string|string[]} [locales=[]]
  * @param {Intl.DateTimeFormatOptions} [options={}]
- * @returns {{time: string, period: string}}
+ * @returns {ClockParts}
  */
 export const formatClockParts = (date, locales = [], options = {}) => {
   const parts = new Intl.DateTimeFormat(locales, {
