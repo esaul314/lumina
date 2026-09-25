@@ -2908,6 +2908,10 @@ async function runClientStateTests() {
   } = await importClientModule('./client/src/state/frameSelectors.js');
   const { projectJobEvent, projectJobStatus } = await importClientModule('./client/src/state/jobStatus.js');
   const { projectCredentialSaveStatus } = await importClientModule('./client/src/state/credentialStatus.js');
+  const credentialStatusSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/credentialStatus.js'),
+    'utf8'
+  );
   const {
     buildFieldPatch,
     buildWidgetVisibilityPatch
@@ -3112,6 +3116,18 @@ async function runClientStateTests() {
     });
     assert.strictEqual(projectCredentialSaveStatus({ success: 'true' }), null);
     assert.strictEqual(projectCredentialSaveStatus(null), null);
+  });
+
+  assertTest('credential save status exposes a checked unknown-safe contract', () => {
+    assert.strictEqual(projectCredentialSaveStatus({ success: undefined }), null);
+    assert.strictEqual(projectCredentialSaveStatus('not-an-acknowledgement'), null);
+    assert.match(credentialStatusSource, /^\/\/ @ts-check/);
+    assert.match(
+      credentialStatusSource,
+      /@typedef \{\{status: 'success'\|'error', clearInput: boolean\}\} CredentialSaveStatus/
+    );
+    assert.match(credentialStatusSource, /@param \{unknown\} response/);
+    assert.match(credentialStatusSource, /@returns \{CredentialSaveStatus\|null\}/);
   });
 
   assertTest('photo mutation UI reconciles source-local metadata from the server response', () => {
