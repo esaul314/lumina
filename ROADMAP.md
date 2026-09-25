@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-09-24
+Last updated: 2026-09-25
 
 ## Implementation Companion
 
@@ -68,6 +68,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 5 responsive correction: the Image Feeds workspace now leaves the two-column layout at 959px so Source Manager ordering controls have a dedicated, separated toolbar and do not compete with title-row Expand/Focus actions in compressed tablet widths.
 - Latest Image Feeds correction: Google Photos now appears in the nested Pool Lifecycle editor, accepts the shared policy REST path, and applies its retention and maximum-photo policy to the external cache while preserving loved and legacy undated items.
 - Latest Google Photos correction: source-local cache normalization and Picker merges now keep one row per stable Google media item ID, preserving the first row's metadata when duplicate selections or legacy duplicate cache rows are encountered.
+- Latest Google Photos accumulation correction: completed Picker sessions now append/upsert into the persistent pool instead of replacing ordinary rows. The latest synced representation wins for duplicate IDs while rating, crop, pairing, and loved metadata survive; retention and the 5,000-photo policy cap run after the accumulated union, with empty/failed sessions leaving the last successful cache intact. Picker remains the sole ingestion path and no daily revalidation job is added.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.

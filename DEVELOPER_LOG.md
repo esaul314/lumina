@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-25: Accumulate Google Photos Picker Sessions
+
+- **Finding**: Picker synchronization treated each completed session as a replaceable working set, so ordinary rows from earlier selections disappeared unless they had been marked loved. This made repeated selection sessions unable to grow the persistent Google Photos pool.
+- **Correction**: changed the source-local merge to append/upsert all existing usable cache rows, deduplicate by stable media ID, and let the latest synced representation win for duplicates. Existing rating, crop, pairing, and loved metadata remains authoritative. The shared retention and maximum-photo policy now runs over the accumulated union, while empty or failed sessions preserve the last successful cache.
+- **Functional boundary**: `mergeSyncedMediaItems(...)` remains a pure union projection; `syncGoogleAlbum(...)` keeps Picker pagination, persistence, orphan cleanup, and background downloads in the effect shell. Sync telemetry now reports incoming, existing, merged, retained, and policy-dropped counts. No recurring Google Photos fetch was introduced.
+- **Regression coverage**: added sequential-session accumulation, duplicate precedence, metadata preservation, retention/loved behavior, post-union 5,000-photo capping, empty/failed sync safety, Google Photos pool-count and active-feed projection, and equal mixed-category interleave assertions.
+- **Learning**: lifecycle policy should govern the complete accumulated source collection after ingestion, not define whether an ingestion session replaces that collection. Keeping the union pure makes the durable effect and its failure boundary easy to verify.
+
 ### 2026-09-24: Add a Checked Contract to TV Preview Geometry
 
 - **Finding**: the Rating Deck preview fitter was already a pure responsive geometry projection, but its dimension fallback and aspect-ratio result shape were not documented for the TypeScript readiness pass.
