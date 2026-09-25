@@ -3948,6 +3948,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/photoCrop.js'),
     'utf8'
   );
+  const cssImageSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/cssImage.js'),
+    'utf8'
+  );
 
   const clockOptions = { timeZone: 'UTC' };
   const morningClock = formatClockParts(
@@ -4007,6 +4011,14 @@ async function runClientRenderingTests() {
       toCssImageUrl('https://example.com/already%20encoded/image.jpg'),
       'url("https://example.com/already%20encoded/image.jpg")'
     );
+  });
+
+  assertTest('toCssImageUrl exposes a checked pure presentation contract', () => {
+    assert.match(cssImageSource, /^\/\/ @ts-check/);
+    assert.match(cssImageSource, /@param \{unknown\} url/);
+    assert.match(cssImageSource, /@returns \{string\}/);
+    assert.strictEqual(toCssImageUrl(null), 'none');
+    assert.strictEqual(toCssImageUrl('   '), 'none');
   });
 
   assertTest('media recovery uses bounded exponential retry delays', () => {
