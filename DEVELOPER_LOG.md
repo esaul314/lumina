@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-24: Add a Checked Contract to Credential Save Status
+
+- **Finding**: the remote credential acknowledgement projection was already a small pure boundary, but its success/error result shape was the remaining unchecked seam beside the normalized job and snapshot projections.
+- **Correction**: added local `@ts-check` and a named status alias, keeping unknown acknowledgements inert while preserving the existing boolean success semantics.
+- **Functional boundary**: response interpretation remains pure; Socket.IO event names, React target selection, and successful-input clearing remain in the imperative effect shell.
+- **Regression coverage**: added unknown-value and checked-source assertions alongside the existing success/error projection tests.
+- **Learning**: a closed status result alias documents a tiny acknowledgement algebra without moving transport policy or runtime validation into the functional core.
+
 ### 2026-09-06: Deduplicate Google Photos Cache Rows by Media ID
 
 - **Finding**: repeated Google Photos selections normally reused an existing row, but duplicate IDs in one Picker response or legacy cache could still be written more than once.
