@@ -22,14 +22,17 @@ export const IMAGE_FEEDS_PANEL_STORAGE_KEY = 'lumina.image-feeds.panels';
 
 /** @typedef {'categories'|'rating'|'sources'|'google'} ImageFeedsPanelId */
 /** @typedef {'earlier'|'later'} ImageFeedsPanelDirection */
+/** @typedef {Record<ImageFeedsPanelId, boolean>} ImageFeedsPanelOpenState */
 /**
- * @typedef {{open: Record<ImageFeedsPanelId, boolean>, focused: ImageFeedsPanelId|null, order: ImageFeedsPanelId[]}}
+ * @typedef {{open: ImageFeedsPanelOpenState, focused: ImageFeedsPanelId|null, order: ImageFeedsPanelId[]}}
  * ImageFeedsPanelState
  */
 /**
- * @typedef {{open?: Partial<Record<ImageFeedsPanelId, boolean>>, order?: unknown}}
+ * @typedef {{open?: Partial<ImageFeedsPanelOpenState>, order?: unknown}}
  * ImageFeedsPanelPreferences
  */
+/** @typedef {{getItem?: (key: string) => string|null}} ImageFeedsPanelStorageReader */
+/** @typedef {{setItem?: (key: string, value: string) => void}} ImageFeedsPanelStorageWriter */
 
 /**
  * @param {unknown} panelId
@@ -59,7 +62,7 @@ export const createImageFeedsPanelState = (preferences = {}) => {
     open: IMAGE_FEEDS_PANEL_ORDER.reduce((open, panelId) => ({
       ...open,
       [panelId]: typeof requestedOpen[panelId] === 'boolean' ? requestedOpen[panelId] : true
-    }), /** @type {Record<ImageFeedsPanelId, boolean>} */ ({})),
+    }), /** @type {ImageFeedsPanelOpenState} */ ({})),
     focused: null,
     order: normalizeImageFeedsPanelOrder(preferences?.order)
   };
@@ -169,7 +172,7 @@ export const decodeImageFeedsPanelPreferences = (rawValue) => {
  * Browser-storage adapter. Keeping storage injected makes this boundary easy
  * to test and keeps storage failures from affecting the workspace UI.
  *
- * @param {{getItem?: (key: string) => string|null}|null|undefined} storage
+ * @param {ImageFeedsPanelStorageReader|null|undefined} storage
  * @param {string} [storageKey]
  * @returns {ImageFeedsPanelPreferences}
  */
@@ -182,7 +185,7 @@ export const readImageFeedsPanelPreferences = (storage, storageKey = IMAGE_FEEDS
 };
 
 /**
- * @param {{setItem?: (key: string, value: string) => void}|null|undefined} storage
+ * @param {ImageFeedsPanelStorageWriter|null|undefined} storage
  * @param {ImageFeedsPanelState} panelState
  * @param {string} [storageKey]
  * @returns {boolean}

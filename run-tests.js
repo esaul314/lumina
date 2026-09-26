@@ -1142,6 +1142,17 @@ assertAsyncTest('Image Feeds panel preferences survive storage codecs without re
     order: ['google', 'categories', 'rating', 'sources']
   });
   assert.strictEqual(writeImageFeedsPanelPreferences(null, state, key), true);
+
+  const imageFeedsPanelsSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/imageFeedsPanels.js'),
+    'utf8'
+  );
+  assert.match(imageFeedsPanelsSource, /^\/\/ @ts-check/);
+  assert.match(imageFeedsPanelsSource, /ImageFeedsPanelOpenState/);
+  assert.match(imageFeedsPanelsSource, /ImageFeedsPanelPreferences/);
+  assert.match(imageFeedsPanelsSource, /ImageFeedsPanelStorageReader/);
+  assert.match(imageFeedsPanelsSource, /ImageFeedsPanelStorageWriter/);
+  assert.match(imageFeedsPanelsSource, /@returns \{ImageFeedsPanelState\}/);
 });
 
 assertAsyncTest('pool policy drafts preserve a just-edited maximum through synchronous save reads', async () => {
