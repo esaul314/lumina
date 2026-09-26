@@ -4172,6 +4172,13 @@ async function runClientRenderingTests() {
     isEscapeKey,
     isScreensaverDismissalActivity
   } = await importClientModule('./client/src/state/screensaverActivity.js');
+  const {
+    DEFAULT_SWIPE_STATUS,
+    SWIPE_THRESHOLD_PX,
+    classifySwipe,
+    getTouchClientX,
+    getTriggeredSwipeStatus
+  } = await importClientModule('./client/src/state/swipeGesture.js');
   const dashboardSource = fs.readFileSync(
     path.join(__dirname, 'client/src/components/Dashboard.jsx'),
     'utf8'
@@ -4374,6 +4381,42 @@ async function runClientRenderingTests() {
       /@param \{KeyboardActivity\|null\|undefined\} event/
     );
     assert.match(screensaverActivitySource, /@param \{ScreensaverActivity\} input/);
+  });
+
+  assertTest('swipe gesture projection keeps threshold and direction policy pure', () => {
+    assert.strictEqual(DEFAULT_SWIPE_STATUS, 'Swipe left or right to change photo');
+    assert.strictEqual(SWIPE_THRESHOLD_PX, 50);
+    assert.strictEqual(getTouchClientX({ 0: { clientX: 120 } }), 120);
+    assert.strictEqual(getTouchClientX({}), null);
+    assert.strictEqual(getTouchClientX({ 0: { clientX: '120' } }), null);
+    assert.strictEqual(classifySwipe(100, 50), null, 'exact threshold should remain inert');
+    assert.deepStrictEqual(classifySwipe(100, 49), {
+      direction: 'next',
+      status: 'Swiped Left: Next Photo'
+    });
+    assert.deepStrictEqual(classifySwipe(100, 151), {
+      direction: 'previous',
+      status: 'Swiped Right: Previous Photo'
+    });
+    assert.strictEqual(classifySwipe('100', 49), null);
+    assert.strictEqual(getTriggeredSwipeStatus('next'), 'Next Photo Triggered');
+    assert.strictEqual(getTriggeredSwipeStatus('previous'), 'Previous Photo Triggered');
+  });
+
+  assertTest('swipe gesture projection exposes a checked event algebra', () => {
+    const swipeGestureSource = fs.readFileSync(
+      path.join(__dirname, 'client/src/state/swipeGesture.js'),
+      'utf8'
+    );
+
+    assert.match(swipeGestureSource, /^\/\/ @ts-check/);
+    assert.match(swipeGestureSource, /@typedef \{'next'\|'previous'\} SwipeDirection/);
+    assert.match(
+      swipeGestureSource,
+      /@typedef \{\{direction: SwipeDirection, status: string\}\} SwipeDecision/
+    );
+    assert.match(swipeGestureSource, /@param \{unknown\} touches/);
+    assert.match(swipeGestureSource, /@returns \{SwipeDecision\|null\}/);
   });
 
   assertTest('Dashboard derives screensaver-dependent effects from canonical App state', () => {

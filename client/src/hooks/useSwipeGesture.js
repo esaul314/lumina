@@ -1,46 +1,48 @@
 import { useState } from 'react';
+import {
+  DEFAULT_SWIPE_STATUS,
+  classifySwipe,
+  getTriggeredSwipeStatus,
+  getTouchClientX
+} from '../state/swipeGesture';
 
 export function useSwipeGesture(actions) {
   const [touchStartX, setTouchStartX] = useState(0);
-  const [swipeStatus, setSwipeStatus] = useState('Swipe left or right to change photo');
+  const [swipeStatus, setSwipeStatus] = useState(DEFAULT_SWIPE_STATUS);
 
   const handleTouchStart = (e) => {
-    if (e.touches && e.touches[0]) {
-      setTouchStartX(e.touches[0].clientX);
+    const startX = getTouchClientX(e.touches);
+    if (startX !== null) {
+      setTouchStartX(startX);
     }
   };
 
   const handleTouchEnd = (e) => {
-    if (!e.changedTouches || !e.changedTouches[0]) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const diffX = touchStartX - touchEndX;
-
-    // Minimum swipe threshold (50px)
-    if (Math.abs(diffX) > 50) {
-      if (diffX > 0) {
+    const touchEndX = getTouchClientX(e.changedTouches);
+    const swipe = classifySwipe(touchStartX, touchEndX);
+    if (swipe) {
+      if (swipe.direction === 'next') {
         actions.triggerNext();
-        setSwipeStatus('Swiped Left: Next Photo');
       } else {
         actions.triggerPrev();
-        setSwipeStatus('Swiped Right: Previous Photo');
       }
-      
+      setSwipeStatus(swipe.status);
       setTimeout(() => {
-        setSwipeStatus('Swipe left or right to change photo');
+        setSwipeStatus(DEFAULT_SWIPE_STATUS);
       }, 2000);
     }
   };
 
   const triggerNext = () => {
     actions.triggerNext();
-    setSwipeStatus('Next Photo Triggered');
-    setTimeout(() => setSwipeStatus('Swipe left or right to change photo'), 1500);
+    setSwipeStatus(getTriggeredSwipeStatus('next'));
+    setTimeout(() => setSwipeStatus(DEFAULT_SWIPE_STATUS), 1500);
   };
 
   const triggerPrev = () => {
     actions.triggerPrev();
-    setSwipeStatus('Previous Photo Triggered');
-    setTimeout(() => setSwipeStatus('Swipe left or right to change photo'), 1500);
+    setSwipeStatus(getTriggeredSwipeStatus('previous'));
+    setTimeout(() => setSwipeStatus(DEFAULT_SWIPE_STATUS), 1500);
   };
 
   return {
