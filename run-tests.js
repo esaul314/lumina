@@ -3181,6 +3181,21 @@ async function runClientStateTests() {
     });
   });
 
+  assertTest('client mutation plans expose a checked legacy transport contract', () => {
+    const requestPlansSource = fs.readFileSync(
+      path.join(__dirname, 'client/src/api/requestPlans.js'),
+      'utf8'
+    );
+
+    assert.match(requestPlansSource, /^\/\/ @ts-check/);
+    assert.match(requestPlansSource, /@typedef \{\{event: string, payload: unknown\}\} LegacyMutation/);
+    assert.match(requestPlansSource, /legacy: LegacyMutation/);
+    assert.match(requestPlansSource, /@typedef \{\{/);
+    assert.match(requestPlansSource, /\}\} MutationPlanSpec/);
+    assert.match(requestPlansSource, /@param \{MutationPlanSpec<Input>\} spec/);
+    assert.match(requestPlansSource, /@returns \{\(input: Input\) => MutationPlan\}/);
+  });
+
   assertTest('client JSON response contracts classify media types without transport state', () => {
     assert.strictEqual(isJsonContentType('application/json; charset=utf-8'), true);
     assert.strictEqual(isJsonContentType('application/problem+json'), true);

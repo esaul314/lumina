@@ -2,12 +2,23 @@
 
 /**
  * @typedef {'POST'} MutationMethod
+ * @typedef {{event: string, payload: unknown}} LegacyMutation
  * @typedef {{
  *   path: string,
  *   method: MutationMethod,
  *   body: unknown,
- *   legacy: { event: string, payload: unknown }
+ *   legacy: LegacyMutation
  * }} MutationPlan
+ */
+
+/**
+ * @template Input
+ * @typedef {{
+ *   path: string,
+ *   event: string,
+ *   body?: (input: Input) => unknown,
+ *   legacy?: (input: Input) => unknown
+ * }} MutationPlanSpec
  */
 
 const identity = (value) => value;
@@ -19,12 +30,7 @@ const identity = (value) => value;
  * stay in the API module's imperative shell.
  *
  * @template Input
- * @param {{
- *   path: string,
- *   event: string,
- *   body?: (input: Input) => unknown,
- *   legacy?: (input: Input) => unknown
- * }} spec
+ * @param {MutationPlanSpec<Input>} spec
  * @returns {(input: Input) => MutationPlan}
  */
 export const buildMutationPlan = ({
