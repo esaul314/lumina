@@ -1,12 +1,21 @@
 // @ts-check
 
 /**
- * @typedef {Object} GooglePhotosPickerStatus
- * @property {string} heading
- * @property {string} description
- * @property {string} actionLabel
+ * @typedef {{
+ *   eyebrow: string,
+ *   title: string,
+ *   description: string,
+ *   credentialNote: string,
+ *   readyHeading: string,
+ *   readyDescription: string,
+ *   setupActionLabel: string,
+ *   readyActionLabel: string
+ * }} GooglePhotosPickerCopy
  */
 
+/** @typedef {{heading: string, description: string, actionLabel: string}} GooglePhotosPickerStatus */
+
+/** @type {Readonly<GooglePhotosPickerCopy>} */
 export const GOOGLE_PHOTOS_PICKER_COPY = Object.freeze({
   eyebrow: 'External Photo Source',
   title: 'Google Photos Picker',

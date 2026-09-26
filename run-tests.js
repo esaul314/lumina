@@ -968,6 +968,15 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.strictEqual(getGooglePhotosPickerStatus(false).actionLabel, 'Set up Google Photos Picker');
   assert.match(getGooglePhotosPickerStatus(true).description, /own pool lifecycle policy/i);
 
+  const pickerSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/components/remote/googlePhotosPicker.js'),
+    'utf8'
+  );
+  assert.match(pickerSource, /^\/\/ @ts-check/);
+  assert.match(pickerSource, /GooglePhotosPickerCopy/);
+  assert.match(pickerSource, /GooglePhotosPickerStatus/);
+  assert.match(pickerSource, /@type \{Readonly<GooglePhotosPickerCopy>\}/);
+
   const imageFeedsSource = fs.readFileSync(
     path.join(__dirname, 'client/src/components/remote/ImageFeedsTab.jsx'),
     'utf8'
