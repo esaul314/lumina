@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the REST-First Mutation-Plan Boundary
+
+- **Finding**: the REST-first request-plan builder was already a pure partial application, but its legacy envelope and input specification remained inline beside the result contract.
+- **Correction**: named the `LegacyMutation` and generic `MutationPlanSpec` contracts while preserving the unary plan builder, default identity projections, and runtime output.
+- **Functional boundary**: REST body and Socket.IO fallback payloads remain pure projections; fetch, 404 fallback interpretation, and socket emission stay in `luminaClient.js`.
+- **Regression coverage**: retained declarative category/screensaver plan assertions and added checked-source coverage for the result, legacy envelope, and generic specification contracts.
+- **Learning**: when a request plan is already a lawful partial function from input to a closed result record, naming the input/output algebra is clearer and more TypeScript-ready than wrapping it in another abstraction.
+
 ### 2026-09-26: Type the Image Feeds Panel-State Boundary
 
 - **Finding**: the four-panel workspace helper already formed a closed pure state algebra, but its open-map, persisted-preference, and browser-storage shapes were still partly inline and underspecified for the incremental TypeScript pass.
