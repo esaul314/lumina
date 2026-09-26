@@ -3204,6 +3204,27 @@ async function runClientStateTests() {
     assert.strictEqual(createJsonUnavailableError(502).message, 'JSON API unavailable (502)');
   });
 
+  assertTest('client JSON transport exposes checked payload and option contracts', () => {
+    const jsonClientSource = fs.readFileSync(
+      path.join(__dirname, 'client/src/api/jsonClient.js'),
+      'utf8'
+    );
+
+    assert.match(jsonClientSource, /^\/\/ @ts-check/);
+    assert.match(
+      jsonClientSource,
+      /@typedef \{\{ error\?: unknown, message\?: unknown \}\} ApiErrorPayload/
+    );
+    assert.match(
+      jsonClientSource,
+      /@typedef \{\{ method\?: string, body\?: unknown, requireJson\?: boolean \}\} JsonRequestOptions/
+    );
+    assert.match(jsonClientSource, /@type \{ApiErrorPayload\}/);
+    assert.match(jsonClientSource, /@template Payload/);
+    assert.match(jsonClientSource, /@param \{JsonRequestOptions\} \[options\]/);
+    assert.match(jsonClientSource, /@returns \{Promise<Payload>\}/);
+  });
+
   assertTest('client photo event projection updates the selected frame side immutably', () => {
     const snapshot = normalizeClientSnapshot({
       activePhoto: { url: 'primary-before' },

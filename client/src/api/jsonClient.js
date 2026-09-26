@@ -5,6 +5,14 @@
  */
 
 /**
+ * @typedef {{ error?: unknown, message?: unknown }} ApiErrorPayload
+ */
+
+/**
+ * @typedef {{ method?: string, body?: unknown, requireJson?: boolean }} JsonRequestOptions
+ */
+
+/**
  * Keep response interpretation deterministic and separate from transport.
  *
  * @param {string | null | undefined} contentType
@@ -32,7 +40,7 @@ export const createJsonUnavailableError = (status) => (
  */
 const createRequestError = (payload, status, path) => {
   const record = payload && typeof payload === 'object'
-    ? /** @type {Record<string, unknown>} */ (payload)
+    ? /** @type {ApiErrorPayload} */ (payload)
     : {};
   const message = typeof record.error === 'string'
     ? record.error
@@ -56,10 +64,10 @@ export const getApiBaseUrl = () => (
  * Interpret one JSON REST request. Fetch and response parsing are deliberately
  * kept here as the imperative edge; callers receive a stable JSON contract.
  *
- * @template Response
+ * @template Payload
  * @param {string} path
- * @param {{ method?: string, body?: unknown, requireJson?: boolean }} [options]
- * @returns {Promise<Response>}
+ * @param {JsonRequestOptions} [options]
+ * @returns {Promise<Payload>}
  */
 export async function requestJson(path, {
   method = 'GET',
@@ -78,21 +86,21 @@ export async function requestJson(path, {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw createRequestError(payload, response.status, path);
-  return /** @type {Response} */ (payload);
+  return /** @type {Payload} */ (payload);
 }
 
 /**
- * @template Response
+ * @template Payload
  * @param {string} path
- * @returns {Promise<Response>}
+ * @returns {Promise<Payload>}
  */
 export const readJson = (path) => requestJson(path, { requireJson: true });
 
 /**
- * @template Response
+ * @template Payload
  * @param {string} path
  * @param {unknown} body
- * @returns {Promise<Response>}
+ * @returns {Promise<Payload>}
  */
 export const postJson = (path, body) => requestJson(path, {
   method: 'POST',
