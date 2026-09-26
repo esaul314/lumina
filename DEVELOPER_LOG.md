@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the Google Photos Picker Presentation Boundary
+
+- **Finding**: the Google Photos Picker helper was already a pure visible-status projection, but its copy vocabulary and result shape still used a broad `Object` typedef, leaving the external-source presentation boundary underspecified.
+- **Correction**: added client-owned JSDoc contracts for the immutable Picker copy record and credential status result without changing copy, fallback selection, or runtime behavior.
+- **Functional boundary**: copy and status projection remain pure data transformations; OAuth initiation, transport, credential persistence, and React effects remain outside the helper.
+- **Regression coverage**: retained the setup/ready behavior assertions and added checked-source coverage for both structural contracts and the readonly copy boundary.
+- **Learning**: even static UI copy benefits from a named structural contract when it is shared across a pure status projection; the type annotation documents the boundary without introducing runtime validation or ceremony.
+
 ### 2026-09-26: Type the Pool Lifecycle View Boundary
 
 - **Finding**: the pool lifecycle presenter was already pure, but its schedule and policy contracts were broad `Object` shapes, leaving the next TypeScript migration seam underspecified.
