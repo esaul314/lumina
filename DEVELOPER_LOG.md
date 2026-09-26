@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the Client Action-Plan Boundary
+
+- **Finding**: the partially applied field and widget patch builders were already pure and shared by the action hook, but their result shapes were implicit beside the checked request-plan and snapshot boundaries.
+- **Correction**: added client-owned JSDoc aliases for generic durable state patches and nested widget-visibility patches without changing the builders, their data-first composition, or runtime output.
+- **Functional boundary**: patch construction remains a pure partial application; API execution, fallback handling, React state application, and Socket.IO compatibility remain in the action shell.
+- **Regression coverage**: retained direct patch-shape and undefined-value assertions and added checked-source coverage for both result contracts and builder return types.
+- **Learning**: when a pure helper already has the right abstraction, the best TypeScript-readiness step can be naming its output algebra rather than introducing another wrapper or runtime validator.
+
 ### 2026-09-26: Type the Google Photos Picker Presentation Boundary
 
 - **Finding**: the Google Photos Picker helper was already a pure visible-status projection, but its copy vocabulary and result shape still used a broad `Object` typedef, leaving the external-source presentation boundary underspecified.
