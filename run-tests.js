@@ -3119,6 +3119,25 @@ async function runClientStateTests() {
     assert.deepStrictEqual(buildThemePatch(undefined), { theme: undefined });
   });
 
+  assertTest('client action plans expose checked patch contracts', () => {
+    const actionPlansSource = fs.readFileSync(
+      path.join(__dirname, 'client/src/state/actionPlans.js'),
+      'utf8'
+    );
+
+    assert.match(actionPlansSource, /^\/\/ @ts-check/);
+    assert.match(actionPlansSource, /@typedef \{Record<string, unknown>\} StatePatch/);
+    assert.match(
+      actionPlansSource,
+      /@typedef \{\{widgets: Record<string, boolean>\}\} WidgetVisibilityPatch/
+    );
+    assert.match(actionPlansSource, /@returns \{\(value: unknown\) => StatePatch\}/);
+    assert.match(
+      actionPlansSource,
+      /@returns \{\(visible: boolean\) => WidgetVisibilityPatch\}/
+    );
+  });
+
   assertTest('client mutation plans keep REST and legacy payload projections declarative', () => {
     const buildCategoryPlan = buildMutationPlan({
       path: '/api/state/categories',
