@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the Pool Lifecycle View Boundary
+
+- **Finding**: the pool lifecycle presenter was already pure, but its schedule and policy contracts were broad `Object` shapes, leaving the next TypeScript migration seam underspecified.
+- **Correction**: added client-owned JSDoc types for schedule inputs, lifecycle policies, summaries, rows, and policy readers without changing the data-first view-model functions or runtime fallbacks.
+- **Functional boundary**: schedule formatting and row projection remain pure; persisted policy access, React state, and browser rendering remain outside the helper.
+- **Regression coverage**: retained schedule-default and row-shape assertions and added source-contract checks for the checked types and policy-reader boundary.
+- **Learning**: a useful checked contract can make an existing functional boundary explicit without introducing runtime validation or a new abstraction layer.
+
 ### 2026-09-25: Accumulate Google Photos Picker Sessions
 
 - **Finding**: Picker synchronization treated each completed session as a replaceable working set, so ordinary rows from earlier selections disappeared unless they had been marked loved. This made repeated selection sessions unable to grow the persistent Google Photos pool.

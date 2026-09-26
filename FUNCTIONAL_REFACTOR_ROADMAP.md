@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ## Purpose
 
@@ -344,6 +344,7 @@ Progress note:
 - Step 6 sixth slice: `poolPolicyDrafts.js` now has local checked contracts for normalized policy defaults, nested schedules, and the partially applied immutable draft merge. Draft form strings remain representable without moving coercion into the pure client boundary.
 - Step 6 seventh slice: `keywordInput.js` now has a local checked contract for unknown-safe pasted keyword input and timed feed-parameter parsing. Its data-first parser signatures and exact phrase preservation remain runtime-compatible with the Image Feeds editor.
 - Step 6 eighth slice: `credentialStatus.js` now has a local checked contract for the credential-save status algebra. Unknown acknowledgements remain inert, and the remote effect shell retains event-specific input clearing.
+- Step 6 ninth slice: `poolLifecycleView.js` now has local checked contracts for schedule inputs, lifecycle policy projections, summaries, rows, and policy readers. Schedule fallback and row mapping remain pure, with persisted-policy reads and React rendering outside the boundary.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

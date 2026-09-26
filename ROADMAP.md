@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 
 ## Implementation Companion
 
@@ -58,6 +58,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `client/src/state/cssImage.js` now exposes a checked pure presentation contract for CSS image values; empty-input identity and URL escaping remain unchanged.
 - Latest Step 6 slice: `client/src/state/clock.js` now exposes a checked pure clock-parts contract; locale/options composition and the separate `{ time, period }` projection remain unchanged.
 - Latest Step 6 slice: `client/src/components/remote/tvPreview.js` now exposes a checked pure preview-geometry contract; measured-dimension fallbacks and aspect-ratio fitting remain unchanged.
+- Latest Step 6 slice: `client/src/state/poolLifecycleView.js` now exposes client-owned schedule, policy, summary, row, and policy-reader contracts; schedule defaults and presentation mapping remain pure while React state and persisted-policy effects stay outside the helper.
 - Latest Step 6 slice: the TV slideshow now keeps media loading authoritative and connectivity-aware: `client/src/state/mediaRecovery.js` projects a bounded 1s/2s/4s/8s retry policy, while the Dashboard probes the image origin before classifying a URL as broken and holds the current slide during an unreachable-host outage.
 - Latest Step 5 slice: the Image Feeds admin surface now uses a bounded desktop workspace, compact responsive pool-lifecycle cards, constrained time controls, and a two-column source manager that collapses to one column on narrow displays; lifecycle row presentation is derived through a pure view-model helper.
 - Latest Step 5 refinement: pool lifecycle cards now use closed native disclosure panels by default; each summary retains the current retention, photo-cap, and schedule facts while advanced fields appear only after an explicit Configure action.
