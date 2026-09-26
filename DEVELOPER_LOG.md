@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the Image Feeds Panel-State Boundary
+
+- **Finding**: the four-panel workspace helper already formed a closed pure state algebra, but its open-map, persisted-preference, and browser-storage shapes were still partly inline and underspecified for the incremental TypeScript pass.
+- **Correction**: named the open-state and injected storage reader/writer contracts, while leaving decoded preference ordering unknown-safe and preserving every existing transition, codec, and storage fallback.
+- **Functional boundary**: collapse/expand, focus entry/exit, ordering, and JSON preference projection remain immutable pure transformations; React retains document Escape listeners, focus restoration, and browser-storage effects.
+- **Regression coverage**: retained panel transition and malformed-storage behavior and added checked-source assertions for the state, preference, and storage contracts.
+- **Learning**: a persistence-backed UI algebra can remain compositional when its effect adapter is typed as an injected capability rather than pulled into the pure state model.
+
 ### 2026-09-26: Type the Client Action-Plan Boundary
 
 - **Finding**: the partially applied field and widget patch builders were already pure and shared by the action hook, but their result shapes were implicit beside the checked request-plan and snapshot boundaries.
