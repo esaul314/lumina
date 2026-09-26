@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the Swipe Gesture Boundary
+
+- **Finding**: the swipe hook mixed deterministic touch-coordinate and threshold classification with action dispatch, status updates, and reset timers, leaving the gesture policy implicit and difficult to check without rendering React.
+- **Correction**: extracted `client/src/state/swipeGesture.js` as a pure checked projection for touch coordinates, the strict 50px threshold, direction, and status text; the hook now delegates only the deterministic decision while retaining its effect shell.
+- **Functional boundary**: malformed touch inputs produce a null decision, while valid movement composes through a closed direction/status record. Action callbacks and timeout scheduling remain outside the pure module.
+- **Regression coverage**: added exact-threshold, next/previous, malformed-coordinate, status, and source-contract assertions without changing the hook's public handlers or status strings.
+- **Learning**: a small event decoder plus decision algebra can make gesture behavior mechanically type-ready without introducing a gesture framework or moving browser effects into the functional core.
+
 ### 2026-09-26: Type the Shared JSON Transport Boundary
 
 - **Finding**: the shared JSON client already isolated fetch and response interpretation, but its request options, parsed error payload, and generic result were still expressed through inline or misleading `Response` annotations.
