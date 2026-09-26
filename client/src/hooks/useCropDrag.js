@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { findPhotoByUrl, getFramePhoto } from '../state/frameSelectors';
+import { getPointerClientY, projectCropPosition } from '../state/cropDrag';
 
 export function useCropDrag(actions, state, previewDimensions) {
   const [dragState, setDragState] = useState({
@@ -23,7 +24,8 @@ export function useCropDrag(actions, state, previewDimensions) {
   const handleDragStart = (e, photoUrl, isSecond) => {
     if (!photoUrl) return;
     e.preventDefault();
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const clientY = getPointerClientY(e);
+    if (clientY === null) return;
     
     const photoObj = isSecond
       ? findPhotoByUrl(state, photoUrl, getFramePhoto(state, 'secondary'))
@@ -45,15 +47,17 @@ export function useCropDrag(actions, state, previewDimensions) {
     if (!dragState.isDragging) return;
 
     const handleDragMove = (e) => {
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const deltaY = clientY - dragState.startY;
+      const clientY = getPointerClientY(e);
+      const newCropY = clientY === null
+        ? null
+        : projectCropPosition({
+          startY: dragState.startY,
+          startCropY: dragState.startCropY,
+          clientY,
+          containerHeight: previewDimensions.height
+        });
 
-      const containerHeight = previewDimensions.height || 180;
-      const sensitivity = 0.8;
-      const deltaPercent = (deltaY / containerHeight) * 100 * sensitivity;
-
-      let newCropY = Math.round(dragState.startCropY - deltaPercent);
-      newCropY = Math.max(0, Math.min(100, newCropY));
+      if (newCropY === null) return;
 
       setCurrentDragY(newCropY);
 

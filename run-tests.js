@@ -4179,6 +4179,13 @@ async function runClientRenderingTests() {
     getTouchClientX,
     getTriggeredSwipeStatus
   } = await importClientModule('./client/src/state/swipeGesture.js');
+  const {
+    DEFAULT_CROP_CONTAINER_HEIGHT,
+    DEFAULT_CROP_SENSITIVITY,
+    getPointerClientY,
+    getTouchClientY,
+    projectCropPosition
+  } = await importClientModule('./client/src/state/cropDrag.js');
   const dashboardSource = fs.readFileSync(
     path.join(__dirname, 'client/src/components/Dashboard.jsx'),
     'utf8'
@@ -4213,6 +4220,10 @@ async function runClientRenderingTests() {
   );
   const clockSource = fs.readFileSync(
     path.join(__dirname, 'client/src/state/clock.js'),
+    'utf8'
+  );
+  const cropDragSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/cropDrag.js'),
     'utf8'
   );
 
@@ -4417,6 +4428,53 @@ async function runClientRenderingTests() {
     );
     assert.match(swipeGestureSource, /@param \{unknown\} touches/);
     assert.match(swipeGestureSource, /@returns \{SwipeDecision\|null\}/);
+  });
+
+  assertTest('crop drag projection decodes coordinates and preserves bounded crop math', () => {
+    assert.strictEqual(DEFAULT_CROP_CONTAINER_HEIGHT, 180);
+    assert.strictEqual(DEFAULT_CROP_SENSITIVITY, 0.8);
+    assert.strictEqual(getTouchClientY({ 0: { clientY: 120 } }), 120);
+    assert.strictEqual(getTouchClientY({ 0: { clientY: '120' } }), null);
+    assert.strictEqual(getPointerClientY({ clientY: 80 }), 80);
+    assert.strictEqual(getPointerClientY({ touches: { 0: { clientY: 95 } } }), 95);
+    assert.strictEqual(getPointerClientY({ touches: {} }), null);
+    assert.strictEqual(projectCropPosition({
+      startY: 100,
+      startCropY: 50,
+      clientY: 118,
+      containerHeight: 180
+    }), 42);
+    assert.strictEqual(projectCropPosition({
+      startY: 100,
+      startCropY: 50,
+      clientY: 0,
+      containerHeight: 0
+    }), 94);
+    assert.strictEqual(projectCropPosition({
+      startY: 100,
+      startCropY: 50,
+      clientY: -100,
+      containerHeight: 180
+    }), 100);
+    assert.strictEqual(projectCropPosition({
+      startY: 100,
+      startCropY: 50,
+      clientY: 400,
+      containerHeight: 180
+    }), 0);
+    assert.strictEqual(projectCropPosition({
+      startY: Number.NaN,
+      startCropY: 50,
+      clientY: 118
+    }), null);
+  });
+
+  assertTest('crop drag projection exposes a checked coordinate algebra', () => {
+    assert.match(cropDragSource, /^\/\/ @ts-check/);
+    assert.match(cropDragSource, /@typedef \{\{startY: number, startCropY: number, clientY: number/);
+    assert.match(cropDragSource, /@param \{unknown\} touches/);
+    assert.match(cropDragSource, /@param \{unknown\} event/);
+    assert.match(cropDragSource, /@returns \{CropPosition\|null\}/);
   });
 
   assertTest('Dashboard derives screensaver-dependent effects from canonical App state', () => {
