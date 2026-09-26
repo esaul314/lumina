@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the Crop-Drag Boundary
+
+- **Finding**: the crop hook mixed deterministic pointer decoding and crop-position math with DOM listeners, React state, timeout coalescing, and photo actions, leaving the preview policy implicit inside an effectful hook.
+- **Correction**: extracted `client/src/state/cropDrag.js` as a pure checked projection for touch/mouse coordinates, the existing 180px fallback height, 0.8 sensitivity, rounding, and `[0, 100]` clamp; the hook now delegates only the deterministic calculation while retaining its effect shell.
+- **Functional boundary**: malformed coordinates produce a null projection, valid drag input composes through a bounded scalar, and the effect shell remains responsible for event registration, delayed persistence, and transient React state.
+- **Regression coverage**: added coordinate-decoder, fallback-height, formula, clamp, malformed-input, and source-contract assertions without changing the crop hook's public return shape or timing behavior.
+- **Learning**: a data-first scalar projection is enough to make gesture-driven preview math mechanically type-ready; currying would add ceremony here because the hook supplies one complete drag record per move.
+
 ### 2026-09-26: Type the Swipe Gesture Boundary
 
 - **Finding**: the swipe hook mixed deterministic touch-coordinate and threshold classification with action dispatch, status updates, and reset timers, leaving the gesture policy implicit and difficult to check without rendering React.
