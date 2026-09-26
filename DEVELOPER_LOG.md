@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-26: Type the Shared JSON Transport Boundary
+
+- **Finding**: the shared JSON client already isolated fetch and response interpretation, but its request options, parsed error payload, and generic result were still expressed through inline or misleading `Response` annotations.
+- **Correction**: named the `JsonRequestOptions` and `ApiErrorPayload` contracts and changed the generic result vocabulary to `Payload`, preserving request serialization, media-type checks, error projection, and all runtime output.
+- **Functional boundary**: payload/error interpretation remains a deterministic contract at the transport edge; browser location, fetch, response parsing, and view-specific state application remain outside pure client state helpers.
+- **Regression coverage**: retained media-type and shared read/post transport assertions and added checked-source coverage for the option, error-payload, and payload-result contracts.
+- **Learning**: naming the parsed payload rather than calling it a response keeps the API boundary honest and makes a future typed transport conversion mechanical without adding runtime ceremony.
+
 ### 2026-09-26: Type the REST-First Mutation-Plan Boundary
 
 - **Finding**: the REST-first request-plan builder was already a pure partial application, but its legacy envelope and input specification remained inline beside the result contract.
