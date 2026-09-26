@@ -1,17 +1,16 @@
 // @ts-check
 
-/**
- * @typedef {Object} PoolLifecycleRow
- * @property {string} category
- * @property {Object} policy
- * @property {{retention: string, maximum: string, schedule: string}} summary
- */
+/** @typedef {{enabled?: boolean, start?: string, end?: string}} PoolScheduleInput */
+/** @typedef {{retentionDays?: number|string, maxPhotos?: number|string, schedule?: PoolScheduleInput|null}} PoolLifecyclePolicyInput */
+/** @typedef {{retention: string, maximum: string, schedule: string}} PoolLifecycleSummary */
+/** @typedef {{category: string, policy: PoolLifecyclePolicyInput, summary: PoolLifecycleSummary}} PoolLifecycleRow */
+/** @typedef {(category: string) => PoolLifecyclePolicyInput} PoolPolicyReader */
 
 const DEFAULT_START = '22:00';
 const DEFAULT_END = '06:00';
 
 /**
- * @param {Object|undefined|null} schedule
+ * @param {PoolScheduleInput|null|undefined} schedule
  * @returns {string}
  */
 export const formatPoolSchedule = (schedule = {}) => schedule?.enabled
@@ -19,8 +18,8 @@ export const formatPoolSchedule = (schedule = {}) => schedule?.enabled
   : 'Manual activation';
 
 /**
- * @param {Object} policy
- * @returns {{retention: string, maximum: string, schedule: string}}
+ * @param {PoolLifecyclePolicyInput} [policy]
+ * @returns {PoolLifecycleSummary}
  */
 export const formatPoolLifecycleSummary = ({ retentionDays, maxPhotos, schedule } = {}) => ({
   retention: `${retentionDays} days`,
@@ -33,7 +32,7 @@ export const formatPoolLifecycleSummary = ({ retentionDays, maxPhotos, schedule 
  * view to the persisted policy container or to React state.
  *
  * @param {string[]} categories
- * @param {(category: string) => Object} policyFor
+ * @param {PoolPolicyReader} policyFor
  * @returns {PoolLifecycleRow[]}
  */
 export const getPoolLifecycleRows = (categories = [], policyFor) => categories

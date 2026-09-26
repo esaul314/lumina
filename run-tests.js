@@ -1215,11 +1215,16 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
     formatPoolSchedule,
     getPoolLifecycleRows
   } = await importClientModule('./client/src/state/poolLifecycleView.js');
+  const source = fs.readFileSync(
+    path.join(__dirname, 'client/src/state/poolLifecycleView.js'),
+    'utf8'
+  );
   const policyFor = (category) => category === 'Night Mood'
     ? { retentionDays: 30, maxPhotos: 2000, schedule: { enabled: true, start: '22:00', end: '06:00' } }
     : { retentionDays: 14, maxPhotos: 500, schedule: { enabled: false } };
 
   assert.strictEqual(formatPoolSchedule({ enabled: true, start: '22:00', end: '06:00' }), '22:00–06:00');
+  assert.strictEqual(formatPoolSchedule({ enabled: true }), '22:00–06:00');
   assert.strictEqual(formatPoolSchedule({ enabled: false }), 'Manual activation');
   assert.deepStrictEqual(formatPoolLifecycleSummary({
     retentionDays: 30,
@@ -1259,6 +1264,11 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
       }
     }
   ]);
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{\{enabled\?: boolean, start\?: string, end\?: string\}\} PoolScheduleInput/);
+  assert.match(source, /@typedef \{\{retentionDays\?: number\|string, maxPhotos\?: number\|string, schedule\?: PoolScheduleInput\|null\}\} PoolLifecyclePolicyInput/);
+  assert.match(source, /@typedef \{\{category: string, policy: PoolLifecyclePolicyInput, summary: PoolLifecycleSummary\}\} PoolLifecycleRow/);
+  assert.match(source, /@param \{PoolPolicyReader\} policyFor/);
 });
 
 assertAsyncTest('pool schedule runtime activates a pool, honors manual override, and restores the baseline', async () => {
