@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Numeric Validation Boundary
+
+- **Finding**: the shared numeric validators already formed a pure curried range algebra, but their parser, input, output, and specialized-validator shapes remained implicit beside the newly checked functional primitive boundary.
+- **Correction**: added local `@ts-check` JSDoc contracts for the parser, nullable numeric result, range inputs, and rating/percent/crop validator aliases without changing implementation or exports.
+- **Functional boundary**: partial application, parser projection, inclusive range filtering, and null-safe invalid identities remain pure; command decoding and transport effects stay outside the validator module.
+- **Regression coverage**: added direct partial-application, boundary, null/undefined, and checked-source assertions; the focused suite executed 322 tests with 0 failures.
+- **Learning**: a small validator factory does not need a runtime Result wrapper to become TypeScript-ready; naming its input/output algebra preserves the existing lawful partial function while keeping invalid data inert.
+
 ### 2026-09-27: Type the Functional Primitive Boundary
 
 - **Finding**: the shared `server/utils/fn.js` module already supplied Lumina's currying, composition, collection, and closed-interpreter vocabulary, but its public shapes were implicit while neighboring domain modules had entered the checked-contract migration.

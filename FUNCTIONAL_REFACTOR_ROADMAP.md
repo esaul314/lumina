@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-09-26
+Last updated: 2026-09-27
 
 ## Purpose
 
@@ -357,6 +357,7 @@ Progress note:
 - Step 6 sixteenth slice: `swipeGesture.js` now has local checked contracts for touch-coordinate decoding and strict-threshold direction/status projection. `useSwipeGesture.js` retains action callbacks and reset timers as the effect shell.
 - Step 6 seventeenth slice: `cropDrag.js` now has local checked contracts for pointer-coordinate decoding and bounded crop-position projection. `useCropDrag.js` retains DOM listeners, timeout coalescing, React state, and crop-action dispatch as the effect shell.
 - Step 6 eighteenth slice: `server/utils/fn.js` now has checked contracts for currying, composition, data-last collection combinators, and closed declarative interpreters; the zero-dependency functional core remains runtime-compatible and null-safe.
+- Step 6 nineteenth slice: `server/utils/validation.js` now has checked contracts for the curried numeric range validator and its specialized rating, percent, and crop validators; parser projection and null-on-invalid behavior remain runtime-compatible.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
