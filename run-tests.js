@@ -699,6 +699,19 @@ assertTest('getNextScreensaverState transitions state and schedules actions corr
   assert.strictEqual(transition.nextState.isBrowserRunning, false);
 });
 
+assertTest('numeric validators preserve curried range and null-safe identities', () => {
+  const { validateRange, validateRating } = require('./server/utils/validation.js');
+  const parseInteger = (value) => parseInt(value, 10);
+  const validateSmallInteger = validateRange(0)(5)(parseInteger);
+
+  assert.strictEqual(validateSmallInteger('4'), 4);
+  assert.strictEqual(validateSmallInteger(0), 0);
+  assert.strictEqual(validateSmallInteger(6), null);
+  assert.strictEqual(validateSmallInteger(undefined), null);
+  assert.strictEqual(validateSmallInteger(null), null);
+  assert.strictEqual(validateRating('1.9'), 1);
+});
+
 logSuite('Runtime Shell Composition');
 
 assertAsyncTest('createKioskControlRuntime defers launch until the server is listening and clears manual override after an unexpected exit', async () => {
@@ -2906,6 +2919,15 @@ assertTest('functional primitive source exposes checked contracts', () => {
   assert.match(source, /@typedef \{\(\.\.\.args: any\[\]\) => any\} AnyFunction/);
   assert.match(source, /@param \{PropertyKey\} key/);
   assert.match(source, /@param \{any\[\] \| null \| undefined\} arr/);
+});
+
+assertTest('numeric validation source exposes a checked pure contract', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'server/utils/validation.js'), 'utf8');
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{\(value: unknown\) => number\} NumberParser/);
+  assert.match(source, /@typedef \{\(value: unknown\) => number \| null\} NumericValidator/);
+  assert.match(source, /@param \{unknown\} value/);
+  assert.match(source, /@returns \{number \| null\}/);
 });
 
 assertAsyncTest('createDomainDispatcher routes kiosk kill effects through the shared manual-override helper', async () => {
