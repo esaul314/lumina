@@ -63,6 +63,7 @@ Current migration checkpoint:
 - Latest Google Photos Picker accumulation correction: completed Picker sessions append/upsert into the persistent source-local pool, preserving ordinary usable rows as well as loved rows. Stable media IDs deduplicate with the latest synced representation winning, existing user metadata retained, and the shared retention/maximum-photo policy applied after the accumulated union. Picker remains the only ingestion path; no daily Google Photos revalidation job is required.
 - Latest Step 6 slice: `server/utils/fn.js` now exposes checked contracts for curried primitives, data-last collection combinators, and closed declarative interpreters; runtime behavior and null-safe identities remain unchanged.
 - Latest Step 6 slice: `server/utils/validation.js` now exposes checked contracts for the curried numeric range validator and specialized rating, percent, and crop validators; preserve null-safe identities and inclusive bounds while keeping command decoding outside the pure helper.
+- Latest Step 6 slice: `server/config/env.js` now exposes checked contracts for environment-value normalization and the pure replace-or-append content projection; preserve normalized quoting and idempotence while keeping filesystem/process mutation in `persistEnvVars`.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

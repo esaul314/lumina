@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Environment Content Boundary
+
+- **Finding**: environment secret persistence already separated a deterministic content projection from filesystem and process-environment effects, but the normalization, entry map, and string transformation shapes were implicit.
+- **Correction**: added local `@ts-check` JSDoc contracts for unknown-safe value normalization, environment entries, and `upsertEnvVarInContent(...)` without changing exports, quoting, or replacement behavior.
+- **Functional boundary**: replace-or-append content projection remains pure, deterministic, input-preserving, and idempotent; `persistEnvVars(...)` retains file reads, writes, and `process.env` updates as the imperative shell.
+- **Regression coverage**: added regex-safe key, trimming, immutability, idempotence, and checked-source assertions; the full suite executed 324 tests with 0 failures.
+- **Learning**: not every boundary benefits from currying: a complete content transform is clearer as one data-first call, while the effectful persistence adapter can consume its stable result directly.
+
 ### 2026-09-27: Type the Numeric Validation Boundary
 
 - **Finding**: the shared numeric validators already formed a pure curried range algebra, but their parser, input, output, and specialized-validator shapes remained implicit beside the newly checked functional primitive boundary.
