@@ -1,3 +1,5 @@
+// @ts-check
+
 /**
  * 🌌 Lumina Functional Programming Primitives
  * ------------------------------------------
@@ -6,8 +8,16 @@
  */
 
 /**
+ * @typedef {(...args: any[]) => any} AnyFunction
+ * @typedef {(value: any) => any} UnaryFunction
+ */
+
+/**
  * 🌀 curry
  * Auto-curries a function to support flexible partial execution.
+ *
+ * @param {AnyFunction} fn
+ * @returns {AnyFunction}
  */
 const curry = (fn) => {
   const curried = (...args) => {
@@ -22,30 +32,50 @@ const curry = (fn) => {
 /**
  * 🚰 pipe
  * Composes a list of functions from left to right (pipeline flow).
+ *
+ * @param {...UnaryFunction} fns
+ * @returns {UnaryFunction}
  */
 const pipe = (...fns) => (x) => fns.reduce((v, f) => f(v), x);
 
 /**
  * 🔍 prop
  * Curried property extractor.
+ *
+ * @param {PropertyKey} key
+ * @param {Record<PropertyKey, any> | null | undefined} obj
+ * @returns {any}
  */
 const prop = curry((key, obj) => (obj ? obj[key] : undefined));
 
 /**
  * 🗺️ map
  * Curried version of standard Array.prototype.map.
+ *
+ * @param {(value: any, index: number, array: any[]) => any} fn
+ * @param {any[] | null | undefined} arr
+ * @returns {any[]}
  */
 const map = curry((fn, arr) => (arr ? arr.map(fn) : []));
 
 /**
  * 🛡️ filter
  * Curried version of standard Array.prototype.filter.
+ *
+ * @param {(value: any, index: number, array: any[]) => boolean} fn
+ * @param {any[] | null | undefined} arr
+ * @returns {any[]}
  */
 const filter = curry((fn, arr) => (arr ? arr.filter(fn) : []));
 
 /**
  * 📥 reduce
  * Curried version of standard Array.prototype.reduce.
+ *
+ * @param {(accumulator: any, value: any, index: number, array: any[]) => any} fn
+ * @param {any} initial
+ * @param {any[] | null | undefined} arr
+ * @returns {any}
  */
 const reduce = curry((fn, initial, arr) => (arr ? arr.reduce(fn, initial) : initial));
 
@@ -119,18 +149,29 @@ const createClosedInterpreter = (
 /**
  * 🔤 toLower
  * Safe string lowercase mapper.
+ *
+ * @param {unknown} str
+ * @returns {string}
  */
 const toLower = (str) => (str || '').toLowerCase();
 
 /**
  * 📍 includes
  * Curried substring matcher.
+ *
+ * @param {string} substring
+ * @param {unknown} str
+ * @returns {boolean}
  */
 const includes = curry((substring, str) => (str || '').includes(substring));
 
 /**
  * 🔍 uniqBy
  * Curried utility that filters a list to keep only unique elements determined by keyFn.
+ *
+ * @param {(item: any) => PropertyKey} keyFn
+ * @param {any[] | null | undefined} arr
+ * @returns {any[]}
  */
 const uniqBy = curry((keyFn, arr) => {
   const seen = new Set();

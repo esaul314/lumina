@@ -55,7 +55,20 @@ const {
   normalizeRuntimeFlags
 } = require('./server/domain/dispatch.js');
 const { reduceAsyncSequentially } = require('./server/utils/asyncReduce.js');
-const { reduceUntil } = require('./server/utils/fn.js');
+const {
+  curry,
+  pipe,
+  prop,
+  map,
+  filter,
+  reduce,
+  reduceUntil,
+  createIndexedInterpreter,
+  createClosedInterpreter,
+  toLower,
+  includes,
+  uniqBy
+} = require('./server/utils/fn.js');
 const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
 const { createPoolScheduleRuntime } = require('./server/runtime/poolSchedule.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
@@ -2854,6 +2867,45 @@ assertTest('reduceUntil is data-last, preserves its input, and stops after the f
   assert.deepStrictEqual(values, [1, 2, 3]);
   assert.strictEqual(reduceUntil((sum, value) => sum + value, Boolean, 0)([]), 0);
   assert.strictEqual(reduceUntil((sum, value) => sum + value, Boolean, 0)(null), 0);
+});
+
+assertTest('functional primitives keep their curried, data-last contracts', () => {
+  const add = curry((left, right) => left + right);
+  const normalizeNames = pipe(
+    map((name) => name.trim()),
+    filter(Boolean),
+    map(toLower),
+    uniqBy((name) => name)
+  );
+
+  assert.strictEqual(add(2)(3), 5);
+  assert.deepStrictEqual(normalizeNames([' Ada ', 'ada', '', 'Grace']), ['ada', 'grace']);
+  assert.strictEqual(prop('missing')({}), undefined);
+  assert.deepStrictEqual(map((value) => value * 2)(null), []);
+  assert.strictEqual(reduce((sum, value) => sum + value, 0)(null), 0);
+  assert.strictEqual(includes('lum')('lumina'), true);
+});
+
+assertTest('functional interpreter contracts remain closed over declared keys', () => {
+  const indexed = createIndexedInterpreter(
+    [['ready', 'READY']],
+    (entry) => entry,
+    () => 'UNKNOWN'
+  );
+  const closed = createClosedInterpreter({ ready: () => 'READY' }, (handler) => handler(), () => 'UNKNOWN');
+
+  assert.strictEqual(indexed('ready'), 'READY');
+  assert.strictEqual(indexed('toString'), 'UNKNOWN');
+  assert.strictEqual(closed('ready'), 'READY');
+  assert.strictEqual(closed('toString'), 'UNKNOWN');
+});
+
+assertTest('functional primitive source exposes checked contracts', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'server/utils/fn.js'), 'utf8');
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{\(\.\.\.args: any\[\]\) => any\} AnyFunction/);
+  assert.match(source, /@param \{PropertyKey\} key/);
+  assert.match(source, /@param \{any\[\] \| null \| undefined\} arr/);
 });
 
 assertAsyncTest('createDomainDispatcher routes kiosk kill effects through the shared manual-override helper', async () => {
