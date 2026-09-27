@@ -624,6 +624,35 @@ assertTest('correctly calculates news sentiment scores and tags weather alignmen
   assert.ok(negSentiment.score < 0, 'Negative headlines must have score < 0');
 });
 
+assertTest('sentiment projection keeps parsing, classification, and empty identities deterministic', () => {
+  const { analyzeSentiment: projectSentiment } = require('./server/services/sentiment.js');
+  const rss = '<rss><channel><title>Google News</title><item><title>Peace and Innovation</title></item></channel></rss>';
+  const expected = {
+    score: 0.667,
+    headlinesCount: 1,
+    label: 'Sunny / Hopeful',
+    weatherMatch: 'Sunny'
+  };
+
+  assert.deepStrictEqual(projectSentiment(rss), expected);
+  assert.deepStrictEqual(projectSentiment('<rss><channel><title>Google News</title></channel></rss>'), {
+    score: 0,
+    label: 'Overcast / Calm',
+    weatherMatch: 'Cloudy',
+    headlinesCount: 0
+  });
+  assert.deepStrictEqual(projectSentiment(rss), projectSentiment(rss));
+});
+
+assertTest('sentiment source exposes a checked pure contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/sentiment.js'), 'utf8');
+
+  assert.ok(source.startsWith('// @ts-check'));
+  assert.match(source, /@typedef \{\{ label: SentimentLabel, weatherMatch: SentimentWeatherMatch \}\} SentimentClassification/);
+  assert.match(source, /@returns \{WordMatchCounter\}/);
+  assert.match(source, /@returns \{SentimentResult\}/);
+});
+
 assertTest('correctly classifies meteorological WMO weather codes', () => {
   const sunnyClassification = classifyWeatherCode(0);
   const rainyClassification = classifyWeatherCode(61);

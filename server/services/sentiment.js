@@ -1,10 +1,21 @@
+// @ts-check
+
 /**
  * 📰 News Sentiment Analysis Service
  * Uses pure functional mappings and declarative parsing to analyze real-time news headlines.
  * Fuses global sentiment scores directly to screensaver moods.
  */
 
+/**
+ * @typedef {'Stormy / Tense' | 'Sunny / Hopeful' | 'Overcast / Calm'} SentimentLabel
+ * @typedef {'Rainy' | 'Sunny' | 'Cloudy'} SentimentWeatherMatch
+ * @typedef {{ label: SentimentLabel, weatherMatch: SentimentWeatherMatch }} SentimentClassification
+ * @typedef {SentimentClassification & { score: number, headlinesCount: number }} SentimentResult
+ * @typedef {(text: string) => number} WordMatchCounter
+ */
+
 // Heuristic positive and negative lexicon arrays
+/** @type {string[]} */
 const positiveWords = [
   'hope', 'breakthrough', 'success', 'win', 'wins', 'won', 'celebrate', 'celebrates', 'celebration', 
   'good', 'great', 'growth', 'rising', 'rise', 'agreement', 'peace', 'sunny', 'love', 'bright', 
@@ -13,6 +24,7 @@ const positiveWords = [
   'gains', 'gain', 'optimism', 'optimistic', 'green'
 ];
 
+/** @type {string[]} */
 const negativeWords = [
   'crash', 'tragedy', 'crisis', 'tension', 'tensions', 'storm', 'storms', 'war', 'conflict', 'clash', 
   'clashes', 'dispute', 'protest', 'protests', 'strike', 'strikes', 'attack', 'attacks', 'killed', 
@@ -28,7 +40,11 @@ const { curry, reduce } = require('../utils/fn.js');
 /**
  * 🔍 countWordMatches
  * Curried match counter that supports partial execution.
+ *
+ * @param {string[]} wordList
+ * @returns {WordMatchCounter}
  */
+/** @type {(wordList: string[]) => WordMatchCounter} */
 const countWordMatches = curry((wordList, text) => 
   reduce((acc, word) => {
     const regex = new RegExp('\\b' + word + '\\b', 'g');
@@ -44,6 +60,9 @@ const countNegatives = countWordMatches(negativeWords);
 /**
  * 📰 getHeadlines
  * Pure declarative extractor of headline titles from XML.
+ *
+ * @param {string} xmlText
+ * @returns {string[]}
  */
 const getHeadlines = (xmlText) => {
   const titleRegex = /<title>([^<]+)<\/title>/g;
@@ -55,6 +74,9 @@ const getHeadlines = (xmlText) => {
 /**
  * 🧠 classifyScore
  * Pure helper to map a sentiment score to screensaver label and weather matches.
+ *
+ * @param {number} score
+ * @returns {SentimentClassification}
  */
 const classifyScore = (score) => {
   if (score <= -0.1) {
@@ -70,6 +92,9 @@ const classifyScore = (score) => {
  * 🧠 analyzeSentiment
  * Functional sentiment scoring engine. Takes raw Google News RSS XML,
  * parses headlines, and scores net positivity/negativity.
+ *
+ * @param {string} rssXmlText
+ * @returns {SentimentResult}
  */
 function analyzeSentiment(rssXmlText) {
   const headlines = getHeadlines(rssXmlText);
