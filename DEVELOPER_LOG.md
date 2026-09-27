@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Sentiment Projection Boundary
+
+- **Finding**: the news sentiment service already composed partially applied lexicon counters, declarative RSS extraction, and pure score classification, but its accepted words, classification vocabulary, and result shape were implicit.
+- **Correction**: added local `@ts-check` JSDoc contracts for the word-match counter, headline parser, score classification, and final sentiment result without changing exports, thresholds, parsing, or score rounding.
+- **Functional boundary**: lexicon matching, feed-title exclusion, empty-feed identity, and sentiment projection remain deterministic pure functions; RSS/network refresh orchestration remains outside this service boundary.
+- **Regression coverage**: added positive classification, Google News feed-title exclusion, empty-input identity, deterministic repeated projection, and checked-source assertions; the focused suite executed 326 tests with 0 failures.
+- **Learning**: the existing curried counter and declarative reduction already expressed the right functional abstraction, so naming its input/output algebra was clearer than adding a Result wrapper or a new sentiment framework.
+
 ### 2026-09-27: Type the Environment Content Boundary
 
 - **Finding**: environment secret persistence already separated a deterministic content projection from filesystem and process-environment effects, but the normalization, entry map, and string transformation shapes were implicit.

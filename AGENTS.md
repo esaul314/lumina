@@ -64,6 +64,7 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/utils/fn.js` now exposes checked contracts for curried primitives, data-last collection combinators, and closed declarative interpreters; runtime behavior and null-safe identities remain unchanged.
 - Latest Step 6 slice: `server/utils/validation.js` now exposes checked contracts for the curried numeric range validator and specialized rating, percent, and crop validators; preserve null-safe identities and inclusive bounds while keeping command decoding outside the pure helper.
 - Latest Step 6 slice: `server/config/env.js` now exposes checked contracts for environment-value normalization and the pure replace-or-append content projection; preserve normalized quoting and idempotence while keeping filesystem/process mutation in `persistEnvVars`.
+- Latest Step 6 slice: `server/services/sentiment.js` now exposes checked contracts for the curried lexicon counters, declarative RSS headline parser, score classification, and sentiment result; preserve deterministic empty-feed identity while keeping network refresh orchestration outside the pure service.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid
