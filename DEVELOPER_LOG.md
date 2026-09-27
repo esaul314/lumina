@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Functional Primitive Boundary
+
+- **Finding**: the shared `server/utils/fn.js` module already supplied Lumina's currying, composition, collection, and closed-interpreter vocabulary, but its public shapes were implicit while neighboring domain modules had entered the checked-contract migration.
+- **Correction**: added local `@ts-check` JSDoc contracts for curried primitives, data-last collection combinators, string projections, and declarative interpreter inputs/outputs without changing implementation or exports.
+- **Functional boundary**: partial application, `pipe`, null-safe collection identities, and closed-key interpreter behavior remain pure; consumers still choose their effectful shells explicitly.
+- **Regression coverage**: added composition, currying, null-safe identity, closed-vocabulary, and checked-source assertions to the existing regression suite.
+- **Learning**: the smallest useful TypeScript-readiness step for a functional core is naming its laws-of-use at the module boundary; a runtime wrapper would only obscure the existing abstractions.
+
 ### 2026-09-26: Type the Crop-Drag Boundary
 
 - **Finding**: the crop hook mixed deterministic pointer decoding and crop-position math with DOM listeners, React state, timeout coalescing, and photo actions, leaving the preview policy implicit inside an effectful hook.

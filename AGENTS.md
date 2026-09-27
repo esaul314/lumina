@@ -61,6 +61,7 @@ Current migration checkpoint:
 - Latest Step 4 slice: Socket.IO command listener registration now passes declarative records directly into the listener shell, removing positional reshaping while preserving dispatch, fallback, interception, and error behavior.
 - Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares pool existence, persistence, and broadcast ceremony through one higher-order fallback shell while its keyword, feed-config, and policy update functions remain domain-specific.
 - Latest Google Photos Picker accumulation correction: completed Picker sessions append/upsert into the persistent source-local pool, preserving ordinary usable rows as well as loved rows. Stable media IDs deduplicate with the latest synced representation winning, existing user metadata retained, and the shared retention/maximum-photo policy applied after the accumulated union. Picker remains the only ingestion path; no daily Google Photos revalidation job is required.
+- Latest Step 6 slice: `server/utils/fn.js` now exposes checked contracts for curried primitives, data-last collection combinators, and closed declarative interpreters; runtime behavior and null-safe identities remain unchanged.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid
