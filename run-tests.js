@@ -941,6 +941,16 @@ assertTest('upsertEnvVarInContent appends and replaces quoted secret values safe
   assert.ok(!updated.includes('old-token'), 'Old secret value must be removed from the updated content');
 });
 
+assertTest('environment content projection is deterministic and idempotent', () => {
+  const initial = 'PORT=5000\n';
+  const once = upsertEnvVarInContent(initial, 'LUMINA.KEY', '  value  ');
+  const twice = upsertEnvVarInContent(once, 'LUMINA.KEY', 'value');
+
+  assert.strictEqual(once, 'PORT=5000\nLUMINA.KEY="value"');
+  assert.strictEqual(twice, once, 'Applying the same normalized assignment twice must be stable');
+  assert.strictEqual(initial, 'PORT=5000\n', 'The content projection must not mutate its input');
+});
+
 logSuite('Chromium Launch Profiles');
 
 assertTest('safe Chromium acceleration profile omits forced risky GPU flags', () => {
@@ -2928,6 +2938,15 @@ assertTest('numeric validation source exposes a checked pure contract', () => {
   assert.match(source, /@typedef \{\(value: unknown\) => number \| null\} NumericValidator/);
   assert.match(source, /@param \{unknown\} value/);
   assert.match(source, /@returns \{number \| null\}/);
+});
+
+assertTest('environment content source exposes a checked pure contract', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'server/config/env.js'), 'utf8');
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{Record<string, unknown>\} EnvironmentEntries/);
+  assert.match(source, /@param \{unknown\} value/);
+  assert.match(source, /@param \{string\} name/);
+  assert.match(source, /@returns \{string\}/);
 });
 
 assertAsyncTest('createDomainDispatcher routes kiosk kill effects through the shared manual-override helper', async () => {
