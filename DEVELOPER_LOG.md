@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Snapshot Compatibility Boundary
+
+- **Finding**: snapshot rebuilding already separated legacy-state decoding, canonical domain-state construction, public snapshot projection, and in-place compatibility synchronization, but those shapes were implicit at the domain boundary.
+- **Correction**: added local checked JSDoc contracts for the open legacy state, runtime overrides, public snapshot, and each projection/shell function without changing exports, response envelopes, or state synchronization behavior.
+- **Functional boundary**: legacy decoding and current-frame projection remain deterministic and input-preserving; `replaceCollections(...)`, `applyDomainState(...)`, and `syncLegacySnapshot(...)` remain the explicit imperative shell that updates the existing runtime object.
+- **Regression coverage**: added immutability, alias normalization, active-frame, legacy-application, and checked-source assertions; the focused suite executed 334 tests with 0 failures and 332 passing assertions. The temporary Unix-socket smoke remains skipped because the sandbox denies `listen` with `EPERM`.
+- **Learning**: the snapshot module already had the right functional-core/compatibility-shell split, so naming those contracts was clearer and safer than wrapping the mutable runtime object or introducing a new snapshot abstraction.
+
 ### 2026-09-27: Type the Pool Schedule Boundary
 
 - **Finding**: scheduled-pool selection already formed a pure local-time and priority projection, but its accepted schedule inputs, policy map, and resolved-entry shapes were implicit at the domain boundary.
