@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Pool Schedule Boundary
+
+- **Finding**: scheduled-pool selection already formed a pure local-time and priority projection, but its accepted schedule inputs, policy map, and resolved-entry shapes were implicit at the domain boundary.
+- **Correction**: added local checked JSDoc contracts for schedule input/normalization, policy records, resolved schedule entries, and option defaults without changing exports, tie-breaking, overnight behavior, or category-selection semantics.
+- **Functional boundary**: local-time formatting, schedule activity, stable identity, priority selection, and immutable category append remain deterministic projections; interval polling, command dispatch, manual-override tracking, and baseline restoration remain in the runtime shell.
+- **Regression coverage**: added boundary, identity, immutability, and checked-source assertions; the focused suite executed 332 tests with 0 failures and 330 passing assertions. The temporary Unix-socket smoke remains skipped because the sandbox denies `listen` with `EPERM`.
+- **Learning**: schedule evaluation already had the right small functional algebra, so naming its open input and closed output contracts was clearer than introducing a new scheduler abstraction or moving runtime state into the domain module.
+
 ### 2026-09-27: Type the Photo Timestamp Boundary
 
 - **Finding**: photo acquisition timestamps already had a pure normalization and curried immutable-stamping boundary, but the persisted photo record was still described with broad `any` metadata.
