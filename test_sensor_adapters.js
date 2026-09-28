@@ -14,6 +14,7 @@ const {
   projectLegacySettings,
   removeDevice,
   selectDevice,
+  toRuntimeSettings,
   upsertDevice,
   validateEnvironmentSettings
 } = require('./server/domain/environmentSettings.js');
@@ -209,6 +210,40 @@ const tests = [
       assert.strictEqual(updated.devices[0].baseUrl, 'http://new.local');
       assert.strictEqual(updated.activeDeviceId, 'living-room');
       assert.strictEqual(updated.units.pressure, 'inHg');
+    }
+  },
+  {
+    name: 'keeps environment settings projections pure across runtime and legacy boundaries',
+    run: () => {
+      const input = {
+        enabled: true,
+        baseUrl: 'http://gateway.local/',
+        pollIntervalMs: 45_000,
+        timeoutMs: 2_500,
+        units: { temperature: 'F' }
+      };
+      const original = JSON.parse(JSON.stringify(input));
+      const settings = normalizeEnvironmentSettings(input);
+
+      assert.deepStrictEqual(input, original);
+      assert.deepStrictEqual(toRuntimeSettings(settings), {
+        enabled: true,
+        baseUrl: 'http://gateway.local',
+        pollIntervalMs: 45_000,
+        timeoutMs: 2_500,
+        units: {
+          temperature: 'F',
+          pressure: 'hPa',
+          wind: 'km/h',
+          rain: 'mm',
+          light: 'lux'
+        }
+      });
+      assert.strictEqual(projectLegacySettings(settings).devices[0].baseUrl, 'http://gateway.local');
+      assert.deepStrictEqual(
+        decodeEnvironmentSettings(settings, { enabled: false }),
+        { ...settings, activeDeviceId: null }
+      );
     }
   },
   {

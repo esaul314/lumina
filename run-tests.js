@@ -1158,6 +1158,24 @@ assertTest('domain snapshots expose checked projection and compatibility-shell c
   assert.match(snapshotSource, /Apply a pure snapshot projection to the legacy runtime shell/);
 });
 
+assertTest('environment settings expose checked pure projection contracts', () => {
+  const environmentSettingsSource = fs.readFileSync(
+    path.join(__dirname, 'server/domain/environmentSettings.js'),
+    'utf8'
+  );
+
+  assert.match(environmentSettingsSource, /^\/\/ @ts-check/);
+  assert.match(environmentSettingsSource, /@typedef \{object\} EnvironmentDevice/);
+  assert.match(environmentSettingsSource, /@typedef \{object\} EnvironmentSettings/);
+  assert.match(environmentSettingsSource, /@typedef \{object\} RuntimeEnvironmentSettings/);
+  assert.match(environmentSettingsSource, /@typedef \{object\} EnvironmentValidationOptions/);
+  assert.match(environmentSettingsSource, /@returns \{EnvironmentSettings\}/);
+  assert.match(environmentSettingsSource, /@returns \{RuntimeEnvironmentSettings\}/);
+  assert.match(environmentSettingsSource, /@returns \{LegacyEnvironmentSettings\}/);
+  assert.match(environmentSettingsSource, /Normalize legacy flat settings or the saved device catalog/);
+  assert.match(environmentSettingsSource, /Decode either the catalog form or legacy flat form without mutating current/);
+});
+
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
   const {
     DEFAULT_TV_PREVIEW_DIMENSIONS,

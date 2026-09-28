@@ -15,6 +15,87 @@ const DEFAULT_UNITS = Object.freeze({
   light: 'lux'
 });
 
+/**
+ * @typedef {Record<string, unknown>} EnvironmentUnits
+ */
+
+/**
+ * @typedef {Record<string, unknown> & {
+ *   id?: unknown,
+ *   name?: unknown,
+ *   adapterId?: unknown,
+ *   baseUrl?: unknown,
+ *   pollIntervalMs?: unknown,
+ *   timeoutMs?: unknown
+ * }} EnvironmentDeviceInput
+ */
+
+/**
+ * @typedef {object} EnvironmentDevice
+ * @property {string} id
+ * @property {string} name
+ * @property {string} adapterId
+ * @property {string} baseUrl
+ * @property {number} pollIntervalMs
+ * @property {number} timeoutMs
+ */
+
+/**
+ * @typedef {Record<string, unknown> & {
+ *   devices?: EnvironmentDeviceInput[],
+ *   activeDeviceId?: unknown,
+ *   enabled?: unknown,
+ *   baseUrl?: unknown,
+ *   pollIntervalMs?: unknown,
+ *   timeoutMs?: unknown,
+ *   units?: EnvironmentUnits
+ * }} EnvironmentSettingsInput
+ */
+
+/**
+ * @typedef {object} EnvironmentSettings
+ * @property {string | null} activeDeviceId
+ * @property {EnvironmentDevice[]} devices
+ * @property {EnvironmentUnits} units
+ */
+
+/**
+ * @typedef {object} RuntimeEnvironmentSettings
+ * @property {boolean} enabled
+ * @property {string} baseUrl
+ * @property {number} pollIntervalMs
+ * @property {number} timeoutMs
+ * @property {EnvironmentUnits} units
+ */
+
+/**
+ * @typedef {EnvironmentSettings & {
+ *   enabled: boolean,
+ *   baseUrl: string,
+ *   pollIntervalMs: number,
+ *   timeoutMs: number
+ * }} LegacyEnvironmentSettings
+ */
+
+/**
+ * @typedef {object} AdapterDeviceSettings
+ * @property {boolean} enabled
+ * @property {string} baseUrl
+ * @property {number} pollIntervalMs
+ * @property {number} timeoutMs
+ * @property {EnvironmentUnits} units
+ */
+
+/**
+ * @typedef {{valid: true, settings: EnvironmentSettings} | {valid: false, error: string}} EnvironmentValidationResult
+ */
+
+/**
+ * @typedef {object} EnvironmentValidationOptions
+ * @property {string[]} [adapterIds=[]]
+ * @property {(adapterId: string, settings: AdapterDeviceSettings) => {valid: boolean, error?: string}} [validateDevice]
+ */
+
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const toPositiveNumber = (value, fallback) => {
   const parsed = Number(value);
@@ -36,6 +117,14 @@ const nextAvailableId = (preferredId, usedIds) => {
     .find(candidate => !usedIds.has(candidate));
 };
 
+/**
+ * Normalize one untrusted device record into the canonical profile shape.
+ *
+ * @param {EnvironmentDeviceInput} [device={}]
+ * @param {number} [index=0]
+ * @param {Set<string>} [usedIds=new Set()]
+ * @returns {EnvironmentDevice}
+ */
 const normalizeDevice = (device = {}, index = 0, usedIds = new Set()) => ({
   id: nextAvailableId(device.id || device.name || `sensor-device-${index + 1}`, usedIds),
   name: String(device.name || 'Local environment').trim(),
@@ -45,16 +134,30 @@ const normalizeDevice = (device = {}, index = 0, usedIds = new Set()) => ({
   timeoutMs: toPositiveNumber(device.timeoutMs, DEFAULT_CONNECTION.timeoutMs)
 });
 
+/**
+ * Normalize a device catalog while assigning deterministic unique ids.
+ *
+ * @param {EnvironmentDeviceInput[]} [devices=[]]
+ * @returns {EnvironmentDevice[]}
+ */
 const normalizeDevices = (devices = []) => devices.reduce((normalized, device, index) => {
   const usedIds = new Set(normalized.map(({ id }) => id));
   return [...normalized, normalizeDevice(device, index, usedIds)];
 }, []);
 
+/**
+ * @param {EnvironmentSettingsInput} settings
+ * @returns {boolean}
+ */
 const hasLegacyDevice = settings => (
   settings.enabled === true
   || Boolean(normalizeUrl(settings.baseUrl) && normalizeUrl(settings.baseUrl) !== LEGACY_PLACEHOLDER_URL)
 );
 
+/**
+ * @param {EnvironmentSettingsInput} settings
+ * @returns {EnvironmentDevice}
+ */
 const legacyDeviceFrom = settings => normalizeDevice({
   id: LEGACY_DEVICE_ID,
   name: 'Local environment',
@@ -64,6 +167,13 @@ const legacyDeviceFrom = settings => normalizeDevice({
   timeoutMs: settings.timeoutMs
 });
 
+/**
+ * Normalize legacy flat settings or the saved device catalog into one immutable
+ * canonical settings value.
+ *
+ * @param {EnvironmentSettingsInput} [settings={}]
+ * @returns {EnvironmentSettings}
+ */
 const normalizeEnvironmentSettings = (settings = {}) => {
   const devices = Array.isArray(settings.devices)
     ? normalizeDevices(settings.devices)
@@ -84,15 +194,31 @@ const normalizeEnvironmentSettings = (settings = {}) => {
   };
 };
 
+/**
+ * @param {EnvironmentSettings} settings
+ * @returns {EnvironmentDevice | null}
+ */
 const getActiveDevice = settings => (
   settings.devices.find(({ id }) => id === settings.activeDeviceId) || null
 );
 
+/**
+ * @param {string} name
+ * @param {EnvironmentDevice[]} [devices=[]]
+ * @returns {string}
+ */
 const createDeviceId = (name, devices = []) => nextAvailableId(
   name,
   new Set(devices.map(({ id }) => id))
 );
 
+/**
+ * Return a normalized settings value with one device inserted or replaced.
+ *
+ * @param {EnvironmentSettings} settings
+ * @param {EnvironmentDevice} device
+ * @returns {EnvironmentSettings}
+ */
 const upsertDevice = (settings, device) => {
   const exists = settings.devices.some(({ id }) => id === device.id);
   const devices = exists
@@ -105,17 +231,35 @@ const upsertDevice = (settings, device) => {
   });
 };
 
+/**
+ * @param {EnvironmentSettings} settings
+ * @param {string} deviceId
+ * @returns {EnvironmentSettings}
+ */
 const removeDevice = (settings, deviceId) => normalizeEnvironmentSettings({
   ...settings,
   devices: settings.devices.filter(({ id }) => id !== deviceId),
   activeDeviceId: settings.activeDeviceId === deviceId ? null : settings.activeDeviceId
 });
 
+/**
+ * Select a saved device without mutating the catalog.
+ *
+ * @param {EnvironmentSettings} settings
+ * @param {string | null} deviceId
+ * @returns {EnvironmentSettings}
+ */
 const selectDevice = (settings, deviceId) => ({
   ...settings,
   activeDeviceId: settings.devices.some(({ id }) => id === deviceId) ? deviceId : null
 });
 
+/**
+ * Project canonical settings into the single active adapter's runtime shape.
+ *
+ * @param {EnvironmentSettings} settings
+ * @returns {RuntimeEnvironmentSettings}
+ */
 const toRuntimeSettings = settings => {
   const active = getActiveDevice(settings);
   return {
@@ -127,6 +271,13 @@ const toRuntimeSettings = settings => {
   };
 };
 
+/**
+ * Project canonical settings into the flat compatibility response used by the
+ * existing config and REST clients.
+ *
+ * @param {EnvironmentSettings} settings
+ * @returns {LegacyEnvironmentSettings}
+ */
 const projectLegacySettings = settings => {
   const active = getActiveDevice(settings);
   const legacyDevice = active || settings.devices[0] || null;
@@ -141,6 +292,13 @@ const projectLegacySettings = settings => {
   };
 };
 
+/**
+ * Apply a legacy flat patch through the same immutable catalog algebra.
+ *
+ * @param {EnvironmentSettings} settings
+ * @param {EnvironmentSettingsInput} [patch={}]
+ * @returns {EnvironmentSettings}
+ */
 const applyLegacyPatch = (settings, patch = {}) => {
   const active = getActiveDevice(settings) || settings.devices[0] || null;
   const shouldCreate = !active && (patch.enabled === true || Boolean(normalizeUrl(patch.baseUrl)));
@@ -167,6 +325,13 @@ const applyLegacyPatch = (settings, patch = {}) => {
   });
 };
 
+/**
+ * Decode either the catalog form or legacy flat form without mutating current.
+ *
+ * @param {EnvironmentSettings} current
+ * @param {EnvironmentSettingsInput} [payload={}]
+ * @returns {EnvironmentSettings}
+ */
 const decodeEnvironmentSettings = (current, payload = {}) => (
   Array.isArray(payload.devices) || hasOwn(payload, 'activeDeviceId')
     ? normalizeEnvironmentSettings({
@@ -177,6 +342,13 @@ const decodeEnvironmentSettings = (current, payload = {}) => (
     : applyLegacyPatch(current, payload)
 );
 
+/**
+ * Validate the canonical catalog against registered adapter capabilities.
+ *
+ * @param {EnvironmentSettings} settings
+ * @param {EnvironmentValidationOptions} [options={}]
+ * @returns {EnvironmentValidationResult}
+ */
 const validateEnvironmentSettings = (settings, { adapterIds = [], validateDevice = () => ({ valid: true }) } = {}) => {
   if (settings.devices.length > 20) return { valid: false, error: 'No more than 20 sensor devices may be saved.' };
   if (settings.activeDeviceId && !getActiveDevice(settings)) return { valid: false, error: 'The active sensor device does not exist.' };
