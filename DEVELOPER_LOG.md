@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-28: Type the WMO Weather Classification Boundary
+
+- **Finding**: weather-code classification already used a deterministic constant-time lookup with a cloudy fallback, but its accepted WMO vocabulary and projected result shape were implicit.
+- **Correction**: added local `@ts-check` JSDoc contracts for weather-match labels, physical-condition labels, the classification record, the mapping table, and `classifyWeatherCode(...)` without changing runtime behavior or exports.
+- **Functional boundary**: weather classification remains a pure lookup projection; IP geolocation and Open-Meteo fetching remain explicit asynchronous service effects.
+- **Regression coverage**: verified all 27 mapped weather codes, all four classification records, three unknown-code fallbacks, and the checked source contract. `npm test` passed with 342 tests / 340 assertions and 13/13 sensor-adapter regressions; the temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`.
+- **Verification**: `npm run lint` passed with 0 errors and 3 existing warnings; JavaScript syntax checks and `git diff --check` passed.
+- **Learning**: a result vocabulary is enough to make an existing classifier migration-ready; no extra classifier framework or effect injection is needed for a deterministic table.
+
 ### 2026-09-28: Type the Sensor Platform Boundary
 
 - **Finding**: the adapter registry already separated descriptor resolution and public capability summaries from read, lifecycle, and settings callbacks, but its protocol metadata and platform interface shapes were implicit.

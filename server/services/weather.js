@@ -1,3 +1,13 @@
+// @ts-check
+
+/**
+ * @typedef {'Sunny' | 'Cloudy' | 'Rainy' | 'Snowy'} WeatherMatch
+ * @typedef {'Sunny / Clear' | 'Cloudy / Overcast' | 'Rainy / Stormy' | 'Snowy / Wintry'} WeatherCondition
+ * @typedef {object} WeatherClassification
+ * @property {WeatherMatch} physicalMatch
+ * @property {WeatherCondition} physicalCond
+ */
+
 const config = require('../config/configLoader.js');
 
 /**
@@ -42,6 +52,7 @@ async function getIpLocation() {
 }
 
 // WMO weather code to environmental mapping dictionary
+/** @type {Readonly<Record<number, WeatherClassification>>} */
 const weatherCodeMap = {
   0: { physicalMatch: 'Sunny', physicalCond: 'Sunny / Clear' },
   1: { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' },
@@ -74,7 +85,11 @@ const weatherCodeMap = {
 
 /**
  * 🌦️ classifyWeatherCode
- * Standard WMO Code classification mapping for smart environmental wallpapers.
+ * Pure WMO classification projection for smart environmental wallpapers.
+ * Unknown codes retain the existing cloudy/overcast fallback.
+ *
+ * @param {number} code
+ * @returns {WeatherClassification}
  */
 function classifyWeatherCode(code) {
   return weatherCodeMap[code] || { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' };

@@ -698,14 +698,34 @@ assertTest('sensor platform exposes checked adapter and platform contracts', () 
   assert.match(source, /Metadata is copied so later descriptor or summary edits cannot mutate the registry/);
 });
 
+assertTest('weather service exposes a checked pure WMO classification contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/weather.js'), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{'Sunny' \| 'Cloudy' \| 'Rainy' \| 'Snowy'\} WeatherMatch/);
+  assert.match(source, /@typedef \{object\} WeatherClassification/);
+  assert.match(source, /@type \{Readonly<Record<number, WeatherClassification>>\}/);
+  assert.match(source, /@param \{number\} code/);
+  assert.match(source, /@returns \{WeatherClassification\}/);
+  assert.match(source, /Pure WMO classification projection/);
+});
+
 assertTest('correctly classifies meteorological WMO weather codes', () => {
-  const sunnyClassification = classifyWeatherCode(0);
-  const rainyClassification = classifyWeatherCode(61);
-  const snowyClassification = classifyWeatherCode(73);
-  
-  assert.strictEqual(sunnyClassification.physicalMatch, 'Sunny', 'WMO code 0 must classify as Sunny');
-  assert.strictEqual(rainyClassification.physicalMatch, 'Rainy', 'WMO code 61 must classify as Rainy');
-  assert.strictEqual(snowyClassification.physicalMatch, 'Snowy', 'WMO code 73 must classify as Snowy');
+  const classifications = [
+    { codes: [0], physicalMatch: 'Sunny', physicalCond: 'Sunny / Clear' },
+    { codes: [1, 2, 3, 45, 48], physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' },
+    { codes: [51, 53, 55, 56, 57, 61, 63, 65, 67, 80, 81, 82, 95, 96, 99], physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' },
+    { codes: [71, 73, 75, 77, 85, 86], physicalMatch: 'Snowy', physicalCond: 'Snowy / Wintry' }
+  ];
+
+  classifications.forEach(({ codes, ...expected }) => {
+    codes.forEach(code => assert.deepStrictEqual(classifyWeatherCode(code), expected));
+  });
+
+  [-1, 4, 100].forEach(code => assert.deepStrictEqual(classifyWeatherCode(code), {
+    physicalMatch: 'Cloudy',
+    physicalCond: 'Cloudy / Overcast'
+  }));
 });
 
 // ============================================================================
