@@ -74,7 +74,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/services/sensorHistory.js` now exposes checked contracts for sensor/weather inputs, hourly records, query/statistics results, CSV projection, and the injected SQLite store; preserve invalid-timestamp nulls and limit defaults while keeping database operations in the store interpreter.
 - Latest Step 6 slice: `server/services/sensorPlatform.js` now exposes checked contracts for adapter descriptors, registered adapters, public summaries, settings results, and platform methods; preserve alias canonicalization, metadata isolation, and explicit lifecycle/read effects.
 - Latest Step 6 slice: `server/services/weather.js` now exposes checked WMO classification contracts; preserve the constant-time mapping and cloudy fallback while keeping geolocation and forecast fetching in the effectful shell.
-- Next Step 6 seam: audit `server/runtime/environmentRefresh.js` and type the pure weather snapshot projections without moving fetch, persistence, logging, or broadcasts into the functional core.
+- Latest Step 6 slice: `server/runtime/environmentRefresh.js` now exposes checked contracts for weather snapshot projections; preserve provider-field projection and absent-current behavior while keeping refresh effects in the runtime shell.
+- Next Step 6 seam: audit `server/runtime/activeFeed.js` and type its pure category/feed-selection projections without moving `photosList` mutation into the functional core.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

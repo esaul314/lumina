@@ -6,6 +6,17 @@ const { curry } = require('../utils/fn.js');
 const NEWS_RSS_URL = 'https://news.google.com/rss?hl=en-CA&gl=CA&ceid=CA:en';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * @typedef {'Sunny' | 'Cloudy' | 'Rainy' | 'Snowy'} WeatherMatch
+ * @typedef {'Sunny / Clear' | 'Cloudy / Overcast' | 'Rainy / Stormy' | 'Snowy / Wintry'} WeatherCondition
+ * @typedef {{physicalMatch: WeatherMatch, physicalCond: WeatherCondition}} WeatherClassification
+ * @typedef {Record<string, unknown> & {lat: number, lon: number}} WeatherLocation
+ * @typedef {Record<string, unknown> & {temperature_2m: number, weather_code: number}} CurrentWeatherSnapshot
+ * @typedef {Record<string, unknown> & {current?: CurrentWeatherSnapshot | null, daily?: unknown}} WeatherForecastData
+ * @typedef {{location: WeatherLocation, current: CurrentWeatherSnapshot | null | undefined, daily: unknown}} WeatherDataSnapshot
+ * @typedef {{temp: number, condition: WeatherCondition, weatherMatch: WeatherMatch}} PhysicalWeatherSnapshot
+ */
+
 const withCategory = curry((category, photo) => ({ ...photo, category }));
 
 function createNewsRssFetcher({
@@ -53,6 +64,14 @@ function shouldSkipDailyFeedUpdate({
   return lastUpdated > 0 && (now - lastUpdated) < refreshIntervalMs;
 }
 
+/**
+ * Project the provider response to the weather cache's public snapshot shape.
+ * Nested provider values remain shared references; unrelated forecast fields are omitted.
+ *
+ * @param {WeatherLocation} location
+ * @param {WeatherForecastData} data
+ * @returns {WeatherDataSnapshot}
+ */
 function buildWeatherDataSnapshot(location, data) {
   return {
     location,
@@ -61,6 +80,14 @@ function buildWeatherDataSnapshot(location, data) {
   };
 }
 
+/**
+ * Project the current forecast into the compact physical-weather state.
+ * An absent current observation has no state update to apply.
+ *
+ * @param {CurrentWeatherSnapshot | null | undefined} currentWeather
+ * @param {(code: number) => WeatherClassification} classifyWeatherCode
+ * @returns {PhysicalWeatherSnapshot | null}
+ */
 function buildPhysicalWeatherSnapshot(currentWeather, classifyWeatherCode) {
   if (!currentWeather) {
     return null;

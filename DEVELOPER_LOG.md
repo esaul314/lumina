@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-28: Type the Environment Refresh Weather Projections
+
+- **Finding**: the extracted refresh runtime already had two deterministic weather snapshot projections, but their provider inputs, cache output, and classifier result shapes were implicit beside the asynchronous refresh shell.
+- **Correction**: added local `@ts-check` JSDoc contracts for the open location/current-weather inputs, forecast/cache snapshots, classification callback, and compact physical-weather result without changing exports or runtime behavior.
+- **Functional boundary**: provider-field selection and physical-weather projection remain pure; fetches, cache writes, state assignment, logging, and broadcasts remain explicit in `createEnvironmentRefreshRuntime(...)`.
+- **Regression coverage**: added direct assertions for selected fields, nested reference preservation, temperature rounding, classifier input, and absent-current no-op, plus checked-source assertions. `npm test` passed with 344 tests / 342 assertions and 13/13 sensor-adapter regressions; the temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`.
+- **Verification**: `npm run lint` passed with 0 errors and 3 existing warnings; `node --check` and `git diff --check` passed.
+- **Learning**: the cache snapshot intentionally forwards provider-owned nested values unchanged, so documenting those references and projecting only the public top-level fields is clearer than cloning, validating, or wrapping the forecast payload.
+
 ### 2026-09-28: Type the WMO Weather Classification Boundary
 
 - **Finding**: weather-code classification already used a deterministic constant-time lookup with a cloudy fallback, but its accepted WMO vocabulary and projected result shape were implicit.

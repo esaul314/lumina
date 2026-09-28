@@ -2728,6 +2728,43 @@ assertAsyncTest('createEnvironmentRefreshRuntime updates news sentiment and broa
   assert.strictEqual(broadcastCount, 1);
 });
 
+assertTest('weather snapshot projections preserve provider values and classify current conditions purely', () => {
+  const {
+    buildPhysicalWeatherSnapshot,
+    buildWeatherDataSnapshot
+  } = require('./server/runtime/environmentRefresh.js');
+  const location = { lat: 45.5, lon: -73.5, city: 'Montreal' };
+  const current = { temperature_2m: 22.4, weather_code: 61, relative_humidity_2m: 55 };
+  const daily = { weather_code: [61], temperature_2m_max: [24] };
+  const forecast = { current, daily, hourly: { temperature_2m: [22.4] } };
+  const snapshot = buildWeatherDataSnapshot(location, forecast);
+
+  assert.deepStrictEqual(snapshot, { location, current, daily });
+  assert.strictEqual(snapshot.location, location);
+  assert.strictEqual(snapshot.current, current);
+  assert.strictEqual(snapshot.daily, daily);
+  assert.deepStrictEqual(Object.keys(snapshot), ['location', 'current', 'daily']);
+
+  let classifiedCode = null;
+  const physicalWeather = buildPhysicalWeatherSnapshot(current, (code) => {
+    classifiedCode = code;
+    return { physicalMatch: 'Rainy', physicalCond: 'Rainy / Stormy' };
+  });
+  assert.strictEqual(classifiedCode, 61);
+  assert.deepStrictEqual(physicalWeather, {
+    temp: 22,
+    condition: 'Rainy / Stormy',
+    weatherMatch: 'Rainy'
+  });
+
+  let classifierCalled = false;
+  assert.strictEqual(buildPhysicalWeatherSnapshot(null, () => {
+    classifierCalled = true;
+    return { physicalMatch: 'Cloudy', physicalCond: 'Cloudy / Overcast' };
+  }), null);
+  assert.strictEqual(classifierCalled, false);
+});
+
 assertAsyncTest('createEnvironmentRefreshRuntime updates weather cache and derived physical weather state', async () => {
   const { createEnvironmentRefreshRuntime } = require('./server/runtime/environmentRefresh.js');
   const state = {};
@@ -4596,6 +4633,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'client/src/state/frameSelectors.js'),
     'utf8'
   );
+  const environmentRefreshSource = fs.readFileSync(
+    path.join(__dirname, 'server/runtime/environmentRefresh.js'),
+    'utf8'
+  );
   const categorySelectionSource = fs.readFileSync(
     path.join(__dirname, 'client/src/state/categorySelection.js'),
     'utf8'
@@ -4942,6 +4983,16 @@ async function runClientRenderingTests() {
     assert.match(environmentHistorySource, /@typedef \{object\} EnvironmentStatusSnapshot/);
     assert.match(environmentHistorySource, /@param \{unknown\} value/);
     assert.match(environmentHistorySource, /@returns \{EnvironmentStatus\}/);
+  });
+
+  assertTest('environment refresh weather projections expose checked local contracts', () => {
+    assert.match(environmentRefreshSource, /^\/\/ @ts-check/);
+    assert.match(environmentRefreshSource, /@typedef \{Record<string, unknown> & \{lat: number, lon: number\}\} WeatherLocation/);
+    assert.match(environmentRefreshSource, /@typedef \{Record<string, unknown> & \{temperature_2m: number, weather_code: number\}\} CurrentWeatherSnapshot/);
+    assert.match(environmentRefreshSource, /@param \{WeatherLocation\} location/);
+    assert.match(environmentRefreshSource, /@returns \{WeatherDataSnapshot\}/);
+    assert.match(environmentRefreshSource, /@param \{CurrentWeatherSnapshot \| null \| undefined\} currentWeather/);
+    assert.match(environmentRefreshSource, /@returns \{PhysicalWeatherSnapshot \| null\}/);
   });
 }
 
