@@ -71,6 +71,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/domain/snapshot.js` now exposes checked contracts for legacy-state decoding, domain/public snapshot projection, runtime overrides, and the compatibility mutation shell; preserve immutable normalization and current-frame derivation while keeping in-place legacy synchronization explicit.
 - Latest Step 6 slice: `server/domain/environmentSettings.js` now exposes checked contracts for device inputs, canonical catalogs, runtime/legacy projections, immutable profile updates, and adapter validation; preserve pure settings projections while keeping config persistence and sensor-runtime updates in `app.js`.
 - Latest Step 6 slice: `server/services/ecowitt.js` now exposes checked contracts for vendor payload decoding, canonical indoor readings, settings normalization, validation, and public environment responses; preserve the pure protocol projection while keeping polling, timeouts, logging, and network effects in the adapter shell.
+- Latest Step 6 slice: `server/services/sensorHistory.js` now exposes checked contracts for sensor/weather inputs, hourly records, query/statistics results, CSV projection, and the injected SQLite store; preserve invalid-timestamp nulls and limit defaults while keeping database operations in the store interpreter.
+- Next Step 6 seam: `server/services/sensorPlatform.js` needs adapter-descriptor and platform-interface contracts; keep lifecycle/read callbacks explicit and metadata cloning/frozen descriptor projections predictable.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

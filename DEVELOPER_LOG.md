@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-28: Type the Sensor History Boundary
+
+- **Finding**: `server/services/sensorHistory.js` already separated deterministic timestamp/metric normalization and CSV rendering from an injected SQLite store, but the persisted record, query, aggregation, and store API shapes were implicit.
+- **Correction**: added local `@ts-check` JSDoc contracts for sensor/weather inputs, canonical hourly records, SQL row values, history/statistics results, query options, and the store interface without changing exports or runtime behavior.
+- **Functional boundary**: snapshot normalization and CSV rendering remain pure data projections; record/query/statistics operations remain grouped behind the injected database interpreter, whose `close()` only owns internally created connections.
+- **Regression coverage**: added input-preservation, malformed-clock, numeric fallback/clamping, CSV escaping, and checked-source assertions. `npm test` passed with 338 tests / 336 assertions and 13/13 sensor-adapter regressions; the temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`.
+- **Verification**: `npm run lint` passed with 0 errors and 3 existing warnings; `git diff --check` passed; the client production build completed successfully.
+- **Learning**: the existing data-first normalizer and row-to-CSV pipeline already form the useful functional core; explicit contracts prepare the storage boundary for migration without wrapping SQLite operations in a new abstraction.
+
 ### 2026-09-28: Type the Ecowitt Protocol Boundary
 
 - **Finding**: the Ecowitt adapter already separated pure vendor decoding, unit/settings normalization, validation, and public-response construction from polling and timeout orchestration, but the accepted payload and canonical response shapes were implicit.

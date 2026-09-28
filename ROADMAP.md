@@ -87,6 +87,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `server/domain/snapshot.js` now exposes checked contracts for legacy-state decoding, domain/public snapshot projection, runtime overrides, and the explicit compatibility mutation shell; normalization and frame derivation remain pure while legacy synchronization stays at the imperative boundary.
 - Latest Step 6 slice: `server/domain/environmentSettings.js` now exposes checked contracts for device inputs, canonical catalogs, runtime/legacy projections, immutable profile updates, and adapter validation; preserve pure settings projections while keeping config persistence and sensor-runtime updates in `app.js`.
 - Latest Step 6 slice: `server/services/ecowitt.js` now exposes checked contracts for vendor payload decoding, canonical indoor readings, settings normalization, validation, and public environment responses; preserve the pure protocol projection while keeping polling, timeouts, logging, and network effects in the runtime shell.
+- Latest Step 6 slice: `server/services/sensorHistory.js` now exposes checked contracts for sensor/weather inputs, hourly records, query/statistics results, CSV projection, and the injected SQLite store; preserve invalid-timestamp nulls and limit defaults while keeping database operations in the store interpreter.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.
@@ -204,7 +205,9 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Current focus: implementation companion Step 6 is active. The client now has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, normalized event projections, and checked contracts across the stable client state seams.
+  - Current focus: implementation companion Step 6 is active. The client has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, normalized event projections, and checked contracts across stable client seams; server contracts are extending that coverage.
+  - Latest Step 6 slice: `server/services/sensorHistory.js` now documents sensor/weather inputs, normalized history rows, aggregation options, CSV projections, and the injected SQLite store interface; pure projections remain separate from the database interpreter.
+  - Next Step 6 seam: add explicit contracts to `server/services/sensorPlatform.js` for adapter descriptors and the platform interface, keeping adapter lifecycle and read callbacks at the effect boundary.
 
 ### Shared domain flow
 
