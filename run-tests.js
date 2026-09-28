@@ -42,8 +42,10 @@ const {
   validateEcowittSettings
 } = require('./server/services/ecowitt.js');
 const {
+  clampLimit,
   createSensorHistoryStore,
-  normalizeSensorSnapshot
+  normalizeSensorSnapshot,
+  toCsv
 } = require('./server/services/sensorHistory.js');
 const { updatePhotoCrop } = require('./server/config/collections.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
@@ -664,6 +666,19 @@ assertTest('Ecowitt protocol projections expose checked pure contracts', () => {
   assert.match(source, /@returns \{EcowittEnvironmentResponse\}/);
   assert.match(source, /Project a vendor payload into Lumina's stable indoor metric vocabulary/);
   assert.match(source, /Build the public adapter response without mutating its input projections/);
+});
+
+assertTest('sensor history service exposes checked storage and projection contracts', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/sensorHistory.js'), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{object\} SensorSnapshotInput/);
+  assert.match(source, /@typedef \{object\} SensorSnapshot/);
+  assert.match(source, /@typedef \{object\} SensorHistoryStore/);
+  assert.match(source, /@returns \{SensorSnapshot \| null\}/);
+  assert.match(source, /@type \{SensorHistoryStore\['history'\]\}/);
+  assert.match(source, /@type \{SensorHistoryStore\['stats'\]\}/);
+  assert.match(source, /An injected database remains caller-owned/);
 });
 
 assertTest('correctly classifies meteorological WMO weather codes', () => {
@@ -2326,6 +2341,51 @@ assertTest('normalizes GW1200 and outdoor weather into one hourly sensor record'
     latitude: 45.45,
     longitude: -73.56
   });
+});
+
+assertTest('sensor history projections preserve input, null invalid clocks, bound limits, and escape CSV', () => {
+  const input = {
+    environment: {
+      source: '',
+      observedAt: '2026-07-18T21:45:12.000Z',
+      metrics: { note: 'north, "upper"\nsouth' },
+      indoor: { temperatureC: '21.5', humidityPercent: 'invalid' }
+    },
+    weather: { current: { temperature_2m: '18.25' }, location: { lat: '45.4', lon: '-73.6' } }
+  };
+  const originalInput = JSON.parse(JSON.stringify(input));
+  const snapshot = normalizeSensorSnapshot(input);
+
+  assert.strictEqual(snapshot?.hourKey, '2026-07-18T21');
+  assert.strictEqual(snapshot?.source, 'ecowitt-gw1200');
+  assert.strictEqual(snapshot?.indoorTemperatureC, 21.5);
+  assert.strictEqual(snapshot?.indoorHumidityPercent, null);
+  assert.strictEqual(snapshot?.outdoorTemperatureC, 18.25);
+  assert.deepStrictEqual(input, originalInput);
+  assert.strictEqual(
+    normalizeSensorSnapshot({ observedAt: new Date(input.environment.observedAt) })?.observedAt,
+    input.environment.observedAt
+  );
+  assert.strictEqual(normalizeSensorSnapshot({ environment: { observedAt: 'not-a-date' } }), null);
+
+  assert.strictEqual(clampLimit('15 rows'), 15);
+  assert.strictEqual(clampLimit('invalid'), 168);
+  assert.strictEqual(clampLimit(0), 168);
+  assert.strictEqual(clampLimit(-3), 1);
+  assert.strictEqual(clampLimit(20_000), 10_000);
+
+  const row = {
+    hour_key: '2026-07-18T21',
+    source: 'GW, "1200"',
+    gateway_metrics_json: '{"note":"north\nsouth"}',
+    indoor_temperature_c: null
+  };
+  const originalRow = { ...row };
+  const csv = toCsv([row]);
+  assert.ok(csv.endsWith('\n'));
+  assert.ok(csv.includes('"GW, ""1200"""'));
+  assert.ok(csv.includes('"{""note"":""north\nsouth""}"'));
+  assert.deepStrictEqual(row, originalRow);
 });
 
 assertTest('stores one latest reading per hour and exports queryable CSV', () => {

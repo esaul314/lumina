@@ -6,18 +6,116 @@ const DEFAULT_LIMIT = 168;
 const MAX_LIMIT = 10_000;
 const SENSOR_SOURCE = 'ecowitt-gw1200';
 
+/** @typedef {string | number | Date | null | undefined} SensorTimestamp */
+/** @typedef {Record<string, unknown>} SensorRecord */
+
+/**
+ * @typedef {object} SensorEnvironmentInput
+ * @property {SensorTimestamp} [observedAt]
+ * @property {string} [source]
+ * @property {SensorRecord | null} [indoor]
+ * @property {SensorRecord | null} [metrics]
+ */
+
+/**
+ * @typedef {object} SensorWeatherInput
+ * @property {SensorRecord | null} [current]
+ * @property {{lat?: unknown, lon?: unknown} | null} [location]
+ */
+
+/**
+ * @typedef {object} SensorSnapshotInput
+ * @property {SensorEnvironmentInput | null} [environment]
+ * @property {SensorWeatherInput | null} [weather]
+ * @property {SensorTimestamp} [observedAt]
+ */
+
+/**
+ * @typedef {object} SensorSnapshot
+ * @property {string} hourKey
+ * @property {string} observedAt
+ * @property {string} source
+ * @property {'GW1200'} device
+ * @property {number | null} indoorTemperatureC
+ * @property {number | null} indoorHumidityPercent
+ * @property {number | null} indoorPressureAbsoluteHpa
+ * @property {number | null} indoorPressureRelativeHpa
+ * @property {number | null} outdoorTemperatureC
+ * @property {number | null} outdoorHumidityPercent
+ * @property {number | null} outdoorApparentTemperatureC
+ * @property {number | null} outdoorPrecipitationMm
+ * @property {number | null} outdoorRainMm
+ * @property {number | null} outdoorSnowfallMm
+ * @property {number | null} outdoorWeatherCode
+ * @property {number | null} outdoorWindSpeedKmh
+ * @property {number | null} latitude
+ * @property {number | null} longitude
+ * @property {string} gatewayMetricsJson
+ */
+
+/** @typedef {{from?: string | null, to?: string | null, limit?: number | string}} SensorHistoryQuery */
+/** @typedef {{days?: number | string, dayStart?: number | string, dayEnd?: number | string}} SensorHistoryStatsQuery */
+/** @typedef {{avg_temp_c: number | null, avg_humidity_pct: number | null, samples: number}} SensorPeriodStats */
+
+/**
+ * @typedef {object} SensorDailyStats
+ * @property {string} date
+ * @property {number | null} day_temp_c
+ * @property {number | null} night_temp_c
+ * @property {number | null} day_humidity_pct
+ * @property {number | null} night_humidity_pct
+ * @property {string} observed_at
+ */
+
+/**
+ * @typedef {object} SensorHistoryStats
+ * @property {number} days
+ * @property {number} day_start
+ * @property {number} day_end
+ * @property {{daytime: SensorPeriodStats, nighttime: SensorPeriodStats}} summary
+ * @property {SensorDailyStats[]} daily
+ */
+
+/** @typedef {Record<string, unknown> & {gateway_metrics_json: string, gateway_metrics: SensorRecord}} SensorHistoryRow */
+/** @typedef {Array<string | number | null>} SensorSqlRow */
+/** @typedef {{databasePath?: string, database?: DatabaseSync | null}} SensorHistoryStoreOptions */
+
+/**
+ * @typedef {object} SensorHistoryStore
+ * @property {() => void} close
+ * @property {(options?: SensorHistoryQuery) => SensorHistoryRow[]} history
+ * @property {(input?: SensorSnapshotInput) => SensorSnapshot | null} record
+ * @property {(options?: SensorHistoryStatsQuery) => SensorHistoryStats} stats
+ * @property {(options?: SensorHistoryQuery) => string} exportCsv
+ */
+
+/**
+ * Convert with JavaScript Number semantics; non-finite results become null.
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 const toFiniteNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
 
+/**
+ * @param {SensorTimestamp} value
+ * @returns {string | null}
+ */
 const normalizeTimestamp = (value) => {
-  const date = new Date(value);
+  const date = new Date(/** @type {string | number} */ (value));
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
+/** @param {string} timestamp @returns {string} */
 const hourKeyFor = (timestamp) => timestamp.slice(0, 13);
 
+/**
+ * Project the vendor and weather snapshots into the stable hourly storage vocabulary.
+ * @param {SensorSnapshotInput} [input]
+ * @returns {SensorSnapshot | null}
+ */
 const normalizeSensorSnapshot = ({ environment, weather = null, observedAt } = {}) => {
   const timestamp = normalizeTimestamp(observedAt || environment?.observedAt);
   if (!timestamp) return null;
@@ -49,11 +147,19 @@ const normalizeSensorSnapshot = ({ environment, weather = null, observedAt } = {
   };
 };
 
+/** @param {unknown} value @returns {number} */
 const clampLimit = (value) => Math.min(
   MAX_LIMIT,
   Math.max(1, Number.parseInt(String(value ?? DEFAULT_LIMIT), 10) || DEFAULT_LIMIT)
 );
 
+/**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @param {number} minimum
+ * @param {number} maximum
+ * @returns {number}
+ */
 const clampInteger = (value, fallback, minimum, maximum) => {
   const number = Number(value);
   return Number.isFinite(number)
@@ -61,6 +167,7 @@ const clampInteger = (value, fallback, minimum, maximum) => {
     : fallback;
 };
 
+/** @returns {string} */
 const buildHistorySchema = () => `
   CREATE TABLE IF NOT EXISTS sensor_history (
     hour_key TEXT PRIMARY KEY,
@@ -85,6 +192,7 @@ const buildHistorySchema = () => `
   ) STRICT;
 `;
 
+/** @param {DatabaseSync} db @returns {void} */
 const ensureHistoryColumn = (db) => {
   const columns = db.prepare('PRAGMA table_info(sensor_history)').all().map(({ name }) => name);
   if (!columns.includes('gateway_metrics_json')) {
@@ -92,6 +200,7 @@ const ensureHistoryColumn = (db) => {
   }
 };
 
+/** @type {const} */
 const columns = [
   'hour_key', 'observed_at', 'source', 'device', 'indoor_temperature_c',
   'indoor_humidity_percent', 'indoor_pressure_absolute_hpa',
@@ -101,6 +210,7 @@ const columns = [
   'outdoor_weather_code', 'outdoor_wind_speed_kmh', 'latitude', 'longitude', 'gateway_metrics_json'
 ];
 
+/** @param {SensorSnapshot} snapshot @returns {SensorSqlRow} */
 const toRowValues = (snapshot) => [
   snapshot.hourKey, snapshot.observedAt, snapshot.source, snapshot.device,
   snapshot.indoorTemperatureC, snapshot.indoorHumidityPercent,
@@ -111,6 +221,11 @@ const toRowValues = (snapshot) => [
   snapshot.outdoorWindSpeedKmh, snapshot.latitude, snapshot.longitude, snapshot.gatewayMetricsJson
 ];
 
+/**
+ * Render storage rows as escaped CSV fields in stable column order.
+ * @param {Array<Record<string, unknown>>} rows
+ * @returns {string}
+ */
 const toCsv = (rows) => {
   const escape = (value) => {
     if (value === null || value === undefined) return '';
@@ -120,6 +235,11 @@ const toCsv = (rows) => {
   return [columns.join(','), ...rows.map(row => columns.map(column => escape(row[column])).join(','))].join('\n') + '\n';
 };
 
+/**
+ * Build the SQLite-backed history interpreter. An injected database remains caller-owned.
+ * @param {SensorHistoryStoreOptions} [options]
+ * @returns {SensorHistoryStore}
+ */
 function createSensorHistoryStore({ databasePath = ':memory:', database = null } = {}) {
   const db = database || new DatabaseSync(databasePath);
   db.exec(buildHistorySchema());
@@ -130,6 +250,7 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
   `);
   const select = db.prepare(`SELECT ${columns.join(', ')} FROM sensor_history WHERE (? IS NULL OR observed_at >= ?) AND (? IS NULL OR observed_at <= ?) ORDER BY observed_at DESC LIMIT ?`);
 
+  /** @type {SensorHistoryStore['record']} */
   const record = (snapshotInput) => {
     const snapshot = normalizeSensorSnapshot(snapshotInput);
     if (!snapshot) return null;
@@ -137,6 +258,7 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
     return snapshot;
   };
 
+  /** @type {SensorHistoryStore['history']} */
   const history = ({ from = null, to = null, limit = DEFAULT_LIMIT } = {}) => (
     select.all(from, from, to, to, clampLimit(limit)).map((row) => ({
       ...row,
@@ -146,6 +268,7 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
 
   // Keep aggregation in SQLite so the API does not materialize the full history.
   // ponytail: defaults dayStart to 9 (9am) and dayEnd to 18 (6pm) for home environment day/night periods
+  /** @type {SensorHistoryStore['stats']} */
   const stats = ({ days = 7, dayStart = 9, dayEnd = 18 } = {}) => {
     const validDays = clampInteger(days, 7, 1, 90);
     const validStart = clampInteger(dayStart, 9, 0, 23);
@@ -208,12 +331,15 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
     };
   };
 
+  /** @type {SensorHistoryStore['exportCsv']} */
+  const exportCsv = options => toCsv(history(options));
+
   return {
     close: () => { if (!database) db.close(); },
     history,
     record,
     stats,
-    exportCsv: options => toCsv(history(options))
+    exportCsv
   };
 }
 
