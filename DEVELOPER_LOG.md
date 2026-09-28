@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Photo Timestamp Boundary
+
+- **Finding**: photo acquisition timestamps already had a pure normalization and curried immutable-stamping boundary, but the persisted photo record was still described with broad `any` metadata.
+- **Correction**: added an open `PhotoRecord` JSDoc contract and explicit nullable normalization output without changing timestamp parsing, legacy-date behavior, exports, or runtime shapes.
+- **Functional boundary**: timestamp normalization and stamp-new-photo composition remain deterministic and input-preserving; source-specific metadata stays extensible, while persistence codecs and crawler orchestration remain in their effectful shells.
+- **Regression coverage**: added malformed-clock identity assertions and checked-source coverage; the focused suite executed 330 tests with 0 failures and 328 passing assertions.
+- **Learning**: an open record is the right abstraction for persisted multi-source photos here: it types the owned field without pretending the timestamp helper owns every provider-specific property.
+
 ### 2026-09-27: Type the Pool Retention Boundary
 
 - **Finding**: pool lifecycle policy logic already formed a pure normalization and retention pipeline, but its schedule, policy, photo, and curried transform shapes were implicit at the domain boundary.

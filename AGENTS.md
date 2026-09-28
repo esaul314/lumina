@@ -66,6 +66,7 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/config/env.js` now exposes checked contracts for environment-value normalization and the pure replace-or-append content projection; preserve normalized quoting and idempotence while keeping filesystem/process mutation in `persistEnvVars`.
 - Latest Step 6 slice: `server/services/sentiment.js` now exposes checked contracts for the curried lexicon counters, declarative RSS headline parser, score classification, and sentiment result; preserve deterministic empty-feed identity while keeping network refresh orchestration outside the pure service.
 - Latest Step 6 slice: `server/domain/poolRetention.js` now exposes checked contracts for policy normalization, immutable loved-photo capping, and partially applied retention transforms; preserve prune-then-cap composition while keeping persistence and crawler orchestration outside the pure domain core.
+- Latest Step 6 slice: `server/domain/photoTimestamps.js` now exposes an open checked `PhotoRecord` contract for timestamp normalization and immutable stamping; preserve source-specific metadata, malformed-clock no-ops, and the pure boundary while keeping persistence outside the domain helper.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid
