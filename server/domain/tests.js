@@ -61,7 +61,13 @@ const {
   pruneExpiredPhotos,
   applyPoolPolicy
 } = require('./poolRetention.js');
-const { appendUniqueCategory, resolveScheduledPool } = require('./poolSchedule.js');
+const {
+  appendUniqueCategory,
+  formatLocalTime,
+  isPoolScheduleActive,
+  resolveScheduledPool,
+  scheduleIdentity
+} = require('./poolSchedule.js');
 const { createEventEmitter } = require('./dispatch.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
@@ -2371,6 +2377,19 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(activated, ['Scenic Nature', 'Liminal Spaces', 'Night Mood']);
     assert.deepStrictEqual(baseline, ['Scenic Nature', 'Liminal Spaces']);
     assert.deepStrictEqual(appendUniqueCategory(baseline, 'Scenic Nature'), baseline);
+  });
+
+  assertTest('pool schedule projections preserve identities and local-time boundaries', () => {
+    const schedule = { enabled: true, start: '22:00', end: '06:00', priority: 4 };
+    const baseline = ['Scenic Nature'];
+    const appended = appendUniqueCategory(baseline, 'Night Mood');
+
+    assert.strictEqual(formatLocalTime(new Date('2026-08-18T03:07:00')), '03:07');
+    assert.strictEqual(isPoolScheduleActive(schedule, new Date('2026-08-18T23:30:00')), true);
+    assert.strictEqual(isPoolScheduleActive(schedule, new Date('2026-08-18T12:00:00')), false);
+    assert.strictEqual(scheduleIdentity('Night Mood', schedule), 'Night Mood|22:00|06:00|4');
+    assert.notStrictEqual(appended, baseline);
+    assert.deepStrictEqual(appended, ['Scenic Nature', 'Night Mood']);
   });
 
   assertTest('persistence codec keeps explicit zero-valued crop defaults', () => {

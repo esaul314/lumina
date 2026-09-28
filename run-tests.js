@@ -1126,6 +1126,20 @@ assertTest('photo timestamps expose an open checked metadata contract', () => {
   assert.match(photoTimestampsSource, /legacy undated entries remain undated/);
 });
 
+assertTest('pool schedules expose checked pure projection contracts', () => {
+  const poolScheduleSource = fs.readFileSync(
+    path.join(__dirname, 'server/domain/poolSchedule.js'),
+    'utf8'
+  );
+
+  assert.match(poolScheduleSource, /^\/\/ @ts-check/);
+  assert.match(poolScheduleSource, /@typedef \{object\} PoolSchedule/);
+  assert.match(poolScheduleSource, /@typedef \{object\} ScheduledPool/);
+  assert.match(poolScheduleSource, /@typedef \{object\} ScheduledPoolOptions/);
+  assert.match(poolScheduleSource, /@param \{Date\} date/);
+  assert.match(poolScheduleSource, /@returns \{ScheduledPool \| null\}/);
+});
+
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
   const {
     DEFAULT_TV_PREVIEW_DIMENSIONS,
