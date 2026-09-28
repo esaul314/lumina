@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Environment Settings Boundary
+
+- **Finding**: sensor settings already formed a pure catalog algebra across legacy migration, profile normalization, active-device selection, runtime projection, compatibility projection, and adapter validation, but those inputs and outputs were implicit.
+- **Correction**: added local checked JSDoc contracts for untrusted device/settings inputs, canonical profiles, runtime and legacy projections, immutable profile operations, and validation options/results without changing exports or wire shapes.
+- **Functional boundary**: normalization, legacy decoding, profile updates, and runtime/public projections remain deterministic and input-preserving; config persistence and sensor-runtime updates remain explicit in `app.js`.
+- **Regression coverage**: added a pure projection/immutability regression and checked-source assertions; the focused suite executed 335 tests with 0 failures and 333 passing assertions, while sensor-adapter regressions passed 12/12. The temporary Unix-socket smoke remains skipped because the sandbox denies `listen` with `EPERM`.
+- **Learning**: the existing catalog and compatibility projections were already the right abstractions, so naming their contracts was clearer and safer than introducing a runtime validation wrapper or moving adapter effects into the domain module.
+
 ### 2026-09-27: Type the Snapshot Compatibility Boundary
 
 - **Finding**: snapshot rebuilding already separated legacy-state decoding, canonical domain-state construction, public snapshot projection, and in-place compatibility synchronization, but those shapes were implicit at the domain boundary.

@@ -69,6 +69,7 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/domain/photoTimestamps.js` now exposes an open checked `PhotoRecord` contract for timestamp normalization and immutable stamping; preserve source-specific metadata, malformed-clock no-ops, and the pure boundary while keeping persistence outside the domain helper.
 - Latest Step 6 slice: `server/domain/poolSchedule.js` now exposes checked contracts for schedule inputs, policy maps, resolved entries, and local-time evaluation; preserve immutable category appends and deterministic priority selection while keeping interval polling, command dispatch, and restoration in the runtime shell.
 - Latest Step 6 slice: `server/domain/snapshot.js` now exposes checked contracts for legacy-state decoding, domain/public snapshot projection, runtime overrides, and the compatibility mutation shell; preserve immutable normalization and current-frame derivation while keeping in-place legacy synchronization explicit.
+- Latest Step 6 slice: `server/domain/environmentSettings.js` now exposes checked contracts for device inputs, canonical catalogs, runtime/legacy projections, immutable profile updates, and adapter validation; preserve pure settings projections while keeping config persistence and sensor-runtime updates in `app.js`.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid
