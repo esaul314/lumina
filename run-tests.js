@@ -1113,6 +1113,19 @@ assertTest('pool retention exposes a checked curried functional contract', () =>
   assert.match(poolRetentionSource, /Compose expiry pruning with the normalized maximum-photo cap/);
 });
 
+assertTest('photo timestamps expose an open checked metadata contract', () => {
+  const photoTimestampsSource = fs.readFileSync(
+    path.join(__dirname, 'server/domain/photoTimestamps.js'),
+    'utf8'
+  );
+
+  assert.match(photoTimestampsSource, /^\/\/ @ts-check/);
+  assert.match(photoTimestampsSource, /@typedef \{\{\[key: string\]: unknown\}\} PhotoRecord/);
+  assert.match(photoTimestampsSource, /@returns \{\(photos\?: PhotoRecord\[\]\) => PhotoRecord\[\]\}/);
+  assert.match(photoTimestampsSource, /@param \{PhotoRecord \| null \| undefined\} photo/);
+  assert.match(photoTimestampsSource, /legacy undated entries remain undated/);
+});
+
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
   const {
     DEFAULT_TV_PREVIEW_DIMENSIONS,

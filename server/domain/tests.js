@@ -2415,6 +2415,22 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(photos[1].addedAt, undefined);
   });
 
+  assertTest('photo timestamp stamping keeps invalid clocks and source records inert', () => {
+    const photos = [
+      { url: 'legacy' },
+      { url: 'dated', addedAt: '2026-07-01T00:00:00.000Z' }
+    ];
+    const stamped = stampNewPhotos('not-a-date')(photos);
+
+    assert.notStrictEqual(stamped, photos);
+    assert.strictEqual(stamped[0], photos[0]);
+    assert.strictEqual(stamped[1], photos[1]);
+    assert.deepStrictEqual(photos, [
+      { url: 'legacy' },
+      { url: 'dated', addedAt: '2026-07-01T00:00:00.000Z' }
+    ]);
+  });
+
   assertTest('persistence codec preserves valid photo timestamps and drops malformed ones', () => {
     const normalized = normalizePersistedSnapshot({
       feeds: {

@@ -1,6 +1,13 @@
 // @ts-check
 
 /**
+ * Persisted photo metadata remains open to source-specific fields, while the
+ * timestamp boundary only owns the optional acquisition timestamp.
+ *
+ * @typedef {{[key: string]: unknown}} PhotoRecord
+ */
+
+/**
  * @param {unknown} value
  * @returns {string | null}
  */
@@ -22,7 +29,7 @@ function normalizePhotoAddedAt(value) {
  * The returned list is immutable and legacy undated entries remain undated.
  *
  * @param {Date | string | number} addedAt
- * @returns {(photos: Array<Record<string, any>>) => Array<Record<string, any>>}
+ * @returns {(photos?: PhotoRecord[]) => PhotoRecord[]}
  */
 const stampNewPhotos = (addedAt) => {
   const normalizedAddedAt = normalizePhotoAddedAt(addedAt);
@@ -47,8 +54,8 @@ const stampNewPhotos = (addedAt) => {
 /**
  * Normalize persisted photo metadata without inventing dates for legacy rows.
  *
- * @param {Record<string, any>} photo
- * @returns {Record<string, any>}
+ * @param {PhotoRecord | null | undefined} photo
+ * @returns {PhotoRecord | null | undefined}
  */
 function normalizePhotoTimestamp(photo) {
   if (!photo || typeof photo !== 'object') {
