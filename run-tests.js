@@ -82,7 +82,10 @@ const {
   createSocketCommandSpecInterpreter,
   registerCommandSpecs
 } = configureSockets;
-const { createSensorPlatform } = require('./server/services/sensorPlatform.js');
+const {
+  createSensorAdapter,
+  createSensorPlatform
+} = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
 const {
@@ -679,6 +682,20 @@ assertTest('sensor history service exposes checked storage and projection contra
   assert.match(source, /@type \{SensorHistoryStore\['history'\]\}/);
   assert.match(source, /@type \{SensorHistoryStore\['stats'\]\}/);
   assert.match(source, /An injected database remains caller-owned/);
+});
+
+assertTest('sensor platform exposes checked adapter and platform contracts', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/sensorPlatform.js'), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{object\} SensorAdapterDescriptor/);
+  assert.match(source, /@typedef \{object\} SensorAdapterInput/);
+  assert.match(source, /@typedef \{object\} RegisteredSensorAdapter/);
+  assert.match(source, /@typedef \{object\} SensorPlatform/);
+  assert.match(source, /@param \{SensorAdapterInput\} input/);
+  assert.match(source, /@returns \{SensorAdapterSummary\}/);
+  assert.match(source, /@param \{SensorPlatformOptions\} \[options=\{\}\]/);
+  assert.match(source, /Metadata is copied so later descriptor or summary edits cannot mutate the registry/);
 });
 
 assertTest('correctly classifies meteorological WMO weather codes', () => {
@@ -2499,6 +2516,100 @@ assertTest('sensor platform composes adapters behind one capability-aware contra
   assert.strictEqual(platform.getAdapter('test-device').id, 'test-device');
   assert.strictEqual(platform.updateSettings('test-device', { enabled: true }).valid, true);
   assert.deepStrictEqual(reads, []);
+});
+
+assertTest('sensor adapter descriptors canonicalize aliases and isolate metadata projections', () => {
+  const compatibility = {
+    summary: 'Compatible local gateways',
+    models: ['GW1200'],
+    details: { regions: ['home'] }
+  };
+  const descriptor = {
+    id: 'ecowitt-local-http',
+    aliases: ['gw1200'],
+    label: 'Ecowitt Gateway',
+    protocol: 'Ecowitt LAN HTTP',
+    transport: 'http-poll',
+    endpoint: '/get_livedata_info',
+    compatibility,
+    capabilities: ['temperature', 'humidity', 'temperature']
+  };
+  const read = Object.assign(async () => ({ source: 'ecowitt-local-http' }), {
+    adapterDescriptor: descriptor
+  });
+  const input = {
+    id: 'legacy-gateway',
+    aliases: ['old-gateway'],
+    label: 'Legacy label',
+    capabilities: ['fallback'],
+    read
+  };
+  const adapter = createSensorAdapter(input);
+
+  assert.strictEqual(adapter.id, 'ecowitt-local-http');
+  assert.deepStrictEqual(adapter.aliases, ['gw1200', 'old-gateway', 'legacy-gateway']);
+  assert.strictEqual(adapter.label, 'Ecowitt Gateway');
+  assert.deepStrictEqual(adapter.capabilities, ['temperature', 'humidity']);
+  assert.deepStrictEqual(adapter.compatibility, compatibility);
+  assert.notStrictEqual(adapter.compatibility, compatibility);
+  assert.notStrictEqual(adapter.compatibility.details, compatibility.details);
+  assert.ok(Object.isFrozen(adapter));
+  assert.ok(Object.isFrozen(adapter.aliases));
+  assert.ok(Object.isFrozen(adapter.compatibility.details.regions));
+
+  const platform = createSensorPlatform({ adapters: [input] });
+  const summary = platform.describe()[0];
+  summary.aliases.push('summary-only');
+  summary.compatibility.details.regions.push('summary-only');
+  assert.deepStrictEqual(platform.describe()[0].aliases, ['gw1200', 'old-gateway', 'legacy-gateway']);
+  assert.deepStrictEqual(platform.describe()[0].compatibility.details.regions, ['home']);
+
+  descriptor.aliases.push('added-later');
+  compatibility.models.push('added-later');
+  assert.deepStrictEqual(adapter.aliases, ['gw1200', 'old-gateway', 'legacy-gateway']);
+  assert.deepStrictEqual(adapter.compatibility.models, ['GW1200']);
+  assert.deepStrictEqual(platform.describe()[0].aliases, ['gw1200', 'old-gateway', 'legacy-gateway']);
+  assert.deepStrictEqual(platform.describe()[0].compatibility.details.regions, ['home']);
+  assert.strictEqual(platform.getAdapter('gw1200').id, 'ecowitt-local-http');
+});
+
+assertAsyncTest('sensor platform delegates adapter effects and keeps empty-platform fallbacks explicit', async () => {
+  const effects = [];
+  const platform = createSensorPlatform({
+    adapters: [{
+      id: 'sensor-a',
+      aliases: ['sensor-alias'],
+      label: 'Sensor A',
+      read: async () => { effects.push('read'); return { value: 21 }; },
+      start: () => effects.push('start'),
+      stop: () => effects.push('stop'),
+      validateSettings: settings => ({ valid: true, settings }),
+      updateSettings: settings => ({ valid: true, settings })
+    }]
+  });
+
+  platform.start();
+  assert.deepStrictEqual(await platform.read('sensor-alias'), { value: 21 });
+  assert.deepStrictEqual(await platform.readPrimary(), { value: 21 });
+  assert.deepStrictEqual(platform.validateSettings('sensor-a', { enabled: true }), {
+    valid: true,
+    settings: { enabled: true }
+  });
+  assert.deepStrictEqual(platform.updatePrimarySettings({ enabled: false }), {
+    valid: true,
+    settings: { enabled: false }
+  });
+  platform.stop();
+
+  assert.deepStrictEqual(effects, ['start', 'read', 'read', 'stop']);
+  assert.strictEqual(platform.validateSettings('missing', {}).valid, false);
+  assert.strictEqual(platform.updateSettings('missing', {}).valid, false);
+  await assert.rejects(platform.read('missing'), /Unknown sensor adapter: missing/);
+
+  const emptyPlatform = createSensorPlatform();
+  assert.strictEqual(emptyPlatform.getPrimaryAdapter(), null);
+  assert.strictEqual(emptyPlatform.updatePrimarySettings({}).valid, false);
+  await assert.rejects(emptyPlatform.readPrimary(), /No primary sensor adapter is configured\./);
 });
 
 // ============================================================================

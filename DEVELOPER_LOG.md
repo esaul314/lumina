@@ -6,6 +6,15 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-28: Type the Sensor Platform Boundary
+
+- **Finding**: the adapter registry already separated descriptor resolution and public capability summaries from read, lifecycle, and settings callbacks, but its protocol metadata and platform interface shapes were implicit.
+- **Correction**: added local `@ts-check` JSDoc contracts for descriptor overrides, registration inputs, normalized adapters, public summaries, settings results, and the composed platform API without changing runtime behavior.
+- **Functional boundary**: canonical IDs, alias indexing, and summary construction remain deterministic projections; sensor reads, lifecycle hooks, and settings operations remain injected effects. Recursive metadata cloning and freezing keep registry state independent of both adapter-owned descriptors and caller-edited summaries.
+- **Regression coverage**: added canonical/legacy alias, descriptor override, deduplication, deep metadata isolation, lifecycle/read delegation, missing-adapter, and checked-source assertions. `npm test` passed with 341 tests / 339 assertions and 13/13 sensor-adapter regressions; temporary Unix-socket smoke was skipped because the environment denies `listen` with `EPERM`.
+- **Verification**: `npm run lint` passed with 0 errors and 3 existing warnings; `node --check` and `git diff --check` passed.
+- **Learning**: metadata needs a trustworthy ownership boundary, but that does not require a runtime schema abstraction. Explicit callback and descriptor contracts preserve the existing small adapter interface while making the data/effect split clearer.
+
 ### 2026-09-28: Type the Sensor History Boundary
 
 - **Finding**: `server/services/sensorHistory.js` already separated deterministic timestamp/metric normalization and CSV rendering from an injected SQLite store, but the persisted record, query, aggregation, and store API shapes were implicit.
