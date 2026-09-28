@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-28: Type the Ecowitt Protocol Boundary
+
+- **Finding**: the Ecowitt adapter already separated pure vendor decoding, unit/settings normalization, validation, and public-response construction from polling and timeout orchestration, but the accepted payload and canonical response shapes were implicit.
+- **Correction**: added local checked JSDoc contracts for vendor payloads, canonical indoor readings, adapter settings, validation results, units, and public environment responses without changing exports or wire shapes.
+- **Functional boundary**: metric identifiers, Fahrenheit/inHg conversion, settings normalization, validation, and response projection remain deterministic and input-preserving; fetch, timers, abort signals, availability logging, and last-good state remain in the imperative adapter shell.
+- **Regression coverage**: added an input-preservation and canonical-output regression plus checked-source assertions; the focused suite executed 336 tests with 0 failures and 334 passing assertions, while the temporary Unix-socket smoke remains skipped because the sandbox denies `listen` with `EPERM`. Sensor-adapter regressions passed 13/13.
+- **Learning**: the protocol boundary already had useful pure functions and a data-first response builder, so naming their contracts was clearer and safer than introducing a runtime schema library or moving network effects into the functional core.
+
 ### 2026-09-27: Type the Environment Settings Boundary
 
 - **Finding**: sensor settings already formed a pure catalog algebra across legacy migration, profile normalization, active-device selection, runtime projection, compatibility projection, and adapter validation, but those inputs and outputs were implicit.

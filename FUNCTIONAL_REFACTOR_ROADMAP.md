@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 
 ## Purpose
 
@@ -365,6 +365,7 @@ Progress note:
 - Step 6 twenty-fourth slice: `server/domain/poolSchedule.js` now has checked contracts for untrusted schedule inputs, policy maps, resolved schedule records, and local-time projections; category appends, schedule activity, and priority selection remain pure while the interval runtime retains dispatch and boundary restoration effects.
 - Step 6 twenty-fifth slice: `server/domain/snapshot.js` now has checked contracts for legacy-state decoding, domain/public snapshot projection, runtime overrides, and the compatibility mutation shell; immutable normalization and current-frame derivation remain pure while in-place legacy synchronization stays explicit.
 - Step 6 twenty-sixth slice: `server/domain/environmentSettings.js` now has checked contracts for untrusted device inputs, canonical catalogs, runtime/legacy projections, immutable profile updates, and adapter validation; the settings algebra remains pure while config persistence and sensor-runtime updates stay in `app.js`.
+- Step 6 twenty-seventh slice: `server/services/ecowitt.js` now has checked contracts for vendor payload decoding, canonical indoor readings, settings normalization, validation, and public environment responses; the protocol projection remains pure while polling, timeouts, logging, and network effects stay in the adapter shell.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

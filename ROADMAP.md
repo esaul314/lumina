@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-09-27
+Last updated: 2026-09-28
 
 ## Implementation Companion
 
@@ -86,6 +86,7 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `server/domain/poolSchedule.js` now exposes checked contracts for schedule inputs, policy maps, resolved schedule entries, local-time evaluation, and immutable category appends; schedule selection remains pure while interval polling, dispatch, and restoration stay in the runtime shell.
 - Latest Step 6 slice: `server/domain/snapshot.js` now exposes checked contracts for legacy-state decoding, domain/public snapshot projection, runtime overrides, and the explicit compatibility mutation shell; normalization and frame derivation remain pure while legacy synchronization stays at the imperative boundary.
 - Latest Step 6 slice: `server/domain/environmentSettings.js` now exposes checked contracts for device inputs, canonical catalogs, runtime/legacy projections, immutable profile updates, and adapter validation; preserve pure settings projections while keeping config persistence and sensor-runtime updates in `app.js`.
+- Latest Step 6 slice: `server/services/ecowitt.js` now exposes checked contracts for vendor payload decoding, canonical indoor readings, settings normalization, validation, and public environment responses; preserve the pure protocol projection while keeping polling, timeouts, logging, and network effects in the runtime shell.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.
