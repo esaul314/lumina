@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-09-27: Type the Pool Retention Boundary
+
+- **Finding**: pool lifecycle policy logic already formed a pure normalization and retention pipeline, but its schedule, policy, photo, and curried transform shapes were implicit at the domain boundary.
+- **Correction**: added local `@ts-check` JSDoc contracts for normalized schedules and policies, the retained-photo record, immutable cap projection, and data-last pruning/application transforms without changing policy defaults or exports.
+- **Functional boundary**: policy normalization, loved-photo preservation, expiry pruning, and prune-then-cap composition remain pure and input-preserving; persistence, crawler refresh, and Google Photos cache orchestration stay in their imperative service shells.
+- **Regression coverage**: added composition and immutability assertions plus checked-source coverage; the full suite executed 328 tests with 0 failures and 326 passing assertions.
+- **Learning**: this boundary did not need a new abstraction: the existing curried `applyPoolPolicy(now, policy)(photos)` is the useful partial application, while explicit JSDoc names the algebra without adding runtime ceremony.
+
 ### 2026-09-27: Type the Sentiment Projection Boundary
 
 - **Finding**: the news sentiment service already composed partially applied lexicon counters, declarative RSS extraction, and pure score classification, but its accepted words, classification vocabulary, and result shape were implicit.
