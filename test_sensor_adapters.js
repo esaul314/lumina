@@ -3,6 +3,7 @@
 const assert = require('assert');
 const {
   createEcowittRuntime,
+  normalizeEcowittSettings,
   normalizeMetricId,
   parseEcowittPayload
 } = require('./server/services/ecowitt.js');
@@ -64,6 +65,43 @@ const tests = [
       assert.strictEqual(normalizeMetricId('09'), 9);
       assert.strictEqual(normalizeMetricId(9), 9);
       assert.strictEqual(normalizeMetricId('not-an-id'), null);
+    }
+  },
+  {
+    name: 'keeps the Ecowitt protocol projection pure and input-preserving',
+    run: () => {
+      const settingsInput = {
+        enabled: true,
+        baseUrl: 'http://gateway.local/',
+        units: { temperature: 'F' }
+      };
+      const payload = {
+        wh25: [{ intemp: '72.5', unit: 'F', inhumi: '48%' }]
+      };
+      const originalSettings = JSON.parse(JSON.stringify(settingsInput));
+      const originalPayload = JSON.parse(JSON.stringify(payload));
+
+      assert.deepStrictEqual(normalizeEcowittSettings(settingsInput), {
+        enabled: true,
+        baseUrl: 'http://gateway.local',
+        pollIntervalMs: 60_000,
+        timeoutMs: 3_000,
+        units: {
+          temperature: 'F',
+          pressure: 'hPa',
+          wind: 'km/h',
+          rain: 'mm',
+          light: 'lux'
+        }
+      });
+      assert.deepStrictEqual(parseEcowittPayload(payload), {
+        temperatureC: 22.5,
+        humidityPercent: 48,
+        pressureAbsoluteHpa: null,
+        pressureRelativeHpa: null
+      });
+      assert.deepStrictEqual(settingsInput, originalSettings);
+      assert.deepStrictEqual(payload, originalPayload);
     }
   },
   {

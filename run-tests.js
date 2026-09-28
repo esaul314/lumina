@@ -653,6 +653,19 @@ assertTest('sentiment source exposes a checked pure contract', () => {
   assert.match(source, /@returns \{SentimentResult\}/);
 });
 
+assertTest('Ecowitt protocol projections expose checked pure contracts', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/ecowitt.js'), 'utf8');
+
+  assert.ok(source.startsWith('// @ts-check'));
+  assert.match(source, /@typedef \{object\} EcowittSettings/);
+  assert.match(source, /@typedef \{object\} EcowittIndoorReading/);
+  assert.match(source, /@typedef \{object\} EcowittEnvironmentResponse/);
+  assert.match(source, /@returns \{EcowittIndoorReading\}/);
+  assert.match(source, /@returns \{EcowittEnvironmentResponse\}/);
+  assert.match(source, /Project a vendor payload into Lumina's stable indoor metric vocabulary/);
+  assert.match(source, /Build the public adapter response without mutating its input projections/);
+});
+
 assertTest('correctly classifies meteorological WMO weather codes', () => {
   const sunnyClassification = classifyWeatherCode(0);
   const rainyClassification = classifyWeatherCode(61);

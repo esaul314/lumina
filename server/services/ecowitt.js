@@ -1,5 +1,58 @@
 // @ts-check
 
+/**
+ * @typedef {{temperature: string, pressure: string, wind: string, rain: string, light: string}} EcowittUnits
+ */
+
+/**
+ * @typedef {Record<string, unknown> & {
+ *   enabled?: unknown,
+ *   baseUrl?: unknown,
+ *   pollIntervalMs?: unknown,
+ *   timeoutMs?: unknown,
+ *   units?: Partial<EcowittUnits>
+ * }} EcowittSettingsInput
+ */
+
+/**
+ * @typedef {object} EcowittSettings
+ * @property {boolean} enabled
+ * @property {string} baseUrl
+ * @property {number} pollIntervalMs
+ * @property {number} timeoutMs
+ * @property {EcowittUnits} units
+ */
+
+/**
+ * @typedef {object} EcowittIndoorReading
+ * @property {number | null} temperatureC
+ * @property {number | null} humidityPercent
+ * @property {number | null} pressureAbsoluteHpa
+ * @property {number | null} pressureRelativeHpa
+ */
+
+/**
+ * @typedef {Record<string, unknown> & {
+ *   wh25?: Array<Record<string, unknown>>,
+ *   common_list?: Array<Record<string, unknown>>
+ * }} EcowittPayload
+ */
+
+/**
+ * @typedef {object} EcowittEnvironmentResponse
+ * @property {EcowittIndoorReading | null} indoor
+ * @property {Record<string, unknown>} metrics
+ * @property {EcowittUnits} units
+ * @property {string} source
+ * @property {string | null} observedAt
+ * @property {boolean} stale
+ * @property {boolean} enabled
+ */
+
+/**
+ * @typedef {{valid: true, settings: EcowittSettings} | {valid: false, error: string}} EcowittValidationResult
+ */
+
 const DEFAULT_SOURCE = 'ecowitt-gw1200';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 3_000;
@@ -41,13 +94,16 @@ const DEFAULT_UNITS = Object.freeze({
   light: 'lux'
 });
 
+/** @param {unknown} value @returns {number | null} */
 const toFiniteNumber = (value) => {
   const parsed = Number.parseFloat(String(value ?? '').trim());
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+/** @param {Array<number | null>} values @returns {number | null} */
 const firstNonNull = (values) => values.find(value => value !== null) ?? null;
 
+/** @param {unknown} value @returns {number | null} */
 const normalizeMetricId = (value) => {
   const text = String(value ?? '').trim().toLowerCase();
   if (!text) return null;
@@ -55,6 +111,7 @@ const normalizeMetricId = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+/** @param {unknown} value @param {unknown} unit @returns {number | null} */
 const normalizeTemperatureC = (value, unit) => {
   const parsed = toFiniteNumber(value);
   if (parsed === null) return null;
@@ -62,21 +119,25 @@ const normalizeTemperatureC = (value, unit) => {
   return /\bF\b/i.test(unitText) ? (parsed - 32) * (5 / 9) : parsed;
 };
 
+/** @param {unknown} value @param {unknown} unit @returns {number | null} */
 const normalizePressureHpa = (value, unit) => {
   const parsed = toFiniteNumber(value);
   if (parsed === null) return null;
   return /INHG/i.test(`${unit ?? ''} ${value ?? ''}`) ? parsed * INHG_TO_HPA : parsed;
 };
 
+/** @param {number | null} value @param {number} [decimals=1] @returns {number | null} */
 const roundMetric = (value, decimals = 1) => (
   value === null ? null : Number(value.toFixed(decimals))
 );
 
+/** @param {Partial<EcowittUnits>} [units={}] @returns {EcowittUnits} */
 const normalizeUnits = (units = {}) => ({
   ...DEFAULT_UNITS,
   ...units
 });
 
+/** @param {EcowittSettingsInput} [settings={}] @returns {EcowittSettings} */
 const normalizeEcowittSettings = (settings = {}) => ({
   enabled: settings.enabled === true,
   baseUrl: String(settings.baseUrl || '').replace(/\/$/, ''),
@@ -85,6 +146,7 @@ const normalizeEcowittSettings = (settings = {}) => ({
   units: normalizeUnits(settings.units)
 });
 
+/** @param {EcowittSettingsInput} [settings={}] @returns {EcowittValidationResult} */
 const validateEcowittSettings = (settings = {}) => {
   const normalized = normalizeEcowittSettings(settings);
   let url = null;
@@ -109,6 +171,7 @@ const clonePayload = (payload) => (
   payload && typeof payload === 'object' ? JSON.parse(JSON.stringify(payload)) : {}
 );
 
+/** @param {EcowittPayload} [payload={}] @returns {Map<number, Record<string, unknown>>} */
 const indexCommonMetrics = (payload) => new Map(
   (Array.isArray(payload?.common_list) ? payload.common_list : [])
     .filter(entry => entry && typeof entry === 'object')
@@ -116,11 +179,18 @@ const indexCommonMetrics = (payload) => new Map(
     .filter(([id]) => id !== null)
 );
 
+/** @param {Record<string, unknown> | null} metric @param {(value: unknown, unit: unknown) => number | null} normalize @returns {number | null} */
 const normalizeCommonMetric = (metric, normalize) => (
   metric ? normalize(metric.val, metric.unit) : null
 );
 
-function parseEcowittPayload(payload) {
+/**
+ * Project a vendor payload into Lumina's stable indoor metric vocabulary.
+ *
+ * @param {EcowittPayload} [payload={}] vendor payload
+ * @returns {EcowittIndoorReading} canonical indoor reading
+ */
+function parseEcowittPayload(payload = {}) {
   const indoor = payload?.wh25?.[0];
   const wh25 = indoor && typeof indoor === 'object' ? indoor : {};
   const common = indexCommonMetrics(payload);
@@ -146,6 +216,12 @@ function parseEcowittPayload(payload) {
   };
 }
 
+/**
+ * Build the public adapter response without mutating its input projections.
+ *
+ * @param {{indoor: EcowittIndoorReading | null, metrics?: Record<string, unknown>, units?: Partial<EcowittUnits>, observedAt?: string | null, stale?: boolean, enabled?: boolean}} input
+ * @returns {EcowittEnvironmentResponse}
+ */
 const buildEnvironmentResponse = ({ indoor, metrics = {}, units = DEFAULT_UNITS, observedAt = null, stale = false, enabled = true }) => ({
   indoor,
   metrics,
