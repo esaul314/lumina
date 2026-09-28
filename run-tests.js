@@ -1140,6 +1140,24 @@ assertTest('pool schedules expose checked pure projection contracts', () => {
   assert.match(poolScheduleSource, /@returns \{ScheduledPool \| null\}/);
 });
 
+assertTest('domain snapshots expose checked projection and compatibility-shell contracts', () => {
+  const snapshotSource = fs.readFileSync(
+    path.join(__dirname, 'server/domain/snapshot.js'),
+    'utf8'
+  );
+
+  assert.match(snapshotSource, /^\/\/ @ts-check/);
+  assert.match(snapshotSource, /@typedef \{Record<string, unknown> & \{/);
+  assert.match(snapshotSource, /\}\} LegacyState/);
+  assert.match(snapshotSource, /@typedef \{object\} RuntimeOverrides/);
+  assert.match(snapshotSource, /@typedef \{DomainState\['config'\] & DomainState\['runtime'\]/);
+  assert.match(snapshotSource, /@param \{LegacyState\} legacyState/);
+  assert.match(snapshotSource, /@returns \{DomainState\}/);
+  assert.match(snapshotSource, /@returns \{Snapshot\}/);
+  assert.match(snapshotSource, /Project a domain state into the public snapshot without mutating it/);
+  assert.match(snapshotSource, /Apply a pure snapshot projection to the legacy runtime shell/);
+});
+
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
   const {
     DEFAULT_TV_PREVIEW_DIMENSIONS,

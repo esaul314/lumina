@@ -68,6 +68,11 @@ const {
   resolveScheduledPool,
   scheduleIdentity
 } = require('./poolSchedule.js');
+const {
+  applyDomainState,
+  buildDomainState,
+  buildSnapshot
+} = require('./snapshot.js');
 const { createEventEmitter } = require('./dispatch.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
@@ -2390,6 +2395,45 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(scheduleIdentity('Night Mood', schedule), 'Night Mood|22:00|06:00|4');
     assert.notStrictEqual(appended, baseline);
     assert.deepStrictEqual(appended, ['Scenic Nature', 'Night Mood']);
+  });
+
+  assertTest('snapshot projections normalize immutably before the legacy shell applies them', () => {
+    const sourceState = createState();
+    const legacyState = {
+      ...sourceState.config,
+      ...sourceState.runtime,
+      currentCategory: 'Liminal Space,Missing',
+      photosList: [{ url: 'legacy-photo', title: 'Legacy' }],
+      activePhoto: { url: 'portrait' }
+    };
+    const collections = {
+      'Scenic Nature': [{ url: 'landscape', title: 'Landscape' }],
+      'Liminal Spaces': [{ url: 'portrait', title: 'Portrait', orientation: 'portrait' }]
+    };
+    const runtimeOverrides = {
+      browserRunning: true,
+      externalCollections: {
+        'Google Photos': [{ url: 'picker-photo', title: 'Picker' }]
+      }
+    };
+
+    const domainState = buildDomainState(legacyState, collections, runtimeOverrides);
+    const snapshot = buildSnapshot(domainState);
+
+    assert.notStrictEqual(domainState.library.collections, collections);
+    assert.notStrictEqual(domainState.library.collections['Liminal Spaces'], collections['Liminal Spaces']);
+    assert.notStrictEqual(domainState.library.collections['Liminal Spaces'][0], collections['Liminal Spaces'][0]);
+    assert.deepStrictEqual(domainState.playback.selectedCategories, ['Liminal Spaces']);
+    assert.strictEqual(domainState.runtime.browserRunning, true);
+    assert.strictEqual(snapshot.currentFrame.primary?.url, 'portrait');
+    assert.strictEqual(snapshot.activePhoto?.url, 'portrait');
+    assert.strictEqual(legacyState.currentCategory, 'Liminal Space,Missing');
+
+    const applied = applyDomainState(legacyState, collections, domainState);
+    assert.deepStrictEqual(applied, snapshot);
+    assert.strictEqual(legacyState.currentCategory, 'Liminal Spaces');
+    assert.strictEqual(legacyState.activePhoto?.url, 'portrait');
+    assert.strictEqual(collections['Liminal Spaces'][0].category, 'Liminal Spaces');
   });
 
   assertTest('persistence codec keeps explicit zero-valued crop defaults', () => {

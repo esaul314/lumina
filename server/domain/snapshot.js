@@ -3,6 +3,70 @@
 /**
  * @typedef {import('./types').CollectionsState} CollectionsState
  * @typedef {import('./types').DomainState} DomainState
+ * @typedef {import('./types').CurrentFrame} CurrentFrame
+ * @typedef {import('./types').Photo} Photo
+ */
+
+/**
+ * The legacy flat state is the compatibility shape owned by the current
+ * runtime. Its source-specific records remain open while the domain snapshot
+ * projection owns the stable fields needed by the reducer.
+ *
+ * @typedef {Record<string, unknown> & {
+ *   currentCategory: string | string[],
+ *   theme: string,
+ *   scaleMode: 'cover' | 'contain',
+ *   splitPortrait: boolean,
+ *   splitCropPercent: number,
+ *   widgets: Record<string, boolean>,
+ *   inactivityTimeout: number,
+ *   slideshowInterval: number,
+ *   alignTimeOfDay: boolean,
+ *   alignWeather: boolean,
+ *   allowOpenAiFallback: boolean,
+ *   nightPercentage: number,
+ *   searchKeywords: Record<string, unknown>,
+ *   feedConfigs: Record<string, unknown>,
+ *   poolPolicies: Record<string, unknown>,
+ *   excludedKeywords: string[],
+ *   autoLocation: boolean,
+ *   manualLocation: Record<string, unknown>,
+ *   visionConfig?: Record<string, unknown>,
+ *   screensaverActive: boolean,
+ *   hasUseApiToken: boolean,
+ *   hasTumblrApiKey?: boolean,
+ *   photosList: Photo[],
+ *   activePhoto?: Photo | null,
+ *   activeSecondPhoto?: Photo | null,
+ *   splitSeed?: number,
+ *   lastDirection?: 'next' | 'prev'
+ * }} LegacyState
+ */
+
+/**
+ * Runtime-only values supplied while rebuilding a domain snapshot.
+ *
+ * @typedef {object} RuntimeOverrides
+ * @property {boolean} [browserRunning]
+ * @property {boolean} [manualOverride]
+ * @property {Record<string, unknown>} [weather]
+ * @property {CollectionsState} [externalCollections]
+ */
+
+/**
+ * Public snapshot shape shared by REST, Socket.IO, and the legacy runtime.
+ *
+ * @typedef {DomainState['config'] & DomainState['runtime'] & {
+ *   currentCategory: string,
+ *   photosList: Photo[],
+ *   activePhoto: Photo | null,
+ *   activeSecondPhoto: Photo | null,
+ *   currentFrame: CurrentFrame,
+ *   config: DomainState['config'],
+ *   runtime: DomainState['runtime'],
+ *   library: DomainState['library'],
+ *   playback: DomainState['playback']
+ * }} Snapshot
  */
 
 const { deriveCurrentFrame, normalizeCategorySelection } = require('./selectors.js');
@@ -30,6 +94,14 @@ function cloneSearchKeywords(searchKeywords = {}) {
   );
 }
 
+/**
+ * Decode the mutable legacy state into an immutable domain-state projection.
+ *
+ * @param {LegacyState} legacyState
+ * @param {CollectionsState} collections
+ * @param {RuntimeOverrides} [runtimeOverrides={}]
+ * @returns {DomainState}
+ */
 function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
   const nextCollections = cloneCollections(collections);
   const availableCategories = Object.keys(nextCollections);
@@ -84,6 +156,12 @@ function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
   };
 }
 
+/**
+ * Project a domain state into the public snapshot without mutating it.
+ *
+ * @param {DomainState} domainState
+ * @returns {Snapshot}
+ */
 function buildSnapshot(domainState) {
   const currentFrame = deriveCurrentFrame(domainState);
   return {
@@ -101,6 +179,13 @@ function buildSnapshot(domainState) {
   };
 }
 
+/**
+ * Synchronize the mutable collection compatibility store in place.
+ *
+ * @param {CollectionsState} targetCollections
+ * @param {CollectionsState} nextCollections
+ * @returns {void}
+ */
 function replaceCollections(targetCollections, nextCollections) {
   Object.keys(targetCollections).forEach((key) => {
     if (!Object.prototype.hasOwnProperty.call(nextCollections, key)) {
@@ -113,6 +198,14 @@ function replaceCollections(targetCollections, nextCollections) {
   });
 }
 
+/**
+ * Apply a pure snapshot projection to the legacy runtime shell.
+ *
+ * @param {LegacyState} legacyState
+ * @param {CollectionsState} collections
+ * @param {DomainState} domainState
+ * @returns {Snapshot}
+ */
 function applyDomainState(legacyState, collections, domainState) {
   replaceCollections(collections, domainState.library.collections);
 
@@ -142,6 +235,14 @@ function applyDomainState(legacyState, collections, domainState) {
   return snapshot;
 }
 
+/**
+ * Rebuild and apply the canonical snapshot while preserving the legacy API.
+ *
+ * @param {LegacyState} legacyState
+ * @param {CollectionsState} collections
+ * @param {RuntimeOverrides} [runtimeOverrides={}]
+ * @returns {Snapshot}
+ */
 function syncLegacySnapshot(legacyState, collections, runtimeOverrides = {}) {
   return applyDomainState(legacyState, collections, buildDomainState(legacyState, collections, runtimeOverrides));
 }
