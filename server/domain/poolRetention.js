@@ -12,16 +12,69 @@ const DEFAULT_POOL_SCHEDULE = Object.freeze({
 const MIN_POOL_SCHEDULE_PRIORITY = -10000;
 const MAX_POOL_SCHEDULE_PRIORITY = 10000;
 
+/**
+ * @typedef {object} PoolSchedule
+ * @property {boolean} enabled
+ * @property {string} start
+ * @property {string} end
+ * @property {number} priority
+ */
+
+/**
+ * @typedef {{
+ *   enabled?: unknown,
+ *   start?: unknown,
+ *   end?: unknown,
+ *   priority?: unknown
+ * }} PoolScheduleInput
+ */
+
+/**
+ * @typedef {object} PoolPolicy
+ * @property {number} retentionDays
+ * @property {number} maxPhotos
+ * @property {PoolSchedule} schedule
+ */
+
+/**
+ * @typedef {{
+ *   retentionDays?: unknown,
+ *   maxPhotos?: unknown,
+ *   schedule?: PoolScheduleInput
+ * }} PoolPolicyInput
+ */
+
+/**
+ * @typedef {Record<string, unknown> & {
+ *   addedAt?: string | number | Date,
+ *   loved?: boolean
+ * }} PoolPhoto
+ */
+
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 const normalizePoolRetentionDays = (value) => {
   const days = Number(value);
   if (!Number.isFinite(days)) return null;
   return Math.min(MAX_POOL_RETENTION_DAYS, Math.max(MIN_POOL_RETENTION_DAYS, Math.round(days)));
 };
 
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
 const isValidPoolScheduleTime = (value) => (
   typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)
 );
 
+/**
+ * Normalize untrusted schedule input into the stable policy shape.
+ *
+ * @param {PoolScheduleInput} [schedule={}]
+ * @returns {PoolSchedule}
+ */
 const normalizePoolSchedule = (schedule = {}) => {
   const input = schedule && typeof schedule === 'object' && !Array.isArray(schedule)
     ? schedule
@@ -38,6 +91,10 @@ const normalizePoolSchedule = (schedule = {}) => {
   };
 };
 
+/**
+ * @param {PoolPolicyInput} [policy={}]
+ * @returns {PoolPolicy}
+ */
 const normalizePoolPolicy = (policy = {}) => ({
   retentionDays: normalizePoolRetentionDays(policy.retentionDays) ?? DEFAULT_POOL_RETENTION_DAYS,
   maxPhotos: Number.isFinite(Number(policy.maxPhotos))
@@ -46,6 +103,13 @@ const normalizePoolPolicy = (policy = {}) => ({
   schedule: normalizePoolSchedule(policy.schedule)
 });
 
+/**
+ * Keep loved photos first and retain the newest regular suffix within the cap.
+ *
+ * @param {PoolPhoto[]} [photos=[]]
+ * @param {unknown} [maxPhotos=2000]
+ * @returns {PoolPhoto[]}
+ */
 const capPoolPhotos = (photos = [], maxPhotos = 2000) => {
   const limit = Math.max(0, Math.round(Number(maxPhotos) || 0));
   const lovedPhotos = photos.filter((photo) => photo?.loved === true);
@@ -56,6 +120,13 @@ const capPoolPhotos = (photos = [], maxPhotos = 2000) => {
     : lovedPhotos.concat(regularPhotos.slice(-Math.max(0, limit - lovedPhotos.length)));
 };
 
+/**
+ * Create a data-last retention transform for a fixed point in time and policy.
+ *
+ * @param {Date | string | number} now
+ * @param {PoolPolicyInput} policy
+ * @returns {(photos?: PoolPhoto[]) => PoolPhoto[]}
+ */
 const pruneExpiredPhotos = (now, policy) => (photos = []) => {
   const { retentionDays } = normalizePoolPolicy(policy);
   const cutoff = new Date(now).getTime() - retentionDays * 24 * 60 * 60 * 1000;
@@ -66,6 +137,13 @@ const pruneExpiredPhotos = (now, policy) => (photos = []) => {
   });
 };
 
+/**
+ * Compose expiry pruning with the normalized maximum-photo cap.
+ *
+ * @param {Date | string | number} now
+ * @param {PoolPolicyInput} policy
+ * @returns {(photos?: PoolPhoto[]) => PoolPhoto[]}
+ */
 const applyPoolPolicy = (now, policy) => (photos = []) => {
   const normalizedPolicy = normalizePoolPolicy(policy);
   return capPoolPhotos(

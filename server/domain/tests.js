@@ -56,7 +56,11 @@ const {
   normalizePhotoTimestamp,
   stampNewPhotos
 } = require('./photoTimestamps.js');
-const { normalizePoolPolicy, pruneExpiredPhotos } = require('./poolRetention.js');
+const {
+  normalizePoolPolicy,
+  pruneExpiredPhotos,
+  applyPoolPolicy
+} = require('./poolRetention.js');
 const { appendUniqueCategory, resolveScheduledPool } = require('./poolSchedule.js');
 const { createEventEmitter } = require('./dispatch.js');
 
@@ -2125,6 +2129,29 @@ function runDomainTests({ logSuite, assertTest }) {
       { url: 'legacy' }
     ]);
     assert.deepStrictEqual(retained.map(({ url }) => url), ['fresh', 'loved', 'legacy']);
+  });
+
+  assertTest('pool retention composes curried pruning and capping without mutating photos', () => {
+    const photos = [
+      { url: 'expired', addedAt: '2026-06-01T00:00:00Z' },
+      { url: 'fresh-1', addedAt: '2026-07-20T00:00:00Z' },
+      { url: 'fresh-2', addedAt: '2026-07-21T00:00:00Z' },
+      { url: 'fresh-3', addedAt: '2026-07-22T00:00:00Z' },
+      { url: 'loved', addedAt: '2026-01-01T00:00:00Z', loved: true }
+    ];
+    const before = photos.map((photo) => ({ ...photo }));
+    const applyPolicy = applyPoolPolicy(
+      '2026-07-31T00:00:00Z',
+      { retentionDays: 30, maxPhotos: 12 }
+    );
+
+    const retained = applyPolicy(photos);
+
+    assert.deepStrictEqual(retained.map(({ url }) => url), [
+      'loved', 'fresh-1', 'fresh-2', 'fresh-3'
+    ]);
+    assert.deepStrictEqual(photos, before);
+    assert.notStrictEqual(retained, photos);
   });
 
   assertTest('pool policy command shares normalized REST decoding and reducer persistence', () => {

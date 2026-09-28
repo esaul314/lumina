@@ -1100,6 +1100,19 @@ assertTest('Google Photos lifecycle policy keeps loved photos, ages dated items,
   assert.ok(photos.some(({ id }) => id === 'fresh-12'));
 });
 
+assertTest('pool retention exposes a checked curried functional contract', () => {
+  const poolRetentionSource = fs.readFileSync(
+    path.join(__dirname, 'server/domain/poolRetention.js'),
+    'utf8'
+  );
+
+  assert.match(poolRetentionSource, /^\/\/ @ts-check/);
+  assert.match(poolRetentionSource, /@typedef \{object\} PoolSchedule/);
+  assert.match(poolRetentionSource, /@typedef \{object\} PoolPolicy/);
+  assert.match(poolRetentionSource, /@returns \{\(photos\?: PoolPhoto\[\]\) => PoolPhoto\[\]\}/);
+  assert.match(poolRetentionSource, /Compose expiry pruning with the normalized maximum-photo cap/);
+});
+
 assertAsyncTest('Rating Deck preview fitting grows with a focused responsive slot', async () => {
   const {
     DEFAULT_TV_PREVIEW_DIMENSIONS,
