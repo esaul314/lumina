@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, ChevronDown, Plus, Focus, ArrowUp, ArrowDown } from 'lucide-react';
+import { getPools } from '../../api/luminaClient.js';
 import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
 import {
   DEFAULT_COVER_CROP_PERCENT,
@@ -18,6 +19,11 @@ import {
 } from './googlePhotosPicker';
 import { parseFeedParameterInput, splitKeywordInput } from '../../state/keywordInput';
 import { getPoolLifecycleRows } from '../../state/poolLifecycleView';
+import {
+  buildUsablePhotoCounts,
+  formatAccessibleUsableImageCount,
+  formatUsableImageCount
+} from '../../state/poolCounts.js';
 import {
   createImageFeedsPanelState,
   IMAGE_FEEDS_PANEL_IDS,
@@ -157,6 +163,7 @@ function ImageFeedsTab({
 }) {
   const [keywordInput, setKeywordInput] = useState('');
   const [policyDrafts, setPolicyDrafts] = useState({});
+  const [usablePhotoCounts, setUsablePhotoCounts] = useState({});
   const policyDraftsRef = useRef({});
   const [localCrop, setLocalCrop] = useState(50);
   const cropTimeoutRef = useRef(null);
@@ -239,10 +246,29 @@ function ImageFeedsTab({
   }, [panelState.focused]);
 
   const activeChips = splitKeywordInput(newCategoryKeyword);
+  const categoryKey = categories.join('\u0000');
   const selectedCategorySnapshot = selectedCategories?.length
     ? { playback: { selectedCategories } }
     : state;
   const googlePhotosPickerStatus = getGooglePhotosPickerStatus(isSavedEnv);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUsablePhotoCounts({});
+
+    getPools()
+      .then((pools) => {
+        if (!cancelled) setUsablePhotoCounts(buildUsablePhotoCounts(pools));
+      })
+      .catch(() => {
+        if (!cancelled) setUsablePhotoCounts({});
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryKey]);
+
   const poolPolicy = (category) => readPoolPolicy(state.poolPolicies, category);
   const getDraftPolicy = readPoolPolicyDraft(poolPolicy);
   const draftPolicy = (category) => getDraftPolicy(policyDrafts, category);
@@ -301,6 +327,8 @@ function ImageFeedsTab({
         <div className="image-feed-category-list">
           {categories.map((cat) => {
             const isActive = isCategorySelected(selectedCategorySnapshot, cat);
+            const usableImageCount = formatUsableImageCount(usablePhotoCounts[cat]);
+            const accessibleUsableImageCount = formatAccessibleUsableImageCount(usablePhotoCounts[cat]);
             return (
               <div
                 key={cat}
@@ -317,6 +345,7 @@ function ImageFeedsTab({
                   type="button"
                   className="image-feed-category-select"
                   aria-pressed={isActive}
+                  aria-label={`${cat} Feed${accessibleUsableImageCount ? `, ${accessibleUsableImageCount}` : ''}`}
                   onClick={() => handleCategoryChange(cat)}
                 >
                   <span className="image-feed-category-label">
@@ -329,6 +358,7 @@ function ImageFeedsTab({
                        cat === 'Google Photos' ? '📸' : '🖼️'}
                     </span>
                     <span style={{ fontWeight: 500 }}>{cat} Feed</span>
+                    {usableImageCount && <span className="image-feed-category-count">· {usableImageCount}</span>}
                   </span>
                   {isActive && <Check size={18} style={{ color: 'var(--accent-color)' }} aria-hidden="true" />}
                 </button>

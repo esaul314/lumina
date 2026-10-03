@@ -1536,6 +1536,42 @@ assertAsyncTest('pool schedule runtime activates a pool, honors manual override,
   ]);
 });
 
+assertAsyncTest('pool image counts normalize API values and format accessible singular and plural labels', async () => {
+  const {
+    buildUsablePhotoCounts,
+    formatAccessibleUsableImageCount,
+    formatUsableImageCount
+  } = await importClientModule(
+    './client/src/state/poolCounts.js'
+  );
+  const viewSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/components/remote/ImageFeedsTab.jsx'),
+    'utf8'
+  );
+  const counts = buildUsablePhotoCounts([
+    { name: 'Empty Pool', usablePhotosCount: 0 },
+    { name: 'Single Pool', usablePhotosCount: 1 },
+    { name: 'Google Photos', usablePhotosCount: 128 },
+    { name: 'Invalid Pool', usablePhotosCount: -1 }
+  ]);
+
+  assert.deepStrictEqual(counts, {
+    'Empty Pool': 0,
+    'Single Pool': 1,
+    'Google Photos': 128
+  });
+  assert.strictEqual(formatUsableImageCount(counts['Empty Pool']), '0 images');
+  assert.strictEqual(formatUsableImageCount(counts['Single Pool']), '1 image');
+  assert.strictEqual(formatUsableImageCount(counts['Google Photos']), '128 images');
+  assert.strictEqual(formatAccessibleUsableImageCount(counts['Empty Pool']), '0 usable images');
+  assert.strictEqual(formatAccessibleUsableImageCount(counts['Single Pool']), '1 usable image');
+  assert.strictEqual(formatAccessibleUsableImageCount(counts['Google Photos']), '128 usable images');
+  assert.strictEqual(formatUsableImageCount(undefined), null);
+  assert.match(viewSource, /className="image-feed-category-count"/);
+  assert.match(viewSource, /aria-label=\{`\$\{cat\} Feed\$\{/);
+  assert.match(viewSource, /formatAccessibleUsableImageCount\(usablePhotoCounts\[cat\]\)/);
+});
+
 assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {
   const item = buildCachedMediaItem({
     id: 'picker-123',
@@ -1793,17 +1829,30 @@ assertAsyncTest('Google Photos Picker sync accumulates sessions and preserves me
     const originalGetCachedMediaItems = googlePhotos.getCachedMediaItems;
     googlePhotos.getCachedMediaItems = () => readCache();
     try {
-      const poolApp = buildConfiguredRoutesApp();
+      const poolApp = buildConfiguredRoutesApp({
+        state: {
+          searchKeywords: {},
+          feedConfigs: {},
+          poolPolicies: {
+            'Google Photos': { retentionDays: 3650, maxPhotos: 5000 }
+          }
+        }
+      });
       const poolsResponse = await invokeRoute(poolApp, 'get', '/api/pools');
       const googlePool = poolsResponse.body.find(({ name }) => name === 'Google Photos');
-      assert.strictEqual(googlePool.photosCount, 3);
+      assert.strictEqual(
+        googlePool.photosCount,
+        3,
+        `total count should include all ${readCache().length} cached rows; response was ${JSON.stringify(googlePool)}`
+      );
+      assert.strictEqual(googlePool.usablePhotosCount, 3, 'all cached Picker photos should be usable');
       const googlePhotosResponse = await invokeRoute(
         poolApp,
         'get',
         '/api/pools/:name/photos',
         { params: { name: 'Google Photos' } }
       );
-      assert.strictEqual(googlePhotosResponse.body.length, 3);
+      assert.strictEqual(googlePhotosResponse.body.length, 3, 'the detail route should retain all cached rows');
 
       const mixedFeed = combineFeedsBalanced(
         ['Scenic Nature', 'Google Photos'],
@@ -5658,6 +5707,58 @@ async function runIntegrationTests() {
   });
 
   logSuite('REST Pool Mutation Routes');
+  await assertAsyncTest('GET /api/pools preserves total photo counts and reports usable counts for empty, mixed, and external pools', async () => {
+    const originalGetCachedMediaItems = googlePhotos.getCachedMediaItems;
+    googlePhotos.getCachedMediaItems = () => [
+      { url: 'google-usable', rating: 8 },
+      { url: 'google-banned', rating: 1 },
+      { url: 'google-broken', isBroken: true }
+    ];
+
+    try {
+      const app = buildConfiguredRoutesApp({
+        state: {
+          searchKeywords: { 'Mixed Pool': ['forest'] },
+          feedConfigs: { 'Mixed Pool': { reddit: { enabled: true } } }
+        },
+        collections: {
+          'Empty Pool': [],
+          'Single Pool': [{ url: 'single-usable' }],
+          'Mixed Pool': [
+            { url: 'mixed-usable', rating: 5 },
+            { url: 'mixed-usable-2', rating: 10 },
+            { url: 'mixed-banned', rating: 1 },
+            { url: 'mixed-broken', isBroken: true }
+          ]
+        }
+      });
+      const response = await invokeRoute(app, 'get', '/api/pools');
+      const pools = Object.fromEntries(response.body.map((pool) => [pool.name, pool]));
+
+      assert.strictEqual(response.status, 200);
+      assert.deepStrictEqual(
+        [pools['Empty Pool'].photosCount, pools['Empty Pool'].usablePhotosCount],
+        [0, 0]
+      );
+      assert.deepStrictEqual(
+        [pools['Single Pool'].photosCount, pools['Single Pool'].usablePhotosCount],
+        [1, 1]
+      );
+      assert.deepStrictEqual(
+        [pools['Mixed Pool'].photosCount, pools['Mixed Pool'].usablePhotosCount],
+        [4, 2]
+      );
+      assert.deepStrictEqual(pools['Mixed Pool'].keywords, ['forest']);
+      assert.deepStrictEqual(pools['Mixed Pool'].feedConfigs, { reddit: { enabled: true } });
+      assert.deepStrictEqual(
+        [pools['Google Photos'].photosCount, pools['Google Photos'].usablePhotosCount],
+        [3, 1]
+      );
+    } finally {
+      googlePhotos.getCachedMediaItems = originalGetCachedMediaItems;
+    }
+  });
+
   await assertAsyncTest('POST /api/pools rejects duplicate pool names before dispatching the shared command route', async () => {
     let dispatched = false;
     const app = buildConfiguredRoutesApp({

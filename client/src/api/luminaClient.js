@@ -7,6 +7,10 @@ export function getStateSnapshot() {
   return readJson('/api/state');
 }
 
+export function getPools() {
+  return readJson('/api/pools');
+}
+
 export function patchState(body) {
   return requestJson('/api/state', {
     method: 'PATCH',

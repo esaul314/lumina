@@ -38,6 +38,7 @@ const {
 const { reduceAsyncSequentially } = require('./utils/asyncReduce.js');
 const { reduceUntil } = require('./utils/fn.js');
 const { applyPoolPolicy } = require('./domain/poolRetention.js');
+const { countUsablePhotos } = require('./domain/poolCounts.js');
 
 const DEFAULT_CATEGORY = 'Scenic Nature';
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
@@ -239,12 +240,16 @@ module.exports = function configureRoutes({
       part ? { ...patch, ...part.responsePatch } : patch
     ), {})
   });
-  const buildPoolResponse = (name) => ({
-    name,
-    keywords: (state.searchKeywords && state.searchKeywords[name]) || [],
-    feedConfigs: (state.feedConfigs && state.feedConfigs[name]) || {},
-    photosCount: (buildExternalCollections()[name] || collections[name] || []).length
-  });
+  const buildPoolResponse = (name) => {
+    const photos = buildExternalCollections()[name] || collections[name] || [];
+    return {
+      name,
+      keywords: (state.searchKeywords && state.searchKeywords[name]) || [],
+      feedConfigs: (state.feedConfigs && state.feedConfigs[name]) || {},
+      photosCount: photos.length,
+      usablePhotosCount: countUsablePhotos(photos)
+    };
+  };
   const findKnownPhoto = (url, fallbackPhoto = null) => (
     findPhotoInFeed(state.photosList, url)
     || getPhotoByUrl(collections, url, buildExternalCollections())

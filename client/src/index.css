@@ -984,6 +984,13 @@ body {
   overflow-wrap: anywhere;
 }
 
+.image-feed-category-count {
+  flex: none;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
 .image-feed-category-delete {
   flex: none;
   width: 44px;
