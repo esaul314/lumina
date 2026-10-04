@@ -1,5 +1,41 @@
 // @ts-check
 
+/**
+ * @typedef {object} IdleDaemonState
+ * @property {number} idleCounter Consecutive polls that satisfy the idle guard.
+ * @property {boolean} isBrowserRunning Whether the kiosk process is running.
+ *
+ * @typedef {object} IdleDaemonNextState
+ * @property {number} idleCounter Consecutive polls that satisfy the idle guard.
+ * @property {boolean} isBrowserRunning Whether the kiosk process should be running.
+ * @property {boolean} screensaverActive Whether the screensaver should be presented as active.
+ *
+ * @typedef {object} IdleDaemonInputs
+ * @property {boolean} isIdle Whether the inactivity timeout has elapsed.
+ * @property {boolean} isMoviePlaying Whether audio or session inhibition blocks activation.
+ * @property {boolean} manualOverride Whether the user explicitly requested activation.
+ * @property {boolean} [launchBlocked] Whether runtime policy suppresses activation.
+ *
+ * @typedef {object} IdleDaemonObservation
+ * @property {number} idleMs Host-reported inactivity duration.
+ * @property {number} inactivityTimeout Configured activation threshold.
+ * @property {boolean} audioPlaying Whether a non-system audio stream is active.
+ * @property {boolean} sessionInhibited Whether the desktop session inhibits activation.
+ * @property {boolean} manualOverride Whether the user explicitly requested activation.
+ * @property {boolean} [launchBlocked] Whether runtime policy suppresses activation.
+ *
+ * @typedef {'launch' | 'kill' | null} IdleDaemonAction
+ * @typedef {{nextState: IdleDaemonNextState, action: IdleDaemonAction}} IdleDaemonTransition
+ */
+
+/**
+ * Project one daemon poll into a deterministic state transition and optional action.
+ * The returned action is interpreted by the runtime shell; this function performs no effects.
+ *
+ * @param {IdleDaemonState} currentState
+ * @param {IdleDaemonInputs} inputs
+ * @returns {IdleDaemonTransition}
+ */
 function getNextScreensaverState(currentState, inputs) {
   const { idleCounter, isBrowserRunning } = currentState;
   const { isIdle, isMoviePlaying, manualOverride, launchBlocked = false } = inputs;
@@ -25,6 +61,12 @@ function getNextScreensaverState(currentState, inputs) {
   };
 }
 
+/**
+ * Normalize host observations into the stable inputs consumed by the state projection.
+ *
+ * @param {IdleDaemonObservation} observation
+ * @returns {IdleDaemonInputs}
+ */
 function buildDaemonInputs({
   idleMs,
   inactivityTimeout,

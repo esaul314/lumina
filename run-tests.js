@@ -793,6 +793,59 @@ assertTest('getNextScreensaverState transitions state and schedules actions corr
   assert.strictEqual(transition.nextState.isBrowserRunning, false);
 });
 
+assertTest('buildDaemonInputs projects the inactivity boundary and host blockers without mutation', () => {
+  const { buildDaemonInputs } = require('./server/runtime/idleDaemon.js');
+  const observation = Object.freeze({
+    idleMs: 500,
+    inactivityTimeout: 500,
+    audioPlaying: false,
+    sessionInhibited: false,
+    manualOverride: false
+  });
+
+  assert.deepStrictEqual(buildDaemonInputs(observation), {
+    isIdle: true,
+    isMoviePlaying: false,
+    manualOverride: false,
+    launchBlocked: false
+  });
+  assert.deepStrictEqual(buildDaemonInputs({
+    ...observation,
+    idleMs: 499,
+    audioPlaying: true,
+    sessionInhibited: true,
+    manualOverride: true,
+    launchBlocked: true
+  }), {
+    isIdle: false,
+    isMoviePlaying: true,
+    manualOverride: true,
+    launchBlocked: true
+  });
+  assert.strictEqual(observation.idleMs, 500);
+});
+
+assertTest('idle daemon state projection is immutable and returns only the closed action vocabulary', () => {
+  const { getNextScreensaverState } = require('./server/runtime/idleDaemon.js');
+  const currentState = Object.freeze({ idleCounter: 2, isBrowserRunning: false });
+  const inputs = Object.freeze({
+    isIdle: true,
+    isMoviePlaying: false,
+    manualOverride: false
+  });
+
+  assert.deepStrictEqual(getNextScreensaverState(currentState, inputs), {
+    nextState: { idleCounter: 3, isBrowserRunning: true, screensaverActive: true },
+    action: 'launch'
+  });
+  assert.deepStrictEqual(currentState, { idleCounter: 2, isBrowserRunning: false });
+  assert.deepStrictEqual(inputs, {
+    isIdle: true,
+    isMoviePlaying: false,
+    manualOverride: false
+  });
+});
+
 assertTest('numeric validators preserve curried range and null-safe identities', () => {
   const { validateRange, validateRating } = require('./server/utils/validation.js');
   const parseInteger = (value) => parseInt(value, 10);
@@ -4746,6 +4799,10 @@ async function runClientRenderingTests() {
     path.join(__dirname, 'server/runtime/environmentRefresh.js'),
     'utf8'
   );
+  const idleDaemonSource = fs.readFileSync(
+    path.join(__dirname, 'server/runtime/idleDaemon.js'),
+    'utf8'
+  );
   const categorySelectionSource = fs.readFileSync(
     path.join(__dirname, 'client/src/state/categorySelection.js'),
     'utf8'
@@ -5102,6 +5159,20 @@ async function runClientRenderingTests() {
     assert.match(environmentRefreshSource, /@returns \{WeatherDataSnapshot\}/);
     assert.match(environmentRefreshSource, /@param \{CurrentWeatherSnapshot \| null \| undefined\} currentWeather/);
     assert.match(environmentRefreshSource, /@returns \{PhysicalWeatherSnapshot \| null\}/);
+  });
+
+  assertTest('idle daemon projections expose checked inputs, state, and action contracts', () => {
+    assert.match(idleDaemonSource, /^\/\/ @ts-check/);
+    assert.match(idleDaemonSource, /@typedef \{object\} IdleDaemonState/);
+    assert.match(idleDaemonSource, /@typedef \{object\} IdleDaemonNextState/);
+    assert.match(idleDaemonSource, /@typedef \{object\} IdleDaemonInputs/);
+    assert.match(idleDaemonSource, /@typedef \{object\} IdleDaemonObservation/);
+    assert.match(idleDaemonSource, /@typedef \{'launch' \| 'kill' \| null\} IdleDaemonAction/);
+    assert.match(idleDaemonSource, /@param \{IdleDaemonState\} currentState/);
+    assert.match(idleDaemonSource, /@param \{IdleDaemonInputs\} inputs/);
+    assert.match(idleDaemonSource, /@returns \{IdleDaemonTransition\}/);
+    assert.match(idleDaemonSource, /@returns \{IdleDaemonInputs\}/);
+    assert.match(idleDaemonSource, /The returned action is interpreted by the runtime shell/);
   });
 }
 

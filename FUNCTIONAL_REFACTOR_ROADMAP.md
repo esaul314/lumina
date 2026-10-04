@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-09-28
+Last updated: 2026-10-03
 
 ## Purpose
 
@@ -371,7 +371,8 @@ Progress note:
 - Step 6 thirtieth slice: `server/services/weather.js` now has checked contracts for the WMO weather vocabulary, lookup table, and classifier result; every mapped code and the cloudy unknown-code fallback remain covered without changing runtime behavior.
 - Step 6 thirty-first slice: `server/runtime/environmentRefresh.js` now has checked contracts for forecast snapshots and physical-weather projections; provider field selection, nested reference preservation, rounded temperature, and the absent-current no-op are covered without moving refresh effects into the pure boundary.
 - Step 6 thirty-second slice: `server/runtime/activeFeed.js` now has checked contracts for legacy category parsing, available-category normalization, and balanced feed projection; tests preserve external-pool support, exclusion behavior, and source immutability while `photosList` assignment stays in the shell.
-- Next Step 6 seam: audit `server/runtime/idleDaemon.js` and type its pure input and screensaver-state projections while keeping polling, browser actions, timers, and broadcasts in the runtime shell.
+- Step 6 thirty-third slice: `server/runtime/idleDaemon.js` now has checked contracts for normalized host observations, daemon inputs, and screensaver transitions; tests preserve the inclusive inactivity threshold, audio/session blockers, closed action vocabulary, and immutable projections while polling and host effects stay in the runtime shell.
+- Next Step 6 seam: type `server/runtime/kioskControl.js`'s pure runtime-context projection while keeping process, governor, retry-timer, and logging effects in the runtime shell.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

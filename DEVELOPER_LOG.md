@@ -2731,3 +2731,10 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Implementation**: added local checked contracts for legacy category input, local/external collection maps, active-feed state, and runtime operations. Category normalization and feed assembly remain pure; only the runtime shell assigns `state.photosList`.
 - **Regression coverage**: tested comma-separated input normalization, external category availability, hidden-keyword exclusion, category attachment without source mutation, and the checked contract/effect-shell boundary.
 - **Next seam**: type the pure input and screensaver-state projections in `server/runtime/idleDaemon.js`, leaving polling and browser/timer/broadcast effects in the runtime shell.
+
+### 2026-10-03: Type the Idle Daemon Projections
+
+- **Goal**: continue Step 6 by making the daemon's host-observation and state-transition boundary explicit before extending contracts across the runtime shell.
+- **Implementation**: added local JSDoc contracts for host observations, normalized daemon inputs, current state, transition output, and the closed launch/kill/no-op action vocabulary. Polling, activity suppression, browser operations, interval management, and broadcasts remain in `createIdleDaemonRuntime`.
+- **Regression coverage**: tested the inclusive inactivity threshold, combined audio/session blocking, manual and launch-block flags, immutable inputs/state, and the JSDoc boundary.
+- **Next seam**: type the pure runtime-context projection in `server/runtime/kioskControl.js`, keeping process, CPU-governor, retry-timer, and logging effects in its runtime shell.
