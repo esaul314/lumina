@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-09-28
+Last updated: 2026-10-03
 
 ## Implementation Companion
 
@@ -91,6 +91,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `server/services/sensorPlatform.js` now exposes checked adapter-descriptor, registration, summary, settings-result, and platform-interface contracts; lifecycle/read callbacks remain explicit effects while frozen registry metadata and fresh descriptions stay isolated.
 - Latest Step 6 slice: `server/services/weather.js` now exposes checked WMO code and classification contracts; the constant-time classifier and cloudy fallback remain pure and unchanged while geolocation and forecast fetching stay effectful.
 - Latest Step 6 slice: `server/runtime/environmentRefresh.js` now exposes checked contracts for weather snapshot projections; provider values and the absent-current no-op remain unchanged while fetching, persistence, logging, and broadcasts stay in the runtime shell.
+- Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing/normalization and balanced feed projections; source collections remain unchanged while `photosList` assignment stays in the runtime shell.
+- Next Step 6 seam: audit `server/runtime/idleDaemon.js` and type its pure input and screensaver-state projections while keeping polling, browser actions, timers, and broadcasts in the runtime shell.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.
@@ -210,7 +212,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
   - Current focus: implementation companion Step 6 is active. The client has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, normalized event projections, and checked contracts across stable client seams; server contracts are extending that coverage.
   - Latest Step 6 slice: `server/runtime/environmentRefresh.js` now documents the weather snapshot and physical-weather projection contracts, with tests for provider-field projection, reference preservation, temperature rounding, classification, and absent observations.
-  - Next Step 6 seam: audit `server/runtime/activeFeed.js` and type its pure category/feed-selection projections while keeping `photosList` mutation in the runtime shell.
+  - Latest Step 6 slice: `server/runtime/activeFeed.js` now documents category parsing, normalization, and balanced feed contracts, with tests for external pools, exclusions, and source immutability.
+  - Next Step 6 seam: audit `server/runtime/idleDaemon.js` and type its pure input and screensaver-state projections while retaining daemon effects in the runtime shell.
 
 ### Shared domain flow
 

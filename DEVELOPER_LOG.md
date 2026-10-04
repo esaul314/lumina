@@ -2724,3 +2724,10 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
   preference, stale preference discovery, and the no-live-VLM case.
 - **Verification**: remote `node run-tests.js` passes with 306 assertions;
   targeted vision routing tests pass.
+
+### 2026-10-03: Type the Active Feed Runtime Projections
+
+- **Goal**: continue Step 6 by documenting the category and feed-selection contracts at the extracted active-feed boundary.
+- **Implementation**: added local checked contracts for legacy category input, local/external collection maps, active-feed state, and runtime operations. Category normalization and feed assembly remain pure; only the runtime shell assigns `state.photosList`.
+- **Regression coverage**: tested comma-separated input normalization, external category availability, hidden-keyword exclusion, category attachment without source mutation, and the checked contract/effect-shell boundary.
+- **Next seam**: type the pure input and screensaver-state projections in `server/runtime/idleDaemon.js`, leaving polling and browser/timer/broadcast effects in the runtime shell.

@@ -2263,6 +2263,66 @@ assertTest('normalizeActiveCategories canonicalizes aliases against available fe
   );
 });
 
+assertTest('active-feed projections normalize categories and assemble visible feeds without mutating sources', () => {
+  const {
+    buildFeedSelection,
+    getAvailableCategories,
+    normalizeActiveCategories,
+    splitCategorySelection
+  } = require('./server/runtime/activeFeed.js');
+  const naturePhoto = { url: 'nature-1', title: 'Forest Vista', rating: 10 };
+  const pickerPhoto = { url: 'picker-1', title: 'Lake Vista', rating: 10 };
+  const collections = {
+    'Scenic Nature': [naturePhoto],
+    'Hidden Pool': [{ url: 'hidden-1', title: 'Blocked photo', rating: 10 }]
+  };
+  const externalCollections = { 'Google Photos': [pickerPhoto] };
+
+  assert.deepStrictEqual(splitCategorySelection(null), []);
+  assert.deepStrictEqual(splitCategorySelection(' Scenic Nature, , Google Photos '), [
+    'Scenic Nature',
+    'Google Photos'
+  ]);
+  assert.deepStrictEqual(getAvailableCategories(collections, externalCollections), [
+    'Scenic Nature',
+    'Hidden Pool',
+    'Google Photos'
+  ]);
+  assert.deepStrictEqual(normalizeActiveCategories({
+    currentCategory: 'Missing,Google Photos',
+    collections,
+    externalCollections,
+    fallbackCategory: 'Scenic Nature'
+  }), ['Google Photos']);
+
+  const feed = buildFeedSelection({
+    selectedCategories: ['Scenic Nature', 'Hidden Pool', 'Google Photos'],
+    collections,
+    externalCollections,
+    excludedKeywords: ['blocked']
+  });
+
+  assert.deepStrictEqual(feed.map(({ url, category }) => ({ url, category })), [
+    { url: 'nature-1', category: 'Scenic Nature' },
+    { url: 'picker-1', category: 'Google Photos' }
+  ]);
+  assert.strictEqual(naturePhoto.category, undefined);
+  assert.strictEqual(pickerPhoto.category, undefined);
+  assert.notStrictEqual(feed[0], naturePhoto);
+  assert.notStrictEqual(feed[1], pickerPhoto);
+});
+
+assertTest('active-feed checked contracts keep photosList assignment in the runtime shell', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'server/runtime/activeFeed.js'), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/m);
+  assert.match(source, /@typedef \{import\('\.\.\/domain\/types'\)\.Photo\} ActiveFeedPhoto/);
+  assert.match(source, /@typedef \{object\} FeedSelectionOptions/);
+  assert.match(source, /@param \{FeedSelectionOptions\} options/);
+  assert.match(source, /@returns \{ActiveFeedPhoto\[\]\}/);
+  assert.match(source, /state\.photosList = photos/);
+});
+
 assertTest('createActiveFeedRuntime refreshes the active selection into photosList', () => {
   const { createActiveFeedRuntime } = require('./server/runtime/activeFeed.js');
   const state = {
