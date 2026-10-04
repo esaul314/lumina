@@ -113,6 +113,7 @@ function extractLegacyBaseUrl(url) {
 function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now()) {
   const { width, height } = getPickerItemDimensions(item);
   const googleBaseUrl = getPickerItemBaseUrl(item) || existing.googleBaseUrl || extractLegacyBaseUrl(existing.url);
+  const createTime = String(item?.createTime || existing.createTime || '').trim();
   const existingAddedAt = existing.addedAt;
   const normalizedAddedAt = existingAddedAt || new Date(addedAt).toISOString();
 
@@ -126,6 +127,7 @@ function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now
     googlePickerSessionId: sessionId || existing.googlePickerSessionId,
     googleBaseUrlFetchedAt: googleBaseUrl ? Date.now() : existing.googleBaseUrlFetchedAt,
     addedAt: normalizedAddedAt,
+    ...(createTime ? { createTime } : {}),
     mimeType: getPickerItemMimeType(item) || existing.mimeType || 'image/jpeg',
     width,
     height,

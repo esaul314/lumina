@@ -6,6 +6,26 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Show Google Photos Capture Dates on TV Slides
+
+- **Functional boundary**: Picker `createTime` now survives cache normalization
+  and refreshes that omit the timestamp. A pure client presentation helper
+  formats valid creation timestamps as browser-localized dates and projects
+  both sides of split-slide titles; Picker synchronization and Dashboard
+  rendering remain effectful shells.
+- **Regression coverage**: verified cache creation and normalization, retention
+  of an existing timestamp through a later Picker refresh without `createTime`,
+  valid and invalid date formatting, existing-title fallbacks, and unchanged
+  non-Google titles including split slides.
+- **Verification**: `npm test` passed with 370 tests executed, 368 assertions,
+  0 failures, and 13/13 sensor-adapter regressions. `npm run lint`, the client
+  production build, `node --check` for the touched JavaScript modules, and
+  `git diff --check` passed. The Unix-socket smoke was skipped because the
+  environment denies `listen` with `EPERM`.
+- **Roadmap**: implementation companion Step 6 remains active; its next
+  documented seam remains the keyword-to-feed-config projection in
+  `server/config/state.js`.
+
 ### 2026-10-04: Type Keyword Specification Projections
 
 - **Functional boundary**: added local checked contracts to the pure

@@ -19,6 +19,7 @@ import { formatClockParts } from '../state/clock.js';
 import { convertPressure, convertTemperature } from '../state/environmentHistory.js';
 import { isEscapeKey, isScreensaverDismissalActivity } from '../state/screensaverActivity.js';
 import { buildMediaOriginProbeUrl, decideMediaFailure } from '../state/mediaRecovery.js';
+import { getPhotoSlideTitle, projectSplitSlideTitles } from '../state/photoTitles.js';
 
 /**
  * 🖼️ loadImageMeta
@@ -216,6 +217,14 @@ function Dashboard({ state, socket, connectionInfo }) {
       const liveSecondaryPhoto = expectedSplit && targetSecondUrl
         ? findPhotoByUrl(state, targetSecondUrl, secondaryPhoto || null)
         : null;
+      const targetSplitTitles = expectedSplit
+        ? projectSplitSlideTitles(livePrimaryPhoto || primaryPhoto, liveSecondaryPhoto || secondaryPhoto)
+        : null;
+      const targetPrimaryTitle = expectedSplit
+        ? targetSplitTitles.title
+        : getPhotoSlideTitle(livePrimaryPhoto || primaryPhoto);
+      const isTitleChanged = currentActiveSlide.title !== targetPrimaryTitle
+        || (expectedSplit && currentActiveSlide.title2 !== targetSplitTitles.title2);
 
       // Check if crop/zoom settings have changed and update the active slide in place
       const currentCrop1 = currentActiveSlide.cropPercent !== undefined 
@@ -250,17 +259,21 @@ function Dashboard({ state, socket, connectionInfo }) {
         currentCropY1 !== targetCropY1
       );
 
-      if (isSplitCropChanged || isSingleCropChanged) {
+      if (isSplitCropChanged || isSingleCropChanged || isTitleChanged) {
         setActiveSlides(prev => prev.map(s => {
           if (s.active && s.url === primaryPhoto.url) {
             return {
               ...s,
-              cropPercent: livePrimaryPhoto?.cropPercent,
-              cropPositionY: livePrimaryPhoto?.cropPositionY,
-              cropPercent2: liveSecondaryPhoto?.cropPercent !== undefined 
-                ? liveSecondaryPhoto.cropPercent 
-                : state.splitCropPercent,
-              cropPositionY2: liveSecondaryPhoto?.cropPositionY
+              title: targetPrimaryTitle,
+              ...(expectedSplit ? { title2: targetSplitTitles.title2 } : {}),
+              ...(isSplitCropChanged || isSingleCropChanged ? {
+                cropPercent: livePrimaryPhoto?.cropPercent,
+                cropPositionY: livePrimaryPhoto?.cropPositionY,
+                cropPercent2: liveSecondaryPhoto?.cropPercent !== undefined
+                  ? liveSecondaryPhoto.cropPercent
+                  : state.splitCropPercent,
+                cropPositionY2: liveSecondaryPhoto?.cropPositionY
+              } : {})
             };
           }
           return s;
@@ -274,7 +287,7 @@ function Dashboard({ state, socket, connectionInfo }) {
       setActiveSlides(prev => {
         const newSlide = {
           url: photo.url,
-          title: photo.title,
+          title: getPhotoSlideTitle(photo),
           author: photo.author,
           category: state.currentCategory,
           cropPercent: photo.cropPercent,
@@ -294,17 +307,18 @@ function Dashboard({ state, socket, connectionInfo }) {
       if (!photo1?.url || !photo2?.url) return;
       const dims1 = imageDimensionsCache.current[photo1.url] || {};
       const dims2 = imageDimensionsCache.current[photo2.url] || {};
+      const titles = projectSplitSlideTitles(photo1, photo2);
       setActiveSlides(prev => {
         const newSlide = {
           url: photo1.url,
-          title: photo1.title || 'Google Photos Cast',
+          title: titles.title,
           author: photo1.author || 'Lumina Google Cast',
           w: dims1.w,
           h: dims1.h,
           cropPercent: photo1.cropPercent,
           cropPositionY: photo1.cropPositionY,
           url2: photo2.url,
-          title2: photo2.title || 'Google Photos Cast',
+          title2: titles.title2,
           author2: photo2.author || 'Lumina Google Cast',
           w2: dims2.w,
           h2: dims2.h,

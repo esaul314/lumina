@@ -1732,8 +1732,10 @@ assertAsyncTest('pool image counts normalize API values and format accessible si
 });
 
 assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a local proxy URL', () => {
+  const createTime = '2024-05-10T23:30:00Z';
   const item = buildCachedMediaItem({
     id: 'picker-123',
+    createTime,
     mediaFile: {
       baseUrl: 'https://lh3.googleusercontent.com/picker-item',
       mimeType: 'image/jpeg',
@@ -1749,15 +1751,98 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
   assert.strictEqual(item.googlePickerSessionId, 'session-abc');
   assert.strictEqual(item.width, 4032);
   assert.strictEqual(item.height, 3024);
+  assert.strictEqual(item.createTime, createTime);
   assert.ok(item.addedAt, 'newly synced Google Photos items need a retention timestamp');
   const refreshed = buildCachedMediaItem(
     { id: 'picker-123', mediaFile: { baseUrl: 'https://lh3.googleusercontent.com/picker-item' } },
     'session-abc',
-    { addedAt: '2026-01-01T00:00:00.000Z' },
+    { addedAt: '2026-01-01T00:00:00.000Z', createTime },
     '2026-09-06T00:00:00Z'
   );
   assert.strictEqual(refreshed.addedAt, '2026-01-01T00:00:00.000Z');
+  assert.strictEqual(refreshed.createTime, createTime, 'an omitted refresh timestamp should retain the cached creation time');
+  assert.strictEqual(normalizeCachedMediaItem(refreshed).createTime, createTime, 'cache normalization should preserve the creation time');
   assert.strictEqual(item.mimeType, 'image/jpeg');
+});
+
+assertAsyncTest('Google Photos Picker sync stores and retains creation time across media refreshes', async () => {
+  const createTime = '2023-12-31T23:45:00Z';
+  let cacheItems = [];
+  const listMediaItems = async (sessionId) => ({
+    mediaItems: sessionId === 'session-with-date'
+      ? [{ id: 'dated-photo', createTime, baseUrl: 'https://photos.example/dated-v1', mimeType: 'image/jpeg' }]
+      : [{ id: 'dated-photo', baseUrl: 'https://photos.example/dated-v2', mimeType: 'image/jpeg' }]
+  });
+  const syncOptions = {
+    poolPolicy: { retentionDays: 3650, maxPhotos: 5000 },
+    readCache: () => cacheItems,
+    writeCache: (items) => { cacheItems = items; },
+    cleanMediaFiles: () => {},
+    downloadMediaItems: async () => {}
+  };
+
+  await googlePhotos.syncGoogleAlbum('session-with-date', {
+    now: new Date('2026-09-02T00:00:00Z'),
+    ...syncOptions,
+    listMediaItems
+  });
+  await googlePhotos.syncGoogleAlbum('session-without-date', {
+    now: new Date('2026-09-03T00:00:00Z'),
+    ...syncOptions,
+    listMediaItems
+  });
+
+  assert.strictEqual(cacheItems[0].googleBaseUrl, 'https://photos.example/dated-v2');
+  assert.strictEqual(cacheItems[0].createTime, createTime);
+});
+
+assertAsyncTest('Google Photos slide titles use localized capture dates and preserve title fallbacks', async () => {
+  const {
+    formatGooglePhotoCaptureDate,
+    getPhotoSlideTitle,
+    projectSplitSlideTitles
+  } = await importClientModule('./client/src/state/photoTitles.js');
+  const firstCreateTime = '2024-05-10T23:30:00Z';
+  const secondCreateTime = '2021-01-02T04:05:00Z';
+  const firstDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(firstCreateTime));
+  const secondDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(secondCreateTime));
+  const pickerPhoto = {
+    source: 'google_photos',
+    url: '/api/google-photos/media/first?w=2560&h=1440',
+    createTime: firstCreateTime,
+    title: 'Google Photos Picker Cast'
+  };
+
+  assert.strictEqual(formatGooglePhotoCaptureDate(firstCreateTime, 'en-US'), firstDate);
+  assert.strictEqual(formatGooglePhotoCaptureDate(undefined, 'en-US'), '');
+  assert.strictEqual(formatGooglePhotoCaptureDate('not-a-date', 'en-US'), '');
+  assert.strictEqual(getPhotoSlideTitle(pickerPhoto, 'en-US'), firstDate);
+  assert.strictEqual(getPhotoSlideTitle({ ...pickerPhoto, createTime: 'not-a-date' }, 'en-US'), 'Google Photos Picker Cast');
+  assert.strictEqual(getPhotoSlideTitle({ title: 'Unsplash title', createTime: firstCreateTime }, 'en-US'), 'Unsplash title');
+
+  assert.deepStrictEqual(projectSplitSlideTitles(
+    pickerPhoto,
+    { ...pickerPhoto, createTime: secondCreateTime, title: 'Second Picker title' },
+    'en-US'
+  ), {
+    title: firstDate,
+    title2: secondDate
+  });
+  assert.deepStrictEqual(projectSplitSlideTitles(
+    pickerPhoto,
+    { source: 'unsplash', title: 'Non-Google split title', createTime: secondCreateTime },
+    'en-US'
+  ), {
+    title: firstDate,
+    title2: 'Non-Google split title'
+  });
+
+  const dashboardSource = fs.readFileSync(
+    path.join(__dirname, 'client/src/components/Dashboard.jsx'),
+    'utf8'
+  );
+  assert.match(dashboardSource, /title: getPhotoSlideTitle\(photo\)/);
+  assert.match(dashboardSource, /projectSplitSlideTitles\(photo1, photo2\)/);
 });
 
 assertTest('buildGooglePhotoProxyUrl preserves same-origin rendering for browser previews without forced crop', () => {
