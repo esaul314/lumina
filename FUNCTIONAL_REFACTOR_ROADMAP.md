@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 
 ## Purpose
 
@@ -24,6 +24,7 @@ Current checkpoint:
 - The intentionally socket-specific tail is now explicit: connection lifecycle, viewport/reporting telemetry, transient pushes, and the on-demand Google Photos signed-URL refresh helper remain transport-owned by design.
 - Step 2 is now complete: the durable socket audit did not uncover any remaining transport-owned settings or playback mutations that still required new domain commands or effects.
 - Step 3 is now complete: `server/app.js` now delegates active-feed selection/refresh orchestration, environment refresh pipelines, kiosk/browser runtime control, and idle-daemon orchestration to dedicated runtime modules.
+- Latest playback correction: smart playback rotates eligible pools before applying within-pool preferences, and sequence playback keeps independent per-pool cursors; feed interleaving remains an explicit separate projection.
 - Step 4 is complete: the shared command/effect pipeline is more composable and legible without hiding straightforward reducer updates.
 - Step 5 is complete: the client now shares pure, partially applicable REST state-patch builders, REST-first mutation request plans, and normalized live-sync projections instead of repeating patch, fallback, or event-envelope construction in the React/API boundary.
 - The first Step 5 snapshot seam is complete: `normalizeSnapshotResponse(...)` is the pure direct-or-enveloped response projection shared by `useLuminaActions` and the app-level `state-sync` listener.
@@ -373,6 +374,7 @@ Progress note:
 - Step 6 thirty-second slice: `server/runtime/activeFeed.js` now has checked contracts for legacy category parsing, available-category normalization, and balanced feed projection; tests preserve external-pool support, exclusion behavior, and source immutability while `photosList` assignment stays in the shell.
 - Step 6 thirty-third slice: `server/runtime/idleDaemon.js` now has checked contracts for normalized host observations, daemon inputs, and screensaver transitions; tests preserve the inclusive inactivity threshold, audio/session blockers, closed action vocabulary, and immutable projections while polling and host effects stay in the runtime shell.
 - Step 6 thirty-fourth slice: `server/runtime/kioskControl.js` now has a checked closed contract for its pure runtime-context projection; tests preserve the exact three-field output and input immutability while process, governor, retry-timer, and logging effects stay in the runtime shell.
+- Persistence slice: `server/config/collectionsCodec.js` now applies first-occurrence URL deduplication to persisted pool feeds and cleans legacy duplicate rows at load while preserving other snapshot metadata; tests cover the pure immutable projection and disk migration.
 - Next Step 6 seam: audit `server/runtime/poolSchedule.js` and type its observable status projection, keeping schedule polling and command dispatch in the runtime shell.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.

@@ -64,7 +64,8 @@ function normalizePhotoTimestamp(photo) {
 
   const addedAt = normalizePhotoAddedAt(photo.addedAt);
   if (!addedAt) {
-    const { addedAt: _ignored, ...withoutTimestamp } = photo;
+    const withoutTimestamp = { ...photo };
+    delete withoutTimestamp.addedAt;
     return withoutTimestamp;
   }
 

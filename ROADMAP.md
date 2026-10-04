@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 
 ## Implementation Companion
 
@@ -94,6 +94,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing/normalization and balanced feed projections; source collections remain unchanged while `photosList` assignment stays in the runtime shell.
 - Latest Step 6 slice: `server/runtime/idleDaemon.js` now exposes checked contracts for normalized host observations, daemon inputs, and screensaver transitions; preserve the closed action vocabulary and keep polling, browser actions, timers, and broadcasts in the runtime shell.
 - Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; process, governor, retry-timer, and logging effects remain in the runtime shell.
+- Latest playback behavior: smart selection rotates among time-eligible pools before applying weather, night, and rating preferences; sequence playback keeps per-pool cursors while the visible feed remains URL-unique.
+- Latest persistence slice: collection snapshots keep exact image URLs globally unique across pools; the pure snapshot projection preserves first-pool ownership, and startup cleans legacy duplicate feed rows while preserving sibling metadata.
 - Next Step 6 seam: audit `server/runtime/poolSchedule.js` and type its observable status projection, keeping schedule polling and command dispatch in the runtime shell.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
@@ -216,7 +218,9 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/runtime/environmentRefresh.js` now documents the weather snapshot and physical-weather projection contracts, with tests for provider-field projection, reference preservation, temperature rounding, classification, and absent observations.
   - Latest Step 6 slice: `server/runtime/activeFeed.js` now documents category parsing, normalization, and balanced feed contracts, with tests for external pools, exclusions, and source immutability.
   - Latest Step 6 slice: `server/runtime/idleDaemon.js` now documents normalized observation, daemon-input, and transition contracts, with tests for the inclusive inactivity threshold, blockers, closed actions, and immutable projections.
-  - Next Step 6 seam: type `server/runtime/kioskControl.js`'s runtime-context projection while retaining process and timer effects in the runtime shell.
+  - Latest Step 6 slice: `server/runtime/kioskControl.js` now documents its closed runtime-context projection while retaining process and timer effects in the runtime shell.
+  - Latest persistence slice: collection snapshot writes and legacy-file cleanup now share first-occurrence URL deduplication across pools, with tests for immutable projection and metadata-preserving migration.
+  - Next Step 6 seam: audit `server/runtime/poolSchedule.js`'s observable status projection while retaining schedule polling and command dispatch in the runtime shell.
 
 ### Shared domain flow
 

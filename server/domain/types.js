@@ -86,6 +86,7 @@
  * @property {string | null} activePhotoUrl
  * @property {number} splitSeed
  * @property {'next' | 'prev'} lastDirection
+ * @property {Record<string, number>} poolSequenceCursors
  */
 
 /**

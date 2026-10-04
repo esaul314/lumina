@@ -11,6 +11,7 @@
 
 const {
   buildBalancedFeed,
+  filterVisiblePhotos,
   findPhotoInFeed,
   getActivePhoto,
   getPhotoByUrl,
@@ -73,7 +74,8 @@ function cloneState(state) {
     },
     playback: {
       ...state.playback,
-      selectedCategories: [...state.playback.selectedCategories]
+      selectedCategories: [...state.playback.selectedCategories],
+      poolSequenceCursors: { ...(state.playback.poolSequenceCursors || {}) }
     }
   };
 }
@@ -310,6 +312,43 @@ function updateActivePhotoUrl(state, photo, direction) {
     },
     changed
   };
+}
+
+function advancePoolSequenceCursor(state, selectedPhoto, direction) {
+  const category = selectedPhoto.category ?? '';
+  const visiblePhotos = filterVisiblePhotos(state.library.photosList, state.config.excludedKeywords);
+  const pools = new Set(visiblePhotos.map((photo) => photo.category ?? ''));
+  if (pools.size < 2) {
+    return state;
+  }
+
+  const poolPhotos = visiblePhotos.filter((photo) => (photo.category ?? '') === category);
+  const selectedIndex = poolPhotos.findIndex((photo) => photo.url === selectedPhoto.url);
+
+  if (selectedIndex === -1 || poolPhotos.length === 0) {
+    return state;
+  }
+
+  const cursors = { ...(state.playback.poolSequenceCursors || {}) };
+  const currentPhoto = visiblePhotos.find((photo) => photo.url === state.playback.activePhotoUrl);
+  if (currentPhoto && (currentPhoto.category ?? '') !== category) {
+    const currentCategory = currentPhoto.category ?? '';
+    const currentPoolPhotos = visiblePhotos.filter((photo) => (photo.category ?? '') === currentCategory);
+    const currentIndex = currentPoolPhotos.findIndex((photo) => photo.url === currentPhoto.url);
+    if (currentIndex !== -1) {
+      cursors[currentCategory] = direction === 'prev'
+        ? currentIndex
+        : (currentIndex + 1) % currentPoolPhotos.length;
+    }
+  }
+
+  const nextCursor = direction === 'prev'
+    ? selectedIndex
+    : (selectedIndex + 1) % poolPhotos.length;
+
+  cursors[category] = nextCursor;
+  state.playback.poolSequenceCursors = cursors;
+  return state;
 }
 
 function ensureActivePhoto(state, { now, rng, direction = 'next', forceReselect = false }) {
@@ -721,6 +760,9 @@ function removePoolState(nextState, name) {
   if (nextState.config.poolPolicies) {
     delete nextState.config.poolPolicies[name];
   }
+  if (nextState.playback.poolSequenceCursors) {
+    delete nextState.playback.poolSequenceCursors[name];
+  }
   nextState.playback.selectedCategories = normalizeCategorySelection(
     nextState.playback.selectedCategories.filter((category) => category !== name),
     Object.keys(nextState.library.collections),
@@ -1093,6 +1135,7 @@ const reduceFeedCommand = {
     readPayload: readSelectedCategoriesPayload,
     apply: (nextState, { categories }) => {
       nextState.playback.selectedCategories = [...categories];
+      nextState.playback.poolSequenceCursors = {};
       return true;
     },
     forceReselect: true,
@@ -1170,7 +1213,12 @@ const reducePlaybackCommand = {
         ? selectSequentialPhoto({ state, direction })
         : selectSmartPhoto({ state, direction, now, rng })
     ),
-    resolveDirection: ({ direction }) => direction
+    resolveDirection: ({ direction }) => direction,
+    prepareState: (nextState, { direction, strategy }, selectedPhoto) => (
+      strategy === 'sequence'
+        ? advancePoolSequenceCursor(nextState, selectedPhoto, direction)
+        : nextState
+    )
   })
 };
 

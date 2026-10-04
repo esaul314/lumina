@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Persist Shared Pool Images Once
+
+- **Finding**: startup normalized duplicate image URLs out of the in-memory collections, but snapshot writes could persist the same URL again under another pool. Legacy duplicates also remained in the JSON file after startup normalization.
+- **Correction**: the persisted snapshot projection now keeps the first URL occurrence across pools, and startup cleans duplicate rows from existing feed data while preserving unrelated top-level snapshot metadata. Normalization runs the same deduplication after fallback restoration so defaults cannot reintroduce a duplicate.
+- **Regression coverage**: added pure snapshot assertions for first-pool ownership and input immutability, plus a temporary-file migration check for disk cleanup and sibling metadata preservation.
+- **Functional boundary**: ordered URL deduplication stays a deterministic codec projection; only the existing collection-load/save shell performs filesystem reads and writes.
+- **Verification**: `npm test` passed with 359 tests executed, 357 assertions, 0 failures, and 13/13 sensor-adapter regressions; the temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`. `npm run lint` passed with 0 errors or warnings after the small unused-binding cleanup; the client production build passed. `node --check` and `git diff --check` passed.
+
+### 2026-10-04: Reconcile Pending Pool Playback Work
+
+- **Finding**: pool-balancing code, tests, and partial notes were already present as uncommitted work; the product roadmap still described the earlier playback policy, and the companion checkpoint did not mention the behavior.
+- **Correction**: verified the pending smart/sequence pool rotation against the current suite and aligned both roadmap checkpoints. The selector/reducer boundary owns pool rotation; the collection codec independently owns persistent URL uniqueness.
+- **Maintenance**: removed three pre-existing unused-variable lint warnings. Timestamp normalization still returns a spread clone without `addedAt`; the other two changes remove unused imports only.
+- **Workflow backlog**: `.agents/skills` contains the diagnostics workflow but not the roadmap or publish procedures available in the host memory skills; the portability fix is recorded in `AGENTS.md`.
+- **Verification**: `npm test` passed with 359 tests executed, 357 assertions, 0 failures, and 13/13 sensor-adapter regressions; `npm run lint` passed with 0 warnings; the client production build passed. The temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`.
+
 ### 2026-10-03: Type the Kiosk Runtime-Context Projection
 
 - **Finding**: `createKioskControlRuntime(...)` already exposed a small read-only context to the idle daemon, but its exact field vocabulary was implicit beside process and timer orchestration.
@@ -13,6 +29,14 @@ This document serves as a public-facing, generic history of technical developmen
 - **Regression coverage**: verified the projection returns only the three public fields without mutating its input, and checked that the runtime reflects deferred-manual and running kiosk states accurately.
 - **Functional boundary**: kept process launch/kill, CPU-governor changes, retry timers, crash-loop policy, and logging in `createKioskControlRuntime(...)`.
 - **Verification**: `npm test` passed with 356 executed tests, 354 assertions, 0 failures, and 13/13 sensor-adapter regressions; the temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`. `npm run lint` passed with 0 errors and 3 existing warnings; `node --check` and `git diff --check` passed.
+
+### 2026-09-28: Balance Playback Frequency Across Active Pools
+
+- **Finding**: the visible feed was interleaved, but automatic selection weighted every photo together. Larger pools and higher average ratings therefore received a larger share, and global weather filtering could remove an unmatched pool from most selections.
+- **Correction**: smart playback now rotates among pools with time-eligible photos, then applies weather, night, and rating preferences within the chosen pool. Sequence playback also rotates pool categories and keeps per-pool cursors so smaller pools repeat without duplicating rows in the visible feed.
+- **Regression coverage**: added unequal-size and unequal-rating pool distribution checks, a weather mismatch case, and multi-pool playback sequences that cycle a one-photo Google Photos pool beside a three-photo curated pool.
+- **Verification**: `npm test` passed with 346 assertions and 0 failures plus 13/13 sensor-adapter regressions; the temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`. `npm run lint` passed with 0 errors and 3 existing warnings.
+- **Learning**: a round-robin feed layout alone does not guarantee balanced playback when selection later weights or filters individual photos; pool choice needs its own explicit policy.
 
 ### 2026-09-28: Type the Environment Refresh Weather Projections
 

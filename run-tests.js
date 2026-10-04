@@ -2065,7 +2065,6 @@ assertAsyncTest('fetchMediaItemBytes lazy-downloads and caches non-mock media to
   const testId = 'test-non-mock-id';
   const filePath = getLocalMediaFilePath(testId);
   const fs = require('fs');
-  const path = require('path');
   
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);

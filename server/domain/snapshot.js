@@ -39,7 +39,8 @@
  *   activePhoto?: Photo | null,
  *   activeSecondPhoto?: Photo | null,
  *   splitSeed?: number,
- *   lastDirection?: 'next' | 'prev'
+ *   lastDirection?: 'next' | 'prev',
+ *   poolSequenceCursors?: Record<string, number>
  * }} LegacyState
  */
 
@@ -151,7 +152,8 @@ function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
       selectedCategories,
       activePhotoUrl: legacyState.activePhoto?.url || null,
       splitSeed: legacyState.splitSeed || 0,
-      lastDirection: legacyState.lastDirection || 'next'
+      lastDirection: legacyState.lastDirection || 'next',
+      poolSequenceCursors: { ...(legacyState.poolSequenceCursors || {}) }
     }
   };
 }
@@ -229,6 +231,7 @@ function applyDomainState(legacyState, collections, domainState) {
   legacyState.currentFrame = currentFrame;
   legacyState.splitSeed = domainState.playback.splitSeed;
   legacyState.lastDirection = domainState.playback.lastDirection;
+  legacyState.poolSequenceCursors = { ...domainState.playback.poolSequenceCursors };
   legacyState.activePhoto = activePhoto;
   legacyState.activeSecondPhoto = activeSecondPhoto;
 

@@ -18,10 +18,7 @@ const { createDomainDispatcher } = require('./domain/dispatch.js');
 const { applyPoolPolicy } = require('./domain/poolRetention.js');
 const {
   buildBalancedFeed,
-  filterPhotosForNight,
-  filterPhotosForTime,
-  filterPhotosForWeather,
-  selectWeightedRandomPhoto: selectWeightedRandomPhotoFromSelectors,
+  selectSmartPhotoFromFeed,
   isTimeInSchedule
 } = require('./domain/selectors.js');
 const { syncLegacySnapshot } = require('./domain/snapshot.js');
@@ -287,14 +284,28 @@ const getActiveCategories = activeFeedRuntime.getActiveCategories;
 
 /**
  * 🎯 selectWeightedRandomPhoto
- * Picks a photo from a list based on ratings. Rating=1 is blocked (Weight=0).
- * Scales ratings 2-10 linearly (2=0.2, 10=1.0).
+ * Chooses an active pool uniformly, then applies mood and rating preferences
+ * within that pool. Rating=1 photos remain excluded.
  */
-function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
-  return selectWeightedRandomPhotoFromSelectors({
+function selectWeightedRandomPhoto(photos, currentPhotoUrl = null, direction = 'next') {
+  const currentPhoto = photos.find((photo) => photo.url === currentPhotoUrl);
+  return selectSmartPhotoFromFeed({
     photos,
     currentPhotoUrl,
-    excludedKeywords: screensaverState.excludedKeywords
+    previousCategory: currentPhoto?.category ?? null,
+    direction,
+    excludedKeywords: screensaverState.excludedKeywords,
+    alignWeather: screensaverState.alignWeather,
+    physicalMatch: screensaverState.physicalWeather?.weatherMatch ?? 'Cloudy',
+    newsMatch: screensaverState.newsSentiment?.weatherMatch ?? 'Cloudy',
+    alignTimeOfDay: screensaverState.alignTimeOfDay,
+    isNight: serverWeatherData?.current
+      ? serverWeatherData.current.is_day === 0
+      : (() => {
+          const hour = new Date().getHours();
+          return hour >= 18 || hour < 6;
+        })(),
+    nightPercentage: screensaverState.nightPercentage
   });
 }
 
@@ -303,32 +314,11 @@ function selectWeightedRandomPhoto(photos, currentPhotoUrl = null) {
  * Dynamic weighted select algorithm mapping physical weather & news sentiment to wallpaper lists,
  * resolved through a Cumulative Distribution Function (CDF) rating-weighted engine.
  */
-function getSmartPhoto(_direction = 'next') {
+function getSmartPhoto(direction = 'next') {
   const list = screensaverState.photosList;
   if (!list?.length) return null;
-
-  const isNight = serverWeatherData?.current
-    ? serverWeatherData.current.is_day === 0
-    : (() => {
-        const hour = new Date().getHours();
-        return hour >= 18 || hour < 6;
-      })();
-
-  const physicalMatch = screensaverState.physicalWeather?.weatherMatch ?? 'Cloudy';
-  const newsMatch = screensaverState.newsSentiment?.weatherMatch ?? 'Cloudy';
-
-  const now = new Date();
-
-  // Composed pipeline of pure functional filters
-  const candidates = pipe(
-    (photos) => filterPhotosForTime(photos, now),
-    (photos) => filterPhotosForWeather(photos, screensaverState.alignWeather, physicalMatch, newsMatch),
-    (photos) => filterPhotosForNight(photos, screensaverState.alignTimeOfDay, isNight, screensaverState.nightPercentage)
-  )(list);
-
-  // Delegate selection to the weighted CDF probability engine
   const currentPhotoUrl = screensaverState.activePhoto?.url;
-  return selectWeightedRandomPhoto(candidates, currentPhotoUrl);
+  return selectWeightedRandomPhoto(list, currentPhotoUrl, direction);
 }
 
 const { analyzeImageContent } = require('./services/vision.js');

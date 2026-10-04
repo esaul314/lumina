@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, Clock, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
 import { readJson } from '../api/jsonClient.js';
 import { selectCategories, setScreensaverActive as requestScreensaverState } from '../api/luminaClient';
 import {

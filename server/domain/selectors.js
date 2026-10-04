@@ -85,6 +85,19 @@ function uniqByUrl(photos) {
   });
 }
 
+function groupPhotosByCategory(photos) {
+  const pools = new Map();
+
+  photos.forEach((photo) => {
+    const category = photo.category ?? '';
+    const pool = pools.get(category) ?? [];
+    pool.push(photo);
+    pools.set(category, pool);
+  });
+
+  return [...pools.entries()].map(([category, poolPhotos]) => ({ category, photos: poolPhotos }));
+}
+
 function shuffleWithRng(list, rng = Math.random) {
   const shuffled = [...list];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -279,11 +292,16 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
     return null;
   }
 
-  const withoutCurrent = currentPhotoUrl && candidates.length > 1
-    ? candidates.filter((photo) => photo.url !== currentPhotoUrl)
-    : candidates;
+  const pools = groupPhotosByCategory(candidates);
+  const pool = pools.length === 1
+    ? pools[0]
+    : pools[Math.min(Math.floor(rng() * pools.length), pools.length - 1)];
+  const poolCandidates = pool.photos;
+  const withoutCurrent = currentPhotoUrl && poolCandidates.length > 1
+    ? poolCandidates.filter((photo) => photo.url !== currentPhotoUrl)
+    : poolCandidates;
 
-  const weightedCandidates = withoutCurrent.length > 0 ? withoutCurrent : candidates;
+  const weightedCandidates = withoutCurrent.length > 0 ? withoutCurrent : poolCandidates;
 
   const thresholdMap = weightedCandidates.reduce((accumulator, photo) => {
     const weight = (photo.rating ?? 10) / 10;
@@ -300,6 +318,48 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
 
   const target = rng() * thresholdMap.total;
   return thresholdMap.items.find((item) => item.threshold >= target)?.photo ?? weightedCandidates.at(-1);
+}
+
+function selectSmartPhotoFromFeed({
+  photos,
+  currentPhotoUrl = null,
+  previousCategory = null,
+  direction = 'next',
+  excludedKeywords = [],
+  alignWeather = false,
+  physicalMatch = 'Cloudy',
+  newsMatch = 'Cloudy',
+  alignTimeOfDay = false,
+  isNight = false,
+  nightPercentage = 50,
+  now = new Date(),
+  rng = Math.random
+}) {
+  const visiblePhotos = filterVisiblePhotos(photos, excludedKeywords);
+  const pools = groupPhotosByCategory(filterPhotosForTime(visiblePhotos, now));
+  if (pools.length === 0) {
+    return null;
+  }
+
+  const previousPoolIndex = pools.findIndex((pool) => pool.category === previousCategory);
+  const pool = pools.length === 1
+    ? pools[0]
+    : previousPoolIndex !== -1
+      ? pools[wrapIndex(pools.length, previousPoolIndex + getDirectionStep(direction))]
+      : pools[Math.min(Math.floor(rng() * pools.length), pools.length - 1)];
+  const candidates = filterPhotosForNight(
+    filterPhotosForWeather(pool.photos, alignWeather, physicalMatch, newsMatch, rng),
+    alignTimeOfDay,
+    isNight,
+    nightPercentage,
+    rng
+  );
+
+  return selectWeightedRandomPhoto({
+    photos: candidates,
+    currentPhotoUrl,
+    rng
+  });
 }
 
 function wrapIndex(length, index) {
@@ -324,6 +384,23 @@ function selectSequentialPhoto({ state, direction = 'next' }) {
     return null;
   }
 
+  const pools = groupPhotosByCategory(photos);
+  if (pools.length > 1) {
+    const currentPhoto = photos.find((photo) => photo.url === state.playback.activePhotoUrl);
+    const currentPoolIndex = pools.findIndex((pool) => pool.category === (currentPhoto?.category ?? ''));
+    const step = getDirectionStep(direction);
+    const targetPoolIndex = currentPoolIndex === -1
+      ? (direction === 'prev' ? pools.length - 1 : 0)
+      : wrapIndex(pools.length, currentPoolIndex + step);
+    const targetPool = pools[targetPoolIndex];
+    const cursor = state.playback.poolSequenceCursors?.[targetPool.category] ?? 0;
+    const targetPhotoIndex = direction === 'prev'
+      ? wrapIndex(targetPool.photos.length, cursor - 1)
+      : wrapIndex(targetPool.photos.length, cursor);
+
+    return targetPool.photos[targetPhotoIndex] ?? null;
+  }
+
   const currentIndex = findPhotoIndexByUrl(photos, state.playback.activePhotoUrl);
   const nextIndex = currentIndex === -1
     ? getSequenceFallbackIndex(direction, photos)
@@ -333,26 +410,25 @@ function selectSequentialPhoto({ state, direction = 'next' }) {
 }
 
 function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = Math.random }) {
-  const basePhotos = filterPhotosForNight(
-    filterPhotosForWeather(
-      filterPhotosForTime(state.library.photosList, now),
-      state.config.alignWeather,
-      String(state.runtime.physicalWeather?.weatherMatch ?? 'Cloudy'),
-      String(state.runtime.newsSentiment?.weatherMatch ?? 'Cloudy'),
-      rng
-    ),
-    state.config.alignTimeOfDay,
-    state.runtime.weather?.current
-      ? state.runtime.weather.current.is_day === 0
-      : now.getHours() >= 18 || now.getHours() < 6,
-    state.config.nightPercentage,
-    rng
+  const currentPhoto = state.library.photosList.find((photo) =>
+    photo.url === state.playback.activePhotoUrl
   );
 
-  return selectWeightedRandomPhoto({
-    photos: basePhotos,
+  return selectSmartPhotoFromFeed({
+    photos: state.library.photosList,
     currentPhotoUrl: direction === 'prev' ? null : state.playback.activePhotoUrl,
+    previousCategory: currentPhoto?.category ?? null,
+    direction,
     excludedKeywords: state.config.excludedKeywords,
+    alignWeather: state.config.alignWeather,
+    physicalMatch: String(state.runtime.physicalWeather?.weatherMatch ?? 'Cloudy'),
+    newsMatch: String(state.runtime.newsSentiment?.weatherMatch ?? 'Cloudy'),
+    alignTimeOfDay: state.config.alignTimeOfDay,
+    isNight: state.runtime.weather?.current
+      ? state.runtime.weather.current.is_day === 0
+      : now.getHours() >= 18 || now.getHours() < 6,
+    nightPercentage: state.config.nightPercentage,
+    now,
     rng
   });
 }
@@ -439,6 +515,7 @@ module.exports = {
   normalizeCategorySelection,
   selectSequentialPhoto,
   selectSmartPhoto,
+  selectSmartPhotoFromFeed,
   selectWeightedRandomPhoto,
   shuffleWithRng,
   updatePhotoInCollections,

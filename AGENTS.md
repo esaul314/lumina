@@ -49,6 +49,7 @@ Current migration checkpoint:
 - `client/src/api/jsonClient.js` carries checked client-owned contracts for parsed API error payloads, request options, and generic JSON results; preserve media-type/error interpretation at the shared transport edge and keep view-specific state outside it.
 - `client/src/state/swipeGesture.js` carries checked pure contracts for touch-coordinate decoding and strict-threshold direction/status projection; preserve its null-safe malformed-input fallback and keep action callbacks/timers in `useSwipeGesture.js`.
 - `client/src/state/cropDrag.js` carries checked pure contracts for pointer-coordinate decoding and bounded crop-position projection; preserve its null-safe malformed-input fallback and keep DOM listeners, timeout coalescing, React state, and crop actions in `useCropDrag.js`.
+- `server/domain/selectors.js` keeps the visible feed unique while automatic playback rotates eligible pools evenly; rating, weather, and night preferences apply within the chosen pool, and sequence playback round-robins pools with per-pool cursors.
 - `App.jsx` is the sole client owner of normalized `state-sync` application; Dashboard effects should derive from its `state` prop rather than registering duplicate raw snapshot listeners. Keep only genuinely local transient guards in the view.
 - RemoteControl live acknowledgements should use pure status/event projections plus declarative subscription records when event branches share policy; credential-specific input clearing and job-specific React targets remain in the view effect shell.
 - App photo acknowledgements should use the pure side-aware event projection and declarative subscription records; `state-sync`, connection lifecycle, and transport-specific telemetry remain explicit because their policies differ.
@@ -78,6 +79,7 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing, normalization, and balanced feed projections; preserve source collections and keep `photosList` mutation in the runtime shell.
 - Latest Step 6 slice: `server/runtime/idleDaemon.js` now exposes checked contracts for host observations, daemon inputs, and screensaver transitions; preserve the closed action vocabulary and keep polling/browser/timer/broadcast effects in the shell.
 - Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; preserve the exact three-field output and keep process/governor/retry-timer/logging effects in the shell.
+- Latest persistence slice: `server/config/collectionsCodec.js` keeps exact image URLs unique across persisted pools with a pure first-occurrence projection; startup removes legacy duplicate feed rows while preserving sibling snapshot metadata.
 - Next Step 6 seam: audit `server/runtime/poolSchedule.js` and type its observable status projection, keeping schedule polling and command dispatch in the shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
@@ -388,3 +390,4 @@ If you are an AI agent or a developer tasked with extending Lumina, here are exc
 * **OAuth Google Photos integration**: Implement the actual server-side token storage and Google OAuth redirect handler in `server.js` to back the existing credentials input forms in `RemoteControl.jsx`.
 * **Smart Home Integrations**: Add an Express webhook (e.g. `POST /api/alert`) that temporarily overlays push notification bubbles on the TV view (e.g. "Front door bell rang") using standard Socket.io events.
 * **Audio Spectrum Visualizer Widget**: Connect to a local browser audio node when screensaver animations are active to draw a matching organic visualizer bar at the bottom screen borders.
+* **Repository-owned agent workflows**: Add portable roadmap-slice and Git-publish instructions under `.agents/skills` or tracked docs; this checkout currently has no repo-local copies, so a clean environment may depend on host-local Codex memory.

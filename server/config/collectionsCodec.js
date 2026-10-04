@@ -52,6 +52,7 @@ function ensureUsableCategory(category, photos, fallbackCollections) {
   return cloneCategoryEntries(category, photos);
 }
 
+/** Keep the first exact URL occurrence across pools in collection order. */
 function dedupeCollections(collections) {
   const seenUrls = new Set();
   let duplicatesRemoved = false;
@@ -59,7 +60,7 @@ function dedupeCollections(collections) {
   return {
     collections: Object.fromEntries(
       Object.entries(collections).map(([category, photos]) => {
-        const uniquePhotos = photos.filter((photo) => {
+        const uniquePhotos = (Array.isArray(photos) ? photos : []).filter((photo) => {
           if (!photo?.url) {
             return false;
           }
@@ -87,12 +88,16 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
   );
 
   const { collections: dedupedCollections, duplicatesRemoved } = dedupeCollections(mergedCollections);
-  const collections = Object.fromEntries(
+  const fallbackCollections = Object.fromEntries(
     Object.entries(dedupedCollections).map(([category, photos]) => [
       category,
       ensureUsableCategory(category, photos, defaultCollections)
     ])
   );
+  const {
+    collections,
+    duplicatesRemoved: fallbackDuplicatesRemoved
+  } = dedupeCollections(fallbackCollections);
   const searchKeywords = normalizeKeywordsMap(rawData?.searchKeywords, defaultState.searchKeywords ?? {});
   const rawFeedConfigs = rawData?.feedConfigs ?? {};
   const feedConfigs = Object.keys(rawFeedConfigs).length > 0
@@ -120,7 +125,7 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
         ? rawData.excludedKeywords.map((keyword) => String(keyword).trim()).filter(Boolean)
         : [...(defaultState.excludedKeywords ?? [])]
     },
-    duplicatesRemoved
+    duplicatesRemoved: duplicatesRemoved || fallbackDuplicatesRemoved
   };
 }
 
@@ -138,10 +143,11 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
     splitCropPercent,
     excludedKeywords
   } = state;
+  const uniqueCollections = dedupeCollections(cloneCollectionEntries(collections)).collections;
   const payload = {
     lastUpdated: timestamp,
     lastFeedUpdated,
-    feeds: cloneCollectionEntries(collections)
+    feeds: uniqueCollections
   };
 
   if (searchKeywords) {
@@ -203,11 +209,25 @@ function loadCollectionsSnapshot({ jsonPath, defaultCollections, defaultState, b
 
   try {
     const rawData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-    return normalizePersistedSnapshot(rawData, {
+    const snapshot = normalizePersistedSnapshot(rawData, {
       defaultCollections,
       defaultState,
       buildFeedConfigsFromKeywords
     });
+    const {
+      collections: persistedFeeds,
+      duplicatesRemoved: persistedDuplicatesRemoved
+    } = dedupeCollections(rawData?.feeds ?? {});
+
+    if (persistedDuplicatesRemoved) {
+      try {
+        fs.writeFileSync(jsonPath, JSON.stringify({ ...rawData, feeds: persistedFeeds }, null, 2), 'utf8');
+      } catch (error) {
+        console.warn('Collections Config: Failed to persist duplicate-feed cleanup:', error.message);
+      }
+    }
+
+    return snapshot;
   } catch (error) {
     return {
       ...normalizePersistedSnapshot({}, {

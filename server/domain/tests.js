@@ -1,6 +1,9 @@
 // @ts-check
 
 const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const {
   SOCKET_ASYNC_JOB_COMMAND_SPECS,
   SOCKET_COMMAND_LISTENER_SPECS,
@@ -48,6 +51,7 @@ const {
 const { reduceDomainCommand } = require('./reducer.js');
 const {
   buildPersistedSnapshot,
+  loadCollectionsSnapshot,
   normalizePersistedSnapshot
 } = require('../config/collectionsCodec.js');
 const { createClosedInterpreter, createIndexedInterpreter } = require('../utils/fn.js');
@@ -141,7 +145,8 @@ function createState(overrides = {}) {
       selectedCategories: ['Liminal Spaces'],
       activePhotoUrl: 'port-1',
       splitSeed: 1,
-      lastDirection: 'next'
+      lastDirection: 'next',
+      poolSequenceCursors: {}
     }
   };
 
@@ -220,6 +225,31 @@ function runDomainTests({ logSuite, assertTest }) {
       rng: () => 0.9
     });
     assert.strictEqual(picked?.url, 'high');
+  });
+
+  assertTest('weighted selection gives each active pool equal share regardless of pool size or ratings', () => {
+    const photos = [
+      { url: 'google-1', category: 'Google Photos', rating: 2 },
+      { url: 'nature-1', category: 'Scenic Nature', rating: 10 },
+      { url: 'nature-2', category: 'Scenic Nature', rating: 10 },
+      { url: 'nature-3', category: 'Scenic Nature', rating: 10 },
+      { url: 'nature-4', category: 'Scenic Nature', rating: 10 }
+    ];
+    const counts = { 'Google Photos': 0, 'Scenic Nature': 0 };
+
+    for (let index = 0; index < 100; index += 1) {
+      let call = 0;
+      const selected = selectWeightedRandomPhoto({
+        photos,
+        rng: () => {
+          call += 1;
+          return call === 1 ? (index + 0.5) / 100 : 0.5;
+        }
+      });
+      counts[selected.category] += 1;
+    }
+
+    assert.deepStrictEqual(counts, { 'Google Photos': 50, 'Scenic Nature': 50 });
   });
 
   assertTest('advance-photo command decoder preserves an explicit sequence strategy', () => {
@@ -2304,6 +2334,109 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(photo?.url, 'port-1');
   });
 
+  assertTest('smart photo selection keeps pool shares equal when weather matches only one pool', () => {
+    const baseState = createState();
+    const state = createState({
+      config: { ...baseState.config, alignWeather: true },
+      runtime: {
+        ...baseState.runtime,
+        physicalWeather: { weatherMatch: 'Snowy' }
+      },
+      library: {
+        ...baseState.library,
+        photosList: [
+          { url: 'google-cloudy', category: 'Google Photos', rating: 10, isCloudy: true },
+          { url: 'nature-snow-1', category: 'Scenic Nature', rating: 10, isSnowy: true },
+          { url: 'nature-snow-2', category: 'Scenic Nature', rating: 10, isSnowy: true },
+          { url: 'nature-snow-3', category: 'Scenic Nature', rating: 10, isSnowy: true }
+        ]
+      },
+      playback: {
+        ...baseState.playback,
+        activePhotoUrl: null,
+        selectedCategories: ['Google Photos', 'Scenic Nature']
+      }
+    });
+
+    const photo = selectSmartPhoto({
+      state,
+      now: new Date('2026-06-27T12:00:00'),
+      rng: () => 0
+    });
+
+    assert.strictEqual(photo?.category, 'Google Photos');
+  });
+
+  assertTest('automatic smart playback rotates unequal pools instead of weighting their photo counts', () => {
+    const baseState = createState();
+    let state = createState({
+      library: {
+        ...baseState.library,
+        photosList: [
+          { url: 'nature-1', category: 'Scenic Nature', rating: 10 },
+          { url: 'google-1', category: 'Google Photos', rating: 2 },
+          { url: 'nature-2', category: 'Scenic Nature', rating: 10 },
+          { url: 'nature-3', category: 'Scenic Nature', rating: 10 }
+        ]
+      },
+      playback: {
+        ...baseState.playback,
+        selectedCategories: ['Scenic Nature', 'Google Photos'],
+        activePhotoUrl: 'nature-1'
+      }
+    });
+    const categories = [];
+
+    for (let index = 0; index < 8; index += 1) {
+      const photo = selectSmartPhoto({ state, rng: () => 0.1 });
+      categories.push(photo.category);
+      state = {
+        ...state,
+        playback: { ...state.playback, activePhotoUrl: photo.url }
+      };
+    }
+
+    assert.deepStrictEqual(categories, [
+      'Google Photos', 'Scenic Nature', 'Google Photos', 'Scenic Nature',
+      'Google Photos', 'Scenic Nature', 'Google Photos', 'Scenic Nature'
+    ]);
+  });
+
+  assertTest('sequence advance rotates pools equally and cycles each pool independently', () => {
+    const baseState = createState();
+    const state = createState({
+      library: {
+        ...baseState.library,
+        photosList: [
+          { url: 'nature-1', category: 'Scenic Nature', rating: 10 },
+          { url: 'google-1', category: 'Google Photos', rating: 10 },
+          { url: 'nature-2', category: 'Scenic Nature', rating: 10 },
+          { url: 'nature-3', category: 'Scenic Nature', rating: 10 }
+        ]
+      },
+      playback: {
+        ...baseState.playback,
+        selectedCategories: ['Scenic Nature', 'Google Photos'],
+        activePhotoUrl: 'nature-1',
+        poolSequenceCursors: {}
+      }
+    });
+    const urls = [];
+    let current = state;
+
+    for (let index = 0; index < 6; index += 1) {
+      current = reduceDomainCommand(current, {
+        type: 'advance-photo',
+        payload: { direction: 'next', strategy: 'sequence' }
+      }).nextState;
+      urls.push(current.playback.activePhotoUrl);
+    }
+
+    assert.deepStrictEqual(urls, [
+      'google-1', 'nature-2', 'google-1', 'nature-3', 'google-1', 'nature-1'
+    ]);
+  });
+
   assertTest('persistence codec normalizes legacy shapes and restores feed configs', () => {
     const normalized = normalizePersistedSnapshot({
       feeds: {
@@ -2336,6 +2469,21 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('persistence fallback restoration cannot reintroduce a shared image URL', () => {
+    const normalized = normalizePersistedSnapshot({}, {
+      defaultCollections: {
+        'Scenic Nature': [{ url: 'shared-default', title: 'First pool default' }],
+        'Liminal Spaces': [{ url: 'shared-default', title: 'Duplicate pool default' }]
+      },
+      defaultState: { searchKeywords: {}, autoLocation: false, manualLocation: {}, excludedKeywords: [] },
+      buildFeedConfigsFromKeywords: () => ({})
+    });
+
+    assert.deepStrictEqual(normalized.collections['Scenic Nature'].map((photo) => photo.url), ['shared-default']);
+    assert.deepStrictEqual(normalized.collections['Liminal Spaces'], []);
+    assert.strictEqual(normalized.duplicatesRemoved, true);
+  });
+
   assertTest('persistence codec round-trips canonical snapshot fields', () => {
     const persisted = buildPersistedSnapshot(createState().library.collections, {
       searchKeywords: createState().config.searchKeywords,
@@ -2360,6 +2508,73 @@ function runDomainTests({ logSuite, assertTest }) {
       maxPhotos: 500,
       schedule: { enabled: false, start: '22:00', end: '06:00', priority: 0 }
     });
+  });
+
+  assertTest('persisted collection snapshots keep each image URL in its first pool only', () => {
+    const collections = {
+      'Scenic Nature': [
+        { url: 'shared-image', title: 'First pool representation' },
+        { url: 'nature-only', title: 'Nature image' }
+      ],
+      'Liminal Spaces': [
+        { url: 'shared-image', title: 'Duplicate pool representation' },
+        { url: 'liminal-only', title: 'Liminal image' }
+      ]
+    };
+
+    const persisted = buildPersistedSnapshot(collections, {}, 456);
+
+    assert.deepStrictEqual(persisted.feeds, {
+      'Scenic Nature': [
+        { url: 'shared-image', title: 'First pool representation', category: 'Scenic Nature' },
+        { url: 'nature-only', title: 'Nature image', category: 'Scenic Nature' }
+      ],
+      'Liminal Spaces': [
+        { url: 'liminal-only', title: 'Liminal image', category: 'Liminal Spaces' }
+      ]
+    });
+    assert.strictEqual(collections['Liminal Spaces'][0].url, 'shared-image');
+  });
+
+  assertTest('collection loading removes duplicate image URLs from disk and preserves sibling metadata', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-collection-codec-'));
+    const jsonPath = path.join(directory, 'curated_collections.json');
+    const originalSnapshot = {
+      customMetadata: { retained: true },
+      feeds: {
+        'Scenic Nature': [
+          { url: 'shared-image', title: 'First pool representation' },
+          { url: 'nature-only', title: 'Nature image' }
+        ],
+        'Liminal Spaces': [
+          { url: 'shared-image', title: 'Duplicate pool representation' },
+          { url: 'liminal-only', title: 'Liminal image' }
+        ]
+      }
+    };
+
+    try {
+      fs.writeFileSync(jsonPath, JSON.stringify(originalSnapshot), 'utf8');
+      const loaded = loadCollectionsSnapshot({
+        jsonPath,
+        defaultCollections: { 'Scenic Nature': [], 'Liminal Spaces': [] },
+        defaultState: { searchKeywords: {}, autoLocation: false, manualLocation: {}, excludedKeywords: [] },
+        buildFeedConfigsFromKeywords: () => ({})
+      });
+      const persistedSnapshot = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+
+      assert.strictEqual(loaded.duplicatesRemoved, true);
+      assert.deepStrictEqual(persistedSnapshot.customMetadata, originalSnapshot.customMetadata);
+      assert.deepStrictEqual(persistedSnapshot.feeds['Scenic Nature'].map((photo) => photo.url), [
+        'shared-image',
+        'nature-only'
+      ]);
+      assert.deepStrictEqual(persistedSnapshot.feeds['Liminal Spaces'].map((photo) => photo.url), [
+        'liminal-only'
+      ]);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   assertTest('pool schedules normalize daily windows and resolve overnight priority', () => {
