@@ -1,12 +1,23 @@
+// @ts-check
+
 const config = require('./configLoader.js');
 const { collectKeywordTerms } = require('../utils/keywordSpecs.js');
 
+/** @typedef {Record<string, unknown>} FeedSourceConfig */
+/** @typedef {Record<string, FeedSourceConfig>} CategoryFeedConfig */
+/** @typedef {Record<string, unknown>} KeywordMap */
+
+/**
+ * @param {string[]} keywords
+ * @returns {CategoryFeedConfig}
+ */
 const createKeywordSourceConfig = (keywords) => ({
   unsplash: { enabled: true, keywords: [...keywords] },
   wallhaven: { enabled: true, keywords: [...keywords] },
   tumblrTags: { enabled: false, tags: [...keywords] }
 });
 
+/** @type {Readonly<Record<string, FeedSourceConfig>>} */
 const builtInFeedConfigOverrides = Object.freeze({
   'Scenic Nature': {
     reddit: { enabled: true, subreddits: ['EarthPorn', 'landscapephotography'] },
@@ -36,6 +47,12 @@ const builtInFeedConfigOverrides = Object.freeze({
   }
 });
 
+/**
+ * Project ordered keyword terms into shared search sources plus category defaults.
+ *
+ * @param {KeywordMap} keywordsMap
+ * @returns {Record<string, CategoryFeedConfig>}
+ */
 function buildFeedConfigsFromKeywords(keywordsMap) {
   return Object.fromEntries(
     Object.entries(keywordsMap).map(([category, kws]) => {
@@ -59,6 +76,7 @@ const defaultKeywords = {
   'AI Creations': ['surreal digital art', 'generative art', 'midjourney landscape', 'cyberpunk landscape']
 };
 
+/** @type {unknown} */
 let _activePhoto = null;
 
 /**
@@ -70,6 +88,7 @@ const screensaverState = {
   get activePhoto() {
     return _activePhoto;
   },
+  /** @param {unknown} val */
   set activePhoto(val) {
     _activePhoto = val;
     this.activeSecondPhoto = null;

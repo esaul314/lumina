@@ -599,6 +599,47 @@ assertTest('buildFeedConfigsFromKeywords layers keyword sources and built-in ove
   assert.strictEqual(configs['Moody Rooms'].reddit, undefined);
 });
 
+assertTest('buildFeedConfigsFromKeywords composes normalized timed and phrase terms without mutation', () => {
+  const keywords = {
+    'Timed Pool': [
+      '  quiet room  ',
+      { timeStart: '08:00', timeEnd: '10:00', keywords: [' mist ', 42] },
+      null
+    ],
+    'Malformed Pool': 42
+  };
+  const originalKeywords = structuredClone(keywords);
+  const configs = buildFeedConfigsFromKeywords(keywords);
+
+  assert.deepStrictEqual(configs['Timed Pool'].unsplash.keywords, ['quiet room', 'mist']);
+  assert.deepStrictEqual(configs['Malformed Pool'].unsplash.keywords, []);
+  assert.deepStrictEqual(Object.keys(configs), ['Timed Pool', 'Malformed Pool']);
+  assert.deepStrictEqual(keywords, originalKeywords);
+});
+
+assertTest('buildFeedConfigsFromKeywords returns independent keyword arrays per source', () => {
+  const configs = buildFeedConfigsFromKeywords({ 'Custom Pool': ['first phrase'] });
+  const { unsplash, wallhaven, tumblrTags } = configs['Custom Pool'];
+
+  assert.notStrictEqual(unsplash.keywords, wallhaven.keywords);
+  assert.notStrictEqual(unsplash.keywords, tumblrTags.tags);
+  assert.notStrictEqual(wallhaven.keywords, tumblrTags.tags);
+
+  unsplash.keywords.push('local edit');
+  assert.deepStrictEqual(wallhaven.keywords, ['first phrase']);
+  assert.deepStrictEqual(tumblrTags.tags, ['first phrase']);
+});
+
+assertTest('keyword feed configuration projection exposes checked local contracts', () => {
+  const source = fs.readFileSync(require.resolve('./server/config/state.js'), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{Record<string, unknown>\} KeywordMap/);
+  assert.match(source, /@typedef \{Record<string, FeedSourceConfig>\} CategoryFeedConfig/);
+  assert.match(source, /@param \{KeywordMap\} keywordsMap/);
+  assert.match(source, /@returns \{Record<string, CategoryFeedConfig>\}/);
+});
+
 assertTest('updatePhotoCrop projects crop updates across list and active split photo state', () => {
   const collections = {
     'Scenic Nature': [

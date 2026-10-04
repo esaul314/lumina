@@ -84,7 +84,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/utils/routeDecode.js` now exposes generic checked success/failure, map, chain, and collection contracts; preserve legacy bare-value normalization, fail-fast collection, and empty-success identity while keeping HTTP responses in routes.
 - Latest persistence slice: `server/config/collectionsCodec.js` keeps exact image URLs unique across persisted pools with a pure first-occurrence projection; startup removes legacy duplicate feed rows while preserving sibling snapshot metadata.
 - Latest Step 6 slice: `server/utils/keywordSpecs.js` now exposes checked unknown-safe contracts for normalization, timed specs, equality, and ordered term collection; preserve phrase boundaries and detached nested arrays while keeping configuration effects outside the helper.
-- Next Step 6 seam: type the pure keyword-to-feed-config projection in `server/config/state.js`; keep the mutable `screensaverState` lifecycle explicit at the module boundary.
+- Latest Step 6 slice: `server/config/state.js` now exposes checked contracts for the pure keyword-to-feed-config projection; preserve ordered normalized terms and independent source arrays while keeping mutable `screensaverState` lifecycle explicit at the module boundary.
+- Next Step 6 seam: add explicit contracts to pure collection snapshot projections in `server/config/collectionsCodec.js`; keep filesystem reads, writes, and migration recovery in the effectful shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

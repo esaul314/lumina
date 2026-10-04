@@ -6,6 +6,26 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Type the Keyword-to-Feed Configuration Projection
+
+- **Functional boundary**: added local checked contracts to the pure
+  `buildFeedConfigsFromKeywords(...)` projection and its source/category
+  configuration shapes. It continues to compose `collectKeywordTerms(...)`
+  with the declarative built-in override map; mutable `screensaverState`
+  remains an explicit module-level shell.
+- **Regression coverage**: verified normalized phrase and timed-keyword order,
+  malformed-value filtering, input immutability, built-in overrides, and
+  independent keyword arrays for each generated source. Added a source-level
+  assertion for the checked contract.
+- **Verification**: `npm test` passed with 373 tests executed, 371 assertions,
+  0 failures, and 13/13 sensor-adapter regressions. `npm run lint`, syntax, and
+  `git diff --check` passed. The Unix-socket smoke was skipped because the
+  environment denies `listen` with `EPERM`; a TypeScript compiler is not
+  installed in this checkout.
+- **Next seam**: add explicit contracts to the pure collection snapshot
+  projections in `server/config/collectionsCodec.js`, leaving filesystem and
+  migration effects in its existing shell.
+
 ### 2026-10-04: Show Google Photos Capture Dates on TV Slides
 
 - **Functional boundary**: Picker `createTime` now survives cache normalization
