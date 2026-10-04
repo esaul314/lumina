@@ -223,7 +223,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/runtime/kioskControl.js` now documents its closed runtime-context projection while retaining process and timer effects in the runtime shell.
   - Latest persistence slice: collection snapshot writes and legacy-file cleanup now share first-occurrence URL deduplication across pools, with tests for immutable projection and metadata-preserving migration.
   - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes the tested status snapshot contract; callers receive detached arrays, and scheduling state/effects remain in the runtime shell.
-  - Next Step 6 seam: type the success/failure and composition contracts in `server/utils/routeDecode.js`, retaining fail-fast collection and empty-success behavior while HTTP response effects stay in routes.
+  - Next Step 6 seam: type the unknown-safe keyword parsing, equality, and term-collection contracts in `server/utils/keywordSpecs.js`, retaining normalization and ordering while configuration effects stay outside the pure helper.
 
 ### Shared domain flow
 
