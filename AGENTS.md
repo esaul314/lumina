@@ -82,7 +82,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes a checked five-field status projection with detached category arrays; preserve runtime-owned scheduling state and keep polling/dispatch effects in the shell.
 - Latest Step 6 slice: `server/utils/routeDecode.js` now exposes generic checked success/failure, map, chain, and collection contracts; preserve legacy bare-value normalization, fail-fast collection, and empty-success identity while keeping HTTP responses in routes.
 - Latest persistence slice: `server/config/collectionsCodec.js` keeps exact image URLs unique across persisted pools with a pure first-occurrence projection; startup removes legacy duplicate feed rows while preserving sibling snapshot metadata.
-- Next Step 6 seam: type the unknown-safe keyword parsing, equality, and term-collection contracts in `server/utils/keywordSpecs.js`; preserve normalization and ordering while keeping configuration effects outside the pure helper.
+- Latest Step 6 slice: `server/utils/keywordSpecs.js` now exposes checked unknown-safe contracts for normalization, timed specs, equality, and ordered term collection; preserve phrase boundaries and detached nested arrays while keeping configuration effects outside the helper.
+- Next Step 6 seam: type the pure keyword-to-feed-config projection in `server/config/state.js`; keep the mutable `screensaverState` lifecycle explicit at the module boundary.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

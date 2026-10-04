@@ -96,9 +96,10 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; process, governor, retry-timer, and logging effects remain in the runtime shell.
 - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes a checked five-field status projection with detached category arrays; schedule polling, command dispatch, and restoration remain in the runtime shell.
 - Latest Step 6 slice: `server/utils/routeDecode.js` now exposes generic checked success/failure, map, chain, and collection contracts; fail-fast decoding and the empty-success identity remain unchanged while HTTP responses stay in routes.
+- Latest Step 6 slice: `server/utils/keywordSpecs.js` now exposes checked unknown-safe contracts for phrase normalization, timed specs, normalized equality, and ordered term collection; nested specs remain detached and configuration effects stay outside the pure helper.
 - Latest playback behavior: smart selection rotates among time-eligible pools before applying weather, night, and rating preferences; sequence playback keeps per-pool cursors while the visible feed remains URL-unique.
 - Latest persistence slice: collection snapshots keep exact image URLs globally unique across pools; the pure snapshot projection preserves first-pool ownership, and startup cleans legacy duplicate feed rows while preserving sibling metadata.
-- Next Step 6 seam: type the unknown-safe keyword parsing, equality, and term-collection contracts in `server/utils/keywordSpecs.js`; preserve normalization and ordering while keeping configuration effects outside the pure helper.
+- Next Step 6 seam: type the pure keyword-to-feed-config projection in `server/config/state.js`; keep the mutable `screensaverState` lifecycle explicit at the module boundary.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.
@@ -223,7 +224,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/runtime/kioskControl.js` now documents its closed runtime-context projection while retaining process and timer effects in the runtime shell.
   - Latest persistence slice: collection snapshot writes and legacy-file cleanup now share first-occurrence URL deduplication across pools, with tests for immutable projection and metadata-preserving migration.
   - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes the tested status snapshot contract; callers receive detached arrays, and scheduling state/effects remain in the runtime shell.
-  - Next Step 6 seam: type the unknown-safe keyword parsing, equality, and term-collection contracts in `server/utils/keywordSpecs.js`, retaining normalization and ordering while configuration effects stay outside the pure helper.
+  - Step 6 thirty-seventh slice: `server/utils/keywordSpecs.js` now documents unknown-safe normalization, timed-spec cloning, normalized equality, and ordered term collection; tests preserve phrase boundaries, ordering, and detached nested arrays.
+  - Next Step 6 seam: type the pure keyword-to-feed-config projection in `server/config/state.js`, keeping mutable `screensaverState` ownership explicit.
 
 ### Shared domain flow
 

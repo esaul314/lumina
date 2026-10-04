@@ -2,9 +2,35 @@
 
 const TIME_RANGE_PATTERN = /^([0-1]?\d|2[0-3]):[0-5]\d$/;
 
+/**
+ * @typedef {{timeStart: string, timeEnd: string, keywords: string[]}} TimedKeywordSpec
+ */
+
+/** @typedef {string | TimedKeywordSpec} KeywordSpec */
+
+/** @typedef {{splitString?: boolean}} KeywordTermOptions */
+
+/** @typedef {{splitTopLevelString?: boolean}} KeywordEntryOptions */
+
+/**
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
 const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 const trimString = (value) => typeof value === 'string' ? value.trim() : '';
 
+/**
+ * Normalize unknown keyword input while preserving phrase order.
+ *
+ * @param {unknown} keywords
+ * @param {KeywordTermOptions} [options]
+ * @returns {string[]}
+ */
 const normalizeKeywordTerms = (keywords, { splitString = false } = {}) => {
   const rawKeywords = Array.isArray(keywords)
     ? keywords
@@ -15,6 +41,12 @@ const normalizeKeywordTerms = (keywords, { splitString = false } = {}) => {
   return rawKeywords.map(trimString).filter(Boolean);
 };
 
+/**
+ * Clone a normalized keyword spec so callers do not share its nested array.
+ *
+ * @param {KeywordSpec} entry
+ * @returns {KeywordSpec}
+ */
 const cloneKeywordEntry = (entry) => (
   typeof entry === 'string'
     ? entry
@@ -25,6 +57,12 @@ const cloneKeywordEntry = (entry) => (
       }
 );
 
+/**
+ * Decode one unknown value into a normalized keyword spec.
+ *
+ * @param {unknown} entry
+ * @returns {KeywordSpec | null}
+ */
 function normalizeKeywordEntry(entry) {
   if (typeof entry === 'string') {
     return trimString(entry) || null;
@@ -45,6 +83,13 @@ function normalizeKeywordEntry(entry) {
   return { timeStart, timeEnd, keywords };
 }
 
+/**
+ * Normalize a list or supported shorthand into ordered, detached keyword specs.
+ *
+ * @param {unknown} entries
+ * @param {KeywordEntryOptions} [options]
+ * @returns {KeywordSpec[]}
+ */
 function normalizeKeywordEntries(entries, { splitTopLevelString = false } = {}) {
   const rawEntries = Array.isArray(entries)
     ? entries
@@ -58,6 +103,13 @@ function normalizeKeywordEntries(entries, { splitTopLevelString = false } = {}) 
     .map(cloneKeywordEntry);
 }
 
+/**
+ * Compare keyword specs after normalization; spec order remains significant.
+ *
+ * @param {unknown} left
+ * @param {unknown} right
+ * @returns {boolean}
+ */
 function keywordEntriesEqual(left, right) {
   const normalizedLeft = normalizeKeywordEntries(left);
   const normalizedRight = normalizeKeywordEntries(right);
@@ -74,6 +126,12 @@ function keywordEntriesEqual(left, right) {
     });
 }
 
+/**
+ * Collect normalized terms from plain and time-scoped specs in source order.
+ *
+ * @param {unknown} entries
+ * @returns {string[]}
+ */
 function collectKeywordTerms(entries) {
   const rawEntries = Array.isArray(entries)
     ? entries

@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Type Keyword Specification Projections
+
+- **Functional boundary**: added local checked contracts to the pure
+  `server/utils/keywordSpecs.js` helpers for unknown-safe term normalization,
+  timed specs, equality, and ordered term collection. Configuration and
+  persistence effects remain outside the helper.
+- **Regression coverage**: verified malformed-input identities, normalized
+  equality, phrase-boundary and delimiter behavior, stable ordering, and
+  detached nested arrays.
+- **Verification**: `npm test` passed with 368 tests executed, 366 assertions,
+  0 failures, and 13/13 sensor-adapter regressions. `npm run lint`, syntax, and
+  `git diff --check` passed. The Unix-socket smoke was skipped because the
+  environment denies `listen` with `EPERM`.
+- **Next seam**: type the pure keyword-to-feed-config projection in
+  `server/config/state.js`, leaving mutable `screensaverState` ownership
+  explicit at the module boundary.
+
 ### 2026-10-04: Type Pool Schedule Runtime Status Projection
 
 - **Functional boundary**: extracted `projectPoolScheduleStatus(...)` as a pure,

@@ -100,6 +100,13 @@ const {
   normalizeRouteDecodeResult
 } = require('./server/utils/routeDecode.js');
 const {
+  collectKeywordTerms,
+  keywordEntriesEqual,
+  normalizeKeywordEntries,
+  normalizeKeywordEntry,
+  normalizeKeywordTerms
+} = require('./server/utils/keywordSpecs.js');
+const {
   applyCachedMediaItemMetadataToState,
   buildGooglePhotoProxyUrl,
   buildCachedMediaItem,
@@ -5983,6 +5990,73 @@ async function runIntegrationTests() {
 
     assert.strictEqual(failedChain, failure);
     assert.strictEqual(continuationRan, false);
+  });
+
+  logSuite('Keyword Specification Helpers');
+  assertTest('keyword term normalization safely filters unknown values and keeps phrase order', () => {
+    assert.deepStrictEqual(normalizeKeywordTerms([' forest ', 7, null, '', ' moon ']), ['forest', 'moon']);
+    assert.deepStrictEqual(normalizeKeywordTerms('forest, moon', { splitString: true }), ['forest', 'moon']);
+    assert.deepStrictEqual(normalizeKeywordTerms(null), []);
+    assert.deepStrictEqual(normalizeKeywordTerms({ keywords: ['forest'] }), []);
+  });
+
+  assertTest('keyword entry normalization preserves valid order and detaches timed specs', () => {
+    const timedSpec = { timeStart: ' 18:00 ', timeEnd: '23:30', keywords: [' night sky ', ' moon '] };
+    const input = [' forest ', timedSpec, null, { timeStart: '25:00', timeEnd: '23:30', keywords: ['invalid'] }];
+    const normalized = normalizeKeywordEntries(input);
+
+    assert.deepStrictEqual(normalized, [
+      'forest',
+      { timeStart: '18:00', timeEnd: '23:30', keywords: ['night sky', 'moon'] }
+    ]);
+    assert.deepStrictEqual(normalizeKeywordEntry({ timeStart: '18:00', timeEnd: '06:00', keywords: [' night '] }), {
+      timeStart: '18:00',
+      timeEnd: '06:00',
+      keywords: ['night']
+    });
+    assert.deepStrictEqual(normalizeKeywordEntries(' forest; moon ', { splitTopLevelString: true }), ['forest', 'moon']);
+    assert.notStrictEqual(normalized[1], timedSpec);
+    assert.notStrictEqual(normalized[1].keywords, timedSpec.keywords);
+    normalized[1].keywords.push('changed');
+    assert.deepStrictEqual(timedSpec.keywords, [' night sky ', ' moon ']);
+  });
+
+  assertTest('keyword equality compares normalized specs while preserving order significance', () => {
+    const timed = [{ timeStart: '18:00', timeEnd: '23:30', keywords: ['night', 'moon'] }];
+
+    assert.strictEqual(keywordEntriesEqual(timed, timed), true);
+    assert.strictEqual(keywordEntriesEqual([' forest '], ['forest']), true);
+    assert.strictEqual(keywordEntriesEqual(
+      [{ timeStart: ' 18:00 ', timeEnd: '23:30', keywords: [' night ', 'moon'] }],
+      timed
+    ), true);
+    assert.strictEqual(keywordEntriesEqual(['forest', 'moon'], ['moon', 'forest']), false);
+  });
+
+  assertTest('keyword term collection flattens specs declaratively without reordering phrases', () => {
+    const entries = [
+      'forest, moon',
+      { timeStart: '18:00', timeEnd: '06:00', keywords: [' dusk ', 'night sky'] },
+      null,
+      { keywords: 'mist' }
+    ];
+
+    assert.deepStrictEqual(collectKeywordTerms(entries), ['forest, moon', 'dusk', 'night sky', 'mist']);
+    assert.deepStrictEqual(collectKeywordTerms('forest; moon\r\nsky'), ['forest', 'moon', 'sky']);
+    assert.deepStrictEqual(collectKeywordTerms(null), []);
+    assert.deepStrictEqual(entries[1].keywords, [' dusk ', 'night sky']);
+  });
+
+  assertTest('keyword specification helpers expose checked unknown-safe contracts', () => {
+    const source = fs.readFileSync(require.resolve('./server/utils/keywordSpecs.js'), 'utf8');
+
+    assert.match(source, /^\/\/ @ts-check/);
+    assert.match(source, /@typedef \{\{timeStart: string, timeEnd: string, keywords: string\[\]\}\} TimedKeywordSpec/);
+    assert.match(source, /@typedef \{string \| TimedKeywordSpec\} KeywordSpec/);
+    assert.match(source, /@param \{unknown\} keywords/);
+    assert.match(source, /@param \{unknown\} entries/);
+    assert.match(source, /@returns \{KeywordSpec\[\]\}/);
+    assert.match(source, /@returns \{boolean\}/);
   });
 
   logSuite('REST Pool Mutation Routes');
