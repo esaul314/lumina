@@ -1,5 +1,24 @@
 // @ts-check
 
+/**
+ * @typedef {object} KioskRuntimeState
+ * @property {boolean} browserRunning Whether the kiosk process is running.
+ * @property {boolean} manualOverride Whether activation was explicitly requested.
+ * @property {boolean} launchBlocked Whether crash-loop policy blocks new launches.
+ *
+ * @typedef {KioskRuntimeState} KioskRuntimeContext
+ */
+
+/**
+ * Project the observable kiosk flags without exposing the mutable runtime record.
+ *
+ * @param {KioskRuntimeState} runtimeState
+ * @returns {KioskRuntimeContext}
+ */
+function projectKioskRuntimeContext({ browserRunning, manualOverride, launchBlocked }) {
+  return { browserRunning, manualOverride, launchBlocked };
+}
+
 function createKioskControlRuntime({
   state,
   emitStateSync = () => {},
@@ -23,11 +42,7 @@ function createKioskControlRuntime({
   let expectedExit = false;
 
   const readPort = () => typeof getPort === 'function' ? getPort() : getPort;
-  const getRuntimeContext = () => ({
-    browserRunning: runtimeState.browserRunning,
-    manualOverride: runtimeState.manualOverride,
-    launchBlocked: runtimeState.launchBlocked
-  });
+  const getRuntimeContext = () => projectKioskRuntimeContext(runtimeState);
   const setManualOverride = (value) => {
     runtimeState.manualOverride = Boolean(value);
     return runtimeState.manualOverride;
@@ -160,5 +175,6 @@ function createKioskControlRuntime({
 }
 
 module.exports = {
-  createKioskControlRuntime
+  createKioskControlRuntime,
+  projectKioskRuntimeContext
 };

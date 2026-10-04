@@ -861,6 +861,31 @@ assertTest('numeric validators preserve curried range and null-safe identities',
 
 logSuite('Runtime Shell Composition');
 
+assertTest('projectKioskRuntimeContext returns a closed immutable runtime projection', () => {
+  const { projectKioskRuntimeContext } = require('./server/runtime/kioskControl.js');
+  const runtimeState = {
+    browserRunning: true,
+    manualOverride: false,
+    launchBlocked: true,
+    internalCounter: 3
+  };
+
+  const context = projectKioskRuntimeContext(runtimeState);
+
+  assert.deepStrictEqual(context, {
+    browserRunning: true,
+    manualOverride: false,
+    launchBlocked: true
+  });
+  assert.notStrictEqual(context, runtimeState);
+  assert.deepStrictEqual(runtimeState, {
+    browserRunning: true,
+    manualOverride: false,
+    launchBlocked: true,
+    internalCounter: 3
+  });
+});
+
 assertAsyncTest('createKioskControlRuntime defers launch until the server is listening and clears manual override after an unexpected exit', async () => {
   const { createKioskControlRuntime } = require('./server/runtime/kioskControl.js');
   const state = { screensaverActive: true };
@@ -903,6 +928,11 @@ assertAsyncTest('createKioskControlRuntime defers launch until the server is lis
   assert.strictEqual(runtime.launchKioskBrowser(true), false);
   assert.strictEqual(runtime.isManualOverride(), true);
   assert.strictEqual(deferredLaunches.length, 1);
+  assert.deepStrictEqual(runtime.getRuntimeContext(), {
+    browserRunning: false,
+    manualOverride: true,
+    launchBlocked: false
+  });
 
   runtime.launchKioskBrowser(true);
   assert.strictEqual(deferredLaunches.length, 1, 'launch retries should be deduplicated while one is already pending');
@@ -912,6 +942,11 @@ assertAsyncTest('createKioskControlRuntime defers launch until the server is lis
   await flushPromises();
 
   assert.strictEqual(runtime.isBrowserRunning(), true);
+  assert.deepStrictEqual(runtime.getRuntimeContext(), {
+    browserRunning: true,
+    manualOverride: true,
+    launchBlocked: false
+  });
   assert.deepStrictEqual(governorProfiles, ['performance']);
   assert.strictEqual(kioskKillCount, 0, 'launch must not globally kill unrelated Chromium processes');
   assert.deepStrictEqual(kioskLaunches, [{ port: 5050, mode: 'tv' }]);

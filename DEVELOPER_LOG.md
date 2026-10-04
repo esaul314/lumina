@@ -6,6 +6,14 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-03: Type the Kiosk Runtime-Context Projection
+
+- **Finding**: `createKioskControlRuntime(...)` already exposed a small read-only context to the idle daemon, but its exact field vocabulary was implicit beside process and timer orchestration.
+- **Correction**: added `projectKioskRuntimeContext(...)` as a pure closed projection for the three observable flags and documented its input/output contract with local JSDoc; the kiosk runtime still owns all mutable state and host effects.
+- **Regression coverage**: verified the projection returns only the three public fields without mutating its input, and checked that the runtime reflects deferred-manual and running kiosk states accurately.
+- **Functional boundary**: kept process launch/kill, CPU-governor changes, retry timers, crash-loop policy, and logging in `createKioskControlRuntime(...)`.
+- **Verification**: `npm test` passed with 356 executed tests, 354 assertions, 0 failures, and 13/13 sensor-adapter regressions; the temporary Unix-socket smoke was skipped because this environment denies `listen` with `EPERM`. `npm run lint` passed with 0 errors and 3 existing warnings; `node --check` and `git diff --check` passed.
+
 ### 2026-09-28: Type the Environment Refresh Weather Projections
 
 - **Finding**: the extracted refresh runtime already had two deterministic weather snapshot projections, but their provider inputs, cache output, and classifier result shapes were implicit beside the asynchronous refresh shell.

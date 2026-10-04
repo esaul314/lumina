@@ -77,7 +77,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/runtime/environmentRefresh.js` now exposes checked contracts for weather snapshot projections; preserve provider-field projection and absent-current behavior while keeping refresh effects in the runtime shell.
 - Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing, normalization, and balanced feed projections; preserve source collections and keep `photosList` mutation in the runtime shell.
 - Latest Step 6 slice: `server/runtime/idleDaemon.js` now exposes checked contracts for host observations, daemon inputs, and screensaver transitions; preserve the closed action vocabulary and keep polling/browser/timer/broadcast effects in the shell.
-- Next Step 6 seam: type the pure runtime-context projection in `server/runtime/kioskControl.js` while keeping process and timer effects in the shell.
+- Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; preserve the exact three-field output and keep process/governor/retry-timer/logging effects in the shell.
+- Next Step 6 seam: audit `server/runtime/poolSchedule.js` and type its observable status projection, keeping schedule polling and command dispatch in the shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid
