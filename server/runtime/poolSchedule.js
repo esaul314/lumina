@@ -8,6 +8,37 @@ const sameCategories = (left = [], right = []) => (
 );
 
 /**
+ * @typedef {object} PoolScheduleStatus
+ * @property {string | null} activeIdentity Identity of the currently active schedule.
+ * @property {string[]} scheduledCategories Categories introduced by scheduling.
+ * @property {string[] | null} activationCategories Full category selection applied at activation.
+ * @property {string[] | null} baselineCategories Category selection to restore at the boundary.
+ * @property {boolean} manualOverride Whether a manual selection changed the active schedule.
+ */
+
+/**
+ * Project an isolated status snapshot without exposing runtime-owned arrays.
+ *
+ * @param {PoolScheduleStatus} status
+ * @returns {PoolScheduleStatus}
+ */
+function projectPoolScheduleStatus({
+  activeIdentity,
+  scheduledCategories,
+  activationCategories,
+  baselineCategories,
+  manualOverride
+}) {
+  return {
+    activeIdentity,
+    scheduledCategories: [...scheduledCategories],
+    activationCategories: activationCategories ? [...activationCategories] : null,
+    baselineCategories: baselineCategories ? [...baselineCategories] : null,
+    manualOverride
+  };
+}
+
+/**
  * Keeps scheduled activation in the imperative runtime while using the normal
  * category command for the actual state transition. Manual category changes
  * during a window are left alone until the next schedule boundary.
@@ -118,14 +149,14 @@ function createPoolScheduleRuntime({
     start,
     stop,
     tick,
-    getStatus: () => ({
+    getStatus: () => projectPoolScheduleStatus({
       activeIdentity,
-      scheduledCategories: [...scheduledCategories],
-      activationCategories: activationCategories ? [...activationCategories] : null,
-      baselineCategories: baselineCategories ? [...baselineCategories] : null,
+      scheduledCategories,
+      activationCategories,
+      baselineCategories,
       manualOverride
     })
   };
 }
 
-module.exports = { createPoolScheduleRuntime };
+module.exports = { createPoolScheduleRuntime, projectPoolScheduleStatus };

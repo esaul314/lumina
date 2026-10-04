@@ -79,8 +79,9 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing, normalization, and balanced feed projections; preserve source collections and keep `photosList` mutation in the runtime shell.
 - Latest Step 6 slice: `server/runtime/idleDaemon.js` now exposes checked contracts for host observations, daemon inputs, and screensaver transitions; preserve the closed action vocabulary and keep polling/browser/timer/broadcast effects in the shell.
 - Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; preserve the exact three-field output and keep process/governor/retry-timer/logging effects in the shell.
+- Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes a checked five-field status projection with detached category arrays; preserve runtime-owned scheduling state and keep polling/dispatch effects in the shell.
 - Latest persistence slice: `server/config/collectionsCodec.js` keeps exact image URLs unique across persisted pools with a pure first-occurrence projection; startup removes legacy duplicate feed rows while preserving sibling snapshot metadata.
-- Next Step 6 seam: audit `server/runtime/poolSchedule.js` and type its observable status projection, keeping schedule polling and command dispatch in the shell.
+- Next Step 6 seam: type the success/failure and composition contracts in `server/utils/routeDecode.js`; preserve fail-fast collection and the empty-success identity while keeping HTTP response effects in routes.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

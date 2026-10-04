@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Type Pool Schedule Runtime Status Projection
+
+- **Functional boundary**: extracted `projectPoolScheduleStatus(...)` as a pure,
+  checked five-field snapshot while leaving schedule transitions, polling, and
+  command dispatch in `createPoolScheduleRuntime(...)`.
+- **Regression coverage**: verified null and empty status, exact projection
+  shape, input preservation, and detached arrays through both the helper and
+  runtime API.
+- **Verification**: `npm test` passed with 360 tests executed, 358 assertions,
+  0 failures, and 13/13 sensor-adapter regressions. `npm run lint` passed with
+  0 errors or warnings; syntax and `git diff --check` passed. Temporary Unix
+  socket smoke was skipped because the environment denies `listen` with
+  `EPERM`.
+- **Next seam**: type the pure route-decode success/failure and composition
+  contracts in `server/utils/routeDecode.js`; keep HTTP response effects in
+  route handlers.
+
 ### 2026-10-04: Persist Shared Pool Images Once
 
 - **Finding**: startup normalized duplicate image URLs out of the in-memory collections, but snapshot writes could persist the same URL again under another pool. Legacy duplicates also remained in the JSON file after startup normalization.

@@ -72,7 +72,10 @@ const {
   uniqBy
 } = require('./server/utils/fn.js');
 const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js');
-const { createPoolScheduleRuntime } = require('./server/runtime/poolSchedule.js');
+const {
+  createPoolScheduleRuntime,
+  projectPoolScheduleStatus
+} = require('./server/runtime/poolSchedule.js');
 const { runRecrawlJobTests } = require('./server/jobs/tests.js');
 const configureRoutes = require('./server/routes.js');
 const { buildWeatherResponse } = configureRoutes;
@@ -1585,6 +1588,48 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
   assert.match(source, /@param \{PoolPolicyReader\} policyFor/);
 });
 
+assertTest('pool schedule status is a closed immutable projection', () => {
+  const poolScheduleRuntimeSource = fs.readFileSync(
+    path.join(__dirname, 'server/runtime/poolSchedule.js'),
+    'utf8'
+  );
+  const input = {
+    activeIdentity: 'Night Mood|22:00|06:00|0',
+    scheduledCategories: ['Night Mood'],
+    activationCategories: ['Scenic Nature', 'Night Mood'],
+    baselineCategories: ['Scenic Nature'],
+    manualOverride: true
+  };
+  const originalInput = structuredClone(input);
+  const status = projectPoolScheduleStatus(input);
+
+  assert.deepStrictEqual(status, input);
+  assert.notStrictEqual(status.scheduledCategories, input.scheduledCategories);
+  assert.notStrictEqual(status.activationCategories, input.activationCategories);
+  assert.notStrictEqual(status.baselineCategories, input.baselineCategories);
+  status.scheduledCategories.push('Mutated');
+  status.activationCategories.push('Mutated');
+  status.baselineCategories.push('Mutated');
+  assert.deepStrictEqual(input, originalInput);
+  assert.deepStrictEqual(projectPoolScheduleStatus({
+    activeIdentity: null,
+    scheduledCategories: [],
+    activationCategories: null,
+    baselineCategories: null,
+    manualOverride: false
+  }), {
+    activeIdentity: null,
+    scheduledCategories: [],
+    activationCategories: null,
+    baselineCategories: null,
+    manualOverride: false
+  });
+  assert.match(poolScheduleRuntimeSource, /^\/\/ @ts-check/);
+  assert.match(poolScheduleRuntimeSource, /@typedef \{object\} PoolScheduleStatus/);
+  assert.match(poolScheduleRuntimeSource, /@returns \{PoolScheduleStatus\}/);
+  assert.match(poolScheduleRuntimeSource, /getStatus: \(\) => projectPoolScheduleStatus/);
+});
+
 assertAsyncTest('pool schedule runtime activates a pool, honors manual override, and restores the baseline', async () => {
   const state = {
     currentCategory: 'Scenic Nature,Liminal Spaces',
@@ -1612,6 +1657,24 @@ assertAsyncTest('pool schedule runtime activates a pool, honors manual override,
 
   await runtime.tick();
   assert.strictEqual(state.currentCategory, 'Scenic Nature,Liminal Spaces,Night Mood');
+  const activeStatus = runtime.getStatus();
+  assert.deepStrictEqual(activeStatus.scheduledCategories, ['Night Mood']);
+  assert.deepStrictEqual(activeStatus.activationCategories, [
+    'Scenic Nature',
+    'Liminal Spaces',
+    'Night Mood'
+  ]);
+  assert.deepStrictEqual(activeStatus.baselineCategories, ['Scenic Nature', 'Liminal Spaces']);
+  activeStatus.scheduledCategories.push('Mutated');
+  activeStatus.activationCategories.push('Mutated');
+  activeStatus.baselineCategories.push('Mutated');
+  assert.deepStrictEqual(runtime.getStatus().scheduledCategories, ['Night Mood']);
+  assert.deepStrictEqual(runtime.getStatus().activationCategories, [
+    'Scenic Nature',
+    'Liminal Spaces',
+    'Night Mood'
+  ]);
+  assert.deepStrictEqual(runtime.getStatus().baselineCategories, ['Scenic Nature', 'Liminal Spaces']);
   state.currentCategory = 'Day Mood';
   await runtime.tick();
   assert.strictEqual(runtime.getStatus().manualOverride, true);
