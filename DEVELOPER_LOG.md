@@ -23,6 +23,23 @@ This document serves as a public-facing, generic history of technical developmen
   contracts in `server/utils/routeDecode.js`; keep HTTP response effects in
   route handlers.
 
+### 2026-10-04: Type Route Decode Composition Contracts
+
+- **Functional boundary**: added generic JSDoc contracts for route failures,
+  successful values, normalization, mapping, fail-fast chaining, and ordered
+  collection in `server/utils/routeDecode.js`. The route helper remains a pure
+  Result-like algebra; HTTP response effects remain in route handlers.
+- **Regression coverage**: verified wrapped-result identity, legacy bare-value
+  normalization, map identity/composition and failure preservation, skipped
+  chain continuations after failure, ordered collection, and the empty-success
+  identity.
+- **Verification**: `npm test` passed with 363 tests executed, 361 assertions,
+  0 failures, and 13/13 sensor-adapter regressions. `npm run lint`, syntax, and
+  `git diff --check` passed. Temporary Unix-socket smoke was skipped because
+  the environment denies `listen` with `EPERM`.
+- **Next seam**: type the unknown-safe normalization, equality, and term
+  collection contracts in `server/utils/keywordSpecs.js`.
+
 ### 2026-10-04: Persist Shared Pool Images Once
 
 - **Finding**: startup normalized duplicate image URLs out of the in-memory collections, but snapshot writes could persist the same URL again under another pool. Legacy duplicates also remained in the JSON file after startup normalization.

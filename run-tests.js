@@ -96,7 +96,8 @@ const {
   collectRouteDecodeResults,
   createRouteDecodeFailure,
   createRouteDecodeSuccess,
-  mapRouteDecode
+  mapRouteDecode,
+  normalizeRouteDecodeResult
 } = require('./server/utils/routeDecode.js');
 const {
   applyCachedMediaItemMetadataToState,
@@ -5886,6 +5887,46 @@ async function runIntegrationTests() {
   });
 
   logSuite('Route Decode Helpers');
+  assertTest('route decode contracts preserve wrapped results and normalize legacy values', () => {
+    const failure = createRouteDecodeFailure(422, 'Invalid field.', { field: 'name' });
+
+    assert.strictEqual(normalizeRouteDecodeResult(failure), failure);
+    assert.deepStrictEqual(normalizeRouteDecodeResult(null), createRouteDecodeSuccess(null));
+    assert.deepStrictEqual(failure, {
+      routeDecode: true,
+      ok: false,
+      failure: {
+        status: 422,
+        error: 'Invalid field.',
+        extra: { field: 'name' }
+      }
+    });
+  });
+
+  assertTest('route decode mapping composes and preserves failures', () => {
+    const decoded = createRouteDecodeSuccess(4);
+    const increment = (value) => value + 1;
+    const double = (value) => value * 2;
+    const composed = mapRouteDecode((value) => increment(double(value)))(decoded);
+    const mappedInStages = mapRouteDecode(increment)(mapRouteDecode(double)(decoded));
+    const failure = createRouteDecodeFailure(400, 'Cannot map a failed decode.');
+
+    assert.deepStrictEqual(mapRouteDecode((value) => value)(decoded), decoded);
+    assert.deepStrictEqual(composed, mappedInStages);
+    assert.strictEqual(composed.value, 9);
+    assert.strictEqual(mapRouteDecode(increment)(failure), failure);
+  });
+
+  assertTest('route decode module exposes checked success, failure, and composition contracts', () => {
+    const source = fs.readFileSync(require.resolve('./server/utils/routeDecode.js'), 'utf8');
+
+    assert.match(source, /^\/\/ @ts-check/);
+    assert.match(source, /@typedef \{object\} RouteFailure/);
+    assert.match(source, /@typedef \{RouteDecodeSuccess<T> \| RouteDecodeFailure\} RouteDecodeResult/);
+    assert.match(source, /@returns \{\(decoded: T \| RouteDecodeResult<T>\) => RouteDecodeResult<U>\}/);
+    assert.match(source, /@returns \{RouteDecodeResult<T\[]>\}/);
+  });
+
   assertTest('collectRouteDecodeResults accumulates successes and short-circuits on the first failure', () => {
     const result = collectRouteDecodeResults([
       createRouteDecodeSuccess({ step: 'first' }),
@@ -5932,6 +5973,16 @@ async function runIntegrationTests() {
       enabled: true,
       chained: true
     });
+
+    let continuationRan = false;
+    const failure = createRouteDecodeFailure(409, 'Disabled decode');
+    const failedChain = chainRouteDecode(() => {
+      continuationRan = true;
+      return createRouteDecodeSuccess({ unexpected: true });
+    })(failure);
+
+    assert.strictEqual(failedChain, failure);
+    assert.strictEqual(continuationRan, false);
   });
 
   logSuite('REST Pool Mutation Routes');
