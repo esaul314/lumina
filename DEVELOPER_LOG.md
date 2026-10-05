@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Type the Local Config Merge Projection
+
+- **Functional boundary**: documented `mergeLocalConfig(...)` with local checked
+  section contracts. It remains a pure immutable partial merge; filesystem
+  reads and atomic writes remain in `saveLocalConfigPatch(...)`.
+- **Behavior pinned**: Ecowitt units merge one level deep, sensor-history values
+  merge shallowly, unsupported top-level patch properties stay ignored, and
+  missing Ecowitt units preserve the current units (or default to an empty map).
+- **Verification**: `npm test` passed (380 tests, 378 assertions, 0 failures;
+  sensor adapters 13/13); `npm run lint`, `node --check`, and `git diff --check`
+  passed. The optional Unix-socket smoke was skipped because the sandbox denies
+  `listen` with `EPERM`.
+- **Next seam**: isolate and type the pure defaults/overrides and deprecated-
+  secret filtering projection in `server/config/configLoader.js`; keep
+  environment loading, file reads, and warnings at its module boundary.
+
 ### 2026-10-04: Type Curried Collection Photo Projections
 
 - **Functional boundary**: extracted URL-matched photo and photo-list mapping

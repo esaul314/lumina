@@ -2,6 +2,19 @@
 
 const fs = require('fs');
 
+/** @typedef {Record<string, unknown>} LocalConfigRecord */
+/** @typedef {LocalConfigRecord & { units?: LocalConfigRecord }} EcowittLocalConfig */
+/** @typedef {LocalConfigRecord & { ecowitt?: EcowittLocalConfig; sensorHistory?: LocalConfigRecord }} LocalConfig */
+
+/**
+ * Merge the supported local settings sections without mutating either input.
+ * Ecowitt units merge one level deeper; sensor-history settings remain a
+ * shallow section merge so nested values keep their existing replacement semantics.
+ *
+ * @param {LocalConfig} current
+ * @param {LocalConfig} patch
+ * @returns {LocalConfig}
+ */
 const mergeLocalConfig = (current, patch) => ({
   ...current,
   ...(patch.ecowitt ? {

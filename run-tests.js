@@ -90,6 +90,7 @@ const {
   createSensorPlatform
 } = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
+const { mergeLocalConfig } = require('./server/config/localSettings.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
 const {
   chainRouteDecode,
@@ -638,6 +639,83 @@ assertTest('keyword feed configuration projection exposes checked local contract
   assert.match(source, /@typedef \{Record<string, FeedSourceConfig>\} CategoryFeedConfig/);
   assert.match(source, /@param \{KeywordMap\} keywordsMap/);
   assert.match(source, /@returns \{Record<string, CategoryFeedConfig>\}/);
+});
+
+assertTest('mergeLocalConfig composes supported partial updates without mutation', () => {
+  const current = {
+    location: { city: 'Toronto' },
+    ecowitt: {
+      baseUrl: 'http://gateway.local',
+      pollIntervalSeconds: 60,
+      units: { temperature: 'C', pressure: 'hPa' }
+    },
+    sensorHistory: {
+      enabled: true,
+      retentionDays: 30,
+      export: { format: 'csv' }
+    }
+  };
+  const patch = {
+    location: { city: 'ignored by this patch contract' },
+    unrelated: true,
+    ecowitt: {
+      pollIntervalSeconds: 15,
+      units: { temperature: 'F' }
+    },
+    sensorHistory: {
+      retentionDays: 90,
+      export: { format: 'json' }
+    }
+  };
+  const originalCurrent = structuredClone(current);
+  const originalPatch = structuredClone(patch);
+
+  const merged = mergeLocalConfig(current, patch);
+
+  assert.deepStrictEqual(merged, {
+    location: current.location,
+    ecowitt: {
+      baseUrl: 'http://gateway.local',
+      pollIntervalSeconds: 15,
+      units: { temperature: 'F', pressure: 'hPa' }
+    },
+    sensorHistory: {
+      enabled: true,
+      retentionDays: 90,
+      export: { format: 'json' }
+    }
+  });
+  assert.strictEqual(merged.location, current.location);
+  assert.strictEqual(merged.sensorHistory.export, patch.sensorHistory.export);
+  assert.notStrictEqual(merged.ecowitt, current.ecowitt);
+  assert.notStrictEqual(merged.ecowitt.units, current.ecowitt.units);
+  assert.deepStrictEqual(current, originalCurrent);
+  assert.deepStrictEqual(patch, originalPatch);
+});
+
+assertTest('mergeLocalConfig preserves Ecowitt units when the patch omits them', () => {
+  assert.deepStrictEqual(
+    mergeLocalConfig({ ecowitt: { baseUrl: 'http://old.local', units: { temperature: 'C' } } }, {
+      ecowitt: { baseUrl: 'http://new.local' }
+    }),
+    { ecowitt: { baseUrl: 'http://new.local', units: { temperature: 'C' } } }
+  );
+  assert.deepStrictEqual(mergeLocalConfig({}, { ecowitt: { baseUrl: 'http://new.local' } }), {
+    ecowitt: { baseUrl: 'http://new.local', units: {} }
+  });
+});
+
+assertTest('local config merge exposes checked section contracts', () => {
+  const source = fs.readFileSync(require.resolve('./server/config/localSettings.js'), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{Record<string, unknown>\} LocalConfigRecord/);
+  assert.match(source, /@typedef \{LocalConfigRecord & \{ units\?: LocalConfigRecord \}\} EcowittLocalConfig/);
+  assert.match(source, /@typedef \{LocalConfigRecord & \{ ecowitt\?: EcowittLocalConfig; sensorHistory\?: LocalConfigRecord \}\} LocalConfig/);
+  assert.match(source, /@param \{LocalConfig\} current/);
+  assert.match(source, /@param \{LocalConfig\} patch/);
+  assert.match(source, /@returns \{LocalConfig\}/);
+  assert.match(source, /sensor-history settings remain a\s+\*\s+shallow section merge/);
 });
 
 assertTest('updatePhotoCrop projects crop updates across list and active split photo state', () => {

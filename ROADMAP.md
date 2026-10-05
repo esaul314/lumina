@@ -101,9 +101,10 @@ Phase 1 is in progress. The current checkpoint is:
 - Latest Step 6 slice: `server/config/state.js` now exposes checked contracts for the pure keyword-to-feed-config projection; ordered normalized terms and independent source arrays remain unchanged while mutable `screensaverState` stays at the module boundary.
 - Latest Step 6 slice: `server/config/collectionsCodec.js` now documents the open persisted-record input and stable normalization/serialization outputs; immutable collection and state projections remain separate from filesystem reads, writes, and migration recovery.
 - Latest Step 6 slice: `server/config/collectionPhotoProjections.js` now exposes checked curried photo-by-URL and photo-list contracts; unmatched entries retain identity and list updates remain immutable, while collection/state mutation and persistence stay in `collections.js`.
+- Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract; Ecowitt units merge one level deep, sensor-history patches remain shallow, unsupported top-level patch fields stay ignored, and both inputs remain unchanged while file writes stay in `saveLocalConfigPatch(...)`.
 - Latest playback behavior: smart selection rotates among time-eligible pools before applying weather, night, and rating preferences; sequence playback keeps per-pool cursors while the visible feed remains URL-unique.
 - Latest persistence slice: collection snapshots keep exact image URLs globally unique across pools; the pure snapshot projection preserves first-pool ownership, and startup cleans legacy duplicate feed rows while preserving sibling metadata.
-- Next Step 6 seam: add a checked contract to the pure local-config merge in `server/config/localSettings.js`; keep filesystem writes in `saveLocalConfigPatch(...)`.
+- Next Step 6 seam: isolate and type the pure defaults/overrides and deprecated-secret filtering projection in `server/config/configLoader.js`; keep environment loading, file reads, and warnings at the module boundary.
 - UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
 - Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
 - Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.
@@ -229,7 +230,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest persistence slice: collection snapshot writes and legacy-file cleanup now share first-occurrence URL deduplication across pools, with tests for immutable projection and metadata-preserving migration.
   - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes the tested status snapshot contract; callers receive detached arrays, and scheduling state/effects remain in the runtime shell.
   - Latest Step 6 slices: keyword specs and feed-config projections, persisted collection snapshots, and curried photo-list projections now have checked contracts; their configuration, filesystem, state-mutation, and persistence effects remain in their shells.
-  - Next Step 6 seam: add a checked contract to the pure local-config merge in `server/config/localSettings.js`; keep filesystem writes in `saveLocalConfigPatch(...)`.
+  - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
+  - Next Step 6 seam: isolate and type the pure defaults/overrides and deprecated-secret filtering projection in `server/config/configLoader.js`, keeping environment loading, file reads, and warnings at the module boundary.
 
 ### Shared domain flow
 
