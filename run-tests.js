@@ -1363,6 +1363,20 @@ assertTest('domain snapshots expose checked projection and compatibility-shell c
   assert.match(snapshotSource, /Apply a pure snapshot projection to the legacy runtime shell/);
 });
 
+assertTest('collection persistence exposes checked pure snapshot contracts', () => {
+  const collectionCodecSource = fs.readFileSync(
+    path.join(__dirname, 'server/config/collectionsCodec.js'),
+    'utf8'
+  );
+
+  assert.match(collectionCodecSource, /^\/\/ @ts-check/);
+  assert.match(collectionCodecSource, /@typedef \{Record<string, unknown>\} PersistedPhoto/);
+  assert.match(collectionCodecSource, /\}\} PersistedSnapshotInput/);
+  assert.match(collectionCodecSource, /@returns \{NormalizedPersistedSnapshot\}/);
+  assert.match(collectionCodecSource, /@returns \{PersistedSnapshot\}/);
+  assert.match(collectionCodecSource, /without mutating either input/);
+});
+
 assertTest('environment settings expose checked pure projection contracts', () => {
   const environmentSettingsSource = fs.readFileSync(
     path.join(__dirname, 'server/domain/environmentSettings.js'),

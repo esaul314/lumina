@@ -6,6 +6,97 @@ const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
 const { normalizePhotoTimestamp } = require('../domain/photoTimestamps.js');
 const { normalizePoolPolicy } = require('../domain/poolRetention.js');
 
+/** Persisted photo metadata stays open to source-specific fields. */
+/** @typedef {Record<string, unknown>} PersistedPhoto */
+
+/** @typedef {Record<string, unknown>} CollectionEntries */
+/** @typedef {Record<string, PersistedPhoto[]>} CollectionSnapshot */
+/** @typedef {Record<string, unknown>} KeywordMap */
+/** @typedef {Record<string, unknown>} FeedConfigMap */
+
+/**
+ * Defaults are supplied by the running application; persisted metadata remains
+ * open because older snapshots may carry fields newer versions do not know.
+ *
+ * @typedef {object} PersistedStateDefaults
+ * @property {KeywordMap} [searchKeywords]
+ * @property {Record<string, Record<string, unknown>>} [poolPolicies]
+ * @property {unknown} [autoLocation]
+ * @property {Record<string, unknown>} [manualLocation]
+ * @property {Record<string, unknown>} [visionConfig]
+ * @property {unknown} [scaleMode]
+ * @property {unknown} [splitPortrait]
+ * @property {unknown} [splitCropPercent]
+ * @property {unknown[]} [excludedKeywords]
+ */
+
+/**
+ * @typedef {PersistedStateDefaults & {
+ *   feedConfigs?: FeedConfigMap,
+ *   lastFeedUpdated?: number
+ * }} PersistedStateInput
+ */
+
+/**
+ * Open compatibility shape decoded from the persisted JSON document.
+ *
+ * @typedef {Record<string, unknown> & {
+ *   feeds?: CollectionEntries,
+ *   searchKeywords?: KeywordMap,
+ *   feedConfigs?: FeedConfigMap,
+ *   poolPolicies?: Record<string, Record<string, unknown>>,
+ *   locationSettings?: Record<string, unknown> & {
+ *     autoLocation?: unknown,
+ *     manualLocation?: Record<string, unknown>
+ *   },
+ *   visionConfig?: Record<string, unknown>,
+ *   scaleMode?: unknown,
+ *   splitPortrait?: unknown,
+ *   splitCropPercent?: unknown,
+ *   excludedKeywords?: unknown[]
+ * }} PersistedSnapshotInput
+ */
+
+/**
+ * @typedef {object} PersistedState
+ * @property {KeywordMap} searchKeywords
+ * @property {FeedConfigMap} feedConfigs
+ * @property {Record<string, Record<string, unknown>>} poolPolicies
+ * @property {unknown} autoLocation
+ * @property {Record<string, unknown>} manualLocation
+ * @property {Record<string, unknown> | undefined} visionConfig
+ * @property {unknown} scaleMode
+ * @property {unknown} splitPortrait
+ * @property {unknown} splitCropPercent
+ * @property {unknown[]} excludedKeywords
+ */
+
+/** @typedef {{collections: CollectionSnapshot, persistedState: PersistedState, duplicatesRemoved: boolean}} NormalizedPersistedSnapshot */
+
+/**
+ * @typedef {object} PersistedSnapshot
+ * @property {number} lastUpdated
+ * @property {number} lastFeedUpdated
+ * @property {CollectionSnapshot} feeds
+ * @property {KeywordMap} [searchKeywords]
+ * @property {FeedConfigMap} [feedConfigs]
+ * @property {Record<string, Record<string, unknown>>} [poolPolicies]
+ * @property {{autoLocation: boolean, manualLocation: Record<string, unknown> | undefined}} locationSettings
+ * @property {Record<string, unknown>} [visionConfig]
+ * @property {unknown} [scaleMode]
+ * @property {unknown} [splitPortrait]
+ * @property {unknown} [splitCropPercent]
+ * @property {unknown[]} [excludedKeywords]
+ */
+
+/** @typedef {(searchKeywords: KeywordMap) => FeedConfigMap} FeedConfigBuilder */
+
+/**
+ * Clone and normalize persisted collection rows without mutating their source.
+ *
+ * @param {CollectionEntries} [collections={}]
+ * @returns {CollectionSnapshot}
+ */
 function cloneCollectionEntries(collections = {}) {
   return Object.fromEntries(
     Object.entries(collections).map(([category, photos]) => [
@@ -22,10 +113,22 @@ function cloneCollectionEntries(collections = {}) {
   );
 }
 
+/**
+ * @param {string} category
+ * @param {unknown} photos
+ * @returns {PersistedPhoto[]}
+ */
 function cloneCategoryEntries(category, photos) {
   return cloneCollectionEntries({ [category]: photos })[category];
 }
 
+/**
+ * Overlay normalized persisted keywords on normalized defaults.
+ *
+ * @param {KeywordMap} [rawKeywords={}]
+ * @param {KeywordMap} [fallbackKeywords={}]
+ * @returns {KeywordMap}
+ */
 function normalizeKeywordsMap(rawKeywords = {}, fallbackKeywords = {}) {
   return {
     ...Object.fromEntries(
@@ -37,6 +140,14 @@ function normalizeKeywordsMap(rawKeywords = {}, fallbackKeywords = {}) {
   };
 }
 
+/**
+ * Restore a category's usable default photos when its persisted rows cannot be shown.
+ *
+ * @param {string} category
+ * @param {unknown} photos
+ * @param {CollectionSnapshot} fallbackCollections
+ * @returns {PersistedPhoto[]}
+ */
 function ensureUsableCategory(category, photos, fallbackCollections) {
   const fallbackPhotos = fallbackCollections[category] ?? [];
 
@@ -52,7 +163,12 @@ function ensureUsableCategory(category, photos, fallbackCollections) {
   return cloneCategoryEntries(category, photos);
 }
 
-/** Keep the first exact URL occurrence across pools in collection order. */
+/**
+ * Keep the first exact URL occurrence across pools in collection order.
+ *
+ * @param {CollectionEntries} collections
+ * @returns {{collections: CollectionSnapshot, duplicatesRemoved: boolean}}
+ */
 function dedupeCollections(collections) {
   const seenUrls = new Set();
   let duplicatesRemoved = false;
@@ -78,6 +194,18 @@ function dedupeCollections(collections) {
   };
 }
 
+/**
+ * Project an open persisted document and application defaults into the stable
+ * in-memory collections/configuration snapshot without mutating either input.
+ *
+ * @param {PersistedSnapshotInput | null | undefined} rawData
+ * @param {{
+ *   defaultCollections: CollectionEntries,
+ *   defaultState: PersistedStateDefaults,
+ *   buildFeedConfigsFromKeywords: FeedConfigBuilder
+ * }} dependencies
+ * @returns {NormalizedPersistedSnapshot}
+ */
 function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState, buildFeedConfigsFromKeywords }) {
   const rawFeeds = cloneCollectionEntries(rawData?.feeds);
   const mergedCollections = Object.fromEntries(
@@ -129,6 +257,14 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
   };
 }
 
+/**
+ * Serialize the stable persisted fields from collections and application state.
+ *
+ * @param {CollectionEntries} collections
+ * @param {PersistedStateInput} [state={}]
+ * @param {number} [timestamp=Date.now()]
+ * @returns {PersistedSnapshot}
+ */
 function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now()) {
   const {
     searchKeywords,
@@ -261,6 +397,11 @@ function saveCollectionsSnapshot({ jsonPath, collections, state, lastFeedUpdated
   );
 }
 
+/**
+ * @param {PersistedStateInput} [state={}]
+ * @param {number} lastFeedUpdated
+ * @returns {PersistedStateInput}
+ */
 function stateWithFeedTimestamp(state = {}, lastFeedUpdated) {
   return { ...state, lastFeedUpdated };
 }

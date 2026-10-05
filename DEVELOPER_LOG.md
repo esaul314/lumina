@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Type Collection Persistence Projections
+
+- **Functional boundary**: documented the open persisted JSON input and stable
+  normalized/serialized snapshot contracts in `server/config/collectionsCodec.js`.
+  Collection cloning, fallback selection, ordered URL deduplication, and state
+  projection remain pure; file access and migration recovery remain in the shell.
+- **Regression coverage**: verified deterministic serialization, detached
+  normalized collection rows, input immutability, existing URL ownership and
+  fallback semantics, plus a source assertion for the checked contracts.
+- **Verification**: `npm test` passed with 375 tests executed, 373 assertions,
+  0 failures, and 13/13 sensor-adapter regressions. `npm run lint`, syntax, and
+  `git diff --check` passed. The Unix-socket smoke was skipped because the
+  environment denies `listen` with `EPERM`; a TypeScript compiler is not
+  installed in this checkout.
+- **Next seam**: type the curried photo-by-URL and photo-list projections in
+  `server/config/collections.js`, leaving collection/state mutation and
+  persistence in the existing effect shell.
+
 ### 2026-10-04: Type the Keyword-to-Feed Configuration Projection
 
 - **Functional boundary**: added local checked contracts to the pure

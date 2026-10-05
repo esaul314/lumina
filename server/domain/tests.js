@@ -2536,6 +2536,50 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(collections['Liminal Spaces'][0].url, 'shared-image');
   });
 
+  assertTest('persistence snapshot projections are deterministic and do not mutate their inputs', () => {
+    const rawSnapshot = {
+      feeds: {
+        'Scenic Nature': [{ url: 'nature-image', title: 'Forest' }]
+      },
+      searchKeywords: { 'Scenic Nature': [' forest '] },
+      locationSettings: { manualLocation: { city: 'Montreal' } }
+    };
+    const defaults = {
+      defaultCollections: { 'Scenic Nature': [] },
+      defaultState: {
+        searchKeywords: {},
+        autoLocation: false,
+        manualLocation: {},
+        excludedKeywords: []
+      },
+      buildFeedConfigsFromKeywords: (keywords) => ({
+        'Scenic Nature': { unsplash: { keywords: keywords['Scenic Nature'] } }
+      })
+    };
+    const originalRawSnapshot = JSON.parse(JSON.stringify(rawSnapshot));
+    const originalDefaults = JSON.parse(JSON.stringify(defaults.defaultCollections));
+    const normalized = normalizePersistedSnapshot(rawSnapshot, defaults);
+    const normalizedState = {
+      ...normalized.persistedState,
+      searchKeywords: { ...normalized.persistedState.searchKeywords },
+      feedConfigs: { ...normalized.persistedState.feedConfigs },
+      poolPolicies: { ...normalized.persistedState.poolPolicies },
+      manualLocation: { ...normalized.persistedState.manualLocation },
+      excludedKeywords: [...normalized.persistedState.excludedKeywords]
+    };
+    const persisted = buildPersistedSnapshot(normalized.collections, normalized.persistedState, 456);
+
+    assert.strictEqual(normalized.collections['Scenic Nature'][0].url, 'nature-image');
+    assert.strictEqual(normalized.collections['Scenic Nature'][0].category, 'Scenic Nature');
+    assert.deepStrictEqual(persisted.feeds, normalized.collections);
+    assert.strictEqual(persisted.lastUpdated, 456);
+    assert.deepStrictEqual(rawSnapshot, originalRawSnapshot);
+    assert.deepStrictEqual(defaults.defaultCollections, originalDefaults);
+    assert.deepStrictEqual(normalized.persistedState, normalizedState);
+    assert.notStrictEqual(normalized.collections['Scenic Nature'], rawSnapshot.feeds['Scenic Nature']);
+    assert.notStrictEqual(normalized.collections['Scenic Nature'][0], rawSnapshot.feeds['Scenic Nature'][0]);
+  });
+
   assertTest('collection loading removes duplicate image URLs from disk and preserves sibling metadata', () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-collection-codec-'));
     const jsonPath = path.join(directory, 'curated_collections.json');
