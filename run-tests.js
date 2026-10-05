@@ -1377,6 +1377,21 @@ assertTest('collection persistence exposes checked pure snapshot contracts', () 
   assert.match(collectionCodecSource, /without mutating either input/);
 });
 
+assertTest('collection photo projections expose checked curried contracts', () => {
+  const collectionPhotoSource = fs.readFileSync(
+    path.join(__dirname, 'server/config/collectionPhotoProjections.js'),
+    'utf8'
+  );
+
+  assert.match(collectionPhotoSource, /^\/\/ @ts-check/);
+  assert.match(collectionPhotoSource, /@typedef \{Record<string, unknown> & \{url\?: unknown\}\} PhotoRecord/);
+  assert.match(collectionPhotoSource, /CurriedPhotoByUrl/);
+  assert.match(collectionPhotoSource, /CurriedPhotoListUpdater/);
+  assert.match(collectionPhotoSource, /@type \{CurriedPhotoByUrl\}/);
+  assert.match(collectionPhotoSource, /@type \{CurriedPhotoListUpdater\}/);
+  assert.match(collectionPhotoSource, /without mutating the list or its/);
+});
+
 assertTest('environment settings expose checked pure projection contracts', () => {
   const environmentSettingsSource = fs.readFileSync(
     path.join(__dirname, 'server/domain/environmentSettings.js'),

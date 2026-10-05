@@ -1,6 +1,6 @@
 const path = require('path');
-const { curry } = require('../utils/fn.js');
 const { saveCollectionsSnapshot } = require('./collectionsCodec.js');
+const { updatePhotosList } = require('./collectionPhotoProjections.js');
 const { updatePhotoInCollections } = require('../domain/selectors.js');
 
 /**
@@ -84,22 +84,6 @@ function saveCuratedCollections(collections, state, options = {}) {
     console.error('[Collections Config] Failed to write curated_collections.json:', err.message);
   }
 }
-
-/**
- * 🔍 updatePhotoByUrl
- * Curried projection helper that applies an updater to a photo if the URL matches.
- */
-const updatePhotoByUrl = curry((url, updater, photo) =>
-  photo && photo.url === url ? updater(photo) : photo
-);
-
-/**
- * 🗺️ updatePhotosList
- * Curried helper to map over a list of photos and apply an updater to the matching one.
- */
-const updatePhotosList = curry((url, updater, list) =>
-  list ? list.map(updatePhotoByUrl(url, updater)) : []
-);
 
 const syncStatePhoto = (state, key, url, updater) => {
   if (state?.[key]?.url === url) {

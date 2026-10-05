@@ -86,7 +86,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/utils/keywordSpecs.js` now exposes checked unknown-safe contracts for normalization, timed specs, equality, and ordered term collection; preserve phrase boundaries and detached nested arrays while keeping configuration effects outside the helper.
 - Latest Step 6 slice: `server/config/state.js` now exposes checked contracts for the pure keyword-to-feed-config projection; preserve ordered normalized terms and independent source arrays while keeping mutable `screensaverState` lifecycle explicit at the module boundary.
 - Latest Step 6 slice: `server/config/collectionsCodec.js` now exposes open persisted-record inputs and stable normalized/serialized snapshot contracts; keep filesystem reads, writes, and migration recovery in the codec's effectful shell.
-- Next Step 6 seam: type the curried photo-by-URL and photo-list projections in `server/config/collections.js`; keep collection/state mutation and persistence in the existing effect shell.
+- Latest Step 6 slice: `server/config/collectionPhotoProjections.js` now exposes checked curried photo-by-URL and photo-list contracts; preserve unmatched-value identity and immutable mapping while keeping collection/state mutation and persistence in `collections.js`.
+- Next Step 6 seam: add a checked contract to the pure local-config merge in `server/config/localSettings.js`; keep filesystem writes in `saveLocalConfigPatch(...)`.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

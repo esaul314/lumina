@@ -54,6 +54,10 @@ const {
   loadCollectionsSnapshot,
   normalizePersistedSnapshot
 } = require('../config/collectionsCodec.js');
+const {
+  updatePhotoByUrl,
+  updatePhotosList
+} = require('../config/collectionPhotoProjections.js');
 const { createClosedInterpreter, createIndexedInterpreter } = require('../utils/fn.js');
 const {
   normalizePhotoAddedAt,
@@ -2435,6 +2439,36 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(urls, [
       'google-1', 'nature-2', 'google-1', 'nature-3', 'google-1', 'nature-1'
     ]);
+  });
+
+  assertTest('curried photo projections preserve unmatched identity and map immutably', () => {
+    const photo = { url: 'target', title: 'Original' };
+    const other = { url: 'other', title: 'Unchanged' };
+    const updateTitle = (record) => ({ ...record, title: `${record.title} updated` });
+    const updateTarget = updatePhotoByUrl('target', updateTitle);
+    const source = [photo, other, null, undefined];
+    const projected = updatePhotosList('target', updateTitle)(source);
+
+    assert.deepStrictEqual(updateTarget(photo), {
+      url: 'target',
+      title: 'Original updated'
+    });
+    assert.strictEqual(
+      updatePhotoByUrl('target', updateTitle, photo).title,
+      'Original updated'
+    );
+    assert.strictEqual(updatePhotoByUrl('target')(updateTitle)(null), null);
+    assert.strictEqual(updateTarget(other), other);
+    assert.notStrictEqual(projected, source);
+    assert.deepStrictEqual(projected, [
+      { url: 'target', title: 'Original updated' },
+      other,
+      null,
+      undefined
+    ]);
+    assert.strictEqual(projected[1], other);
+    assert.strictEqual(photo.title, 'Original');
+    assert.deepStrictEqual(updatePhotosList('target', updateTitle, null), []);
   });
 
   assertTest('persistence codec normalizes legacy shapes and restores feed configs', () => {

@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-04: Type Curried Collection Photo Projections
+
+- **Functional boundary**: extracted URL-matched photo and photo-list mapping
+  into checked pure projections. Their curried, data-last interfaces retain
+  unmatched identity and an empty-list fallback; collection/state mutation and
+  persistence remain in `server/config/collections.js`.
+- **Regression coverage**: tested staged application, null-safe identity,
+  immutable list mapping, retained unmatched references, and source immutability.
+  A source assertion pins the local checked contracts.
+- **Verification**: `npm test` passed (377 tests, 375 assertions, 0 failures;
+  sensor adapters 13/13); `npm run lint`, syntax checks, and `git diff --check`
+  passed. The optional Unix-socket smoke was skipped because the sandbox denies
+  `listen` with `EPERM`; a TypeScript compiler is not installed in this checkout.
+- **Next seam**: add a checked contract to the pure local-config merge in
+  `server/config/localSettings.js`; keep filesystem writes in
+  `saveLocalConfigPatch(...)`.
+
 ### 2026-10-04: Type Collection Persistence Projections
 
 - **Functional boundary**: documented the open persisted JSON input and stable
