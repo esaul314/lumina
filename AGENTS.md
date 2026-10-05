@@ -88,7 +88,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/config/collectionsCodec.js` now exposes open persisted-record inputs and stable normalized/serialized snapshot contracts; keep filesystem reads, writes, and migration recovery in the codec's effectful shell.
 - Latest Step 6 slice: `server/config/collectionPhotoProjections.js` now exposes checked curried photo-by-URL and photo-list contracts; preserve unmatched-value identity and immutable mapping while keeping collection/state mutation and persistence in `collections.js`.
 - Latest Step 6 slice: `server/config/localSettings.js` now exposes checked local-config and section contracts; tests preserve partial updates, nested Ecowitt units, shallow sensor-history semantics, ignored unsupported patch fields, and input immutability while filesystem writes remain in `saveLocalConfigPatch(...)`.
-- Next Step 6 seam: isolate and type the pure defaults/overrides and deprecated-secret filtering projection in `server/config/configLoader.js`; keep environment loading, file reads, and warnings at the module boundary.
+- Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked pure defaults/overrides projection and deprecated-secret list; preserve section merge depths and input immutability while file reads and warnings remain in `configLoader.js`.
+- Next Step 6 seam: review the photo-field update plan in `server/config/collections.js` for a stable typed pure projection; keep live-state mutation and persistence in the existing shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

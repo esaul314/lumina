@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-05: Type the Config Loader Projection
+
+- **Functional boundary**: extracted defaults/overrides composition and
+  deprecated-secret filtering into `server/config/configLoaderProjections.js`.
+  The projection is pure and checked; config file access and warning output
+  remain in `configLoader.js`.
+- **Behavior pinned**: location and Ecowitt-unit values merge at their existing
+  nested levels, sensor-history remains a shallow section merge, extension keys
+  survive, deprecated secret keys are omitted in stable order, and inputs are
+  unchanged.
+- **Next seam**: review the photo-field update plan in
+  `server/config/collections.js` for a stable typed pure projection while
+  preserving live-state mutation and persistence in its shell.
+
 ### 2026-10-04: Type the Local Config Merge Projection
 
 - **Functional boundary**: documented `mergeLocalConfig(...)` with local checked

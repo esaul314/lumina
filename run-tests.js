@@ -91,6 +91,7 @@ const {
 } = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const { mergeLocalConfig } = require('./server/config/localSettings.js');
+const { projectConfigOverrides } = require('./server/config/configLoaderProjections.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
 const {
   chainRouteDecode,
@@ -716,6 +717,81 @@ assertTest('local config merge exposes checked section contracts', () => {
   assert.match(source, /@param \{LocalConfig\} patch/);
   assert.match(source, /@returns \{LocalConfig\}/);
   assert.match(source, /sensor-history settings remain a\s+\*\s+shallow section merge/);
+});
+
+assertTest('config override projection filters deprecated secrets and preserves merge semantics immutably', () => {
+  const defaults = {
+    theme: 'Zen Retreat',
+    location: { city: 'Toronto', latitude: 43.65 },
+    ecowitt: {
+      baseUrl: 'http://gateway.local',
+      pollIntervalSeconds: 60,
+      units: { temperature: 'C', pressure: 'hPa' }
+    },
+    sensorHistory: {
+      enabled: true,
+      retentionDays: 30,
+      export: { format: 'csv' }
+    }
+  };
+  const userConfig = {
+    theme: 'Cosmic Night',
+    location: { city: 'Montreal' },
+    ecowitt: {
+      pollIntervalSeconds: 15,
+      units: { temperature: 'F' }
+    },
+    sensorHistory: {
+      retentionDays: 90,
+      export: { format: 'json' }
+    },
+    nasaApiKey: null,
+    googleClientSecret: 'deprecated-secret',
+    customExtension: { enabled: true }
+  };
+  const originalDefaults = structuredClone(defaults);
+  const originalUserConfig = structuredClone(userConfig);
+
+  const { config: projected, ignoredSecretKeys } = projectConfigOverrides(defaults, userConfig);
+
+  assert.deepStrictEqual(projected, {
+    theme: 'Cosmic Night',
+    location: { city: 'Montreal', latitude: 43.65 },
+    ecowitt: {
+      baseUrl: 'http://gateway.local',
+      pollIntervalSeconds: 15,
+      units: { temperature: 'F', pressure: 'hPa' }
+    },
+    sensorHistory: {
+      enabled: true,
+      retentionDays: 90,
+      export: { format: 'json' }
+    },
+    customExtension: { enabled: true }
+  });
+  assert.deepStrictEqual(ignoredSecretKeys, ['nasaApiKey', 'googleClientSecret']);
+  assert.strictEqual(Object.hasOwn(projected, 'nasaApiKey'), false);
+  assert.strictEqual(Object.hasOwn(projected, 'googleClientSecret'), false);
+  assert.notStrictEqual(projected.location, defaults.location);
+  assert.notStrictEqual(projected.ecowitt.units, defaults.ecowitt.units);
+  assert.strictEqual(projected.sensorHistory.export, userConfig.sensorHistory.export);
+  assert.deepStrictEqual(defaults, originalDefaults);
+  assert.deepStrictEqual(userConfig, originalUserConfig);
+});
+
+assertTest('config loader projection exposes checked types and leaves file and warning effects in its shell', () => {
+  const projectionSource = fs.readFileSync(require.resolve('./server/config/configLoaderProjections.js'), 'utf8');
+  const loaderSource = fs.readFileSync(require.resolve('./server/config/configLoader.js'), 'utf8');
+
+  assert.match(projectionSource, /^\/\/ @ts-check/);
+  assert.match(projectionSource, /@typedef \{Record<string, unknown>\} ConfigRecord/);
+  assert.match(projectionSource, /@typedef \{ConfigRecord & \{ location\?: ConfigRecord; ecowitt\?: EcowittConfig; sensorHistory\?: ConfigRecord \}\} AppConfig/);
+  assert.match(projectionSource, /@param \{AppConfig\} defaults/);
+  assert.match(projectionSource, /@param \{AppConfig\} userConfig/);
+  assert.match(projectionSource, /@returns \{ConfigProjection\}/);
+  assert.match(loaderSource, /projectConfigOverrides\(config, userConfig\)/);
+  assert.match(loaderSource, /console\.warn\(`Warning: Secret config keys/);
+  assert.match(loaderSource, /fs\.readFileSync/);
 });
 
 assertTest('updatePhotoCrop projects crop updates across list and active split photo state', () => {
