@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-05
+Last updated: 2026-10-07
 
 ## Implementation Companion
 
@@ -31,6 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
+- Latest Step 6 slice (43): `server/config/collectionPhotoUpdatePlan.js` now purely projects collection, feed-list, and paired-frame photo updates; in-place state mutation and persistence remain in `collections.js`.
+- Next Step 6 seam: review the field-specific photo updater inputs in `collections.js` for checked pure contracts, preserving rating parsing, partial crop updates, and pairing-flag coercion.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.

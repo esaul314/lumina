@@ -1,7 +1,6 @@
 const path = require('path');
 const { saveCollectionsSnapshot } = require('./collectionsCodec.js');
-const { updatePhotosList } = require('./collectionPhotoProjections.js');
-const { updatePhotoInCollections } = require('../domain/selectors.js');
+const { projectPhotoFieldUpdate } = require('./collectionPhotoUpdatePlan.js');
 
 /**
  * 🖼️ defaultCuratedCollections
@@ -85,37 +84,28 @@ function saveCuratedCollections(collections, state, options = {}) {
   }
 }
 
-const syncStatePhoto = (state, key, url, updater) => {
-  if (state?.[key]?.url === url) {
-    state[key] = updater(state[key]);
-  }
-};
-
 /**
  * 🔄 updatePhotoField
  * Unified orchestrator that safely projects changes across collections database,
  * photosList, activePhoto, and activeSecondPhoto.
  */
 function updatePhotoField(collections, state, url, updater, optionalRating) {
-  const { collections: nextCollections, changed } = updatePhotoInCollections(collections, url, updater);
-  if (!changed) return false;
+  const plan = projectPhotoFieldUpdate(collections, state, url, updater, optionalRating);
+  if (!plan.changed) return false;
 
   // 1. Update collections database in place
-  Object.assign(collections, nextCollections);
+  Object.assign(collections, plan.collections);
 
-  // 2. Update state photosList
-  if (state && Array.isArray(state.photosList)) {
-    const nextPhotosList = updatePhotosList(url, updater, state.photosList);
-    state.photosList = optionalRating === 1
-      ? nextPhotosList.filter(photo => photo?.url !== url)
-      : nextPhotosList;
+  // 2. Apply projected state updates
+  if (state && plan.stateUpdates.photosList !== undefined) {
+    state.photosList = plan.stateUpdates.photosList;
   }
-
-  // 3. Update activePhoto in state
-  syncStatePhoto(state, 'activePhoto', url, updater);
-
-  // 4. Update activeSecondPhoto in state (fixes split pairing out-of-sync design bug)
-  syncStatePhoto(state, 'activeSecondPhoto', url, updater);
+  if (state && plan.stateUpdates.activePhoto !== undefined) {
+    state.activePhoto = plan.stateUpdates.activePhoto;
+  }
+  if (state && plan.stateUpdates.activeSecondPhoto !== undefined) {
+    state.activeSecondPhoto = plan.stateUpdates.activeSecondPhoto;
+  }
 
   // 5. Save to disk
   saveCuratedCollections(collections, state);

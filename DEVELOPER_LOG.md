@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-07: Project Curated Photo Field Updates
+
+- **Functional boundary**: extracted `projectPhotoFieldUpdate(...)` into
+  `server/config/collectionPhotoUpdatePlan.js`. The checked pure projection
+  derives collection, feed-list, and active-frame updates; `collections.js`
+  retains in-place application and persistence.
+- **Behavior pinned**: tests preserve paired-frame synchronization, immediate
+  removal of rating-1 photos from the live feed, input immutability, and the
+  missing-URL identity/no-state-update path.
+- **Verification**: `npm test` passed with 385 tests and 383 assertions;
+  sensor adapter regressions passed 13/13. `npm run lint` and `node --check`
+  passed. The optional Unix-socket smoke was skipped because the sandbox denies
+  `listen` with `EPERM`.
+- **Next seam**: review field-specific photo updater inputs in
+  `server/config/collections.js` for checked pure contracts, retaining existing
+  rating parsing, crop partial-update, and pairing-flag coercion semantics.
+
 ### 2026-10-05: Type the Config Loader Projection
 
 - **Functional boundary**: extracted defaults/overrides composition and
@@ -16,9 +33,9 @@ This document serves as a public-facing, generic history of technical developmen
   nested levels, sensor-history remains a shallow section merge, extension keys
   survive, deprecated secret keys are omitted in stable order, and inputs are
   unchanged.
-- **Next seam**: review the photo-field update plan in
-  `server/config/collections.js` for a stable typed pure projection while
-  preserving live-state mutation and persistence in its shell.
+- **Completed next seam**: the photo-field update plan is now a checked pure
+  projection in `server/config/collectionPhotoUpdatePlan.js`; collection/state
+  mutation and persistence remain in `collections.js`.
 
 ### 2026-10-04: Type the Local Config Merge Projection
 

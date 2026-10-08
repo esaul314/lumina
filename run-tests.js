@@ -48,6 +48,7 @@ const {
   toCsv
 } = require('./server/services/sensorHistory.js');
 const { updatePhotoCrop } = require('./server/config/collections.js');
+const { projectPhotoFieldUpdate } = require('./server/config/collectionPhotoUpdatePlan.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const {
@@ -1544,6 +1545,66 @@ assertTest('collection photo projections expose checked curried contracts', () =
   assert.match(collectionPhotoSource, /@type \{CurriedPhotoByUrl\}/);
   assert.match(collectionPhotoSource, /@type \{CurriedPhotoListUpdater\}/);
   assert.match(collectionPhotoSource, /without mutating the list or its/);
+});
+
+assertTest('collection photo update plan exposes a checked pure projection contract', () => {
+  const updatePlanSource = fs.readFileSync(
+    path.join(__dirname, 'server/config/collectionPhotoUpdatePlan.js'),
+    'utf8'
+  );
+  const collectionsSource = fs.readFileSync(
+    path.join(__dirname, 'server/config/collections.js'),
+    'utf8'
+  );
+
+  assert.match(updatePlanSource, /^\/\/ @ts-check/);
+  assert.match(updatePlanSource, /\}\s*PhotoFieldUpdatePlan/);
+  assert.match(updatePlanSource, /@param \{PhotoCollections\} collections/);
+  assert.match(updatePlanSource, /@param \{PhotoUpdateState \| null \| undefined\} state/);
+  assert.match(updatePlanSource, /@returns \{PhotoFieldUpdatePlan\}/);
+  assert.match(updatePlanSource, /without mutating/);
+  assert.match(collectionsSource, /projectPhotoFieldUpdate\(collections, state, url, updater, optionalRating\)/);
+  assert.match(collectionsSource, /saveCuratedCollections\(collections, state\)/);
+});
+
+assertTest('photo update plan projects collection and paired state changes without mutation', () => {
+  const photo = { url: 'target', title: 'Target', rating: 5 };
+  const collections = { Nature: [photo], Space: [{ url: 'other', rating: 8 }] };
+  const state = {
+    photosList: [photo, { url: 'other', rating: 8 }],
+    activePhoto: { ...photo },
+    activeSecondPhoto: { ...photo }
+  };
+  const originalCollections = JSON.parse(JSON.stringify(collections));
+  const originalState = JSON.parse(JSON.stringify(state));
+  const updater = (value) => ({ ...value, rating: 1 });
+
+  const plan = projectPhotoFieldUpdate(collections, state, 'target', updater, 1);
+
+  assert.strictEqual(plan.changed, true);
+  assert.strictEqual(plan.collections.Nature[0].rating, 1);
+  assert.deepStrictEqual(plan.stateUpdates.photosList.map(({ url }) => url), ['other']);
+  assert.strictEqual(plan.stateUpdates.activePhoto.rating, 1);
+  assert.strictEqual(plan.stateUpdates.activeSecondPhoto.rating, 1);
+  assert.deepStrictEqual(collections, originalCollections);
+  assert.deepStrictEqual(state, originalState);
+});
+
+assertTest('photo update plan preserves collection identity and skips updater for missing URLs', () => {
+  const collections = { Nature: [{ url: 'present', title: 'Present' }] };
+  const state = { photosList: [{ url: 'present' }], activePhoto: { url: 'present' } };
+  let updaterCalls = 0;
+  const plan = projectPhotoFieldUpdate(collections, state, 'missing', (photo) => {
+    updaterCalls += 1;
+    return { ...photo };
+  }, 1);
+
+  assert.strictEqual(plan.changed, false);
+  assert.strictEqual(plan.collections, collections);
+  assert.deepStrictEqual(plan.stateUpdates, {});
+  assert.strictEqual(updaterCalls, 0);
+  assert.deepStrictEqual(collections.Nature, [{ url: 'present', title: 'Present' }]);
+  assert.deepStrictEqual(state, { photosList: [{ url: 'present' }], activePhoto: { url: 'present' } });
 });
 
 assertTest('environment settings expose checked pure projection contracts', () => {
