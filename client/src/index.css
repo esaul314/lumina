@@ -2269,7 +2269,8 @@ body.mode-remote {
 }
 
 /* Specific Credit Labels for the split portrait layout */
-.slide-half-credit {
+.slide-half-credit,
+.single-slide-credit {
   position: absolute;
   bottom: 16px;
   left: 16px;
@@ -2288,7 +2289,8 @@ body.mode-remote {
   max-width: calc(100% - 32px);
 }
 
-.slide-half-credit .title {
+.slide-half-credit .title,
+.single-slide-credit .title {
   font-size: 0.85rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.95);

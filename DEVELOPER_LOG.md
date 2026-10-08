@@ -111,6 +111,26 @@ This document serves as a public-facing, generic history of technical developmen
   documented seam remains the keyword-to-feed-config projection in
   `server/config/state.js`.
 
+### 2026-10-07: Show Google Photos Dates in Single-Slide Mode
+
+- **Presentation correction**: The first capture-date slice projected the date
+  into slide metadata, but the Dashboard rendered title labels only for split
+  slides. Single Google Photos slides now show the localized date (or the
+  existing title fallback); non-Google single slides keep their current
+  presentation.
+- **Runtime diagnosis**: The service was restarted to load Picker timestamp
+  persistence, and the previously active category selection was restored. The
+  existing Google Photos cache contained no `createTime` values. The most
+  populated and newest saved Picker sessions both returned `403` because their
+  access had expired. Those rows need to be selected again through Picker before
+  the cache can acquire their dates.
+- **Verification**: `npm test` passed with 382 tests executed, 380 assertions,
+  0 failures, and 13/13 sensor-adapter regressions. `npm run lint`, the client
+  production build, syntax checks for the changed JavaScript modules, and
+  `git diff --check` passed. The active service serves the new client assets
+  (`index-DUzq1c3V.js` and `index-DgnrgKOQ.css`). The Unix-socket smoke was
+  skipped because the environment denies `listen` with `EPERM`.
+
 ### 2026-10-04: Type Keyword Specification Projections
 
 - **Functional boundary**: added local checked contracts to the pure

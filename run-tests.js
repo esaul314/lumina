@@ -2066,6 +2066,9 @@ assertAsyncTest('Google Photos slide titles use localized capture dates and pres
     'utf8'
   );
   assert.match(dashboardSource, /title: getPhotoSlideTitle\(photo\)/);
+  assert.match(dashboardSource, /source: photo\.source/);
+  assert.match(dashboardSource, /slide\.source === 'google_photos' && \(/);
+  assert.match(dashboardSource, /className="single-slide-credit"/);
   assert.match(dashboardSource, /projectSplitSlideTitles\(photo1, photo2\)/);
 });
 

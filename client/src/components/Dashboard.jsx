@@ -288,6 +288,7 @@ function Dashboard({ state, socket, connectionInfo }) {
         const newSlide = {
           url: photo.url,
           title: getPhotoSlideTitle(photo),
+          source: photo.source,
           author: photo.author,
           category: state.currentCategory,
           cropPercent: photo.cropPercent,
@@ -774,6 +775,11 @@ function Dashboard({ state, socket, connectionInfo }) {
                     className={`single-slide-image ${shouldAnimate ? 'animated' : ''}`}
                     style={getSingleImageStyle(slide.url, slide.w, slide.h, slide.cropPercent, slide.cropPositionY)}
                   />
+                  {slide.source === 'google_photos' && (
+                    <div className="single-slide-credit">
+                      <div className="title">{slide.title}</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
