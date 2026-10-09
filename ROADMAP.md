@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (43): `server/config/collectionPhotoUpdatePlan.js` now purely projects collection, feed-list, and paired-frame photo updates; in-place state mutation and persistence remain in `collections.js`.
-- Next Step 6 seam: review the field-specific photo updater inputs in `collections.js` for checked pure contracts, preserving rating parsing, partial crop updates, and pairing-flag coercion.
+- Latest Step 6 slice (44): `server/config/collectionPhotoUpdaters.js` now exposes checked immutable rating, crop, pairing, and broken-photo projections; parsing/coercion behavior is preserved while state mutation and persistence remain in `collections.js`.
+- Next Step 6 seam: review local JSDoc contracts at the remaining config effect shells (`collections.js` and `configLoader.js`), keeping filesystem and live-state effects in place.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -235,7 +235,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slices: keyword specs and feed-config projections, persisted collection snapshots, and curried photo-list projections now have checked contracts; their configuration, filesystem, state-mutation, and persistence effects remain in their shells.
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
-  - Next Step 6 seam: review the photo-field update plan in `server/config/collections.js` for a stable pure projection, leaving live-state mutation and persistence in its shell.
+  - Next Step 6 seam: review local JSDoc contracts at the remaining config effect shells (`collections.js` and `configLoader.js`), keeping filesystem and live-state effects in place.
 
 ### Shared domain flow
 

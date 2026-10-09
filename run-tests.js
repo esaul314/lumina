@@ -49,6 +49,12 @@ const {
 } = require('./server/services/sensorHistory.js');
 const { updatePhotoCrop } = require('./server/config/collections.js');
 const { projectPhotoFieldUpdate } = require('./server/config/collectionPhotoUpdatePlan.js');
+const {
+  projectPhotoRatingUpdate,
+  projectPhotoCropUpdater,
+  projectPhotoPairingUpdater,
+  projectBrokenPhoto
+} = require('./server/config/collectionPhotoUpdaters.js');
 const { buildFeedConfigsFromKeywords } = require('./server/config/state.js');
 const { runDomainTests } = require('./server/domain/tests.js');
 const {
@@ -1605,6 +1611,77 @@ assertTest('photo update plan preserves collection identity and skips updater fo
   assert.strictEqual(updaterCalls, 0);
   assert.deepStrictEqual(collections.Nature, [{ url: 'present', title: 'Present' }]);
   assert.deepStrictEqual(state, { photosList: [{ url: 'present' }], activePhoto: { url: 'present' } });
+});
+
+assertTest('collection photo updater projections preserve rating parsing and immutable updates', () => {
+  const photo = { url: 'rating-target', title: 'Target', rating: 4, loved: true };
+  const original = { ...photo };
+  const { rating, updater } = projectPhotoRatingUpdate('8.7tail');
+  const updated = updater(photo);
+
+  assert.strictEqual(rating, 8, 'rating parsing must retain parseInt partial-string behavior');
+  assert.deepStrictEqual(updated, { ...photo, rating: 8 });
+  assert.notStrictEqual(updated, photo);
+  assert.deepStrictEqual(photo, original, 'the photo updater must not mutate its input');
+  assert.ok(Number.isNaN(projectPhotoRatingUpdate('invalid').rating));
+});
+
+assertTest('collection photo crop updater preserves omitted fields and applies explicit values', () => {
+  const photo = { url: 'crop-target', cropPercent: 30, cropPositionY: 20, title: 'Target' };
+  const original = { ...photo };
+  const updatePosition = projectPhotoCropUpdater(undefined, 65);
+  const positioned = updatePosition(photo);
+  const clearPercent = projectPhotoCropUpdater(null, undefined)(photo);
+
+  assert.deepStrictEqual(positioned, { ...photo, cropPositionY: 65 });
+  assert.deepStrictEqual(clearPercent, { ...photo, cropPercent: null });
+  assert.deepStrictEqual(photo, original, 'crop updates must not mutate their input');
+});
+
+assertTest('collection photo pairing updater preserves JavaScript truthiness coercion', () => {
+  const photo = { url: 'pair-target', title: 'Target' };
+
+  assert.deepStrictEqual(projectPhotoPairingUpdater('false')(photo), {
+    ...photo,
+    preventPairing: true
+  });
+  assert.deepStrictEqual(projectPhotoPairingUpdater(false)(photo), {
+    ...photo,
+    preventPairing: false
+  });
+  assert.deepStrictEqual(photo, { url: 'pair-target', title: 'Target' });
+});
+
+assertTest('broken photo updater composes rating and broken metadata without mutation', () => {
+  const photo = { url: 'broken-target', rating: 9, isBroken: false };
+  const original = { ...photo };
+
+  assert.deepStrictEqual(projectBrokenPhoto(photo), {
+    ...photo,
+    rating: 1,
+    isBroken: true
+  });
+  assert.deepStrictEqual(photo, original);
+});
+
+assertTest('collection photo updater contracts remain checked and persistence stays in collections shell', () => {
+  const updaterSource = fs.readFileSync(
+    path.join(__dirname, 'server/config/collectionPhotoUpdaters.js'),
+    'utf8'
+  );
+  const collectionsSource = fs.readFileSync(
+    path.join(__dirname, 'server/config/collections.js'),
+    'utf8'
+  );
+
+  assert.match(updaterSource, /^\/\/ @ts-check/);
+  assert.match(updaterSource, /@returns \{PhotoRatingUpdate\}/);
+  assert.match(updaterSource, /@returns \{PhotoUpdater\}/);
+  assert.match(collectionsSource, /projectPhotoRatingUpdate\(rating\)/);
+  assert.match(collectionsSource, /projectPhotoCropUpdater\(cropPercent, cropPositionY\)/);
+  assert.match(collectionsSource, /projectPhotoPairingUpdater\(preventPairing\)/);
+  assert.match(collectionsSource, /projectBrokenPhoto, 1/);
+  assert.match(collectionsSource, /saveCuratedCollections\(collections, state\)/);
 });
 
 assertTest('environment settings expose checked pure projection contracts', () => {

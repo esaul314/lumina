@@ -89,8 +89,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/config/collectionPhotoProjections.js` now exposes checked curried photo-by-URL and photo-list contracts; preserve unmatched-value identity and immutable mapping while keeping collection/state mutation and persistence in `collections.js`.
 - Latest Step 6 slice: `server/config/localSettings.js` now exposes checked local-config and section contracts; tests preserve partial updates, nested Ecowitt units, shallow sensor-history semantics, ignored unsupported patch fields, and input immutability while filesystem writes remain in `saveLocalConfigPatch(...)`.
 - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked pure defaults/overrides projection and deprecated-secret list; preserve section merge depths and input immutability while file reads and warnings remain in `configLoader.js`.
-- Latest Step 6 slice: `server/config/collectionPhotoUpdatePlan.js` now exposes a checked pure plan for collection, feed-list, and paired-frame photo updates; preserve rating-1 pruning and missing-photo identity while state mutation and persistence remain in `collections.js`.
-- Next Step 6 seam: review the field-specific photo updater inputs in `server/config/collections.js` for checked pure contracts, preserving rating parsing, partial crop updates, and pairing-flag coercion.
+- Latest Step 6 slice: `server/config/collectionPhotoUpdaters.js` now exposes checked immutable rating, crop, pairing, and broken-photo projections; preserve `parseInt`, partial crop, truthiness, and input immutability while state mutation and persistence remain in `collections.js`.
+- Next Step 6 seam: review local JSDoc contracts at the remaining config effect shells (`collections.js` and `configLoader.js`), keeping filesystem and live-state effects in place.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-08: Project Curated Photo Updaters
+
+- **Functional boundary**: added checked pure rating, crop, pairing, and broken-
+  photo updaters in `server/config/collectionPhotoUpdaters.js`; `collections.js`
+  continues to own orchestration, live-state mutation, logging, and persistence.
+- **Behavior pinned**: tests retain native `parseInt(..., 10)` behavior,
+  undefined-only crop omission, JavaScript truthiness coercion, rating-1 feed
+  pruning, and immutable photo updates.
+- **Verification**: `npm test` passed with 390 core tests and 388 assertions;
+  sensor adapter regressions passed 13/13. `npm run lint` and touched-file
+  syntax checks passed. The optional Unix-socket smoke was skipped because the
+  sandbox denies `listen` with `EPERM`.
+- **Next seam**: review local JSDoc contracts at the remaining config effect
+  shells (`collections.js` and `configLoader.js`), keeping filesystem and
+  live-state effects in place.
+
 ### 2026-10-07: Project Curated Photo Field Updates
 
 - **Functional boundary**: extracted `projectPhotoFieldUpdate(...)` into
@@ -19,9 +35,8 @@ This document serves as a public-facing, generic history of technical developmen
   sensor adapter regressions passed 13/13. `npm run lint` and `node --check`
   passed. The optional Unix-socket smoke was skipped because the sandbox denies
   `listen` with `EPERM`.
-- **Next seam**: review field-specific photo updater inputs in
-  `server/config/collections.js` for checked pure contracts, retaining existing
-  rating parsing, crop partial-update, and pairing-flag coercion semantics.
+- **Completed next seam**: field-specific photo updater behavior now has
+  checked pure contracts in `server/config/collectionPhotoUpdaters.js`.
 
 ### 2026-10-05: Type the Config Loader Projection
 

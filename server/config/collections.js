@@ -1,6 +1,12 @@
 const path = require('path');
 const { saveCollectionsSnapshot } = require('./collectionsCodec.js');
 const { projectPhotoFieldUpdate } = require('./collectionPhotoUpdatePlan.js');
+const {
+  projectPhotoRatingUpdate,
+  projectPhotoCropUpdater,
+  projectPhotoPairingUpdater,
+  projectBrokenPhoto
+} = require('./collectionPhotoUpdaters.js');
 
 /**
  * 🖼️ defaultCuratedCollections
@@ -118,8 +124,7 @@ function updatePhotoField(collections, state, url, updater, optionalRating) {
  * Updates the rating of a photograph by its URL across all categories, state lists, and persists to disk.
  */
 function updatePhotoRating(collections, state, url, rating) {
-  const numericRating = parseInt(rating, 10);
-  const updater = (photo) => ({ ...photo, rating: numericRating });
+  const { rating: numericRating, updater } = projectPhotoRatingUpdate(rating);
   const updated = updatePhotoField(collections, state, url, updater, numericRating);
   
   if (updated && process.env.NODE_ENV !== 'test') {
@@ -133,8 +138,7 @@ function updatePhotoRating(collections, state, url, rating) {
  * Sets photo rating to 1 and isBroken to true. Persists changes.
  */
 function markPhotoBroken(collections, state, url) {
-  const updater = (photo) => ({ ...photo, rating: 1, isBroken: true });
-  const updated = updatePhotoField(collections, state, url, updater, 1);
+  const updated = updatePhotoField(collections, state, url, projectBrokenPhoto, 1);
   
   if (updated && process.env.NODE_ENV !== 'test') {
     console.log(`[Collections Config] Marked photo as broken (rating=1, isBroken=true) for URL: ${url}`);
@@ -147,11 +151,7 @@ function markPhotoBroken(collections, state, url) {
  * Updates the crop percentage of a photograph by its URL and persists to disk.
  */
 function updatePhotoCrop(collections, state, url, cropPercent, cropPositionY) {
-  const updater = (photo) => ({
-    ...photo,
-    ...(cropPercent !== undefined && { cropPercent }),
-    ...(cropPositionY !== undefined && { cropPositionY })
-  });
+  const updater = projectPhotoCropUpdater(cropPercent, cropPositionY);
   const updated = updatePhotoField(collections, state, url, updater);
   
   if (updated && process.env.NODE_ENV !== 'test') {
@@ -165,7 +165,7 @@ function updatePhotoCrop(collections, state, url, cropPercent, cropPositionY) {
  * Updates the preventPairing flag of a photograph by its URL and persists to disk.
  */
 function updatePhotoPreventPairing(collections, state, url, preventPairing) {
-  const updater = (photo) => ({ ...photo, preventPairing: !!preventPairing });
+  const updater = projectPhotoPairingUpdater(preventPairing);
   const updated = updatePhotoField(collections, state, url, updater);
   
   if (updated && process.env.NODE_ENV !== 'test') {
