@@ -2,13 +2,22 @@ const fs = require('fs');
 const path = require('path');
 const { readEnvVar, persistEnvVars } = require('../config/env.js');
 const { applyPoolPolicy } = require('../domain/poolRetention.js');
+const {
+  buildCachedMediaItem,
+  buildGooglePhotoProxyUrl,
+  dedupeMediaItemsById,
+  getGooglePhotoMediaItemId,
+  getPickerItemMimeType,
+  isUsableCachedMediaItem,
+  mergeSyncedMediaItems,
+  normalizeCachedMediaItem
+} = require('./googlePhotosCache.js');
 
 const CACHE_PATH = process.env.LUMINA_GOOGLE_PHOTOS_CACHE_PATH
   || path.join(__dirname, '..', 'config', 'google_photos_cache.json');
 const DEFAULT_RENDER_WIDTH = 2560;
 const DEFAULT_RENDER_HEIGHT = 1440;
 const BASE_URL_TTL_MS = 55 * 60 * 1000;
-const GOOGLE_PHOTO_PROXY_PREFIX = '/api/google-photos/media/';
 
 // Ensure parent directories exist
 const configDir = path.dirname(CACHE_PATH);
@@ -38,29 +47,6 @@ function persistGoogleRefreshToken(refreshToken) {
   });
 }
 
-function buildGooglePhotoProxyUrl(mediaItemId, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = false } = {}) {
-  const params = new URLSearchParams({
-    w: String(width),
-    h: String(height)
-  });
-
-  if (crop) {
-    params.set('c', '1');
-  }
-
-  return `/api/google-photos/media/${encodeURIComponent(mediaItemId)}?${params.toString()}`;
-}
-
-function getGooglePhotoMediaItemId(value) {
-  const text = String(value || '').trim();
-  if (!text.startsWith(GOOGLE_PHOTO_PROXY_PREFIX)) {
-    return '';
-  }
-
-  const [encodedId] = text.slice(GOOGLE_PHOTO_PROXY_PREFIX.length).split('?');
-  return encodedId ? decodeURIComponent(encodedId) : '';
-}
-
 function isGooglePhotoProxyUrl(value) {
   return Boolean(getGooglePhotoMediaItemId(value));
 }
@@ -75,141 +61,6 @@ function buildGooglePhotoContentUrl(baseUrl, { width = DEFAULT_RENDER_WIDTH, hei
     directives.push('c');
   }
   return `${baseUrl}=${directives.join('-')}`;
-}
-
-function getPickerMediaFile(item) {
-  return item?.mediaFile && typeof item.mediaFile === 'object' ? item.mediaFile : item;
-}
-
-function getPickerItemBaseUrl(item) {
-  return String(getPickerMediaFile(item)?.baseUrl || '').trim();
-}
-
-function getPickerItemMimeType(item) {
-  return String(getPickerMediaFile(item)?.mimeType || item?.mimeType || '').trim();
-}
-
-function getPickerItemDimensions(item) {
-  const metadata = getPickerMediaFile(item)?.mediaFileMetadata || item?.mediaFileMetadata || {};
-  const width = Number.parseInt(metadata.width, 10);
-  const height = Number.parseInt(metadata.height, 10);
-
-  return {
-    width: Number.isFinite(width) && width > 0 ? width : DEFAULT_RENDER_WIDTH,
-    height: Number.isFinite(height) && height > 0 ? height : DEFAULT_RENDER_HEIGHT
-  };
-}
-
-function extractLegacyBaseUrl(url) {
-  const value = String(url || '').trim();
-  if (!value || value.startsWith('/api/google-photos/media/') || value.startsWith('undefined=')) {
-    return '';
-  }
-
-  const [baseUrl] = value.split('=');
-  return baseUrl || '';
-}
-
-function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now()) {
-  const { width, height } = getPickerItemDimensions(item);
-  const googleBaseUrl = getPickerItemBaseUrl(item) || existing.googleBaseUrl || extractLegacyBaseUrl(existing.url);
-  const createTime = String(item?.createTime || existing.createTime || '').trim();
-  const existingAddedAt = existing.addedAt;
-  const normalizedAddedAt = existingAddedAt || new Date(addedAt).toISOString();
-
-  return {
-    id: item.id,
-    title: 'Google Photos Picker Cast',
-    author: 'Lumina Google Cast',
-    source: 'google_photos',
-    url: buildGooglePhotoProxyUrl(item.id),
-    googleBaseUrl,
-    googlePickerSessionId: sessionId || existing.googlePickerSessionId,
-    googleBaseUrlFetchedAt: googleBaseUrl ? Date.now() : existing.googleBaseUrlFetchedAt,
-    addedAt: normalizedAddedAt,
-    ...(createTime ? { createTime } : {}),
-    mimeType: getPickerItemMimeType(item) || existing.mimeType || 'image/jpeg',
-    width,
-    height,
-    rating: existing.rating !== undefined ? existing.rating : 10,
-    cropPercent: existing.cropPercent,
-    cropPositionY: existing.cropPositionY,
-    preventPairing: existing.preventPairing,
-    loved: existing.loved
-  };
-}
-
-function normalizeCachedMediaItem(item) {
-  if (!item?.id) {
-    return null;
-  }
-
-  const width = Number.parseInt(item.width, 10);
-  const height = Number.parseInt(item.height, 10);
-  const safeWidth = Number.isFinite(width) && width > 0 ? width : DEFAULT_RENDER_WIDTH;
-  const safeHeight = Number.isFinite(height) && height > 0 ? height : DEFAULT_RENDER_HEIGHT;
-  const googleBaseUrl = String(item.googleBaseUrl || extractLegacyBaseUrl(item.url) || '').trim();
-
-  return {
-    ...item,
-    source: 'google_photos',
-    url: buildGooglePhotoProxyUrl(item.id),
-    googleBaseUrl: googleBaseUrl || undefined,
-    width: safeWidth,
-    height: safeHeight,
-    rating: item.rating !== undefined ? item.rating : 10,
-    loved: item.loved === true
-  };
-}
-
-function isUsableCachedMediaItem(item) {
-  if (!item?.id || !item?.url) {
-    return false;
-  }
-
-  if (item.id.startsWith('MOCK_')) {
-    return true;
-  }
-
-  return Boolean(item.googleBaseUrl || item.googlePickerSessionId);
-}
-
-/**
- * Keep one source-local cache row per stable Google Photos media item id.
- * The first occurrence wins so legacy cache normalization remains stable.
- */
-function dedupeMediaItemsById(items = []) {
-  const seenIds = new Set();
-
-  return items.filter((item) => {
-    const mediaItemId = String(item?.id || '').trim();
-    if (!mediaItemId || seenIds.has(mediaItemId)) {
-      return false;
-    }
-
-    seenIds.add(mediaItemId);
-    return true;
-  });
-}
-
-const GOOGLE_PHOTOS_USER_METADATA_FIELDS = [
-  'rating',
-  'cropPercent',
-  'cropPositionY',
-  'preventPairing',
-  'loved'
-];
-
-function mergeSyncedItemWithExistingMetadata(existing, synced) {
-  const merged = { ...existing, ...synced };
-
-  GOOGLE_PHOTOS_USER_METADATA_FIELDS.forEach((field) => {
-    if (existing?.[field] !== undefined) {
-      merged[field] = existing[field];
-    }
-  });
-
-  return merged;
 }
 
 function readCachedMediaItemsRaw() {
@@ -235,47 +86,6 @@ function updateCachedMediaItem(item) {
   const mergedItems = Array.from(itemsMap.values());
   writeCachedMediaItems(mergedItems);
   return item;
-}
-
-/**
- * Accumulate usable Picker rows in one source-local collection.
- *
- * Existing rows stay available when a later Picker session selects a
- * different working set. A repeated media ID is represented once, with the
- * latest synced representation winning while user-owned display metadata is
- * retained. New and refreshed rows are placed at the end so the shared pool
- * retention/cap projection can treat them as the newest part of the union.
- */
-function mergeSyncedMediaItems(syncedItems, cachedItems = []) {
-  const uniqueCachedItems = dedupeMediaItemsById(cachedItems);
-  const syncedById = new Map();
-  const syncedOrder = [];
-
-  (syncedItems || []).forEach((item) => {
-    const mediaItemId = String(item?.id || '').trim();
-    if (!mediaItemId) {
-      return;
-    }
-
-    if (!syncedById.has(mediaItemId)) {
-      syncedOrder.push(mediaItemId);
-    }
-    syncedById.set(mediaItemId, item);
-  });
-
-  const merged = uniqueCachedItems
-    .filter((item) => !syncedById.has(item.id))
-    .map((item) => ({ ...item }));
-
-  syncedOrder.forEach((mediaItemId) => {
-    const syncedItem = syncedById.get(mediaItemId);
-    const existingItem = uniqueCachedItems.find((item) => item.id === mediaItemId);
-    merged.push(existingItem
-      ? mergeSyncedItemWithExistingMetadata(existingItem, syncedItem)
-      : syncedItem);
-  });
-
-  return merged;
 }
 
 function buildGooglePhotoMetadataPatch(metadata = {}) {

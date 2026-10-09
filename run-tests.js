@@ -100,6 +100,7 @@ const { upsertEnvVarInContent } = require('./server/config/env.js');
 const { mergeLocalConfig } = require('./server/config/localSettings.js');
 const { projectConfigOverrides } = require('./server/config/configLoaderProjections.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
+const googlePhotosCache = require('./server/services/googlePhotosCache.js');
 const {
   chainRouteDecode,
   collectRouteDecodeResults,
@@ -927,6 +928,23 @@ assertTest('sensor platform exposes checked adapter and platform contracts', () 
   assert.match(source, /@returns \{SensorAdapterSummary\}/);
   assert.match(source, /@param \{SensorPlatformOptions\} \[options=\{\}\]/);
   assert.match(source, /Metadata is copied so later descriptor or summary edits cannot mutate the registry/);
+});
+
+assertTest('Google Photos cache projections expose checked contracts while service effects stay in the shell', () => {
+  const cacheSource = fs.readFileSync(require.resolve('./server/services/googlePhotosCache.js'), 'utf8');
+  const serviceSource = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(cacheSource, /^\/\/ @ts-check/);
+  assert.match(cacheSource, /@typedef \{Record<string, unknown> & \{/);
+  assert.match(cacheSource, /@param \{GooglePhotoMediaItem \| null \| undefined\} item/);
+  assert.match(cacheSource, /@param \{GooglePhotoMediaItem\[\] \| null \| undefined\} syncedItems/);
+  assert.match(cacheSource, /@returns \{GooglePhotoMediaItem\[\]\}/);
+  assert.match(cacheSource, /Pool retention\/capping\s+\* is deliberately composed by the effectful sync shell after this union/);
+  assert.doesNotMatch(cacheSource, /\b(?:fs|fetch)\b/);
+  assert.match(serviceSource, /require\('\.\/googlePhotosCache\.js'\)/);
+  assert.match(serviceSource, /const mergedItems = mergeSyncedMediaItems\(syncedItems, cachedItems\);\s+const cachedItemsToKeep = applyPoolPolicy\(now, poolPolicy\)\(mergedItems\);/);
+  assert.match(serviceSource, /writeCache\(cachedItemsToKeep\)/);
+  assert.strictEqual(googlePhotosCache.mergeSyncedMediaItems, googlePhotos.mergeSyncedMediaItems);
 });
 
 assertTest('weather service exposes a checked pure WMO classification contract', () => {
@@ -2306,6 +2324,31 @@ assertTest('legacy Google Photos cache rows without baseUrl or picker session ar
   });
 
   assert.strictEqual(isUsableCachedMediaItem(healthy), true, 'Rows with picker session metadata should remain eligible');
+});
+
+assertTest('Google Photos cache normalization keeps open metadata and defaults malformed dimensions immutably', () => {
+  const cachedItem = {
+    id: 'legacy-dimensions',
+    url: 'https://photos.example/legacy=old-render-directive',
+    width: 'not-a-width',
+    height: '0',
+    rating: 0,
+    loved: false,
+    customPickerField: { retained: true }
+  };
+  const original = structuredClone(cachedItem);
+
+  const normalized = googlePhotosCache.normalizeCachedMediaItem(cachedItem);
+
+  assert.strictEqual(normalized.width, 2560);
+  assert.strictEqual(normalized.height, 1440);
+  assert.strictEqual(normalized.url, '/api/google-photos/media/legacy-dimensions?w=2560&h=1440');
+  assert.strictEqual(normalized.googleBaseUrl, 'https://photos.example/legacy');
+  assert.strictEqual(normalized.rating, 0, 'explicit zero ratings are user metadata, not missing values');
+  assert.strictEqual(normalized.loved, false);
+  assert.deepStrictEqual(normalized.customPickerField, { retained: true });
+  assert.deepStrictEqual(cachedItem, original);
+  assert.strictEqual(googlePhotosCache.normalizeCachedMediaItem({ url: 'missing-id' }), null);
 });
 
 assertTest('Google Photos Picker merges accumulate ordinary cache rows across sessions', () => {

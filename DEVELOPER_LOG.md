@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Isolate and Type Google Photos Cache Projections
+
+- **Functional boundary**: moved Picker-row construction, persisted-cache
+  normalization, usability checks, stable-ID deduplication, and session upsert
+  into the pure checked `server/services/googlePhotosCache.js` module. The
+  existing `googlePhotos.js` exports remain compatible; auth/session handling,
+  pool-policy application, cache persistence, file cleanup, and downloads stay
+  in the service shell.
+- **Behavior pinned**: latest synced records win while existing user metadata
+  remains authoritative; cached rows retain stable order, malformed dimensions
+  use the existing defaults, and pool retention/capping still runs after the
+  accumulated union.
+- **Next seam**: document checked contracts for the remaining pure cached-photo
+  metadata patch/merge projections without moving live-state or file effects.
+
 ### 2026-10-09: Document Config Effect-Shell Contracts
 
 - **Contracts**: added local `@ts-check` JSDoc to `server/config/collections.js`
