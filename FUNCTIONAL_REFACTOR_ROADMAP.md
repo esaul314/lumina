@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-10-07
+Last updated: 2026-10-09
 
 ## Purpose
 
@@ -386,7 +386,8 @@ Progress note:
 - Step 6 forty-second slice: `server/config/configLoaderProjections.js` now exposes checked contracts for pure defaults/overrides and deprecated-secret filtering; tests preserve section merge depth, extension keys, and input immutability while file reads and warnings stay in `configLoader.js`.
 - Step 6 forty-third slice: `server/config/collectionPhotoUpdatePlan.js` now exposes a checked pure plan for collection, feed-list, and paired-frame updates; tests preserve immutable inputs, rating-1 pruning, and identity-preserving missing-photo behavior while `collections.js` applies state changes and persists.
 - Step 6 forty-fourth slice: `server/config/collectionPhotoUpdaters.js` now exposes checked immutable rating, crop, pairing, and broken-photo projections; tests preserve native `parseInt` behavior, partial updates, truthiness coercion, and input immutability while `collections.js` retains mutation and persistence.
-- Next Step 6 seam: review local JSDoc contracts at the remaining config effect shells (`collections.js` and `configLoader.js`), keeping filesystem and live-state effects in place.
+- Step 6 forty-fifth slice: `server/config/collections.js` and `server/config/configLoader.js` now document checked input and effect-shell contracts; focused tests pin photo updater inputs and the explicit mutation, persistence, file-read, and warning boundaries.
+- Next Step 6 seam: add checked contracts around Google Photos cache normalization and accumulation projections in `server/services/googlePhotos.js`, preserving stable-ID upsert, user metadata, and post-union pool policy while keeping auth, session, file, and network effects in the service shell.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

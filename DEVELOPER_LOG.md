@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Document Config Effect-Shell Contracts
+
+- **Contracts**: added local `@ts-check` JSDoc to `server/config/collections.js`
+  and `server/config/configLoader.js`, describing open photo/config records and
+  the exported update and persistence boundaries.
+- **Behavior preserved**: photo update plans still project first, then the
+  collection shell applies live-state changes and persists; config loading
+  still reads defaults and overrides, filters deprecated secrets through the
+  pure projection, and warns at the existing boundary.
+- **Regression coverage**: source-contract tests pin these input shapes and
+  effect boundaries; existing photo/config projection tests continue to cover
+  the runtime semantics.
+- **Next seam**: add checked contracts around Google Photos cache normalization
+  and accumulation projections while keeping auth, session, file, and network
+  effects in the service shell.
+
 ### 2026-10-08: Project Curated Photo Updaters
 
 - **Functional boundary**: added checked pure rating, crop, pairing, and broken-

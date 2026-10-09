@@ -1,11 +1,22 @@
+// @ts-check
+
 const fs = require('fs');
 const path = require('path');
 require('./env.js');
 const { projectConfigOverrides } = require('./configLoaderProjections.js');
 
+/** @typedef {Record<string, unknown>} ConfigRecord */
+/** @typedef {ConfigRecord & {units?: ConfigRecord}} EcowittConfig */
+/** @typedef {ConfigRecord & {
+ *   location?: ConfigRecord;
+ *   ecowitt?: EcowittConfig;
+ *   sensorHistory?: ConfigRecord;
+ * }} AppConfig */
+
 const rootDir = path.join(__dirname, '..', '..');
 const examplePath = path.join(rootDir, 'config.json.example');
 const configPath = path.join(rootDir, 'config.json');
+/** @type {AppConfig} */
 let config = {};
 
 // Load defaults from config.json.example
@@ -18,6 +29,7 @@ try {
 // Merge user config.json overrides
 if (fs.existsSync(configPath)) {
   try {
+    /** @type {AppConfig} */
     const userConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     const projection = projectConfigOverrides(config, userConfig);
     const { ignoredSecretKeys } = projection;

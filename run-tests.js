@@ -796,9 +796,27 @@ assertTest('config loader projection exposes checked types and leaves file and w
   assert.match(projectionSource, /@param \{AppConfig\} defaults/);
   assert.match(projectionSource, /@param \{AppConfig\} userConfig/);
   assert.match(projectionSource, /@returns \{ConfigProjection\}/);
+  assert.match(loaderSource, /^\/\/ @ts-check/);
+  assert.match(loaderSource, /@typedef \{ConfigRecord & \{units\?: ConfigRecord\}\} EcowittConfig/);
+  assert.match(loaderSource, /@type \{AppConfig\}\s*\*\/\s*let config/);
+  assert.match(loaderSource, /@type \{AppConfig\}\s*\*\/\s*const userConfig/);
   assert.match(loaderSource, /projectConfigOverrides\(config, userConfig\)/);
   assert.match(loaderSource, /console\.warn\(`Warning: Secret config keys/);
   assert.match(loaderSource, /fs\.readFileSync/);
+});
+
+assertTest('curated collection shell documents open update inputs and keeps mutation and persistence effects explicit', () => {
+  const source = fs.readFileSync(require.resolve('./server/config/collections.js'), 'utf8');
+
+  assert.match(source, /^\/\/ @ts-check/);
+  assert.match(source, /@typedef \{Record<string, PhotoRecord\[\]>\} PhotoCollections/);
+  assert.match(source, /@typedef \{Record<string, unknown> & \{/);
+  assert.match(source, /@param \{PhotoUpdater\} updater/);
+  assert.match(source, /@param \{PhotoState \| null \| undefined\} state/);
+  assert.match(source, /@returns \{boolean\}/);
+  assert.match(source, /Object\.assign\(collections, plan\.collections\)/);
+  assert.match(source, /state\.photosList = plan\.stateUpdates\.photosList/);
+  assert.match(source, /saveCuratedCollections\(collections, state\)/);
 });
 
 assertTest('updatePhotoCrop projects crop updates across list and active split photo state', () => {

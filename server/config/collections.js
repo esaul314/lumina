@@ -1,3 +1,5 @@
+// @ts-check
+
 const path = require('path');
 const { saveCollectionsSnapshot } = require('./collectionsCodec.js');
 const { projectPhotoFieldUpdate } = require('./collectionPhotoUpdatePlan.js');
@@ -8,11 +10,23 @@ const {
   projectBrokenPhoto
 } = require('./collectionPhotoUpdaters.js');
 
+/** @typedef {Record<string, unknown> & {url?: unknown}} PhotoRecord */
+/** @typedef {PhotoRecord | null | undefined} PhotoValue */
+/** @typedef {Record<string, PhotoRecord[]>} PhotoCollections */
+/** @typedef {Record<string, unknown> & {
+ *   photosList?: (PhotoValue[] | null);
+ *   activePhoto?: PhotoValue;
+ *   activeSecondPhoto?: PhotoValue;
+ * }} PhotoState */
+/** @typedef {(photo: PhotoRecord) => PhotoRecord} PhotoUpdater */
+/** @typedef {{lastFeedUpdated?: number}} CollectionSaveOptions */
+
 /**
  * 🖼️ defaultCuratedCollections
  * Static seed database of high-definition wallpapers.
  * Automatically categorized, optimized with Unsplash CDN formats.
  */
+/** @type {PhotoCollections} */
 const defaultCuratedCollections = {
   'Scenic Nature': [
     { url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=2560&auto=format&fit=crop', title: 'Mist Rising in the Mountain Valley', author: 'Andreas Gücklhorn' },
@@ -77,6 +91,11 @@ const defaultCuratedCollections = {
  * 💾 saveCuratedCollections
  * Safely saves the collections, search keywords, and location settings to disk,
  * preserving any other properties in curated_collections.json.
+ *
+ * @param {PhotoCollections} collections
+ * @param {PhotoState | null | undefined} state
+ * @param {CollectionSaveOptions} [options={}]
+ * @returns {void}
  */
 function saveCuratedCollections(collections, state, options = {}) {
   if (process.env.NODE_ENV === 'test') return;
@@ -94,6 +113,13 @@ function saveCuratedCollections(collections, state, options = {}) {
  * 🔄 updatePhotoField
  * Unified orchestrator that safely projects changes across collections database,
  * photosList, activePhoto, and activeSecondPhoto.
+ *
+ * @param {PhotoCollections} collections
+ * @param {PhotoState | null | undefined} state
+ * @param {string} url
+ * @param {PhotoUpdater} updater
+ * @param {number} [optionalRating]
+ * @returns {boolean}
  */
 function updatePhotoField(collections, state, url, updater, optionalRating) {
   const plan = projectPhotoFieldUpdate(collections, state, url, updater, optionalRating);
@@ -122,6 +148,12 @@ function updatePhotoField(collections, state, url, updater, optionalRating) {
 /**
  * 💾 updatePhotoRating
  * Updates the rating of a photograph by its URL across all categories, state lists, and persists to disk.
+ *
+ * @param {PhotoCollections} collections
+ * @param {PhotoState | null | undefined} state
+ * @param {string} url
+ * @param {unknown} rating
+ * @returns {boolean}
  */
 function updatePhotoRating(collections, state, url, rating) {
   const { rating: numericRating, updater } = projectPhotoRatingUpdate(rating);
@@ -136,6 +168,11 @@ function updatePhotoRating(collections, state, url, rating) {
 /**
  * 🛑 markPhotoBroken
  * Sets photo rating to 1 and isBroken to true. Persists changes.
+ *
+ * @param {PhotoCollections} collections
+ * @param {PhotoState | null | undefined} state
+ * @param {string} url
+ * @returns {boolean}
  */
 function markPhotoBroken(collections, state, url) {
   const updated = updatePhotoField(collections, state, url, projectBrokenPhoto, 1);
@@ -149,6 +186,13 @@ function markPhotoBroken(collections, state, url) {
 /**
  * 💾 updatePhotoCrop
  * Updates the crop percentage of a photograph by its URL and persists to disk.
+ *
+ * @param {PhotoCollections} collections
+ * @param {PhotoState | null | undefined} state
+ * @param {string} url
+ * @param {unknown} cropPercent
+ * @param {unknown} cropPositionY
+ * @returns {boolean}
  */
 function updatePhotoCrop(collections, state, url, cropPercent, cropPositionY) {
   const updater = projectPhotoCropUpdater(cropPercent, cropPositionY);
@@ -163,6 +207,12 @@ function updatePhotoCrop(collections, state, url, cropPercent, cropPositionY) {
 /**
  * 💾 updatePhotoPreventPairing
  * Updates the preventPairing flag of a photograph by its URL and persists to disk.
+ *
+ * @param {PhotoCollections} collections
+ * @param {PhotoState | null | undefined} state
+ * @param {string} url
+ * @param {unknown} preventPairing
+ * @returns {boolean}
  */
 function updatePhotoPreventPairing(collections, state, url, preventPairing) {
   const updater = projectPhotoPairingUpdater(preventPairing);

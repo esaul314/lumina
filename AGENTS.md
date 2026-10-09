@@ -90,7 +90,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/config/localSettings.js` now exposes checked local-config and section contracts; tests preserve partial updates, nested Ecowitt units, shallow sensor-history semantics, ignored unsupported patch fields, and input immutability while filesystem writes remain in `saveLocalConfigPatch(...)`.
 - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked pure defaults/overrides projection and deprecated-secret list; preserve section merge depths and input immutability while file reads and warnings remain in `configLoader.js`.
 - Latest Step 6 slice: `server/config/collectionPhotoUpdaters.js` now exposes checked immutable rating, crop, pairing, and broken-photo projections; preserve `parseInt`, partial crop, truthiness, and input immutability while state mutation and persistence remain in `collections.js`.
-- Next Step 6 seam: review local JSDoc contracts at the remaining config effect shells (`collections.js` and `configLoader.js`), keeping filesystem and live-state effects in place.
+- Latest Step 6 slice: `server/config/collections.js` and `server/config/configLoader.js` now document checked input and effect-shell contracts; preserve the existing photo mutation, persistence, config-file, logging, and warning behavior.
+- Next Step 6 seam: add checked contracts around Google Photos cache normalization and accumulation projections in `server/services/googlePhotos.js`, preserving stable-ID upsert, user metadata, and post-union pool policy while keeping auth, session, file, and network effects in the service shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid
