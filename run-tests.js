@@ -1017,6 +1017,28 @@ assertTest('Google Photos URL refresh documents render inputs and the authentica
   assert.match(source, /console\.error\(`Google Photos Service: Failed to refresh URL for item \$\{mediaItemId\}:`, err\.message\);\s+throw err;/);
 });
 
+assertTest('Google Photos media-byte fetch documents its result and effect boundary', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /@typedef \{object\} GooglePhotoMediaBytes/);
+  assert.match(source, /@property \{Buffer\} buffer Image content as a Node\.js buffer/);
+  assert.match(source, /@property \{string\} contentType Response media type or the cached\/default hint/);
+  assert.match(source, /Resolve and return image bytes for a Google Photos media item/);
+  assert.match(source, /@param \{string\} mediaItemId Stable Google Photos media-item id/);
+  assert.match(source, /@param \{GooglePhotoRenderOptions\} \[renderOptions=\{\}\]/);
+  assert.match(source, /@returns \{Promise<GooglePhotoMediaBytes>\}/);
+  assert.match(source, /non-empty local file is returned immediately[\s\S]*empty file is removed and fetched again/);
+  assert.match(source, /Local cached file for item \$\{mediaItemId\} is 0 bytes, deleting and re-fetching/);
+  assert.match(source, /fs\.unlinkSync\(localFilePath\);/);
+  assert.match(source, /deduplicated content-URL candidates[\s\S]*one final Picker refresh and retry/);
+  assert.match(source, /Authentication,\s+\* Picker\/network requests, file access, persistence, and logging remain in\s+\* this effectful service boundary/);
+  assert.match(source, /The returned content type prefers the response header and falls back to the\s+\* cached MIME type or `image\/jpeg`/);
+  assert.match(source, /async function fetchMediaItemBytes\(mediaItemId, renderOptions = \{\}\)/);
+  assert.match(source, /contentType: cachedItem\?\.mimeType \|\| 'image\/jpeg'/);
+  assert.match(source, /res\.headers\.get\('content-type'\) \|\| contentTypeHint/);
+  assert.match(source, /throw lastError \|\| new Error\(`Google Photos Service: Failed to fetch media bytes/);
+});
+
 assertAsyncTest('Google Photos URL refresh resolves synthetic media without network effects', async () => {
   assert.strictEqual(
     await googlePhotos.refreshMediaItemUrl('MOCK_MEDIA_ITEM_42'),

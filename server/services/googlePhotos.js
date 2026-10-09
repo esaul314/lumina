@@ -131,6 +131,14 @@ function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
  */
 
 /**
+ * Downloaded image bytes and the media type used to serve them.
+ *
+ * @typedef {object} GooglePhotoMediaBytes
+ * @property {Buffer} buffer Image content as a Node.js buffer.
+ * @property {string} contentType Response media type or the cached/default hint.
+ */
+
+/**
  * Mutable snapshot fields that can contain Google Photos frames.
  *
  * @typedef {Record<string, unknown> & {
@@ -668,6 +676,28 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
   }
 }
 
+/**
+ * Resolve and return image bytes for a Google Photos media item.
+ *
+ * A non-empty local file is returned immediately, using cached MIME metadata
+ * or `image/jpeg`; an empty file is removed and fetched again. Otherwise the
+ * service builds deduplicated content-URL candidates from a missing or stale
+ * Picker refresh, the cached base URL, or an on-demand media URL refresh. A
+ * failed candidate may trigger one final Picker refresh and retry. Synthetic
+ * `MOCK_` ids skip authentication and disk writes; real items use a valid
+ * token, and successful non-empty downloads are cached locally. Authentication,
+ * Picker/network requests, file access, persistence, and logging remain in
+ * this effectful service boundary.
+ *
+ * The returned content type prefers the response header and falls back to the
+ * cached MIME type or `image/jpeg`. If retrieval cannot produce a successful
+ * response, the promise rejects with the last fetch/refresh error or a
+ * media-specific fallback error.
+ *
+ * @param {string} mediaItemId Stable Google Photos media-item id.
+ * @param {GooglePhotoRenderOptions} [renderOptions={}] Optional content dimensions and crop directive.
+ * @returns {Promise<GooglePhotoMediaBytes>} The fetched bytes and content type.
+ */
 async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
   const cachedItem = findCachedMediaItem(mediaItemId);
   const localFilePath = getLocalMediaFilePath(mediaItemId);

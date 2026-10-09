@@ -6,6 +6,26 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Document Google Photos Media Byte Fetch Contract
+
+- **Contract**: documented `fetchMediaItemBytes(...)` inputs and its
+  `{ buffer, contentType }` result, including local-cache hits, zero-byte
+  recovery, response/cached MIME fallback, and final fetch failure behavior.
+- **Effect boundary**: Picker refresh, authentication, network requests, local
+  file reads/writes, and logging remain in the Google Photos service shell; no
+  runtime behavior changed.
+- **Regression coverage**: added source-contract assertions for its result
+  shape, empty-cache cleanup, candidate de-duplication, retry, and rejection
+  boundary; existing local-cache and network-download tests continue to cover
+  the byte result and disk-cache behavior.
+- **Verification**: `npm test` passed with 404 tests executed, 402 assertions,
+  zero failures, and 13/13 sensor-adapter regressions. `npm run lint`, touched
+  JavaScript syntax checks, and `git diff --check` passed. The optional
+  Unix-socket smoke was skipped because this environment denies `listen` with
+  `EPERM`.
+- **Next seam**: document `cleanOrphanedMediaFiles(...)` inputs, no-op
+  conditions, and file-cleanup effects in the Google Photos service shell.
+
 ### 2026-10-09: Document Google Photos Media URL Refresh
 
 - **Contract**: documented the stable media-id and optional width/height/crop
