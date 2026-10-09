@@ -91,8 +91,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked pure defaults/overrides projection and deprecated-secret list; preserve section merge depths and input immutability while file reads and warnings remain in `configLoader.js`.
 - Latest Step 6 slice: `server/config/collectionPhotoUpdaters.js` now exposes checked immutable rating, crop, pairing, and broken-photo projections; preserve `parseInt`, partial crop, truthiness, and input immutability while state mutation and persistence remain in `collections.js`.
 - Latest Step 6 slice: `server/config/collections.js` and `server/config/configLoader.js` now document checked input and effect-shell contracts; preserve the existing photo mutation, persistence, config-file, logging, and warning behavior.
-- Latest Step 6 slice: `server/services/googlePhotosCache.js` now owns checked pure Google Photos cache normalization and stable-ID accumulation projections; preserve latest-sync upsert, existing user metadata, first-occurrence legacy deduplication, and post-union retention/capping in `googlePhotos.js`.
-- Next Step 6 seam: add checked contracts around the remaining pure Google Photos cached-metadata patch/merge projections, keeping live-state mutation and cache persistence in the service shell.
+- Latest Step 6 slice: `server/services/googlePhotosCache.js` now owns checked pure Google Photos cache normalization, stable-ID accumulation, metadata allowlisting, and cached-row merging; preserve latest-sync upsert, existing user metadata, first-occurrence legacy deduplication, explicit falsy/null metadata values, and post-union retention/capping in `googlePhotos.js`.
+- Next Step 6 seam: document the input, return, and mutation contract of `applyCachedMediaItemMetadataToState(...)`, keeping live snapshot ownership in the Google Photos service shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

@@ -4,11 +4,13 @@ const { readEnvVar, persistEnvVars } = require('../config/env.js');
 const { applyPoolPolicy } = require('../domain/poolRetention.js');
 const {
   buildCachedMediaItem,
+  buildGooglePhotoMetadataPatch,
   buildGooglePhotoProxyUrl,
   dedupeMediaItemsById,
   getGooglePhotoMediaItemId,
   getPickerItemMimeType,
   isUsableCachedMediaItem,
+  mergeCachedMediaItemMetadata,
   mergeSyncedMediaItems,
   normalizeCachedMediaItem
 } = require('./googlePhotosCache.js');
@@ -86,55 +88,6 @@ function updateCachedMediaItem(item) {
   const mergedItems = Array.from(itemsMap.values());
   writeCachedMediaItems(mergedItems);
   return item;
-}
-
-function buildGooglePhotoMetadataPatch(metadata = {}) {
-  return Object.fromEntries(
-    Object.entries({
-      rating: metadata.rating,
-      isBroken: metadata.isBroken,
-      cropPercent: metadata.cropPercent,
-      cropPositionY: metadata.cropPositionY,
-      preventPairing: metadata.preventPairing,
-      loved: metadata.loved,
-      orientation: metadata.orientation,
-      width: metadata.width,
-      height: metadata.height
-    }).filter(([, value]) => value !== undefined)
-  );
-}
-
-function mergeCachedMediaItemMetadata(items, mediaIdentifier, metadata = {}) {
-  const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();
-  const metadataPatch = buildGooglePhotoMetadataPatch(metadata);
-
-  if (!mediaItemId || Object.keys(metadataPatch).length === 0) {
-    return {
-      items: (items || []).map((item) => (item ? { ...item } : item)),
-      updatedItem: null,
-      changed: false
-    };
-  }
-
-  let updatedItem = null;
-  let changed = false;
-
-  const nextItems = (items || []).map((item) => {
-    if (!item || item.id !== mediaItemId) {
-      return item ? { ...item } : item;
-    }
-
-    const nextItem = { ...item, ...metadataPatch };
-    updatedItem = nextItem;
-    changed = Object.keys(metadataPatch).some((key) => item[key] !== nextItem[key]) || changed;
-    return nextItem;
-  });
-
-  return {
-    items: nextItems,
-    updatedItem,
-    changed
-  };
 }
 
 function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {

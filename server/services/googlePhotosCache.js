@@ -23,10 +23,12 @@ const GOOGLE_PHOTO_PROXY_PREFIX = '/api/google-photos/media/';
  *   mediaFile?: PickerMediaFile;
  *   mediaFileMetadata?: PickerMediaMetadata;
  *   rating?: unknown;
+ *   isBroken?: unknown;
  *   cropPercent?: unknown;
  *   cropPositionY?: unknown;
  *   preventPairing?: unknown;
  *   loved?: unknown;
+ *   orientation?: unknown;
  * }} GooglePhotoMediaItem
  */
 
@@ -41,6 +43,11 @@ const GOOGLE_PHOTO_PROXY_PREFIX = '/api/google-photos/media/';
  */
 
 /** @typedef {{width?: number; height?: number; crop?: boolean}} RenderOptions */
+
+/** @typedef {'rating' | 'isBroken' | 'cropPercent' | 'cropPositionY' | 'preventPairing' | 'loved' | 'orientation' | 'width' | 'height'} GooglePhotoMetadataField */
+/** @typedef {Partial<Record<GooglePhotoMetadataField, unknown>>} GooglePhotoMetadataInput */
+/** @typedef {Array<GooglePhotoMediaItem | null | undefined>} CachedGooglePhotoRows */
+/** @typedef {{items: CachedGooglePhotoRows; updatedItem: GooglePhotoMediaItem | null; changed: boolean}} CachedGooglePhotoMetadataMerge */
 
 /**
  * Build the same-origin proxy URL used to render cached Picker media.
@@ -238,6 +245,73 @@ function dedupeMediaItemsById(items = []) {
   });
 }
 
+/**
+ * Project only metadata fields Lumina allows users to edit on cached rows.
+ * Undefined values are omitted, while explicit false, zero, and null values
+ * remain meaningful patches.
+ *
+ * @param {GooglePhotoMetadataInput} [metadata={}]
+ * @returns {GooglePhotoMetadataInput}
+ */
+function buildGooglePhotoMetadataPatch(metadata = {}) {
+  return Object.fromEntries(
+    Object.entries({
+      rating: metadata.rating,
+      isBroken: metadata.isBroken,
+      cropPercent: metadata.cropPercent,
+      cropPositionY: metadata.cropPositionY,
+      preventPairing: metadata.preventPairing,
+      loved: metadata.loved,
+      orientation: metadata.orientation,
+      width: metadata.width,
+      height: metadata.height
+    }).filter(([, value]) => value !== undefined)
+  );
+}
+
+/**
+ * Immutably merge an allowlisted metadata patch into matching cached rows.
+ * A proxy URL or a plain media id identifies the row; missing matches and empty
+ * patches produce a no-change result while retaining the existing clone shape.
+ *
+ * @param {CachedGooglePhotoRows | null | undefined} items
+ * @param {unknown} mediaIdentifier
+ * @param {GooglePhotoMetadataInput} [metadata={}]
+ * @returns {CachedGooglePhotoMetadataMerge}
+ */
+function mergeCachedMediaItemMetadata(items, mediaIdentifier, metadata = {}) {
+  const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();
+  const metadataPatch = buildGooglePhotoMetadataPatch(metadata);
+
+  if (!mediaItemId || Object.keys(metadataPatch).length === 0) {
+    return {
+      items: (items || []).map((item) => (item ? { ...item } : item)),
+      updatedItem: null,
+      changed: false
+    };
+  }
+
+  let updatedItem = null;
+  let changed = false;
+
+  const nextItems = (items || []).map((item) => {
+    if (!item || item.id !== mediaItemId) {
+      return item ? { ...item } : item;
+    }
+
+    const nextItem = { ...item, ...metadataPatch };
+    updatedItem = nextItem;
+    changed = Object.keys(metadataPatch).some((key) => item[key] !== nextItem[key]) || changed;
+    return nextItem;
+  });
+
+  return {
+    items: nextItems,
+    updatedItem,
+    changed
+  };
+}
+
 const GOOGLE_PHOTOS_USER_METADATA_FIELDS = [
   'rating',
   'cropPercent',
@@ -309,11 +383,13 @@ function mergeSyncedMediaItems(syncedItems, cachedItems = []) {
 
 module.exports = {
   buildCachedMediaItem,
+  buildGooglePhotoMetadataPatch,
   buildGooglePhotoProxyUrl,
   dedupeMediaItemsById,
   getGooglePhotoMediaItemId,
   getPickerItemMimeType,
   isUsableCachedMediaItem,
+  mergeCachedMediaItemMetadata,
   mergeSyncedMediaItems,
   normalizeCachedMediaItem
 };

@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Type Google Photos Cached-Metadata Projections
+
+- **Functional boundary**: moved the allowlisted metadata patch and immutable
+  cached-row merge into `server/services/googlePhotosCache.js`. The service
+  continues to own live snapshot updates and cache-file writes, and its public
+  exports remain compatible.
+- **Behavior pinned**: undefined metadata is omitted; explicit `false`, `0`,
+  and `null` remain valid values; unsupported fields are ignored; missing IDs
+  and empty patches remain no-op results; source rows are not mutated.
+- **Verification**: focused contract and behavior tests cover the projection,
+  service re-exports, and the retained write boundary.
+- **Next seam**: document the input, return, and mutation contract of
+  `applyCachedMediaItemMetadataToState(...)` without moving live snapshot
+  ownership out of the Google Photos service shell.
+
 ### 2026-10-09: Isolate and Type Google Photos Cache Projections
 
 - **Functional boundary**: moved Picker-row construction, persisted-cache

@@ -939,12 +939,19 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /@param \{GooglePhotoMediaItem \| null \| undefined\} item/);
   assert.match(cacheSource, /@param \{GooglePhotoMediaItem\[\] \| null \| undefined\} syncedItems/);
   assert.match(cacheSource, /@returns \{GooglePhotoMediaItem\[\]\}/);
+  assert.match(cacheSource, /@typedef \{Partial<Record<GooglePhotoMetadataField, unknown>>\} GooglePhotoMetadataInput/);
+  assert.match(cacheSource, /@param \{CachedGooglePhotoRows \| null \| undefined\} items/);
+  assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /Pool retention\/capping\s+\* is deliberately composed by the effectful sync shell after this union/);
   assert.doesNotMatch(cacheSource, /\b(?:fs|fetch)\b/);
   assert.match(serviceSource, /require\('\.\/googlePhotosCache\.js'\)/);
+  assert.doesNotMatch(serviceSource, /function (?:buildGooglePhotoMetadataPatch|mergeCachedMediaItemMetadata)\(/);
+  assert.match(serviceSource, /if \(merged\.changed && process\.env\.NODE_ENV !== 'test'\)\s+\{\s+writeCachedMediaItems\(merged\.items\);/);
   assert.match(serviceSource, /const mergedItems = mergeSyncedMediaItems\(syncedItems, cachedItems\);\s+const cachedItemsToKeep = applyPoolPolicy\(now, poolPolicy\)\(mergedItems\);/);
   assert.match(serviceSource, /writeCache\(cachedItemsToKeep\)/);
   assert.strictEqual(googlePhotosCache.mergeSyncedMediaItems, googlePhotos.mergeSyncedMediaItems);
+  assert.strictEqual(googlePhotosCache.buildGooglePhotoMetadataPatch, googlePhotos.buildGooglePhotoMetadataPatch);
+  assert.strictEqual(googlePhotosCache.mergeCachedMediaItemMetadata, googlePhotos.mergeCachedMediaItemMetadata);
 });
 
 assertTest('weather service exposes a checked pure WMO classification contract', () => {
@@ -2278,6 +2285,49 @@ assertTest('mergeCachedMediaItemMetadata updates pairing flags for cached Google
   assert.strictEqual(merged.changed, true);
   assert.strictEqual(merged.updatedItem?.preventPairing, true);
   assert.strictEqual(merged.items[0].preventPairing, true);
+  assert.notStrictEqual(merged.items[0], cachedItems[0]);
+  assert.strictEqual(cachedItems[0].preventPairing, false);
+});
+
+assertTest('Google Photos metadata patches omit undefined fields and retain explicit falsy values', () => {
+  const patch = googlePhotosCache.buildGooglePhotoMetadataPatch({
+    rating: undefined,
+    isBroken: false,
+    cropPercent: 0,
+    cropPositionY: null,
+    preventPairing: false,
+    loved: true,
+    orientation: 'portrait',
+    width: 1200,
+    height: 800,
+    unrecognized: 'ignored'
+  });
+
+  assert.deepStrictEqual(patch, {
+    isBroken: false,
+    cropPercent: 0,
+    cropPositionY: null,
+    preventPairing: false,
+    loved: true,
+    orientation: 'portrait',
+    width: 1200,
+    height: 800
+  });
+});
+
+assertTest('Google Photos metadata merge preserves immutable no-match and empty-patch semantics', () => {
+  const source = [{ id: 'other', rating: 7 }, null];
+  const missing = googlePhotosCache.mergeCachedMediaItemMetadata(source, 'absent', { loved: true });
+  const empty = googlePhotosCache.mergeCachedMediaItemMetadata(source, 'other', { loved: undefined });
+
+  [missing, empty].forEach((result) => {
+    assert.deepStrictEqual(result.items, source);
+    assert.strictEqual(result.updatedItem, null);
+    assert.strictEqual(result.changed, false);
+    assert.notStrictEqual(result.items, source);
+    assert.notStrictEqual(result.items[0], source[0]);
+  });
+  assert.strictEqual(source[0].loved, undefined);
 });
 
 assertTest('applyCachedMediaItemMetadataToState keeps Google Photos toggle state in sync with the live snapshot', () => {
