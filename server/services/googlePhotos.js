@@ -197,6 +197,21 @@ function findCachedMediaItem(mediaItemId) {
   return getCachedMediaItems().find((item) => item.id === mediaItemId) || null;
 }
 
+/**
+ * Refresh one cached row from its Google Photos Picker session.
+ *
+ * An explicit session id takes precedence over the cached row's session id.
+ * When neither is available, the promise resolves to the current cached row
+ * (or `null`) without making a Picker request. Otherwise the service lists the
+ * session, requires an exact media-id match, rebuilds the row while retaining
+ * existing metadata, and upserts it through the cache persistence shell. A
+ * failed Picker request or a session that no longer contains the item rejects
+ * the promise.
+ *
+ * @param {string} mediaItemId Stable Google Photos media-item id.
+ * @param {string} [sessionIdOverride] Optional Picker session to query first.
+ * @returns {Promise<LiveGooglePhoto | null>} The refreshed/current row, or null when no row exists without a session.
+ */
 async function refreshCachedMediaItem(mediaItemId, sessionIdOverride) {
   const existing = findCachedMediaItem(mediaItemId);
   const sessionId = sessionIdOverride || existing?.googlePickerSessionId;

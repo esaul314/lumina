@@ -6,6 +6,25 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Document Google Photos Picker Cache Refresh
+
+- **Contract**: documented the media id and optional session override, cached
+  session fallback, nullable no-session result, and exact-session-item requirement
+  of `refreshCachedMediaItem(...)`.
+- **Effect boundary**: Picker listing and cache upsert/persistence remain in the
+  Google Photos service shell; refreshed rows continue to retain existing
+  metadata, and request or missing-item failures continue to reject.
+- **Regression coverage**: source-contract assertions pin the documented
+  fallback, request, exact match, error, rebuild, and upsert path without
+  exporting or reshaping the internal asynchronous helper.
+- **Verification**: `npm test` passed with 401 tests executed, 399 assertions,
+  zero failures, and 13/13 sensor-adapter regressions. `npm run lint`, syntax
+  checks for the touched JavaScript, and `git diff --check` passed. The optional
+  Unix-socket smoke was skipped because this environment denies `listen` with
+  `EPERM`.
+- **Next seam**: document `refreshMediaItemUrl(...)` inputs and result while
+  preserving its authentication and network effects in `googlePhotos.js`.
+
 ### 2026-10-09: Document Google Photos Cache Metadata Persistence
 
 - **Contract**: documented the cache updater's media-id/proxy-URL and metadata

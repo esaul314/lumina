@@ -981,6 +981,22 @@ assertTest('Google Photos cache metadata updater documents its read, return, and
   assert.match(source, /if \(merged\.changed && process\.env\.NODE_ENV !== 'test'\)\s+\{\s+writeCachedMediaItems\(merged\.items\);/);
 });
 
+assertTest('Google Photos Picker refresh documents its fallback, result, and cache-effect contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /Refresh one cached row from its Google Photos Picker session/);
+  assert.match(source, /@param \{string\} mediaItemId Stable Google Photos media-item id/);
+  assert.match(source, /@param \{string\} \[sessionIdOverride\] Optional Picker session to query first/);
+  assert.match(source, /@returns \{Promise<LiveGooglePhoto \| null>\}/);
+  assert.match(source, /without making a Picker request[\s\S]*requires an exact media-id match[\s\S]*rejects\s+\* the promise/);
+  assert.match(source, /const sessionId = sessionIdOverride \|\| existing\?\.googlePickerSessionId;/);
+  assert.match(source, /if \(!sessionId\)\s+\{\s+return existing;\s+\}/);
+  assert.match(source, /const \{ mediaItems \} = await listPickerMediaItems\(sessionId\);/);
+  assert.match(source, /\.find\(\(item\) => item\.id === mediaItemId\)/);
+  assert.match(source, /if \(!match\)\s+\{\s+throw new Error\(`Google Photos Service: Media item/);
+  assert.match(source, /const refreshed = buildCachedMediaItem\(match, sessionId, existing \|\| \{\}\);\s+return updateCachedMediaItem\(refreshed\);/);
+});
+
 assertTest('weather service exposes a checked pure WMO classification contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/weather.js'), 'utf8');
 
