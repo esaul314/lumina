@@ -969,6 +969,18 @@ assertTest('Google Photos live metadata updater documents its snapshot mutation 
   assert.match(source, /still remap `photosList` when no row matches/);
 });
 
+assertTest('Google Photos cache metadata updater documents its read, return, and write contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /@param \{unknown\} mediaIdentifier A Google media id or Lumina proxy URL/);
+  assert.match(source, /@param \{GooglePhotoMetadataPatchInput\} \[metadata=\{\}\]/);
+  assert.match(source, /@returns \{LiveGooglePhoto \| null\}/);
+  assert.match(source, /returns the copied matching row, including\s+\* when its values are unchanged, or `null` when the identifier or patch does\s+\* not resolve to a row/);
+  assert.match(source, /full cache is written only when a matched row\s+\* actually changes and the process is not in test mode/);
+  assert.match(source, /const currentItems = getCachedMediaItems\(\);\s+const merged = mergeCachedMediaItemMetadata\(currentItems, mediaIdentifier, metadata\);/);
+  assert.match(source, /if \(merged\.changed && process\.env\.NODE_ENV !== 'test'\)\s+\{\s+writeCachedMediaItems\(merged\.items\);/);
+});
+
 assertTest('weather service exposes a checked pure WMO classification contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/weather.js'), 'utf8');
 
@@ -2435,6 +2447,65 @@ assertTest('applyCachedMediaItemMetadataToState returns null for invalid input a
   assert.strictEqual(state.photosList[0].rating, 8);
   assert.strictEqual(state.activePhoto.rating, 6);
   assert.strictEqual(photo.loved, undefined);
+});
+
+assertTest('updateCachedMediaItemMetadata persists only changed cache projections outside test mode', () => {
+  const cacheFile = process.env.LUMINA_GOOGLE_PHOTOS_CACHE_PATH;
+  const originalCache = fs.existsSync(cacheFile) ? fs.readFileSync(cacheFile, 'utf8') : null;
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalWriteFileSync = fs.writeFileSync;
+  const cacheWrites = [];
+  const mediaItemId = 'metadata-contract-photo';
+  const cachedItem = googlePhotosCache.normalizeCachedMediaItem({
+    id: mediaItemId,
+    url: buildGooglePhotoProxyUrl(mediaItemId),
+    googleBaseUrl: 'https://photos.example/metadata-contract-photo',
+    googlePickerSessionId: 'metadata-contract-session',
+    width: 2560,
+    height: 1440,
+    rating: 10,
+    loved: false
+  });
+
+  try {
+    originalWriteFileSync.call(fs, cacheFile, JSON.stringify([cachedItem]), 'utf8');
+    fs.writeFileSync = function trackCacheWrite(filePath, ...args) {
+      if (path.resolve(String(filePath)) === path.resolve(cacheFile)) {
+        cacheWrites.push(filePath);
+      }
+      return originalWriteFileSync.call(fs, filePath, ...args);
+    };
+
+    process.env.NODE_ENV = 'test';
+    const testModeUpdate = googlePhotos.updateCachedMediaItemMetadata(mediaItemId, { loved: true });
+    assert.strictEqual(testModeUpdate?.loved, true, 'test mode still returns the projected row');
+    assert.deepStrictEqual(cacheWrites, [], 'test mode skips cache persistence');
+
+    process.env.NODE_ENV = 'production';
+    assert.strictEqual(googlePhotos.updateCachedMediaItemMetadata('missing-photo', { loved: true }), null);
+    const unchanged = googlePhotos.updateCachedMediaItemMetadata(mediaItemId, { loved: false });
+    assert.strictEqual(unchanged?.loved, false, 'a match is returned even when no value changes');
+    assert.deepStrictEqual(cacheWrites, [], 'missing and unchanged projections do not write');
+
+    const changed = googlePhotos.updateCachedMediaItemMetadata(mediaItemId, { loved: true });
+    assert.strictEqual(changed?.loved, true);
+    assert.strictEqual(cacheWrites.length, 1, 'a changed projection writes the cache once');
+    assert.strictEqual(JSON.parse(fs.readFileSync(cacheFile, 'utf8'))[0].loved, true);
+  } finally {
+    fs.writeFileSync = originalWriteFileSync;
+    if (originalCache === null) {
+      if (fs.existsSync(cacheFile)) {
+        fs.unlinkSync(cacheFile);
+      }
+    } else {
+      originalWriteFileSync.call(fs, cacheFile, originalCache, 'utf8');
+    }
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  }
 });
 
 assertTest('legacy Google Photos cache rows without baseUrl or picker session are filtered out', () => {

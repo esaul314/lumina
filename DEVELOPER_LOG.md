@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Document Google Photos Cache Metadata Persistence
+
+- **Contract**: documented the cache updater's media-id/proxy-URL and metadata
+  inputs, matched-row-or-null return, and normalized-cache read behavior.
+- **Persistence boundary**: the pure immutable merge remains in
+  `googlePhotosCache.js`; `googlePhotos.js` writes only when an allowed value
+  actually changes and the process is outside test mode. Matched unchanged rows
+  are still returned without a write.
+- **Regression coverage**: verified returned projections and disk state across
+  test mode, missing rows, unchanged metadata, and changed metadata.
+- **Next seam**: document the input and return contract of
+  `refreshCachedMediaItem(...)`, retaining Picker-session and network effects
+  in the service shell.
+
 ### 2026-10-09: Document Google Photos Live Snapshot Mutation
 
 - **Contract**: documented the accepted snapshot fields, Google media-id or

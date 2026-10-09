@@ -91,8 +91,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked pure defaults/overrides projection and deprecated-secret list; preserve section merge depths and input immutability while file reads and warnings remain in `configLoader.js`.
 - Latest Step 6 slice: `server/config/collectionPhotoUpdaters.js` now exposes checked immutable rating, crop, pairing, and broken-photo projections; preserve `parseInt`, partial crop, truthiness, and input immutability while state mutation and persistence remain in `collections.js`.
 - Latest Step 6 slice: `server/config/collections.js` and `server/config/configLoader.js` now document checked input and effect-shell contracts; preserve the existing photo mutation, persistence, config-file, logging, and warning behavior.
-- Latest Step 6 slice: `applyCachedMediaItemMetadataToState(...)` documents its live snapshot input, return, and mutation order; preserve shallow copies for matched list rows, unmatched-row identity, in-place active-frame mutation, and allowlisted metadata while live snapshot ownership stays in `googlePhotos.js`.
-- Next Step 6 seam: document the input, return, and conditional cache-write contract of `updateCachedMediaItemMetadata(...)`, keeping cache reads and persistence in the Google Photos service shell.
+- Latest Step 6 slice: `updateCachedMediaItemMetadata(...)` documents its cache input, return, and conditional persistence; preserve matched-row return semantics, no-write no-ops, and the test-mode write guard while cache reads and file effects stay in `googlePhotos.js`.
+- Next Step 6 seam: document the input and return contract of `refreshCachedMediaItem(...)`, keeping Picker-session refresh and network effects in the Google Photos service shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

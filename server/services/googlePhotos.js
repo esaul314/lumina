@@ -90,6 +90,20 @@ function updateCachedMediaItem(item) {
   return item;
 }
 
+/**
+ * Apply an allowlisted metadata patch to a cached Google Photos row.
+ *
+ * The service reads the normalized cache and delegates the immutable merge to
+ * `mergeCachedMediaItemMetadata`. It returns the copied matching row, including
+ * when its values are unchanged, or `null` when the identifier or patch does
+ * not resolve to a row. The full cache is written only when a matched row
+ * actually changes and the process is not in test mode; the projected row is
+ * returned even when persistence is skipped.
+ *
+ * @param {unknown} mediaIdentifier A Google media id or Lumina proxy URL.
+ * @param {GooglePhotoMetadataPatchInput} [metadata={}]
+ * @returns {LiveGooglePhoto | null}
+ */
 function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
   const currentItems = getCachedMediaItems();
   const merged = mergeCachedMediaItemMetadata(currentItems, mediaIdentifier, metadata);
