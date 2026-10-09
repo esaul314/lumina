@@ -122,6 +122,15 @@ function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
 /** @typedef {Record<string, unknown>} LiveGooglePhoto */
 
 /**
+ * Optional dimensions and crop directive for a Google Photos content URL.
+ *
+ * @typedef {object} GooglePhotoRenderOptions
+ * @property {number} [width] Requested content width.
+ * @property {number} [height] Requested content height.
+ * @property {boolean} [crop] Whether to request the crop directive.
+ */
+
+/**
  * Mutable snapshot fields that can contain Google Photos frames.
  *
  * @typedef {Record<string, unknown> & {
@@ -614,8 +623,17 @@ async function deletePickerSession(sessionId) {
 }
 
 /**
- * ⚡ refreshMediaItemUrl
- * Dynamically resolves and refreshes expired Google photo URLs on demand.
+ * Resolve a Google Photos media id to a content URL on demand.
+ *
+ * Synthetic `MOCK_` ids map to a Picsum fixture URL without authentication or
+ * network access. Other ids use a valid Google token to request the media-item
+ * resource, require its `baseUrl`, and compose a content URL with the supplied
+ * render options. Authentication, fetch, and logging remain effectful here;
+ * failures are logged and rethrown.
+ *
+ * @param {string} mediaItemId Stable Google Photos media-item id.
+ * @param {GooglePhotoRenderOptions} [renderOptions={}] Optional content dimensions and crop directive.
+ * @returns {Promise<string>} A mock fixture URL or rendered Google Photos content URL.
  */
 async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
   if (mediaItemId.startsWith('MOCK_')) {

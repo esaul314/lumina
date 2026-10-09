@@ -997,6 +997,33 @@ assertTest('Google Photos Picker refresh documents its fallback, result, and cac
   assert.match(source, /const refreshed = buildCachedMediaItem\(match, sessionId, existing \|\| \{\}\);\s+return updateCachedMediaItem\(refreshed\);/);
 });
 
+assertTest('Google Photos URL refresh documents render inputs and the authentication effect boundary', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /@typedef \{object\} GooglePhotoRenderOptions/);
+  assert.match(source, /@property \{number\} \[width\]/);
+  assert.match(source, /@property \{number\} \[height\]/);
+  assert.match(source, /@property \{boolean\} \[crop\]/);
+  assert.match(source, /Resolve a Google Photos media id to a content URL on demand/);
+  assert.match(source, /@param \{string\} mediaItemId Stable Google Photos media-item id/);
+  assert.match(source, /@param \{GooglePhotoRenderOptions\} \[renderOptions=\{\}\]/);
+  assert.match(source, /@returns \{Promise<string>\}/);
+  assert.match(source, /Synthetic `MOCK_` ids map to a Picsum fixture URL without authentication or\s+\* network access/);
+  assert.match(source, /const token = await getValidToken\(\);\s+const url = `https:\/\/photoslibrary\.googleapis\.com\/v1\/mediaItems\/\$\{mediaItemId\}`;/);
+  assert.match(source, /headers: \{\s+'Authorization': `Bearer \$\{token\}`,\s+'Accept': 'application\/json'/);
+  assert.match(source, /if \(!res\.ok\)\s+\{\s+throw new Error\(`Failed to retrieve media item/);
+  assert.match(source, /if \(!item\.baseUrl\)\s+\{\s+throw new Error\('Google Photos Service: API returned media item without baseUrl'\);/);
+  assert.match(source, /return buildGooglePhotoContentUrl\(item\.baseUrl, renderOptions\);/);
+  assert.match(source, /console\.error\(`Google Photos Service: Failed to refresh URL for item \$\{mediaItemId\}:`, err\.message\);\s+throw err;/);
+});
+
+assertAsyncTest('Google Photos URL refresh resolves synthetic media without network effects', async () => {
+  assert.strictEqual(
+    await googlePhotos.refreshMediaItemUrl('MOCK_MEDIA_ITEM_42'),
+    'https://picsum.photos/id/42/2560/1440'
+  );
+});
+
 assertTest('weather service exposes a checked pure WMO classification contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/weather.js'), 'utf8');
 

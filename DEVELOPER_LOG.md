@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Document Google Photos Media URL Refresh
+
+- **Contract**: documented the stable media-id and optional width/height/crop
+  inputs, mock fixture URL, authenticated content-URL projection, and rejected
+  error behavior of `refreshMediaItemUrl(...)`.
+- **Effect boundary**: token acquisition, media-item fetch, logging, and error
+  propagation remain in the service shell; content-URL composition remains in
+  the existing helper. No runtime behavior changed.
+- **Regression coverage**: source-contract assertions pin the render options,
+  authenticated request, response checks, URL composition, and rethrow path;
+  an asynchronous test exercises the synthetic URL path without network access.
+- **Verification**: `npm test` passed with 403 tests executed, 401 assertions,
+  zero failures, and 13/13 sensor-adapter regressions. `npm run lint` and
+  touched-file syntax checks passed. The optional Unix-socket smoke was skipped
+  because this environment denies `listen` with `EPERM`.
+- **Next seam**: document `fetchMediaItemBytes(...)` inputs and result while
+  preserving its local-file, Picker-refresh, network, and persistence effects.
+
 ### 2026-10-09: Document Google Photos Picker Cache Refresh
 
 - **Contract**: documented the media id and optional session override, cached
