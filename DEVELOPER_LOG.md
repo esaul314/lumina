@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Document Google Photos Live Snapshot Mutation
+
+- **Contract**: documented the accepted snapshot fields, Google media-id or
+  proxy-URL identifier, allowlisted metadata input, returned photo, and exact
+  mutation order of `applyCachedMediaItemMetadataToState(...)`.
+- **Boundary preserved**: metadata filtering remains in the checked pure cache
+  projection; this service shell still replaces the photo-list array, copies
+  matching rows, preserves unmatched row identity, and updates active frame
+  objects in place.
+- **Regression coverage**: tests pin matched-row copying, active-frame identity,
+  proxy-URL matching, falsy metadata, ignored fields, early no-ops, and the
+  existing valid-patch/no-match list-remap behavior.
+- **Next seam**: document the conditional cache-write contract of
+  `updateCachedMediaItemMetadata(...)` without moving cache I/O out of the
+  Google Photos service shell.
+
 ### 2026-10-09: Type Google Photos Cached-Metadata Projections
 
 - **Functional boundary**: moved the allowlisted metadata patch and immutable

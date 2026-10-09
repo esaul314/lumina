@@ -105,6 +105,40 @@ function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
   return merged.updatedItem;
 }
 
+/** @typedef {Record<string, unknown>} LiveGooglePhoto */
+
+/**
+ * Mutable snapshot fields that can contain Google Photos frames.
+ *
+ * @typedef {Record<string, unknown> & {
+ *   photosList?: Array<LiveGooglePhoto | null | undefined>;
+ *   activePhoto?: LiveGooglePhoto | null;
+ *   activeSecondPhoto?: LiveGooglePhoto | null;
+ * }} MutableGooglePhotoState
+ */
+
+/**
+ * Metadata accepted by the Google Photos update path; unsupported keys are
+ * removed by the checked cache projection before the snapshot is changed.
+ *
+ * @typedef {Partial<Record<'rating' | 'isBroken' | 'cropPercent' | 'cropPositionY' | 'preventPairing' | 'loved' | 'orientation' | 'width' | 'height', unknown>>} GooglePhotoMetadataPatchInput
+ */
+
+/**
+ * Apply allowlisted metadata to the live snapshot's matching Google Photos.
+ *
+ * This effect-shell operation replaces `photosList` with a mapped array,
+ * shallow-copies matching rows, and preserves unmatched row references. It
+ * updates matching active frame objects in place, retaining their identity.
+ * It returns the last updated photo in application order, or `null` when the
+ * state, identifier, patch, or matching photo is absent. A valid identifier
+ * and patch still remap `photosList` when no row matches.
+ *
+ * @param {MutableGooglePhotoState | null | undefined} state
+ * @param {unknown} mediaIdentifier A Google media id or Lumina proxy URL.
+ * @param {GooglePhotoMetadataPatchInput} [metadata={}]
+ * @returns {LiveGooglePhoto | null}
+ */
 function applyCachedMediaItemMetadataToState(state, mediaIdentifier, metadata = {}) {
   const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();
   const metadataPatch = buildGooglePhotoMetadataPatch(metadata);

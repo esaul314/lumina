@@ -954,6 +954,21 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.strictEqual(googlePhotosCache.mergeCachedMediaItemMetadata, googlePhotos.mergeCachedMediaItemMetadata);
 });
 
+assertTest('Google Photos live metadata updater documents its snapshot mutation contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /@typedef \{Record<string, unknown>\} LiveGooglePhoto/);
+  assert.match(source, /@typedef \{Record<string, unknown> & \{[\s\S]*?photosList\?: Array<LiveGooglePhoto \| null \| undefined>/);
+  assert.match(source, /activePhoto\?: LiveGooglePhoto \| null;[\s\S]*?activeSecondPhoto\?: LiveGooglePhoto \| null;/);
+  assert.match(source, /@param \{MutableGooglePhotoState \| null \| undefined\} state/);
+  assert.match(source, /@param \{unknown\} mediaIdentifier A Google media id or Lumina proxy URL/);
+  assert.match(source, /@param \{GooglePhotoMetadataPatchInput\} \[metadata=\{\}\]/);
+  assert.match(source, /@returns \{LiveGooglePhoto \| null\}/);
+  assert.match(source, /replaces `photosList` with a mapped array[\s\S]*shallow-copies matching rows, and preserves unmatched row references/);
+  assert.match(source, /updates matching active frame objects in place, retaining their identity/);
+  assert.match(source, /still remap `photosList` when no row matches/);
+});
+
 assertTest('weather service exposes a checked pure WMO classification contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/weather.js'), 'utf8');
 
@@ -2354,6 +2369,72 @@ assertTest('applyCachedMediaItemMetadataToState keeps Google Photos toggle state
   assert.strictEqual(updatedPhoto?.preventPairing, true);
   assert.strictEqual(state.photosList[0].preventPairing, true);
   assert.strictEqual(state.activePhoto.preventPairing, true);
+});
+
+assertTest('applyCachedMediaItemMetadataToState preserves list-copy and active-frame mutation semantics', () => {
+  const proxyUrl = '/api/google-photos/media/picker-123?w=2560&h=1440&c=1';
+  const state = {
+    photosList: [
+      { id: 'picker-123', url: proxyUrl, preventPairing: false },
+      { url: proxyUrl, rating: 7 },
+      { id: 'another-photo', rating: 4 },
+      null
+    ],
+    activePhoto: { url: proxyUrl, preventPairing: false },
+    activeSecondPhoto: { id: 'picker-123', loved: false }
+  };
+  const originalPhotos = state.photosList;
+  const originalListMatch = state.photosList[0];
+  const originalNonMatch = state.photosList[2];
+  const originalActivePhoto = state.activePhoto;
+  const originalActiveSecondPhoto = state.activeSecondPhoto;
+
+  const updatedPhoto = applyCachedMediaItemMetadataToState(state, proxyUrl, {
+    preventPairing: true,
+    rating: 0,
+    unsupportedField: 'ignored'
+  });
+
+  assert.strictEqual(updatedPhoto, state.activeSecondPhoto, 'activeSecondPhoto is last in application order');
+  assert.strictEqual(updatedPhoto?.preventPairing, true);
+  assert.strictEqual(updatedPhoto?.rating, 0);
+  assert.strictEqual(updatedPhoto?.unsupportedField, undefined);
+  assert.notStrictEqual(state.photosList, originalPhotos);
+  assert.notStrictEqual(state.photosList[0], originalListMatch);
+  assert.strictEqual(state.photosList[0].preventPairing, true);
+  assert.strictEqual(state.photosList[1].preventPairing, true, 'proxy URL identity works without a row id');
+  assert.strictEqual(state.photosList[2].rating, 4);
+  assert.strictEqual(state.photosList[2], originalNonMatch, 'unmatched rows retain their identity');
+  assert.strictEqual(state.photosList[3], null);
+  assert.strictEqual(originalListMatch.preventPairing, false, 'source list rows are not mutated');
+  assert.strictEqual(state.activePhoto, originalActivePhoto);
+  assert.strictEqual(state.activePhoto.preventPairing, true);
+  assert.strictEqual(state.activeSecondPhoto, originalActiveSecondPhoto);
+  assert.strictEqual(state.activeSecondPhoto.loved, false);
+});
+
+assertTest('applyCachedMediaItemMetadataToState returns null for invalid input and retains valid no-match remapping', () => {
+  const photo = { id: 'other', rating: 8 };
+  const state = {
+    photosList: [photo],
+    activePhoto: { id: 'active-other', rating: 6 },
+    activeSecondPhoto: null
+  };
+
+  assert.strictEqual(applyCachedMediaItemMetadataToState(null, 'picker-123', { loved: true }), null);
+  assert.strictEqual(applyCachedMediaItemMetadataToState(state, '', { loved: true }), null);
+  assert.strictEqual(applyCachedMediaItemMetadataToState(state, 'picker-123', { unsupported: true }), null);
+  assert.strictEqual(state.photosList[0], photo, 'invalid inputs return before remapping live state');
+
+  const originalList = state.photosList;
+  const result = applyCachedMediaItemMetadataToState(state, 'picker-123', { loved: true });
+
+  assert.strictEqual(result, null, 'an unmatched identifier has no updated photo to return');
+  assert.notStrictEqual(state.photosList, originalList, 'a valid patch retains the established list-remap behavior');
+  assert.strictEqual(state.photosList[0], photo, 'unmatched rows retain their identity during a no-match remap');
+  assert.strictEqual(state.photosList[0].rating, 8);
+  assert.strictEqual(state.activePhoto.rating, 6);
+  assert.strictEqual(photo.loved, undefined);
 });
 
 assertTest('legacy Google Photos cache rows without baseUrl or picker session are filtered out', () => {
