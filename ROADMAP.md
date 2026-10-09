@@ -236,7 +236,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Next Step 6 seam: add checked contracts around Google Photos cache normalization and accumulation projections in `server/services/googlePhotos.js`, preserving stable-ID upsert, user metadata, and post-union pool policy while keeping auth, session, file, and network effects in the service shell.
+  - Latest Step 6 slice (46): `server/services/googlePhotosCache.js` now owns checked pure cache normalization and stable-ID accumulation; auth, session, pool-policy, persistence, and media-file effects remain in `googlePhotos.js`.
+  - Next Step 6 seam: add checked contracts around the remaining pure Google Photos cached-metadata patch/merge projections, keeping live-state mutation and cache persistence in the service shell.
 
 ### Shared domain flow
 
