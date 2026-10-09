@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-09: Document Google Photos Orphan Cleanup Contract
+
+- **Contract**: documented the pure orphan projection's basename matching and
+  stable result order, plus `cleanOrphanedMediaFiles(...)` active-item input,
+  no-op conditions, and best-effort result.
+- **Effect boundary**: directory listing, synchronous unlinking, and warning
+  logging remain in the Google Photos service shell; runtime behavior did not
+  change.
+- **Regression coverage**: source-contract assertions pin the test/missing-dir
+  guards and cleanup effects. Pure projection coverage verifies extension-
+  agnostic matching, input order, and input immutability.
+- **Verification**: `npm test` passed (405 tests, 403 assertions, zero failures;
+  sensor adapters 13/13); `npm run lint`, JavaScript syntax checks, and
+  `git diff --check` passed. The optional Unix-socket smoke was skipped because
+  this environment denies `listen` with `EPERM`.
+- **Next seam**: document `downloadSyncMediaItems(...)` inputs, test-mode
+  no-op, and best-effort sequential download/cache effects in the service shell.
+
 ### 2026-10-09: Document Google Photos Media Byte Fetch Contract
 
 - **Contract**: documented `fetchMediaItemBytes(...)` inputs and its

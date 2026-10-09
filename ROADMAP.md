@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (52): `fetchMediaItemBytes(...)` now documents its byte/content-type result, local-cache fallback, Picker-refresh retries, and effect boundary; file, authentication, and network effects remain in the Google Photos service shell.
-- Next Step 6 seam: document `cleanOrphanedMediaFiles(...)` inputs, no-op conditions, and file-cleanup effects in the Google Photos service shell.
+- Latest Step 6 slice (53): `cleanOrphanedMediaFiles(...)` documents active media-id inputs, missing-directory/test-mode no-ops, best-effort cleanup, and reuse of the pure orphan projection; file reads, unlinking, and warning logs remain in the Google Photos service shell.
+- Next Step 6 seam: document `downloadSyncMediaItems(...)` inputs, test-mode no-op, and best-effort sequential download/cache effects in the Google Photos service shell.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -236,8 +236,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (52): `server/services/googlePhotos.js` documents the media-byte result contract and preserves local-cache, Picker refresh, authentication, network, and persistence effects in its service shell.
-  - Next Step 6 seam: document `cleanOrphanedMediaFiles(...)` inputs, no-op conditions, and file-cleanup effects in the Google Photos service shell.
+  - Latest Step 6 slice (53): `server/services/googlePhotos.js` documents orphan-selection and cleanup contracts, with tests for extension-agnostic pure selection and the filesystem-effect boundary.
+  - Next Step 6 seam: document `downloadSyncMediaItems(...)` inputs, test-mode no-op, and best-effort sequential download/cache effects in the Google Photos service shell.
 
 ### Shared domain flow
 

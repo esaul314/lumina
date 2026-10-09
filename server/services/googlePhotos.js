@@ -804,6 +804,14 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
 // Pure functional helpers for set difference and orphaned file mapping
 const difference = (setA, setB) => new Set([...setA].filter(x => !setB.has(x)));
 
+/**
+ * Return directory entries whose parsed basename is absent from the active ids.
+ * Matching ignores the file extension, and the result preserves input order.
+ *
+ * @param {string[]} allFiles Directory entries to inspect.
+ * @param {string[]} activeIds Media ids that must be retained.
+ * @returns {string[]} Entries whose parsed basename is not active.
+ */
 const getOrphanedFiles = (allFiles, activeIds) => {
   const activeSet = new Set(activeIds);
   const fileIds = new Set(allFiles.map(file => path.parse(file).name));
@@ -814,6 +822,16 @@ const getOrphanedFiles = (allFiles, activeIds) => {
 // File system effectful operations
 const getLocalMediaFilePath = (mediaItemId) => path.join(MEDIA_DIR, `${mediaItemId}.jpg`);
 
+/**
+ * Remove locally cached files that are not represented by the supplied items.
+ * A missing media directory and test mode are no-ops. Otherwise this reads the
+ * directory, delegates orphan selection to `getOrphanedFiles(...)`, and
+ * synchronously unlinks each result. Listing, projection, and unlink failures
+ * are caught and warned; cleanup is best-effort and does not propagate them.
+ *
+ * @param {Array<{id: string}>} newItems Media items whose ids remain cached.
+ * @returns {void}
+ */
 const cleanOrphanedMediaFiles = (newItems) => {
   if (!fs.existsSync(MEDIA_DIR) || process.env.NODE_ENV === 'test') {
     return;

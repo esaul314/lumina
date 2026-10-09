@@ -1039,6 +1039,24 @@ assertTest('Google Photos media-byte fetch documents its result and effect bound
   assert.match(source, /throw lastError \|\| new Error\(`Google Photos Service: Failed to fetch media bytes/);
 });
 
+assertTest('Google Photos orphan cleanup documents its input and effect boundary', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /Return directory entries whose parsed basename is absent from the active ids/);
+  assert.match(source, /Matching ignores the file extension, and the result preserves input order/);
+  assert.match(source, /@param \{string\[\]\} allFiles Directory entries to inspect/);
+  assert.match(source, /@param \{string\[\]\} activeIds Media ids that must be retained/);
+  assert.match(source, /@returns \{string\[\]\} Entries whose parsed basename is not active/);
+  assert.match(source, /Remove locally cached files that are not represented by the supplied items/);
+  assert.match(source, /A missing media directory and test mode are no-ops[\s\S]*synchronously unlinks each result/);
+  assert.match(source, /Listing, projection, and unlink failures\s+\* are caught and warned; cleanup is best-effort and does not propagate them/);
+  assert.match(source, /@param \{Array<\{id: string\}>\} newItems Media items whose ids remain cached/);
+  assert.match(source, /@returns \{void\}/);
+  assert.match(source, /if \(!fs\.existsSync\(MEDIA_DIR\) \|\| process\.env\.NODE_ENV === 'test'\)\s+\{\s+return;/);
+  assert.match(source, /const files = fs\.readdirSync\(MEDIA_DIR\);\s+const activeIds = newItems\.map\(item => item\.id\);\s+const orphans = getOrphanedFiles\(files, activeIds\);/);
+  assert.match(source, /fs\.unlinkSync\(path\.join\(MEDIA_DIR, file\)\);[\s\S]*console\.warn\('Google Photos Service: Failed to clean up orphaned media files:'/);
+});
+
 assertAsyncTest('Google Photos URL refresh resolves synthetic media without network effects', async () => {
   assert.strictEqual(
     await googlePhotos.refreshMediaItemUrl('MOCK_MEDIA_ITEM_42'),
@@ -2841,11 +2859,13 @@ assertTest('difference functional helper computes set difference correctly', () 
   assert.deepStrictEqual([...diff].sort(), ['a', 'c']);
 });
 
-assertTest('getOrphanedFiles functional helper identifies orphaned media files correctly', () => {
-  const allFiles = ['item1.jpg', 'item2.jpg', 'item3.jpg'];
+assertTest('getOrphanedFiles matches parsed ids and preserves orphan order without mutation', () => {
+  const allFiles = ['item1.jpg', 'item2.jpg', 'item1.png', 'item3.jpg', 'item4.webp'];
   const activeIds = ['item1', 'item3'];
   const orphans = getOrphanedFiles(allFiles, activeIds);
-  assert.deepStrictEqual(orphans, ['item2.jpg']);
+  assert.deepStrictEqual(orphans, ['item2.jpg', 'item4.webp']);
+  assert.deepStrictEqual(allFiles, ['item1.jpg', 'item2.jpg', 'item1.png', 'item3.jpg', 'item4.webp']);
+  assert.deepStrictEqual(activeIds, ['item1', 'item3']);
 });
 
 assertTest('getLocalMediaFilePath builds correct JPG file destination path', () => {
