@@ -1110,7 +1110,7 @@ const createGooglePhotosServiceFixture = ({
   };
 
   // Capture internal helpers without widening the production exports.
-  const { buildContentUrl, isBaseUrlStale, getValidToken } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, isBaseUrlStale, getValidToken });`, {
+  const { buildContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }) });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1133,6 +1133,8 @@ const createGooglePhotosServiceFixture = ({
     buildContentUrl,
     isBaseUrlStale,
     getValidToken,
+    refreshAccessToken,
+    readTokens: () => ({ ...readTokens() }),
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
     writes,
@@ -1409,6 +1411,149 @@ const googlePhotosTokenChecks = [
     assert.strictEqual(await fixture.getValidToken(), undefined);
     assert.deepStrictEqual(fixture.errors, []);
     assert.deepStrictEqual(fixture.writes, []);
+  })
+];
+
+assertTest('Google Photos refresh documents its result, mutation ordering, and logged failure boundary', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(" * Refresh the service's access token"), source.indexOf(" * Resolve the service's access token"));
+  assert.match(contract, /@returns \{Promise<string \| undefined>\}/);
+  assert.match(contract, /@throws \{Error\}/);
+  assert.match(contract, /outside the logged catch/);
+  assert.match(contract, /no token persistence occurs here/);
+  assert.match(contract, /Updates are not atomic/);
+  assert.match(contract, /not a pure projection/);
+});
+
+const googlePhotosRefreshChecks = [
+  assertAsyncTest('Google Photos refresh rejects missing tokens without effects and creates mock tokens from separate clocks', async () => {
+    const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: '', expiry: 17 });
+    const missing = createGooglePhotosServiceFixture({ initialTokens, now: () => { throw new Error('Unexpected clock'); } });
+    await assert.rejects(missing.refreshAccessToken(), /No refresh token available/);
+    assert.deepStrictEqual(missing.readTokens(), initialTokens);
+    assert.deepStrictEqual(missing.errors, []);
+
+    const ticks = [100, 200];
+    const mock = createGooglePhotosServiceFixture({
+      initialTokens: { refreshToken: 'MOCK_FIXTURE' }, now: () => ticks.shift()
+    });
+    assert.strictEqual(await mock.refreshAccessToken(), 'MOCK_ACCESS_TOKEN_XYZ_100');
+    assert.deepStrictEqual(mock.readTokens(), {
+      accessToken: 'MOCK_ACCESS_TOKEN_XYZ_100', refreshToken: 'MOCK_FIXTURE', expiry: 3_600_200
+    });
+    assert.deepStrictEqual(ticks, []);
+    assert.deepStrictEqual(mock.logs, []);
+    assert.deepStrictEqual(mock.errors, []);
+    assert.deepStrictEqual(mock.writes, []);
+  }),
+  assertAsyncTest('Google Photos refresh awaits encoded OAuth requests and preserves the stored refresh token', async () => {
+    const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'refresh +&=', expiry: 17 });
+    const requests = [];
+    let clockReads = 0;
+    let releaseResponse;
+    const response = new Promise(resolve => { releaseResponse = resolve; });
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens,
+      envValues: { GOOGLE_CLIENT_ID: 'client +&=', GOOGLE_CLIENT_SECRET: 'secret +&=' },
+      now: () => { clockReads += 1; return 1_000; },
+      fetchResponse: async (url, options) => {
+        requests.push({ url, options });
+        return { ok: true, json: () => response };
+      }
+    });
+    let settled = false;
+    const pending = fixture.refreshAccessToken().then(token => { settled = true; return token; });
+    await flushPromises();
+    assert.strictEqual(settled, false);
+    assert.strictEqual(clockReads, 0);
+    assert.deepStrictEqual(fixture.readTokens(), initialTokens);
+    assert.strictEqual(requests.length, 1);
+    const [{ url, options }] = requests;
+    assert.strictEqual(url, 'https://oauth2.googleapis.com/token');
+    assert.strictEqual(options.method, 'POST');
+    assert.strictEqual(options.headers['Content-Type'], 'application/x-www-form-urlencoded');
+    assert.deepStrictEqual(Object.fromEntries(new URLSearchParams(options.body)), {
+      client_id: 'client +&=', client_secret: 'secret +&=',
+      refresh_token: initialTokens.refreshToken, grant_type: 'refresh_token'
+    });
+    releaseResponse({ access_token: 'new-access', refresh_token: 'ignored-replacement', expires_in: 60 });
+    assert.strictEqual(await pending, 'new-access');
+    assert.strictEqual(clockReads, 1);
+    assert.deepStrictEqual(fixture.readTokens(), { ...initialTokens, accessToken: 'new-access', expiry: 61_000 });
+    assert.deepStrictEqual(initialTokens, { accessToken: 'previous', refreshToken: 'refresh +&=', expiry: 17 });
+    assert.deepStrictEqual(fixture.errors, []);
+    assert.deepStrictEqual(fixture.writes, []);
+  }),
+  assertAsyncTest('Google Photos refresh preserves unvalidated token fields and expiry coercion', async () => {
+    const cases = [
+      [{ access_token: 'new', expires_in: '60' }, 'new', 61_000],
+      [{ access_token: 'new', expires_in: 0 }, 'new', 1_000],
+      [{ access_token: 'new', expires_in: null }, 'new', 1_000],
+      [{ access_token: 'new', expires_in: 'invalid' }, 'new', NaN],
+      [{ access_token: 'new' }, 'new', NaN],
+      [{ expires_in: 60 }, undefined, 61_000]
+    ];
+    await Promise.all(cases.map(async ([payload, token, expiry]) => {
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { refreshToken: 'fixture-refresh' }, now: () => 1_000,
+        fetchResponse: async () => ({ ok: true, json: async () => payload })
+      });
+      assert.strictEqual(await fixture.refreshAccessToken(), token);
+      assert.deepStrictEqual(fixture.readTokens(), { accessToken: token, refreshToken: 'fixture-refresh', expiry });
+      assert.deepStrictEqual(fixture.errors, []);
+      assert.deepStrictEqual(fixture.writes, []);
+    }));
+  }),
+  assertAsyncTest('Google Photos refresh logs and rethrows request and payload failures without mutating tokens', async () => {
+    const networkFailure = new Error('Network unavailable');
+    const jsonFailure = new Error('Invalid JSON');
+    const cases = [
+      [async () => { throw networkFailure; }, err => err === networkFailure],
+      [async () => ({ ok: false, status: 503, json: () => { throw new Error('Unexpected JSON'); } }),
+        err => err.message === 'Failed to refresh access token, status=503'],
+      [async () => ({ ok: true, json: async () => { throw jsonFailure; } }), err => err === jsonFailure],
+      [async () => ({ ok: true, json: async () => null }), err => err.name === 'TypeError']
+    ];
+    await Promise.all(cases.map(async ([fetchResponse, matches]) => {
+      const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'fixture-refresh', expiry: 17 });
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens, fetchResponse, now: () => { throw new Error('Unexpected clock'); }
+      });
+      await assert.rejects(fixture.refreshAccessToken(), matches);
+      assert.deepStrictEqual(fixture.readTokens(), initialTokens);
+      assert.strictEqual(fixture.errors.length, 1);
+      assert.strictEqual(fixture.errors[0][0], 'Google Photos Service: Access token refresh failed:');
+      assert.deepStrictEqual(fixture.writes, []);
+    }));
+  }),
+  assertAsyncTest('Google Photos refresh exposes partial OAuth updates on logged clock failures', async () => {
+    const failure = new Error('Clock unavailable');
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens: { accessToken: 'previous', refreshToken: 'fixture-refresh', expiry: 17 },
+      now: () => { throw failure; },
+      fetchResponse: async () => ({ ok: true, json: async () => ({ access_token: 'new-access', expires_in: 60 }) })
+    });
+    await assert.rejects(fixture.refreshAccessToken(), err => err === failure);
+    assert.deepStrictEqual(fixture.readTokens(), { accessToken: 'new-access', refreshToken: 'fixture-refresh', expiry: 17 });
+    assert.deepStrictEqual(fixture.errors, [['Google Photos Service: Access token refresh failed:', failure.message]]);
+    assert.deepStrictEqual(fixture.writes, []);
+  }),
+  assertAsyncTest('Google Photos mock refresh exposes first and second clock failures without logging', async () => {
+    await Promise.all([1, 2].map(async failedRead => {
+      const failure = new Error('Mock clock unavailable');
+      let clockReads = 0;
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'previous', refreshToken: 'MOCK_FIXTURE', expiry: 17 },
+        now: () => { clockReads += 1; if (clockReads === failedRead) throw failure; return 100; }
+      });
+      await assert.rejects(fixture.refreshAccessToken(), err => err === failure);
+      assert.strictEqual(clockReads, failedRead);
+      assert.deepStrictEqual(fixture.readTokens(), {
+        accessToken: failedRead === 1 ? 'previous' : 'MOCK_ACCESS_TOKEN_XYZ_100', refreshToken: 'MOCK_FIXTURE', expiry: 17
+      });
+      assert.deepStrictEqual(fixture.errors, []);
+      assert.deepStrictEqual(fixture.writes, []);
+    }));
   })
 ];
 
@@ -6763,6 +6908,7 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 async function runIntegrationTests() {
   await Promise.all([
     ...googlePhotosTokenChecks,
+    ...googlePhotosRefreshChecks,
     googlePhotosDownloadNoopCheck, googlePhotosDownloadOrderCheck, googlePhotosDownloadFailureCheck
   ]);
   await runClientStateTests();

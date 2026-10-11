@@ -381,8 +381,26 @@ async function exchangeGoogleCode(code, redirectUri) {
 }
 
 /**
- * 🔄 refreshAccessToken
- * Automatically fetches a fresh access_token using the refresh_token.
+ * Refresh the service's access token using its stored refresh token.
+ *
+ * Missing refresh tokens reject before any request or clock read. MOCK_ tokens
+ * bypass OAuth and use two clock reads: one for the synthetic access token,
+ * then one for its one-hour expiry. These branches are outside the logged catch.
+ *
+ * Otherwise POST URL-encoded credentials and the refresh-token grant to OAuth,
+ * await JSON, then assign accessToken before reading the clock to assign expiry.
+ * Keep the existing refresh token even when the response includes a replacement;
+ * no token persistence occurs here. Response fields are not validated: missing
+ * access_token resolves undefined, and expires_in retains numeric coercion.
+ *
+ * Network, HTTP, JSON, and assignment/clock failures in the OAuth branch are
+ * logged and rethrown. Updates are not atomic: a clock failure can leave the
+ * new access token with the previous expiry, including in the mock branch.
+ * Token-state mutation, clock reads, requests, and logging stay in this effect
+ * shell; this is not a pure projection or a guarantee of valid credentials.
+ *
+ * @returns {Promise<string | undefined>} Refreshed or synthetic access token.
+ * @throws {Error} Rejects on missing refresh token or refresh/clock failure.
  */
 async function refreshAccessToken() {
   if (!tokens.refreshToken) {

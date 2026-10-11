@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-11: Document Google Photos Token-Refresh Contract
+
+- **Contract**: documented `refreshAccessToken()` refreshed/synthetic result,
+  missing-token rejection, separate mock clock reads, encoded OAuth request,
+  awaited JSON completion, and logged failure boundary. Refresh retains the
+  stored refresh token without persistence and preserves unvalidated response
+  fields and numeric expiry coercion.
+- **Functional design**: retained the unchanged, small effect shell. Requests,
+  logging, clock reads, and token mutation cannot become pure through a wrapper;
+  no extra currying or algebra is needed. Independent test cases compose through
+  `map` and `Promise.all`, using injected adapters and detached token snapshots
+  rather than global patches, real credentials, or production exports.
+- **Regression coverage**: seven focused tests pin the JSDoc contract, inert
+  missing-token rejection, mock clock ordering, encoded request fields, delayed
+  completion, frozen seed preservation, refresh-token retention, response/expiry
+  coercion, network/HTTP/JSON/null-payload failures, and partial token updates
+  on clock failure. Atomic-update policy is recorded separately in the backlog.
+- **Verification**: `npm test` passed (436 tests, 434 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `exchangeGoogleCode(...)` input, token-state result,
+  and rejection contract, preserving mock handling, OAuth request shaping,
+  refresh-token fallback/persistence, and logged failures in the service shell.
+
 ### 2026-10-11: Document Google Photos Token-Resolution Contract
 
 - **Contract**: documented `getValidToken()` cached/refreshed token result and
