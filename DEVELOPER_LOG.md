@@ -6,6 +6,32 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-10: Document Google Photos Normalized Cache-Read Contract
+
+- **Contract**: documented `getCachedMediaItems()` render-row result, open
+  metadata retention, first-usable-id ordering, and serialization-based
+  changed-only writes outside test mode. Eligibility is structural, not proof
+  of downloadable bytes; rating, broken status, age, and caps are not enforced
+  by this reader.
+- **Functional boundary**: the existing pure map/filter/dedupe composition is
+  already the clearest expression. Read/write/warning effects stay in the
+  service shell; no extra algebra or runtime abstraction is needed.
+- **Regression coverage**: extended the isolated service fixture with cache
+  adapters, without touching global effects, credentials, or live cache files.
+  Tests pin proxy/default projection, metadata retention, filtering before
+  deduplication, serialization idempotence, detached repeated reads, test-mode
+  write suppression, empty read fallbacks, and propagated effect failures.
+- **Existing limitation**: valid non-array JSON is not decoded defensively and
+  still throws. The contract and tests make this distinct from caught read or
+  JSON-syntax failures; any recovery policy needs a separate hardening slice.
+  Runtime behavior is unchanged.
+- **Verification**: `npm test` passed (414 tests, 412 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were skipped due
+  to sandbox `listen EPERM`; no frontend build or daemon restart is needed.
+- **Next seam**: document `buildGooglePhotoContentUrl(...)` input/result
+  contract while preserving default dimensions and optional crop directives.
+
 ### 2026-10-10: Document Google Photos Sequential Pre-Download Contract
 
 - **Contract**: documented `downloadSyncMediaItems(...)` selected-media input

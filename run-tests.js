@@ -1078,9 +1078,11 @@ assertTest('Google Photos pre-download documents its sequential cache and failur
 
 // Evaluate the real service with isolated effects, avoiding global fetch/env
 // patches and any access to the daemon's media cache or credentials.
-const createGooglePhotosDownloadFixture = ({
+const createGooglePhotosServiceFixture = ({
   nodeEnv = 'production',
   exists = () => false,
+  cacheExists = () => false,
+  read = () => '[]',
   fetchResponse = async () => { throw new Error('Unexpected fetch'); },
   write = () => {}
 } = {}) => {
@@ -1091,7 +1093,9 @@ const createGooglePhotosDownloadFixture = ({
   const module = { exports: {} };
   const adapters = {
     fs: {
-      existsSync: file => !file.endsWith('.jpg') || exists(file),
+      existsSync: file => file.endsWith('.jpg') ? exists(file)
+        : file.endsWith('google_photos_cache.json') ? cacheExists(file) : true,
+      readFileSync: read,
       writeFileSync: (file, bytes) => {
         write(file, bytes);
         writes.push({ file, bytes });
@@ -1110,24 +1114,29 @@ const createGooglePhotosDownloadFixture = ({
     console: { log: () => {}, warn: (...args) => warnings.push(args) }
   }, { filename });
 
-  return { download: module.exports.downloadSyncMediaItems, writes, warnings };
+  return {
+    download: module.exports.downloadSyncMediaItems,
+    readCache: module.exports.getCachedMediaItems,
+    writes,
+    warnings
+  };
 };
 
 const googlePhotosDownloadNoopCheck = assertAsyncTest('Google Photos pre-download keeps test/empty batches inert and exposes existence failures', async () => {
   const failIfCalled = () => { throw new Error('Unexpected effect'); };
-  const testFixture = createGooglePhotosDownloadFixture({
+  const testFixture = createGooglePhotosServiceFixture({
     nodeEnv: 'test', exists: failIfCalled, fetchResponse: failIfCalled, write: failIfCalled
   });
   assert.strictEqual(await testFixture.download([{ id: 'test', googleBaseUrl: 'https://example.test/test' }]), undefined);
   assert.deepStrictEqual(testFixture.writes, []);
   assert.deepStrictEqual(testFixture.warnings, []);
 
-  const emptyFixture = createGooglePhotosDownloadFixture({ exists: failIfCalled });
+  const emptyFixture = createGooglePhotosServiceFixture({ exists: failIfCalled });
   assert.strictEqual(await emptyFixture.download([]), undefined);
   assert.deepStrictEqual(emptyFixture.writes, []);
 
   const failure = new Error('Existence check failed');
-  const failedFixture = createGooglePhotosDownloadFixture({ exists: () => { throw failure; } });
+  const failedFixture = createGooglePhotosServiceFixture({ exists: () => { throw failure; } });
   await assert.rejects(failedFixture.download([{ id: 'unreadable' }]), err => err === failure);
   assert.deepStrictEqual(failedFixture.warnings, []);
 });
@@ -1141,7 +1150,7 @@ const googlePhotosDownloadOrderCheck = assertAsyncTest('Google Photos pre-downlo
     Object.freeze({ id: 'first', googleBaseUrl: 'https://example.test/first' }),
     Object.freeze({ id: 'second', googleBaseUrl: 'https://example.test/second' })
   ]);
-  const fixture = createGooglePhotosDownloadFixture({
+  const fixture = createGooglePhotosServiceFixture({
     exists: file => file.endsWith('cached.jpg'),
     fetchResponse: async url => {
       events.push(url);
@@ -1173,7 +1182,7 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
     disk: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('disk') }),
     last: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('last') })
   };
-  const fixture = createGooglePhotosDownloadFixture({
+  const fixture = createGooglePhotosServiceFixture({
     fetchResponse: url => {
       const id = new URL(url).pathname.slice(1).split('=')[0];
       requested.push(id);
@@ -1195,6 +1204,117 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
     'Network unavailable', 'Body unavailable', 'Disk unavailable'
   ]);
   ['network', 'body', 'disk'].forEach((id, index) => assert.ok(fixture.warnings[index][0].includes(id)));
+});
+
+assertTest('Google Photos cache read documents its normalized result and persistence boundary', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /Read and normalize the persistent Google Photos cache for rendering/);
+  assert.match(source, /@returns \{Array<import\('\.\/googlePhotosCache\.js'\)\.GooglePhotoMediaItem & \{id: string; url: string\}>\}/);
+  assert.match(source, /retains the first usable row for each stable id in input order/);
+  assert.match(source, /structural eligibility, not a network or local-file availability check/);
+  assert.match(source, /non-array shapes still throw/);
+  assert.match(source, /Existence-check and write\s+\* failures propagate/);
+});
+
+assertTest('Google Photos cache read normalizes, filters, and keeps first usable ids before persisting', () => {
+  const input = Object.freeze([
+    null,
+    Object.freeze({ title: 'missing id' }),
+    Object.freeze({ id: 'duplicate', url: '/api/google-photos/media/duplicate' }),
+    Object.freeze({
+      id: 'duplicate', url: 'https://example.test/legacy=old', width: 'bad', height: '0',
+      rating: 1, loved: true, isBroken: true, addedAt: '2000-01-01T00:00:00.000Z',
+      createTime: '1999-01-01T00:00:00Z', customField: { retained: true }
+    }),
+    Object.freeze({ id: 'duplicate', googlePickerSessionId: 'later', rating: 10 }),
+    Object.freeze({ id: 'session-only', googlePickerSessionId: 'session' }),
+    Object.freeze({ id: 'MOCK_MEDIA_ITEM_42' })
+  ]);
+  const original = JSON.stringify(input);
+  const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => original });
+  const rows = fixture.readCache();
+
+  assert.deepStrictEqual(Array.from(rows, ({ id }) => id), ['duplicate', 'session-only', 'MOCK_MEDIA_ITEM_42']);
+  assert.strictEqual(rows[0].url, '/api/google-photos/media/duplicate?w=2560&h=1440');
+  assert.strictEqual(rows[0].googleBaseUrl, 'https://example.test/legacy');
+  assert.strictEqual(rows[0].width, 2560);
+  assert.strictEqual(rows[0].height, 1440);
+  assert.strictEqual(rows[0].rating, 1);
+  assert.strictEqual(rows[0].isBroken, true);
+  assert.strictEqual(rows[0].loved, true);
+  assert.strictEqual(rows[0].addedAt, input[3].addedAt);
+  assert.strictEqual(rows[0].createTime, input[3].createTime);
+  assert.strictEqual(rows[0].customField.retained, true);
+  assert.strictEqual(rows[1].rating, 10);
+  assert.strictEqual(rows[1].googleBaseUrl, undefined);
+  assert.strictEqual(fixture.writes.length, 1);
+  assert.strictEqual(fixture.writes[0].bytes, JSON.stringify(rows, null, 2));
+  assert.deepStrictEqual(fixture.warnings, []);
+  assert.strictEqual(JSON.stringify(input), original);
+});
+
+assertTest('Google Photos cache read is serialization-idempotent and test mode suppresses only persistence', () => {
+  let stored = JSON.stringify([{ id: 'photo', googlePickerSessionId: 'session' }]);
+  const fixture = createGooglePhotosServiceFixture({
+    cacheExists: () => true,
+    read: () => stored,
+    write: (_file, content) => { stored = content; }
+  });
+  const first = fixture.readCache();
+  const second = fixture.readCache();
+  assert.strictEqual(JSON.stringify(first), JSON.stringify(second));
+  assert.notStrictEqual(first, second);
+  assert.notStrictEqual(first[0], second[0]);
+  assert.strictEqual(fixture.writes.length, 1);
+
+  const testFixture = createGooglePhotosServiceFixture({
+    nodeEnv: 'test', cacheExists: () => true,
+    read: () => JSON.stringify([{ id: 'photo', googlePickerSessionId: 'session' }]),
+    write: () => { throw new Error('Unexpected test-mode write'); }
+  });
+  assert.strictEqual(JSON.stringify(testFixture.readCache()), JSON.stringify(first));
+  assert.deepStrictEqual(testFixture.writes, []);
+});
+
+assertTest('Google Photos cache read keeps missing, unreadable, and invalid JSON caches empty without rewriting', () => {
+  [
+    { cacheExists: () => false, read: () => { throw new Error('Unexpected missing-file read'); }, warning: null },
+    { cacheExists: () => true, read: () => { throw new Error('Read unavailable'); }, warning: 'Read unavailable' },
+    { cacheExists: () => true, read: () => '{', warning: 'JSON' }
+  ].forEach(({ warning, ...adapters }) => {
+    const fixture = createGooglePhotosServiceFixture(adapters);
+    assert.strictEqual(fixture.readCache().length, 0);
+    assert.deepStrictEqual(fixture.writes, []);
+    assert.strictEqual(fixture.warnings.length, warning ? 1 : 0);
+    if (warning) {
+      assert.match(fixture.warnings[0][0], /Failed to read media cache JSON/);
+      assert.ok(fixture.warnings[0][1].includes(warning));
+    }
+  });
+});
+
+assertTest('Google Photos cache read exposes valid non-array JSON, existence-check, and write failures', () => {
+  ['{}', 'null', '42'].forEach(content => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => content });
+    assert.throws(fixture.readCache, /map|properties of null/);
+    assert.deepStrictEqual(fixture.writes, []);
+    assert.deepStrictEqual(fixture.warnings, []);
+  });
+
+  const failure = new Error('Cache effect failed');
+  [
+    { cacheExists: () => { throw failure; } },
+    {
+      cacheExists: () => true,
+      read: () => JSON.stringify([{ id: 'photo', googlePickerSessionId: 'session' }]),
+      write: () => { throw failure; }
+    }
+  ].forEach(adapters => {
+    const fixture = createGooglePhotosServiceFixture(adapters);
+    assert.throws(fixture.readCache, err => err === failure);
+    assert.deepStrictEqual(fixture.warnings, []);
+  });
 });
 
 assertTest('weather service exposes a checked pure WMO classification contract', () => {

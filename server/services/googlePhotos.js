@@ -891,8 +891,22 @@ const downloadSyncMediaItems = async (items) => {
 };
 
 /**
- * 📂 getCachedMediaItems
- * Reads the safe filesystem caching database.
+ * Read and normalize the persistent Google Photos cache for rendering.
+ *
+ * The pure map/filter/dedupe pipeline preserves open metadata, removes rows
+ * without an id or usable base URL/Picker session (mock ids are exempt), and
+ * retains the first usable row for each stable id in input order. This is
+ * structural eligibility, not a network or local-file availability check;
+ * retention and pool caps are not applied here.
+ *
+ * A missing file or caught read/JSON-parse failure returns an empty array.
+ * Valid JSON is expected to contain an array; non-array shapes still throw.
+ * Serialization changes trigger a synchronous cache write outside test mode;
+ * unchanged rows and test-mode reads never write. Existence-check and write
+ * failures propagate. File access and warnings remain in this service shell.
+ *
+ * @returns {Array<import('./googlePhotosCache.js').GooglePhotoMediaItem & {id: string; url: string}>}
+ * Newly projected, source-local render rows with stable ids and proxy URLs.
  */
 function getCachedMediaItems() {
   const rawItems = readCachedMediaItemsRaw();
