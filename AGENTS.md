@@ -99,7 +99,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `getCachedMediaItems()` documents normalized render rows, first-usable-id ordering, serialization-based changed-only persistence, and read/write failure boundaries; preserve pure normalization and keep cache reads, conditional writes, and warnings in the service shell.
 - Latest Step 6 slice: `buildGooglePhotoContentUrl(...)` documents its pure base-URL/render-option input and string result; preserve independent defaults, ordered crop directives, verbatim base interpolation, empty-base identity, and immutable options without widening production exports.
 - Latest Step 6 slice: `isBaseUrlStale(...)` documents its cached-timestamp input and boolean result; preserve absent/falsy short-circuiting, the inclusive 55-minute TTL, future timestamps, and legacy coercion while keeping the clock-dependent predicate in the service shell.
-- Next Step 6 seam: document `getValidToken()` token-result and rejection contract, preserving the strict five-minute refresh boundary and explicit authentication/network/clock effects.
+- Latest Step 6 slice: `getValidToken()` documents cached/refreshed token results and rejected authentication/refresh/clock failures; preserve the strict five-minute boundary, legacy expiry coercion, and unvalidated refresh results while keeping token-state mutation, logging, and network effects in the service shell.
+- Next Step 6 seam: document `refreshAccessToken()` result and rejection contract, preserving mock handling, OAuth request shaping, token-state mutation, and logged failures in the service shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

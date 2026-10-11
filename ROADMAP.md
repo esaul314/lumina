@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (57): `isBaseUrlStale(...)` documents its cached-timestamp input and boolean result; isolated-clock tests preserve absent/falsy short-circuiting, the inclusive 55-minute TTL, future timestamps, legacy coercion, and immutable rows without runtime changes.
-- Next Step 6 seam: document `getValidToken()` token-result and rejection contract, preserving the strict five-minute refresh boundary and explicit authentication/network/clock effects.
+- Latest Step 6 slice (58): `getValidToken()` documents its cached/refreshed token result and rejection contract; isolated service tests preserve authentication short-circuits, the strict five-minute refresh boundary, awaited mock/real refresh, legacy expiry coercion, and failure propagation without runtime changes.
+- Next Step 6 seam: document `refreshAccessToken()` result and rejection contract, preserving mock handling, OAuth request shaping, token-state mutation, and logged failures in the service shell.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -236,8 +236,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (57): `server/services/googlePhotos.js` documents cached base-URL staleness, with isolated-clock tests for absent/falsy timestamps, inclusive TTL, future timestamps, coercion, immutable rows, and clock failure propagation; production exports and runtime behavior remain unchanged.
-  - Next Step 6 seam: document `getValidToken()` token-result and rejection contract, preserving the strict five-minute refresh boundary and explicit authentication/network/clock effects.
+  - Latest Step 6 slice (58): `server/services/googlePhotos.js` documents token resolution and rejection, with isolated tests for authentication short-circuits, strict refresh boundaries, awaited refresh/reuse, mock results, expiry coercion, and propagated failures; production exports and runtime behavior remain unchanged.
+  - Next Step 6 seam: document `refreshAccessToken()` result and rejection contract, preserving mock handling, OAuth request shaping, token-state mutation, and logged failures in the service shell.
 
 ### Shared domain flow
 

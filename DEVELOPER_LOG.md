@@ -6,6 +6,33 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-11: Document Google Photos Token-Resolution Contract
+
+- **Contract**: documented `getValidToken()` cached/refreshed token result and
+  rejected authentication, refresh, and clock failures. Missing access tokens
+  delegate or reject before the resolver reads the clock; existing tokens
+  refresh only with fewer than five minutes remaining, not at exact equality.
+  Replaced the unsupported guaranteed-unexpired claim with explicit mock-token,
+  expiry-coercion, and unvalidated OAuth-response behavior.
+- **Functional design**: retained the small authentication effect shell and
+  unchanged runtime implementation. A pure selector, curry wrapper, or algebra
+  would not simplify this contract-only seam. Test cases compose through `map`,
+  `flatMap`, and `Promise.all`, with independently injected clock, token,
+  environment, fetch, and log adapters; no global patches or live credentials.
+- **Regression coverage**: seven focused tests pin the JSDoc contract,
+  authentication short-circuits, exact refresh boundaries, frozen seed inputs,
+  delayed OAuth completion and token reuse, mock results, missing refresh tokens,
+  clock errors, network/HTTP/JSON failures on both paths, and missing response
+  tokens. Production exports remain unchanged. Token validation policy is
+  recorded separately in the implementation backlog.
+- **Verification**: `npm test` passed (429 tests, 427 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `refreshAccessToken()` result and rejection contract,
+  preserving mock handling, OAuth request shaping, token-state mutation, and
+  logged failures in the service shell.
+
 ### 2026-10-11: Document Google Photos Base-URL Staleness Contract
 
 - **Contract**: documented `isBaseUrlStale(...)` cached epoch-millisecond input

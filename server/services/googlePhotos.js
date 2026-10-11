@@ -426,8 +426,23 @@ async function refreshAccessToken() {
 }
 
 /**
- * 🔏 getValidToken
- * Self-healing helper that returns a guaranteed unexpired access token.
+ * Resolve the service's access token, refreshing when required.
+ *
+ * With no access token, delegate to refresh when a refresh token exists;
+ * otherwise reject as not authenticated. Neither branch reads the clock here.
+ * With an access token, read the clock once and refresh only when fewer than
+ * five minutes remain: exactly five minutes does not trigger refresh.
+ *
+ * Refresh is awaited and its result or rejection passes through, including
+ * synthetic mock tokens. Clock failures also reject. Expiry comparison keeps
+ * native coercion; missing or nonnumeric expiry values can reuse the token.
+ * OAuth payloads are not validated, so a refresh may resolve undefined when
+ * access_token is absent. This is not a guarantee of validity or real credentials.
+ * Authentication state, clock reads, logging, network requests, and refresh
+ * mutations remain in the service shell; this is not a pure projection.
+ *
+ * @returns {Promise<string | undefined>} Cached or refreshed access token.
+ * @throws {Error} Rejects on missing authentication or refresh/clock failure.
  */
 async function getValidToken() {
   if (!tokens.accessToken) {
