@@ -101,7 +101,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `isBaseUrlStale(...)` documents its cached-timestamp input and boolean result; preserve absent/falsy short-circuiting, the inclusive 55-minute TTL, future timestamps, and legacy coercion while keeping the clock-dependent predicate in the service shell.
 - Latest Step 6 slice: `getValidToken()` documents cached/refreshed token results and rejected authentication/refresh/clock failures; preserve the strict five-minute boundary, legacy expiry coercion, and unvalidated refresh results while keeping token-state mutation, logging, and network effects in the service shell.
 - Latest Step 6 slice: `refreshAccessToken()` documents refreshed/synthetic results and rejection effects; preserve encoded OAuth requests, separate mock clock reads, retained refresh tokens, unvalidated payloads, and non-atomic clock-failure updates while keeping token mutation and logging in the service shell.
-- Next Step 6 seam: document `exchangeGoogleCode(...)` input, token-state result, and rejection contract, preserving mock handling, OAuth request shaping, refresh-token fallback/persistence, and logged failures in the service shell.
+- Latest Step 6 slice: `exchangeGoogleCode(...)` documents authorization inputs, service-owned mutable token results, and rejection ordering; preserve mock clocks, encoded OAuth requests, truthy refresh-token fallback, persistence normalization/skips, and replaced state after persistence failure while keeping all effects in the service shell.
+- Next Step 6 seam: document `getGoogleAuthUrl(...)` callback-URI input and authorization-URL result contract, preserving credential fallback, Picker-only scope, query encoding, and logging in the service shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

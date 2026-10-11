@@ -330,8 +330,40 @@ function getGoogleAuthUrl(redirectUri) {
 }
 
 /**
- * 🔑 exchangeGoogleCode
- * Exchanges temporary OAuth code for Access and Refresh Tokens.
+ * Service-owned token state, not a detached or validated credential snapshot.
+ * OAuth fields are accepted without runtime validation; expiry may be NaN.
+ *
+ * @typedef {object} GooglePhotoTokenState
+ * @property {string | undefined} accessToken Conventional OAuth access token.
+ * @property {string} refreshToken Returned token or the stored fallback.
+ * @property {number} expiry Epoch milliseconds, using native numeric coercion.
+ */
+
+/**
+ * Exchange an authorization code and replace the service's token state.
+ *
+ * If either client credential is absent, ignore the inputs and create mock
+ * tokens using separate clock reads for the access token and one-hour expiry.
+ * This branch logs outside the catch and performs no request or persistence.
+ *
+ * Otherwise POST URL-encoded inputs and credentials with the authorization-code
+ * grant, awaiting JSON before replacement. Inputs and OAuth fields are not
+ * validated; URLSearchParams and expiry arithmetic retain native coercion.
+ * A falsy response refresh_token retains the stored token. Persistence trims
+ * that token and skips empty/MOCK_ values without normalizing the in-memory value.
+ *
+ * Return the service-owned token object itself, not a copy. Clock or payload
+ * failures before replacement retain the previous state, including for mocks.
+ * Persistence runs after replacement: its failure rejects without rollback.
+ * Network, HTTP (including error-body reads), JSON, clock, and persistence
+ * failures in the OAuth branch are logged and rethrown; mock failures are not.
+ * Requests, clock reads, mutation, persistence, and logging stay in this effect
+ * shell; this is not a pure projection or a guarantee of valid credentials.
+ *
+ * @param {string} code Temporary authorization code; ignored in mock mode.
+ * @param {string} redirectUri Callback URI; ignored in mock mode.
+ * @returns {Promise<GooglePhotoTokenState>} The current mutable token object.
+ * @throws {Error} Rejects on exchange, clock, or persistence failure.
  */
 async function exchangeGoogleCode(code, redirectUri) {
   if (!credentials.clientId || !credentials.clientSecret) {

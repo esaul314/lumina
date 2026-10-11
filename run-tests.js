@@ -1087,7 +1087,8 @@ const createGooglePhotosServiceFixture = ({
   write = () => {},
   now = Date.now,
   initialTokens = {},
-  envValues = {}
+  envValues = {},
+  persist = () => {}
 } = {}) => {
   const filename = require.resolve('./server/services/googlePhotos.js');
   const serviceRequire = createRequire(filename);
@@ -1095,6 +1096,7 @@ const createGooglePhotosServiceFixture = ({
   const warnings = [];
   const logs = [];
   const errors = [];
+  const persisted = [];
   const module = { exports: {} };
   const adapters = {
     fs: {
@@ -1106,7 +1108,14 @@ const createGooglePhotosServiceFixture = ({
         writes.push({ file, bytes });
       }
     },
-    '../config/env.js': { readEnvVar: key => envValues[key] ?? '' }
+    '../config/env.js': {
+      readEnvVar: key => envValues[key] ?? '',
+      persistEnvVars: values => {
+        const patch = { ...values };
+        persisted.push(patch);
+        persist(patch);
+      }
+    }
   };
 
   // Capture internal helpers without widening the production exports.
@@ -1135,12 +1144,14 @@ const createGooglePhotosServiceFixture = ({
     getValidToken,
     refreshAccessToken,
     readTokens: () => ({ ...readTokens() }),
+    exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
     writes,
     warnings,
     logs,
-    errors
+    errors,
+    persisted
   };
 };
 
@@ -1553,6 +1564,163 @@ const googlePhotosRefreshChecks = [
       });
       assert.deepStrictEqual(fixture.errors, []);
       assert.deepStrictEqual(fixture.writes, []);
+    }));
+  })
+];
+
+assertTest('Google Photos code exchange documents its inputs, shared result, and persistence failure boundary', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Service-owned token state'), source.indexOf(" * Refresh the service's access token"));
+  assert.match(contract, /@param \{string\} code/);
+  assert.match(contract, /@param \{string\} redirectUri/);
+  assert.match(contract, /@returns \{Promise<GooglePhotoTokenState>\}/);
+  assert.match(contract, /@throws \{Error\}/);
+  assert.match(contract, /not a copy/);
+  assert.match(contract, /rejects without rollback/);
+  assert.match(contract, /mock failures are not/);
+});
+
+const googlePhotosExchangeCredentials = Object.freeze({ GOOGLE_CLIENT_ID: 'client +&=', GOOGLE_CLIENT_SECRET: 'secret +&=' });
+const googlePhotosExchangeChecks = [
+  assertAsyncTest('Google Photos code exchange mocks either absent credential and returns mutable service-owned state', async () => {
+    await Promise.all([{}, { GOOGLE_CLIENT_ID: 'client' }, { GOOGLE_CLIENT_SECRET: 'secret' }].map(async envValues => {
+      const ticks = [100, 200, 300, 400];
+      const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'previous-refresh', expiry: 17 });
+      const fixture = createGooglePhotosServiceFixture({ envValues, initialTokens, now: () => ticks.shift() });
+      const first = await fixture.exchange(null, undefined);
+      assert.deepStrictEqual({ ...first }, { accessToken: 'MOCK_ACCESS_TOKEN_XYZ_100', refreshToken: 'MOCK_REFRESH_TOKEN_ABC', expiry: 3_600_200 });
+      const second = await fixture.exchange('ignored', 'ignored');
+      assert.notStrictEqual(first, second);
+      assert.strictEqual(first.accessToken, 'MOCK_ACCESS_TOKEN_XYZ_100');
+      second.accessToken = 'caller-edit';
+      assert.deepStrictEqual(fixture.readTokens(), { accessToken: 'caller-edit', refreshToken: 'MOCK_REFRESH_TOKEN_ABC', expiry: 3_600_400 });
+      assert.deepStrictEqual(initialTokens, { accessToken: 'previous', refreshToken: 'previous-refresh', expiry: 17 });
+      assert.deepStrictEqual(ticks, []);
+      assert.strictEqual(fixture.logs.length, 2);
+      assert.deepStrictEqual(fixture.errors, []);
+      assert.deepStrictEqual(fixture.persisted, []);
+      assert.deepStrictEqual(fixture.writes, []);
+    }));
+  }),
+  assertAsyncTest('Google Photos code exchange awaits encoded OAuth JSON then replaces state before persistence', async () => {
+    const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'previous-refresh', expiry: 17 });
+    const requests = [];
+    let releaseResponse;
+    const response = new Promise(resolve => { releaseResponse = resolve; });
+    let clockReads = 0;
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens, envValues: googlePhotosExchangeCredentials,
+      now: () => { clockReads += 1; return 1_000; },
+      fetchResponse: async (url, options) => { requests.push({ url, options }); return { ok: true, json: () => response }; },
+      persist: patch => {
+        assert.deepStrictEqual(patch, { GOOGLE_REFRESH_TOKEN: 'new-refresh' });
+        assert.deepStrictEqual(fixture.readTokens(), { accessToken: 'new-access', refreshToken: ' new-refresh ', expiry: 61_000 });
+      }
+    });
+    let settled = false;
+    const pending = fixture.exchange('code +&=', 'https://example.test/callback?a=+&b=%2F').then(result => { settled = true; return result; });
+    await flushPromises();
+    assert.strictEqual(settled, false);
+    assert.strictEqual(clockReads, 0);
+    assert.deepStrictEqual(fixture.readTokens(), initialTokens);
+    assert.deepStrictEqual(fixture.persisted, []);
+    assert.strictEqual(requests.length, 1);
+    const [{ url, options }] = requests;
+    assert.strictEqual(url, 'https://oauth2.googleapis.com/token');
+    assert.strictEqual(options.method, 'POST');
+    assert.strictEqual(options.headers['Content-Type'], 'application/x-www-form-urlencoded');
+    assert.deepStrictEqual(Object.fromEntries(new URLSearchParams(options.body)), {
+      code: 'code +&=', client_id: 'client +&=', client_secret: 'secret +&=',
+      redirect_uri: 'https://example.test/callback?a=+&b=%2F', grant_type: 'authorization_code'
+    });
+    releaseResponse(Object.freeze({ access_token: 'new-access', refresh_token: ' new-refresh ', expires_in: 60 }));
+    const result = await pending;
+    assert.strictEqual(clockReads, 1);
+    assert.deepStrictEqual({ ...result }, fixture.readTokens());
+    result.accessToken = 'caller-edit';
+    assert.strictEqual(fixture.readTokens().accessToken, 'caller-edit');
+    assert.deepStrictEqual(initialTokens, { accessToken: 'previous', refreshToken: 'previous-refresh', expiry: 17 });
+    assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_REFRESH_TOKEN: 'new-refresh' }]);
+    assert.deepStrictEqual(fixture.errors, []);
+    assert.deepStrictEqual(fixture.writes, []);
+  }),
+  assertAsyncTest('Google Photos code exchange preserves truthy refresh fallback, coercion, and persistence skips', async () => {
+    const cases = [
+      ...[undefined, null, '', false, 0].map(refresh_token => [{ access_token: 'new', refresh_token, expires_in: '60' }, 'stored', 'stored', 61_000]),
+      [{ access_token: 'new', refresh_token: ' replacement ', expires_in: 0 }, 'stored', ' replacement ', 1_000],
+      [{ access_token: 'new', refresh_token: ' MOCK_FIXTURE ', expires_in: null }, 'stored', ' MOCK_FIXTURE ', 1_000],
+      [{ access_token: 'new', refresh_token: '  ', expires_in: 'invalid' }, 'stored', '  ', NaN],
+      [{}, '', '', NaN],
+      [{ expires_in: 60 }, 'stored', 'stored', 61_000]
+    ];
+    await Promise.all(cases.map(async ([payload, stored, refreshToken, expiry]) => {
+      const fixture = createGooglePhotosServiceFixture({
+        envValues: googlePhotosExchangeCredentials, initialTokens: { refreshToken: stored }, now: () => 1_000,
+        fetchResponse: async (_url, options) => {
+          const fields = Object.fromEntries(new URLSearchParams(options.body));
+          assert.strictEqual(fields.code, 'undefined');
+          assert.strictEqual(fields.redirect_uri, 'null');
+          return { ok: true, json: async () => Object.freeze(payload) };
+        }
+      });
+      assert.deepStrictEqual({ ...await fixture.exchange(undefined, null) }, { accessToken: payload.access_token, refreshToken, expiry });
+      const normalized = refreshToken.trim();
+      assert.deepStrictEqual(fixture.persisted, normalized && !normalized.startsWith('MOCK_') ? [{ GOOGLE_REFRESH_TOKEN: normalized }] : []);
+      assert.deepStrictEqual(fixture.errors, []);
+      assert.deepStrictEqual(fixture.writes, []);
+    }));
+  }),
+  assertAsyncTest('Google Photos code exchange logs and rethrows failures before replacement with state unchanged', async () => {
+    const networkFailure = new Error('Network unavailable');
+    const bodyFailure = new Error('Error body unavailable');
+    const jsonFailure = new Error('Invalid JSON');
+    const clockFailure = new Error('Clock unavailable');
+    const cases = [
+      [async () => { throw networkFailure; }, err => err === networkFailure],
+      [async () => ({ ok: false, status: 400, text: async () => 'fixture-error' }), err => err.message === 'Google Token API responded with status 400: fixture-error'],
+      [async () => ({ ok: false, text: async () => { throw bodyFailure; } }), err => err === bodyFailure],
+      [async () => ({ ok: true, json: async () => { throw jsonFailure; } }), err => err === jsonFailure],
+      [async () => ({ ok: true, json: async () => null }), err => err.name === 'TypeError'],
+      [async () => ({ ok: true, json: async () => ({ access_token: 'new', refresh_token: 'new-refresh', expires_in: 60 }) }), err => err === clockFailure]
+    ];
+    await Promise.all(cases.map(async ([fetchResponse, matches]) => {
+      const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'stored', expiry: 17 });
+      const fixture = createGooglePhotosServiceFixture({
+        envValues: googlePhotosExchangeCredentials, initialTokens, fetchResponse, now: () => { throw clockFailure; }
+      });
+      await assert.rejects(fixture.exchange('code', 'callback'), matches);
+      assert.deepStrictEqual(fixture.readTokens(), initialTokens);
+      assert.strictEqual(fixture.errors.length, 1);
+      assert.strictEqual(fixture.errors[0][0], 'Google Photos Service: Token exchange failed:');
+      assert.deepStrictEqual(fixture.persisted, []);
+    }));
+  }),
+  assertAsyncTest('Google Photos code exchange retains replaced state when persistence rejects', async () => {
+    const failure = new Error('Persistence unavailable');
+    const fixture = createGooglePhotosServiceFixture({
+      envValues: googlePhotosExchangeCredentials, initialTokens: { refreshToken: 'stored' }, now: () => 1_000,
+      fetchResponse: async () => ({ ok: true, json: async () => ({ access_token: 'new', refresh_token: ' replacement ', expires_in: 60 }) }),
+      persist: () => { throw failure; }
+    });
+    await assert.rejects(fixture.exchange('code', 'callback'), err => err === failure);
+    assert.deepStrictEqual(fixture.readTokens(), { accessToken: 'new', refreshToken: ' replacement ', expiry: 61_000 });
+    assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_REFRESH_TOKEN: 'replacement' }]);
+    assert.deepStrictEqual(fixture.errors, [['Google Photos Service: Token exchange failed:', failure.message]]);
+  }),
+  assertAsyncTest('Google Photos mock code exchange leaves state unchanged on either unlogged clock failure', async () => {
+    await Promise.all([1, 2].map(async failedRead => {
+      const failure = new Error('Mock clock unavailable');
+      let clockReads = 0;
+      const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'stored', expiry: 17 });
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens, now: () => { clockReads += 1; if (clockReads === failedRead) throw failure; return 100; }
+      });
+      await assert.rejects(fixture.exchange('ignored', 'ignored'), err => err === failure);
+      assert.strictEqual(clockReads, failedRead);
+      assert.deepStrictEqual(fixture.readTokens(), initialTokens);
+      assert.strictEqual(fixture.logs.length, 1);
+      assert.deepStrictEqual(fixture.errors, []);
+      assert.deepStrictEqual(fixture.persisted, []);
     }));
   })
 ];
@@ -6909,6 +7077,7 @@ async function runIntegrationTests() {
   await Promise.all([
     ...googlePhotosTokenChecks,
     ...googlePhotosRefreshChecks,
+    ...googlePhotosExchangeChecks,
     googlePhotosDownloadNoopCheck, googlePhotosDownloadOrderCheck, googlePhotosDownloadFailureCheck
   ]);
   await runClientStateTests();

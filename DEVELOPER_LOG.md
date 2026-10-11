@@ -6,6 +6,32 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-11: Document Google Photos Code-Exchange Contract
+
+- **Contract**: documented `exchangeGoogleCode(...)` authorization inputs,
+  service-owned mutable token result, mock credential fallback, separate clock
+  reads, encoded OAuth request, awaited JSON, truthy refresh-token fallback,
+  and persistence normalization/skips. Failures before replacement preserve
+  state; persistence failures reject after replacement without rollback.
+- **Functional design**: retained the unchanged data-first effect shell rather
+  than introducing a wrapper that cannot make requests, clocks, mutation, or
+  persistence pure. Independent tests compose with `map`, spread, and
+  `Promise.all`, reusing injected service adapters plus a local persistence
+  observer. No global patches, real credentials, or new production exports.
+- **Regression coverage**: seven focused tests pin the JSDoc contract, either
+  missing credential, mock clocks and object replacement, returned-state aliasing,
+  encoded inputs, delayed completion, frozen seed preservation, native coercion,
+  refresh-token fallback and persistence, and network/HTTP/body/JSON/clock/write
+  failures. Result ownership and persistence recovery are separate backlog policy
+  decisions, not silent behavioral changes.
+- **Verification**: `npm test` passed (443 tests, 441 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `getGoogleAuthUrl(...)` callback-URI input and
+  authorization-URL result contract, preserving credential fallback, Picker-only
+  scope, query encoding, and logging in the service shell.
+
 ### 2026-10-11: Document Google Photos Token-Refresh Contract
 
 - **Contract**: documented `refreshAccessToken()` refreshed/synthetic result,
