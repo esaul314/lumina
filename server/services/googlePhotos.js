@@ -261,6 +261,20 @@ async function refreshCachedMediaItem(mediaItemId, sessionIdOverride) {
   return updateCachedMediaItem(refreshed);
 }
 
+/**
+ * Classify a cached base URL's age using the service clock.
+ *
+ * An absent row or falsy timestamp is stale without reading the clock.
+ * Otherwise, read `Date.now()` once and compare the elapsed milliseconds
+ * against the inclusive 55-minute TTL. Future timestamps remain fresh.
+ * Subtraction retains JavaScript coercion: numeric strings are accepted;
+ * truthy nonnumeric strings yield NaN and therefore classify as fresh.
+ * This predicate does not mutate the row or perform cache/network effects,
+ * but its clock read means it is not a pure projection.
+ *
+ * @param {{googleBaseUrlFetchedAt?: number | string | null} | null | undefined} item Cached epoch-millisecond timestamp.
+ * @returns {boolean} Whether the timestamp is absent/falsy or at least one TTL old.
+ */
 function isBaseUrlStale(item) {
   if (!item?.googleBaseUrlFetchedAt) {
     return true;

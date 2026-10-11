@@ -1084,7 +1084,8 @@ const createGooglePhotosServiceFixture = ({
   cacheExists = () => false,
   read = () => '[]',
   fetchResponse = async () => { throw new Error('Unexpected fetch'); },
-  write = () => {}
+  write = () => {},
+  now = Date.now
 } = {}) => {
   const filename = require.resolve('./server/services/googlePhotos.js');
   const serviceRequire = createRequire(filename);
@@ -1104,19 +1105,23 @@ const createGooglePhotosServiceFixture = ({
     '../config/env.js': { readEnvVar: () => '' }
   };
 
-  // Capture the internal pure helper without widening the production exports.
-  const buildContentUrl = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;buildGooglePhotoContentUrl;`, {
+  // Capture internal helpers without widening the production exports.
+  const { buildContentUrl, isBaseUrlStale } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;({ buildContentUrl: buildGooglePhotoContentUrl, isBaseUrlStale });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
     process: { env: { NODE_ENV: nodeEnv } },
     Buffer,
+    Date: class extends Date {
+      static now() { return now(); }
+    },
     fetch: fetchResponse,
     console: { log: () => {}, warn: (...args) => warnings.push(args) }
   }, { filename });
 
   return {
     buildContentUrl,
+    isBaseUrlStale,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
     writes,
@@ -1179,6 +1184,67 @@ assertTest('Google Photos content URL projection is deterministic and leaves fro
   assert.deepStrictEqual(options, { width: 1024, height: 768, crop: true });
   assert.deepStrictEqual(writes, []);
   assert.deepStrictEqual(warnings, []);
+});
+
+assertTest('Google Photos base-URL staleness documents its timestamp, inclusive TTL, and clock contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Classify a cached base URL'), source.indexOf(' * 🔒 saveGoogleCredentials'));
+
+  assert.match(contract, /@param \{\{googleBaseUrlFetchedAt\?: number \| string \| null\} \| null \| undefined\} item/);
+  assert.match(contract, /@returns \{boolean\}/);
+  assert.match(contract, /inclusive 55-minute TTL/);
+  assert.match(contract, /falsy timestamp is stale without reading the clock/);
+  assert.match(contract, /not a pure projection/);
+  assert.match(contract, /truthy nonnumeric strings yield NaN and therefore classify as fresh/);
+});
+
+assertTest('Google Photos base-URL staleness keeps absent and falsy timestamps stale without clock effects', () => {
+  const { isBaseUrlStale } = createGooglePhotosServiceFixture({
+    now: () => { throw new Error('Unexpected clock read'); }
+  });
+  const rows = [undefined, null, {}, ...[undefined, null, 0, '', NaN].map(googleBaseUrlFetchedAt => ({ googleBaseUrlFetchedAt }))];
+
+  rows.forEach(row => assert.strictEqual(isBaseUrlStale(row), true));
+});
+
+assertTest('Google Photos base-URL staleness preserves inclusive TTL, coercion, and immutable rows', () => {
+  const clock = 10_000_000;
+  const ttl = 55 * 60 * 1000;
+  let clockReads = 0;
+  const failIfCalled = () => { throw new Error('Unexpected staleness effect'); };
+  const { isBaseUrlStale, writes, warnings } = createGooglePhotosServiceFixture({
+    now: () => { clockReads += 1; return clock; },
+    exists: failIfCalled, cacheExists: failIfCalled, read: failIfCalled,
+    fetchResponse: failIfCalled, write: failIfCalled
+  });
+  const cases = [
+    [clock - ttl + 1, false], [clock - ttl, true], [clock - ttl - 1, true],
+    [clock, false], [clock + 1, false], [-1, true],
+    [String(clock - ttl), true], [String(clock), false], ['0', true],
+    ['not-a-timestamp', false], [Infinity, false], [-Infinity, true]
+  ];
+
+  cases.forEach(([googleBaseUrlFetchedAt, expected]) => {
+    const row = Object.freeze({ id: 'photo', googleBaseUrlFetchedAt });
+    assert.strictEqual(isBaseUrlStale(row), expected);
+    assert.deepStrictEqual(row, { id: 'photo', googleBaseUrlFetchedAt });
+  });
+  assert.strictEqual(clockReads, cases.length);
+  assert.deepStrictEqual(writes, []);
+  assert.deepStrictEqual(warnings, []);
+});
+
+assertTest('Google Photos base-URL staleness re-reads the service clock and propagates clock failures', () => {
+  const row = Object.freeze({ googleBaseUrlFetchedAt: 1_000_000 });
+  const times = [row.googleBaseUrlFetchedAt + 55 * 60 * 1000 - 1, row.googleBaseUrlFetchedAt + 55 * 60 * 1000];
+  const { isBaseUrlStale } = createGooglePhotosServiceFixture({ now: () => times.shift() });
+
+  assert.strictEqual(isBaseUrlStale(row), false);
+  assert.strictEqual(isBaseUrlStale(row), true);
+  assert.deepStrictEqual(times, []);
+  const failure = new Error('Clock unavailable');
+  const failedFixture = createGooglePhotosServiceFixture({ now: () => { throw failure; } });
+  assert.throws(() => failedFixture.isBaseUrlStale(row), err => err === failure);
 });
 
 const googlePhotosDownloadNoopCheck = assertAsyncTest('Google Photos pre-download keeps test/empty batches inert and exposes existence failures', async () => {

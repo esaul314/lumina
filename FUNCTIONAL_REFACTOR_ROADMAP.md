@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-10-09
+Last updated: 2026-10-11
 
 ## Purpose
 
@@ -396,8 +396,10 @@ Progress note:
 - Step 6 fifty-fourth slice: `downloadSyncMediaItems(...)` documents selected-media inputs, cache/test-mode skips, sequential completion, and the per-item versus batch error boundary; isolated service tests preserve immutable inputs, download/write ordering, and continuation after network, body-read, and write failures without changing runtime behavior.
 - Step 6 fifty-fifth slice: `getCachedMediaItems()` documents normalized render rows, first-usable-id ordering, serialization-based changed-only persistence, and read/write failure boundaries; isolated service tests pin normalization, metadata retention, serialization idempotence, test-mode suppression, and missing/corrupt/non-array cache behavior without changing runtime code.
 - Step 6 fifty-sixth slice: `buildGooglePhotoContentUrl(...)` documents its pure base-URL/render-option input and string result; isolated tests pin independent undefined-only defaults, width/height/crop ordering, empty-base identity, verbatim interpolation, deterministic repeated application, and frozen option preservation without changing runtime code or production exports. Its existing data-first interface remains the clearest expression; no new algebra is needed.
+- Step 6 fifty-seventh slice: `isBaseUrlStale(...)` documents its cached-timestamp input and boolean result; isolated-clock tests pin absent/falsy short-circuiting, the inclusive 55-minute TTL, future timestamps, legacy subtraction coercion, frozen rows, one clock read per timestamped call, and clock failure propagation. The clock-dependent predicate remains in the service shell; no runtime changes, global clock patches, or new production exports are needed.
 - Cache hardening backlog: decide an explicit recovery policy for valid non-array cache JSON, which currently throws; retain the original file rather than treating malformed shapes as a cache to overwrite.
-- Next Step 6 seam: document `isBaseUrlStale(...)` cached-timestamp input and boolean result contract, preserving its inclusive TTL boundary and explicit service-clock read.
+- Timestamp hardening backlog: decide whether truthy nonnumeric cached timestamps should be stale instead of the current NaN comparison's fresh result; do not silently change this compatibility behavior during contract work.
+- Next Step 6 seam: document `getValidToken()` token-result and rejection contract, preserving the strict five-minute refresh boundary and explicit authentication/network/clock effects.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.

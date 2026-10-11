@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-11: Document Google Photos Base-URL Staleness Contract
+
+- **Contract**: documented `isBaseUrlStale(...)` cached epoch-millisecond input
+  and boolean result. Absent/falsy timestamps are stale without a clock read;
+  timestamped rows read the clock once and expire at the inclusive 55-minute
+  TTL. Future timestamps remain fresh. Native subtraction accepts numeric
+  strings; truthy nonnumeric strings yield NaN and currently classify as fresh.
+- **Functional design**: retained the small data-first predicate in the service
+  shell because `Date.now()` is an effect. There is no repeated policy to justify
+  a curried wrapper or a Fantasy Land abstraction here; runtime behavior and
+  production exports are unchanged. Malformed-timestamp hardening is recorded
+  as a separate policy decision rather than silently changing compatibility.
+- **Regression coverage**: four focused tests pin the JSDoc contract, falsy
+  short-circuiting, exact TTL boundaries, future/coerced timestamps, frozen
+  inputs, clock-read counts, advancing-clock results, and propagated clock
+  failures. The existing VM fixture now captures both internal helpers and
+  injects a local clock without patching globals or touching live cache files.
+- **Verification**: `npm test` passed (422 tests, 420 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `getValidToken()` token-result and rejection contract,
+  preserving the strict five-minute refresh boundary and explicit effects.
+
 ### 2026-10-10: Document Google Photos Pure Content-URL Contract
 
 - **Contract**: documented `buildGooglePhotoContentUrl(...)` base URL, shared
