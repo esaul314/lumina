@@ -6,6 +6,29 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-10: Document Google Photos Pure Content-URL Contract
+
+- **Contract**: documented `buildGooglePhotoContentUrl(...)` base URL, shared
+  render options, and string result. Empty/absent bases yield an empty string;
+  dimensions default independently only when undefined. Supplied values and
+  existing base directives are interpolated verbatim, without validation,
+  clamping, encoding, or rewriting; crop follows width and height.
+- **Functional design**: retained the small pure data-first function and its
+  existing interface. Partial application at the call site composes naturally
+  with `map`; an Applicative, Monad, or new curry wrapper adds no useful law or
+  reuse here. No runtime behavior changed.
+- **Regression coverage**: four focused tests cover JSDoc contracts, default
+  and explicit dimensions, crop ordering, empty/verbatim bases, determinism,
+  frozen option preservation, and absence of service effects. The existing
+  isolated VM fixture captures the internal helper without widening production
+  exports or touching live cache files, credentials, or global adapters.
+- **Verification**: `npm test` passed (418 tests, 416 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were skipped due
+  to sandbox `listen EPERM`; no frontend build or daemon restart is needed.
+- **Next seam**: document `isBaseUrlStale(...)` cached-timestamp/boolean contract
+  while preserving the inclusive TTL boundary and explicit clock read.
+
 ### 2026-10-10: Document Google Photos Normalized Cache-Read Contract
 
 - **Contract**: documented `getCachedMediaItems()` render-row result, open

@@ -53,6 +53,19 @@ function isGooglePhotoProxyUrl(value) {
   return Boolean(getGooglePhotoMediaItemId(value));
 }
 
+/**
+ * Pure projection of a base URL and render options into a content URL.
+ *
+ * An empty or absent base URL produces an empty string. Omitted or undefined
+ * dimensions default independently to 2560 by 1440; supplied values are
+ * interpolated without validation or clamping. Directives are ordered width,
+ * height, then optional crop. The base URL is used verbatim, without parsing,
+ * encoding, or replacing existing directives, and options remain unchanged.
+ *
+ * @param {string | null | undefined} baseUrl Google Photos content base URL.
+ * @param {GooglePhotoRenderOptions} [renderOptions={}] Dimensions and crop flag.
+ * @returns {string} Content URL with render directives, or an empty string.
+ */
 function buildGooglePhotoContentUrl(baseUrl, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = false } = {}) {
   if (!baseUrl) {
     return '';

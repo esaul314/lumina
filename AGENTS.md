@@ -97,7 +97,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `cleanOrphanedMediaFiles(...)` documents active media-id inputs, missing-directory/test-mode no-ops, best-effort cleanup, and reuse of the pure orphan projection; preserve directory reads, unlinking, and warning logs in the Google Photos service shell.
 - Latest Step 6 slice: `downloadSyncMediaItems(...)` documents selected-media inputs, cache/test-mode skips, sequential completion, and per-item versus batch failures; preserve pure URL construction and the sequential network/filesystem shell, with isolated effect adapters in tests.
 - Latest Step 6 slice: `getCachedMediaItems()` documents normalized render rows, first-usable-id ordering, serialization-based changed-only persistence, and read/write failure boundaries; preserve pure normalization and keep cache reads, conditional writes, and warnings in the service shell.
-- Next Step 6 seam: document `buildGooglePhotoContentUrl(...)` base-URL/render-option input and string result contract, preserving its pure default-dimension and optional-crop projection.
+- Latest Step 6 slice: `buildGooglePhotoContentUrl(...)` documents its pure base-URL/render-option input and string result; preserve independent defaults, ordered crop directives, verbatim base interpolation, empty-base identity, and immutable options without widening production exports.
+- Next Step 6 seam: document `isBaseUrlStale(...)` cached-timestamp input and boolean result contract, preserving its inclusive TTL boundary and explicit service-clock read.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

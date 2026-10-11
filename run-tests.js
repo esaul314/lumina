@@ -1104,7 +1104,8 @@ const createGooglePhotosServiceFixture = ({
     '../config/env.js': { readEnvVar: () => '' }
   };
 
-  runInNewContext(fs.readFileSync(filename, 'utf8'), {
+  // Capture the internal pure helper without widening the production exports.
+  const buildContentUrl = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;buildGooglePhotoContentUrl;`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1115,12 +1116,70 @@ const createGooglePhotosServiceFixture = ({
   }, { filename });
 
   return {
+    buildContentUrl,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
     writes,
     warnings
   };
 };
+
+assertTest('Google Photos content URL projection documents its pure input and result contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Pure projection of a base URL'), source.indexOf('function readCachedMediaItemsRaw'));
+
+  assert.match(contract, /@param \{string \| null \| undefined\} baseUrl/);
+  assert.match(contract, /@param \{GooglePhotoRenderOptions\} \[renderOptions=\{\}\]/);
+  assert.match(contract, /@returns \{string\}/);
+  assert.match(contract, /without validation or clamping/);
+  assert.match(contract, /without parsing,\s+\* encoding, or replacing existing directives/);
+});
+
+assertTest('Google Photos content URL projection applies independent defaults and ordered crop directives', () => {
+  const { buildContentUrl } = createGooglePhotosServiceFixture();
+  const base = 'https://example.test/photo';
+  const cases = [
+    [undefined, 'w2560-h1440'],
+    [{}, 'w2560-h1440'],
+    [{ width: 800 }, 'w800-h1440'],
+    [{ height: 600 }, 'w2560-h600'],
+    [{ width: undefined, height: undefined, crop: true }, 'w2560-h1440-c'],
+    [{ width: 800, height: 600, crop: true }, 'w800-h600-c'],
+    [{ width: 800, height: 600, crop: false }, 'w800-h600'],
+    [{ width: 0, height: -1 }, 'w0-h-1']
+  ];
+
+  cases.forEach(([options, directives]) => assert.strictEqual(buildContentUrl(base, options), `${base}=${directives}`));
+});
+
+assertTest('Google Photos content URL projection keeps empty bases inert and nonempty bases verbatim', () => {
+  const { buildContentUrl } = createGooglePhotosServiceFixture();
+
+  ['', null, undefined].forEach(base => {
+    assert.strictEqual(buildContentUrl(base), '');
+    assert.strictEqual(buildContentUrl(base, { width: 800, height: 600, crop: true }), '');
+  });
+  ['https://example.test/photo=old', 'https://example.test/photo?token=a%2Fb', ' '].forEach(base => {
+    assert.strictEqual(buildContentUrl(base), `${base}=w2560-h1440`);
+  });
+});
+
+assertTest('Google Photos content URL projection is deterministic and leaves frozen options and effects untouched', () => {
+  const failIfCalled = () => { throw new Error('Unexpected content-URL effect'); };
+  const { buildContentUrl, writes, warnings } = createGooglePhotosServiceFixture({
+    exists: failIfCalled, cacheExists: failIfCalled, read: failIfCalled,
+    fetchResponse: failIfCalled, write: failIfCalled
+  });
+  const options = Object.freeze({ width: 1024, height: 768, crop: true });
+  const project = base => buildContentUrl(base, options);
+  const bases = ['https://example.test/first', 'https://example.test/second'];
+
+  assert.deepStrictEqual(bases.map(project), bases.map(base => `${base}=w1024-h768-c`));
+  assert.deepStrictEqual(bases.map(project), bases.map(project));
+  assert.deepStrictEqual(options, { width: 1024, height: 768, crop: true });
+  assert.deepStrictEqual(writes, []);
+  assert.deepStrictEqual(warnings, []);
+});
 
 const googlePhotosDownloadNoopCheck = assertAsyncTest('Google Photos pre-download keeps test/empty batches inert and exposes existence failures', async () => {
   const failIfCalled = () => { throw new Error('Unexpected effect'); };
