@@ -6,6 +6,27 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-10: Document Google Photos Sequential Pre-Download Contract
+
+- **Contract**: documented `downloadSyncMediaItems(...)` selected-media input
+  and `Promise<void>` completion, including test-mode no-op, existing-file
+  skips, missing-URL/non-OK skips, and per-item versus batch failures.
+- **Functional boundary**: URL construction remains pure. The sequential loop
+  expresses ordered network/body/write effects directly; an additional algebra
+  or download framework would add ceremony to this contract-only slice.
+- **Regression coverage**: evaluate the real service with isolated network,
+  filesystem, environment, and credential adapters. Tests cover immutable input,
+  cache skips, a deferred body proving sequential writes, network/body/write
+  failure continuation, and rejection from an existence check outside the catch.
+  No runtime behavior changed.
+- **Verification**: `npm test` passed (409 tests, 407 reported passed assertions,
+  zero failures; sensor adapters 13/13); lint, touched JavaScript syntax checks,
+  and `git diff --check` passed. New asynchronous checks are explicitly awaited
+  before the report. The optional Unix-socket smoke was skipped due to sandbox
+  `listen EPERM`.
+- **Next seam**: document `getCachedMediaItems()` normalized result and
+  changed-only persistence contract while preserving cache read/write effects.
+
 ### 2026-10-09: Document Google Photos Orphan Cleanup Contract
 
 - **Contract**: documented the pure orphan projection's basename matching and

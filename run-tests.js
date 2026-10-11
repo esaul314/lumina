@@ -13,6 +13,8 @@ const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const { createRequire } = require('module');
+const { runInNewContext } = require('vm');
 const { pathToFileURL } = require('url');
 
 // Keep regression fixtures away from the daemon's gitignored source-local cache.
@@ -1062,6 +1064,137 @@ assertAsyncTest('Google Photos URL refresh resolves synthetic media without netw
     await googlePhotos.refreshMediaItemUrl('MOCK_MEDIA_ITEM_42'),
     'https://picsum.photos/id/42/2560/1440'
   );
+});
+
+assertTest('Google Photos pre-download documents its sequential cache and failure contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+
+  assert.match(source, /@param \{ReadonlyArray<\{id: string, googleBaseUrl\?: string\}>\} items/);
+  assert.match(source, /@returns \{Promise<void>\} Resolves after the sequential download attempts/);
+  assert.match(source, /Existing files are skipped regardless of their size/);
+  assert.match(source, /Path resolution and existence checks are outside that catch/);
+  assert.match(source, /Completion does not guarantee every item was saved/);
+});
+
+// Evaluate the real service with isolated effects, avoiding global fetch/env
+// patches and any access to the daemon's media cache or credentials.
+const createGooglePhotosDownloadFixture = ({
+  nodeEnv = 'production',
+  exists = () => false,
+  fetchResponse = async () => { throw new Error('Unexpected fetch'); },
+  write = () => {}
+} = {}) => {
+  const filename = require.resolve('./server/services/googlePhotos.js');
+  const serviceRequire = createRequire(filename);
+  const writes = [];
+  const warnings = [];
+  const module = { exports: {} };
+  const adapters = {
+    fs: {
+      existsSync: file => !file.endsWith('.jpg') || exists(file),
+      writeFileSync: (file, bytes) => {
+        write(file, bytes);
+        writes.push({ file, bytes });
+      }
+    },
+    '../config/env.js': { readEnvVar: () => '' }
+  };
+
+  runInNewContext(fs.readFileSync(filename, 'utf8'), {
+    module,
+    require: id => adapters[id] ?? serviceRequire(id),
+    __dirname: path.dirname(filename),
+    process: { env: { NODE_ENV: nodeEnv } },
+    Buffer,
+    fetch: fetchResponse,
+    console: { log: () => {}, warn: (...args) => warnings.push(args) }
+  }, { filename });
+
+  return { download: module.exports.downloadSyncMediaItems, writes, warnings };
+};
+
+const googlePhotosDownloadNoopCheck = assertAsyncTest('Google Photos pre-download keeps test/empty batches inert and exposes existence failures', async () => {
+  const failIfCalled = () => { throw new Error('Unexpected effect'); };
+  const testFixture = createGooglePhotosDownloadFixture({
+    nodeEnv: 'test', exists: failIfCalled, fetchResponse: failIfCalled, write: failIfCalled
+  });
+  assert.strictEqual(await testFixture.download([{ id: 'test', googleBaseUrl: 'https://example.test/test' }]), undefined);
+  assert.deepStrictEqual(testFixture.writes, []);
+  assert.deepStrictEqual(testFixture.warnings, []);
+
+  const emptyFixture = createGooglePhotosDownloadFixture({ exists: failIfCalled });
+  assert.strictEqual(await emptyFixture.download([]), undefined);
+  assert.deepStrictEqual(emptyFixture.writes, []);
+
+  const failure = new Error('Existence check failed');
+  const failedFixture = createGooglePhotosDownloadFixture({ exists: () => { throw failure; } });
+  await assert.rejects(failedFixture.download([{ id: 'unreadable' }]), err => err === failure);
+  assert.deepStrictEqual(failedFixture.warnings, []);
+});
+
+const googlePhotosDownloadOrderCheck = assertAsyncTest('Google Photos pre-download skips cached files and completes each write before the next fetch', async () => {
+  const events = [];
+  let releaseBody;
+  const firstBody = new Promise(resolve => { releaseBody = resolve; });
+  const items = Object.freeze([
+    Object.freeze({ id: 'cached', googleBaseUrl: 'https://example.test/cached' }),
+    Object.freeze({ id: 'first', googleBaseUrl: 'https://example.test/first' }),
+    Object.freeze({ id: 'second', googleBaseUrl: 'https://example.test/second' })
+  ]);
+  const fixture = createGooglePhotosDownloadFixture({
+    exists: file => file.endsWith('cached.jpg'),
+    fetchResponse: async url => {
+      events.push(url);
+      return { ok: true, arrayBuffer: () => url.includes('/first=') ? firstBody : Buffer.from('second') };
+    },
+    write: file => events.push(path.basename(file))
+  });
+
+  const pending = fixture.download(items);
+  await flushPromises();
+  assert.deepStrictEqual(events, ['https://example.test/first=w2560-h1440']);
+  releaseBody(Buffer.from('first'));
+  assert.strictEqual(await pending, undefined);
+  assert.deepStrictEqual(events, [
+    'https://example.test/first=w2560-h1440', 'first.jpg',
+    'https://example.test/second=w2560-h1440', 'second.jpg'
+  ]);
+  assert.deepStrictEqual(fixture.writes.map(({ bytes }) => bytes.toString()), ['first', 'second']);
+  assert.ok(fixture.writes.every(({ bytes }) => Buffer.isBuffer(bytes)));
+  assert.deepStrictEqual(fixture.warnings, []);
+});
+
+const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-download continues after rejected responses, fetches, body reads, and writes', async () => {
+  const requested = [];
+  const responses = {
+    rejected: async () => ({ ok: false, arrayBuffer: () => { throw new Error('Must not read rejected body'); } }),
+    network: async () => { throw new Error('Network unavailable'); },
+    body: async () => ({ ok: true, arrayBuffer: async () => { throw new Error('Body unavailable'); } }),
+    disk: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('disk') }),
+    last: async () => ({ ok: true, arrayBuffer: async () => Buffer.from('last') })
+  };
+  const fixture = createGooglePhotosDownloadFixture({
+    fetchResponse: url => {
+      const id = new URL(url).pathname.slice(1).split('=')[0];
+      requested.push(id);
+      return responses[id]();
+    },
+    write: file => {
+      if (file.endsWith('disk.jpg')) throw new Error('Disk unavailable');
+    }
+  });
+  const items = Object.freeze(['missing', ...Object.keys(responses)].map(id => Object.freeze({
+    id, ...(id === 'missing' ? {} : { googleBaseUrl: `https://example.test/${id}` })
+  })));
+
+  assert.strictEqual(await fixture.download(items), undefined);
+  assert.deepStrictEqual(requested, Object.keys(responses));
+  assert.deepStrictEqual(fixture.writes.map(({ file }) => path.basename(file)), ['last.jpg']);
+  assert.deepStrictEqual(fixture.writes[0].bytes, Buffer.from('last'));
+  assert.deepStrictEqual(fixture.warnings.map(([, message]) => message), [
+    'Network unavailable', 'Body unavailable', 'Disk unavailable'
+  ]);
+  ['network', 'body', 'disk'].forEach((id, index) => assert.ok(fixture.warnings[index][0].includes(id)));
 });
 
 assertTest('weather service exposes a checked pure WMO classification contract', () => {
@@ -6218,6 +6351,9 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // 7. INTEGRATION TEST SUITE: Live Endpoint Verification
 // ============================================================================
 async function runIntegrationTests() {
+  await Promise.all([
+    googlePhotosDownloadNoopCheck, googlePhotosDownloadOrderCheck, googlePhotosDownloadFailureCheck
+  ]);
   await runClientStateTests();
   await runClientRenderingTests();
   logSuite('Async Recrawl Job Flow');

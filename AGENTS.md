@@ -95,7 +95,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `refreshCachedMediaItem(...)` documents its session fallback, nullable result, missing-item rejection, and cache upsert; preserve Picker requests, cache persistence, and metadata retention in the Google Photos service shell.
 - Latest Step 6 slice: `refreshMediaItemUrl(...)` documents media-id and render-option inputs, mock and authenticated URL results, and logged rejection behavior; preserve authentication and network effects in the Google Photos service shell.
 - Latest Step 6 slice: `cleanOrphanedMediaFiles(...)` documents active media-id inputs, missing-directory/test-mode no-ops, best-effort cleanup, and reuse of the pure orphan projection; preserve directory reads, unlinking, and warning logs in the Google Photos service shell.
-- Next Step 6 seam: document `downloadSyncMediaItems(...)` inputs, test-mode no-op, and best-effort sequential download/cache effects in the Google Photos service shell.
+- Latest Step 6 slice: `downloadSyncMediaItems(...)` documents selected-media inputs, cache/test-mode skips, sequential completion, and per-item versus batch failures; preserve pure URL construction and the sequential network/filesystem shell, with isolated effect adapters in tests.
+- Next Step 6 seam: document `getCachedMediaItems()` normalized result and changed-only persistence contract, preserving pure normalization and the cache read/write effects in the Google Photos service shell.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

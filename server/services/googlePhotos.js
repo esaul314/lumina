@@ -849,6 +849,23 @@ const cleanOrphanedMediaFiles = (newItems) => {
   }
 };
 
+/**
+ * Pre-download selected media into the local image cache in input order.
+ *
+ * Test mode is a no-op. Existing files are skipped regardless of their size;
+ * missing files use the supplied base URL with the default render dimensions.
+ * A missing base URL or non-OK response is silently skipped. URL construction,
+ * fetching, body reads, and file writes are caught and warned per item so later
+ * items still run. Path resolution and existence checks are outside that catch
+ * and can reject the batch. Completion does not guarantee every item was saved.
+ *
+ * URL construction stays pure; sequential network requests, synchronous file
+ * access, and logging remain in this service shell. No Picker refresh or
+ * authentication is performed here.
+ *
+ * @param {ReadonlyArray<{id: string, googleBaseUrl?: string}>} items Selected media with stable ids and optional base URLs.
+ * @returns {Promise<void>} Resolves after the sequential download attempts.
+ */
 const downloadSyncMediaItems = async (items) => {
   if (process.env.NODE_ENV === 'test') {
     return;
