@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-11: Document Google Photos Authorization-URL Contract
+
+- **Contract**: documented `getGoogleAuthUrl(...)` callback input, relative
+  sandbox versus absolute OAuth result, client-ID-only fallback, Picker-only
+  scope, query encoding, and synchronous encoding failures. Client secrets,
+  callback validation, and OAuth state are not checked by this boundary;
+  callback hardening remains separate roadmap work.
+- **Functional design**: retained the small data-first construction and explicit
+  credential/logging shell. A new curried or algebraic wrapper would not simplify
+  this seam. Tests compose declarative case tables with `map`, `forEach`, and
+  `every` using existing isolated adapters, without global patches, real
+  credentials, or new production exports.
+- **Regression coverage**: six focused tests pin the JSDoc contract, fallback
+  logging, exact OAuth parameter list, encoding, native coercion, lone-surrogate
+  and Symbol behavior, repeatability for fixed credentials, later credential
+  replacements, and absence of token, clock, network, cache, or persistence
+  effects during URL construction. Runtime code is unchanged.
+- **Verification**: `npm test` passed (449 tests, 447 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `saveGoogleCredentials(...)` string inputs and boolean
+  result contract, preserving trimming, credential replacement, persistence,
+  and logged failure ordering in the service shell.
+
 ### 2026-10-11: Document Google Photos Code-Exchange Contract
 
 - **Contract**: documented `exchangeGoogleCode(...)` authorization inputs,

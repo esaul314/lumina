@@ -303,9 +303,25 @@ function saveGoogleCredentials(clientId, clientSecret) {
 }
 
 /**
- * 📡 getGoogleAuthUrl
- * Generates the live Google OAuth2 Authorization URL.
- * Falls back to sandbox auth if credentials are not configured.
+ * Build an authorization URL from the callback URI and current client ID.
+ *
+ * A falsy client ID logs and returns a relative sandbox-callback URL, encoding
+ * the URI with encodeURIComponent. A truthy ID returns Google's absolute OAuth
+ * URL with URLSearchParams encoding, offline access, authorization-code response,
+ * consent prompt, and only the Picker media-items readonly scope. Neither branch
+ * checks the client secret, validates the callback, or adds OAuth state.
+ *
+ * Native input coercion is preserved, not a supported non-string interface.
+ * In particular, lone UTF-16 surrogates throw in the sandbox branch after logging,
+ * but URLSearchParams replaces them in the OAuth branch. Encoding failures
+ * propagate synchronously without an error log. For string inputs, no network,
+ * clock, token mutation, or persistence effects occur. Credential reads and the
+ * sandbox log keep this boundary in the service shell, not a pure projection.
+ *
+ * @param {string} redirectUri Callback URI, encoded without validation.
+ * @returns {string} Relative sandbox URL or absolute Google authorization URL.
+ * @throws {URIError} Sandbox encoding rejects malformed UTF-16 input.
+ * @throws {TypeError} Native encoding rejects unsupported coercion inputs.
  */
 function getGoogleAuthUrl(redirectUri) {
   if (!credentials.clientId) {

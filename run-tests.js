@@ -1144,6 +1144,8 @@ const createGooglePhotosServiceFixture = ({
     getValidToken,
     refreshAccessToken,
     readTokens: () => ({ ...readTokens() }),
+    authUrl: module.exports.getGoogleAuthUrl,
+    saveCredentials: module.exports.saveGoogleCredentials,
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
@@ -1567,6 +1569,107 @@ const googlePhotosRefreshChecks = [
     }));
   })
 ];
+
+assertTest('Google Photos auth URL documents callback, branch encoding, and synchronous failure contracts', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Build an authorization URL'), source.indexOf(' * Service-owned token state'));
+  assert.match(contract, /@param \{string\} redirectUri/);
+  assert.match(contract, /@returns \{string\}/);
+  assert.match(contract, /@throws \{URIError\}/);
+  assert.match(contract, /@throws \{TypeError\}/);
+  assert.match(contract, /Neither branch\s+\* checks the client secret/);
+  assert.match(contract, /not a pure projection/);
+});
+
+const googlePhotosAuthSandboxLog = 'Google Photos Service: Client ID not configured. Generating developmental sandbox auth URL.';
+
+assertTest('Google Photos auth URL uses a logged sandbox fallback only when the client ID is falsy', () => {
+  const callback = 'https://example.test/callback?a=+&b=%2F#snow ❄';
+  [{}, { GOOGLE_CLIENT_SECRET: 'secret' }, ...['', false, 0].map(GOOGLE_CLIENT_ID => ({ GOOGLE_CLIENT_ID }))]
+    .forEach(envValues => {
+      const fixture = createGooglePhotosServiceFixture({ envValues });
+      assert.strictEqual(fixture.authUrl(callback), '/api/auth/google/sandbox-callback?redirect_uri=https%3A%2F%2Fexample.test%2Fcallback%3Fa%3D%2B%26b%3D%252F%23snow%20%E2%9D%84');
+      assert.deepStrictEqual(fixture.logs, [[googlePhotosAuthSandboxLog]]);
+      assert.deepStrictEqual(fixture.errors, []);
+    });
+});
+
+assertTest('Google Photos auth URL requests only Picker scope with encoded callback and ID even without a secret', () => {
+  ['', 'secret'].forEach(GOOGLE_CLIENT_SECRET => {
+    const fixture = createGooglePhotosServiceFixture({
+      envValues: Object.freeze({ GOOGLE_CLIENT_ID: 'client +&=', GOOGLE_CLIENT_SECRET })
+    });
+    const result = fixture.authUrl('https://example.test/callback?a=+&b=%2F#snow ❄');
+    const url = new URL(result);
+    assert.strictEqual(`${url.origin}${url.pathname}`, 'https://accounts.google.com/o/oauth2/v2/auth');
+    assert.deepStrictEqual([...url.searchParams], [
+      ['redirect_uri', 'https://example.test/callback?a=+&b=%2F#snow ❄'],
+      ['client_id', 'client +&='],
+      ['access_type', 'offline'],
+      ['response_type', 'code'],
+      ['prompt', 'consent'],
+      ['scope', 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly']
+    ]);
+    assert.ok(result.includes('client_id=client+%2B%26%3D'));
+    assert.ok(result.includes('snow+%E2%9D%84'));
+    assert.deepStrictEqual(fixture.logs, []);
+    assert.deepStrictEqual(fixture.errors, []);
+  });
+});
+
+assertTest('Google Photos auth URL preserves native coercion without callback validation', () => {
+  const cases = [[undefined, 'undefined'], [null, 'null'], ['', ''], [0, '0'], [false, 'false'], ['relative path', 'relative path']];
+  [{}, { GOOGLE_CLIENT_ID: 'client' }].forEach(envValues => {
+    const { authUrl } = createGooglePhotosServiceFixture({ envValues });
+    cases.forEach(([input, expected]) => {
+      const url = new URL(authUrl(input), 'https://example.test');
+      assert.strictEqual(url.searchParams.get('redirect_uri'), expected);
+    });
+  });
+});
+
+assertTest('Google Photos auth URL preserves branch-specific Unicode handling and synchronous encoding failures', () => {
+  const sandbox = createGooglePhotosServiceFixture();
+  const oauth = createGooglePhotosServiceFixture({ envValues: { GOOGLE_CLIENT_ID: 'client' } });
+  ['\uD800', '\uDC00'].forEach(input => {
+    assert.throws(() => sandbox.authUrl(input), err => err.name === 'URIError');
+    assert.strictEqual(new URL(oauth.authUrl(input)).searchParams.get('redirect_uri'), '\uFFFD');
+  });
+  [sandbox, oauth].forEach(fixture => {
+    assert.throws(() => fixture.authUrl(Symbol('unsupported')), err => err.name === 'TypeError');
+    assert.deepStrictEqual(fixture.errors, []);
+    assert.deepStrictEqual(fixture.persisted, []);
+  });
+  assert.deepStrictEqual(sandbox.logs, Array.from({ length: 3 }, () => [googlePhotosAuthSandboxLog]));
+  assert.deepStrictEqual(oauth.logs, []);
+});
+
+assertTest('Google Photos auth URL is repeatable for fixed credentials and reads later credential replacements without token effects', () => {
+  const failIfCalled = () => { throw new Error('Unexpected auth-URL effect'); };
+  const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'stored', expiry: 17 });
+  const fixture = createGooglePhotosServiceFixture({
+    initialTokens, now: failIfCalled, fetchResponse: failIfCalled,
+    exists: failIfCalled, cacheExists: failIfCalled, read: failIfCalled, write: failIfCalled
+  });
+  const callbacks = ['https://example.test/first', 'https://example.test/second'];
+  const project = callback => fixture.authUrl(callback);
+  assert.deepStrictEqual(callbacks.map(project), callbacks.map(project));
+  assert.deepStrictEqual(fixture.persisted, []);
+  assert.strictEqual(fixture.saveCredentials(' updated-client ', ''), true);
+  assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_CLIENT_ID: 'updated-client', GOOGLE_CLIENT_SECRET: '' }]);
+  const persistedCount = fixture.persisted.length;
+  const logCount = fixture.logs.length;
+  const results = callbacks.map(project);
+  assert.deepStrictEqual(results, callbacks.map(project));
+  assert.ok(results.every(result => new URL(result).searchParams.get('client_id') === 'updated-client'));
+  assert.strictEqual(fixture.persisted.length, persistedCount);
+  assert.strictEqual(fixture.logs.length, logCount);
+  assert.deepStrictEqual(fixture.readTokens(), initialTokens);
+  assert.deepStrictEqual(initialTokens, { accessToken: 'previous', refreshToken: 'stored', expiry: 17 });
+  assert.deepStrictEqual(fixture.writes, []);
+  assert.deepStrictEqual(fixture.warnings, []);
+  assert.deepStrictEqual(fixture.errors, []);
+});
 
 assertTest('Google Photos code exchange documents its inputs, shared result, and persistence failure boundary', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
