@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-12: Document Google Photos Picker Session-Creation Contract
+
+- **Contract**: documented `createPickerSession()` synthetic/unvalidated JSON
+  results and rejected failures. Refresh-token-only state still fails the access
+  guard; mock tokens use one clock read without refresh or requests. Real sessions
+  await token resolution and POST an empty JSON object. Pre-request failures stay
+  outside the request catch; request/status-body/JSON failures are logged and
+  rethrown, except nullish values that fail while reading `err.message`.
+- **Functional design**: kept the small effect shell explicit. Pure projections,
+  currying, partial application, and Fantasy Land-style wrappers would not
+  simplify this no-argument orchestration boundary. Tests compose independent
+  case tables with `map` and `Promise.all` and inject clock/network adapters;
+  no runtime changes, dependencies, or production exports were added.
+- **Tests**: seven focused assertions cover documented contracts, absent and
+  malformed tokens, synthetic sessions, pre-request failures, exact POST metadata,
+  raw JSON identity, delayed JSON completion, refresh-before-request ordering,
+  retained refreshed state, and logged versus unlogged rejection paths.
+- **Hardening boundary**: recorded response validation and thrown-value
+  normalization as separate backlog decisions, not silent compatibility changes.
+- **Verification**: `npm test`, `npm run lint`, touched JavaScript syntax, and
+  `git diff --check` passed. Optional socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `getPickerSession(sessionId)` input, asynchronous result,
+  and rejection contract, preserving the synthetic shortcut and GET/logging shell.
+
 ### 2026-10-12: Document Google Photos Authentication-Presence Contract
 
 - **Contract**: documented `isAuthenticated()` as a synchronous boolean

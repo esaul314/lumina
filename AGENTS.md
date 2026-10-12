@@ -105,7 +105,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `getGoogleAuthUrl(...)` documents callback inputs, authorization URL results, and synchronous encoding failures; preserve client-ID-only sandbox fallback, Picker-only scope, native coercion, and branch-specific Unicode handling while keeping credential reads and logging in the service shell. OAuth state and callback validation remain separate hardening work.
 - Latest Step 6 slice: `saveGoogleCredentials(...)` documents string inputs, boolean results, and synchronous failures; preserve trim completion before replacement, replacement before persistence, logged failure without rollback, and token isolation while keeping all effects in the service shell.
 - Latest Step 6 slice: `isAuthenticated()` documents its synchronous boolean presence contract; preserve native access-token truthiness, ignored expiry/refresh-token/credential fields, and current service-state reads without implying token validity or moving refresh effects into the predicate.
-- Next Step 6 seam: document `createPickerSession()` asynchronous result and rejection contract, preserving the access-token guard, synthetic-session branch, and authenticated request/logging boundaries.
+- Latest Step 6 slice: `createPickerSession()` documents synthetic/unvalidated JSON results and branch-specific rejections; preserve the access-token guard, mock clock, awaited token resolution, exact POST metadata, and request-only error logging while keeping all effects in the service shell.
+- Next Step 6 seam: document `getPickerSession(sessionId)` input, asynchronous result, and rejection contract, preserving the synthetic-session shortcut and authenticated GET/logging boundaries.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

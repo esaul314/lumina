@@ -608,8 +608,24 @@ async function syncGoogleAlbum(sessionId, {
 }
 
 /**
- * 🛠️ createPickerSession
- * Creates a secure photo picking session.
+ * Create a synthetic or authenticated Picker session from service-owned state.
+ *
+ * A falsy access token rejects before refresh, even with a refresh token.
+ * A MOCK_ access token resolves a synthetic session using one clock read,
+ * without checking expiry, refreshing, requesting, or mutating token state.
+ * Otherwise await getValidToken() before POSTing an empty JSON object.
+ * Successful response JSON is awaited and returned without shape validation.
+ *
+ * Guard, native startsWith, synthetic clock, and token-resolution failures
+ * reject outside the request catch; token resolution keeps its own effects.
+ * Request, unsuccessful-status body reads, and JSON failures enter the catch,
+ * which logs err.message and rethrows the original value. Nullish thrown
+ * values instead fail while reading err.message, replacing that rejection.
+ * Authentication, clock, network, token refresh, and logging stay in this
+ * effectful service shell; this is not a pure projection or validity guarantee.
+ *
+ * @returns {Promise<unknown>} Synthetic session or unvalidated response JSON.
+ * @throws {unknown} Rejects on missing access token or branch-specific failures.
  */
 async function createPickerSession() {
   if (!tokens.accessToken) {
