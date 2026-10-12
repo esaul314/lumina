@@ -1049,8 +1049,17 @@ function getCachedMediaItems() {
 }
 
 /**
- * 🔒 hasTokens
- * Returns true if the user is authenticated.
+ * Report whether the service currently holds a truthy access token.
+ *
+ * This is a synchronous presence check, not token validation: expired,
+ * synthetic, and malformed truthy values still return true. A refresh token
+ * alone returns false; expiry and credentials are not inspected.
+ * Reads current service-owned state on each call without coercion hooks,
+ * mutation, clock reads, refresh, requests, persistence, or logging.
+ * The boolean projection is deterministic for fixed state, but this zero-arg
+ * service-state reader is not a pure function of explicit inputs.
+ *
+ * @returns {boolean} Native truthiness of the current access token.
  */
 function isAuthenticated() {
   return !!tokens.accessToken;

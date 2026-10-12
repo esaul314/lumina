@@ -1147,6 +1147,7 @@ const createGooglePhotosServiceFixture = ({
     readCredentials: () => ({ ...readCredentials() }),
     authUrl: module.exports.getGoogleAuthUrl,
     saveCredentials: module.exports.saveGoogleCredentials,
+    isAuthenticated: module.exports.isAuthenticated,
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
@@ -1157,6 +1158,87 @@ const createGooglePhotosServiceFixture = ({
     persisted
   };
 };
+
+assertTest('Google Photos authentication presence documents its boolean and service-state contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Report whether the service currently holds'), source.indexOf('function isAuthenticated()'));
+  assert.match(contract, /@returns \{boolean\}/);
+  assert.match(contract, /not token validation/);
+  assert.match(contract, /alone returns false/);
+  assert.match(contract, /expiry and credentials are not inspected/);
+  assert.match(contract, /not a pure function of explicit inputs/);
+});
+
+assertTest('Google Photos authentication presence preserves native truthiness without coercion hooks', () => {
+  const failIfCoerced = () => { throw new Error('Unexpected token coercion'); };
+  const opaqueToken = Object.freeze({ valueOf: failIfCoerced, toString: failIfCoerced });
+  const cases = [
+    [undefined, false], [null, false], ['', false], [false, false],
+    [0, false], [-0, false], [NaN, false], [0n, false],
+    ['token', true], [' ', true], ['MOCK_FIXTURE', true], [true, true],
+    [1, true], [-1, true], [Infinity, true], [1n, true],
+    [Symbol('fixture'), true], [Object.freeze([]), true], [opaqueToken, true]
+  ];
+  cases.forEach(([accessToken, expected]) => {
+    const initialTokens = Object.freeze({ accessToken });
+    const fixture = createGooglePhotosServiceFixture({ initialTokens });
+    const before = fixture.readTokens();
+    assert.strictEqual(fixture.isAuthenticated(), expected);
+    assert.strictEqual(fixture.isAuthenticated(), expected);
+    assert.deepStrictEqual(fixture.readTokens(), before);
+  });
+});
+
+assertTest('Google Photos authentication presence ignores expiry, refresh tokens, and credentials', () => {
+  const expiries = [undefined, null, 0, -1, NaN, 'invalid', Infinity];
+  const refreshTokens = [undefined, '', 'fixture-refresh', 'MOCK_FIXTURE'];
+  const credentials = [{}, { GOOGLE_CLIENT_ID: 'fixture-client', GOOGLE_CLIENT_SECRET: 'fixture-secret' }];
+  [undefined, 'expired-or-unvalidated'].flatMap(accessToken =>
+    expiries.flatMap(expiry => refreshTokens.flatMap(refreshToken =>
+      credentials.map(envValues => ({ initialTokens: Object.freeze({ accessToken, expiry, refreshToken }), envValues }))
+    ))
+  ).forEach(options => {
+    const fixture = createGooglePhotosServiceFixture(options);
+    assert.strictEqual(fixture.isAuthenticated(), Boolean(options.initialTokens.accessToken));
+    assert.deepStrictEqual(fixture.readTokens(), options.initialTokens);
+  });
+});
+
+assertTest('Google Photos authentication presence leaves tokens, credentials, and unrelated effects untouched', () => {
+  const failIfCalled = () => { throw new Error('Unexpected authentication-presence effect'); };
+  [Object.freeze({}), Object.freeze({ accessToken: 'expired', refreshToken: 'fixture-refresh', expiry: 0 })].forEach(initialTokens => {
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens, envValues: { GOOGLE_CLIENT_ID: 'old-client', GOOGLE_CLIENT_SECRET: 'old-secret' },
+      now: failIfCalled, fetchResponse: failIfCalled, persist: failIfCalled,
+      exists: failIfCalled, cacheExists: failIfCalled, read: failIfCalled, write: failIfCalled
+    });
+    const before = fixture.readTokens();
+    assert.strictEqual(fixture.isAuthenticated(), Boolean(initialTokens.accessToken));
+    assert.deepStrictEqual(fixture.readTokens(), before);
+    assert.deepStrictEqual(fixture.readCredentials(), { clientId: 'old-client', clientSecret: 'old-secret' });
+    [fixture.logs, fixture.errors, fixture.warnings, fixture.writes, fixture.persisted].forEach(records =>
+      assert.deepStrictEqual(records, [])
+    );
+  });
+});
+
+const googlePhotosAuthenticationPresenceChecks = [
+  assertAsyncTest('Google Photos authentication presence observes later token replacement rather than memoizing', async () => {
+    const payloads = [{ access_token: 'fixture-access', expires_in: 60 }, { expires_in: 60 }];
+    const fixture = createGooglePhotosServiceFixture({
+      envValues: { GOOGLE_CLIENT_ID: 'fixture-client', GOOGLE_CLIENT_SECRET: 'fixture-secret' },
+      now: () => 1_000,
+      fetchResponse: async () => ({ ok: true, json: async () => payloads.shift() })
+    });
+    assert.strictEqual(fixture.isAuthenticated(), false);
+    await fixture.exchange('first-code', 'https://example.test/callback');
+    assert.strictEqual(fixture.isAuthenticated(), true);
+    await fixture.exchange('second-code', 'https://example.test/callback');
+    assert.strictEqual(fixture.isAuthenticated(), false);
+    assert.deepStrictEqual(payloads, []);
+    assert.deepStrictEqual(fixture.errors, []);
+  })
+];
 
 assertTest('Google Photos content URL projection documents its pure input and result contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
@@ -7307,6 +7389,7 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // ============================================================================
 async function runIntegrationTests() {
   await Promise.all([
+    ...googlePhotosAuthenticationPresenceChecks,
     ...googlePhotosTokenChecks,
     ...googlePhotosRefreshChecks,
     ...googlePhotosExchangeChecks,

@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-12: Document Google Photos Authentication-Presence Contract
+
+- **Contract**: documented `isAuthenticated()` as a synchronous boolean
+  access-token presence check, not authentication validation. Expired, synthetic,
+  and malformed truthy tokens return true; refresh-token-only state returns false.
+  Expiry and credentials are not inspected, and the check has no mutation,
+  clock, refresh, network, persistence, or logging effects.
+- **Functional design**: retained the concise native boolean projection and
+  zero-argument service-state reader. It is deterministic for fixed state, not
+  pure over explicit inputs; a curried wrapper or Fantasy Land abstraction would
+  add ceremony. Declarative case tables and `flatMap`/`map` combinations keep
+  tests compositional without global patches or new production exports.
+- **Regression coverage**: five focused tests pin the source contract, all
+  native falsy token values, representative truthy/malformed values without
+  coercion hooks, expiry/refresh-token/credential independence, repeatability,
+  state/effect isolation, and later token replacement through isolated code
+  exchange. Runtime behavior is unchanged.
+- **Verification**: `npm test` passed (461 tests, 459 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `createPickerSession()` asynchronous result and
+  rejection contract, preserving the access-token guard, synthetic-session
+  branch, and authenticated request/logging boundaries.
+
 ### 2026-10-12: Document Google Photos Credential-Save Contract
 
 - **Contract**: documented `saveGoogleCredentials(...)` string inputs, boolean
