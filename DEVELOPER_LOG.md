@@ -6,6 +6,32 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-12: Document Google Photos Credential-Save Contract
+
+- **Contract**: documented `saveGoogleCredentials(...)` string inputs, boolean
+  results, and synchronous failures. Both trims complete before replacement and
+  outside error handling; empty strings remain accepted. Persistence observes
+  replaced credentials, success logs afterward, and handled failures return false
+  without rollback. Nullish thrown values can escape the error handler.
+- **Functional design**: preserved the small data-first effect shell. A curried
+  wrapper or algebra would not simplify this mutation/persistence boundary.
+  Tests use declarative `map`, `flatMap`, and case tables with isolated adapters;
+  a detached fixture-only credential reader observes ordering without new
+  production exports, global patches, or real credentials.
+- **Regression coverage**: seven focused tests pin the source contract, Unicode
+  trimming, internal whitespace, empty inputs, native trim dispatch, invalid and
+  throwing inputs, replacement/persistence/logging ordering, persistence failure
+  without rollback, retries, thrown-value handling, repeated saves, and token and
+  unrelated-effect isolation. Runtime behavior is unchanged. Credential rollback
+  and error normalization are recorded as separate hardening decisions.
+- **Verification**: `npm test` passed (456 tests, 454 reported passed assertions,
+  zero failures; sensor adapters 13/13). Lint, touched JavaScript syntax, and
+  `git diff --check` passed. Optional Unix-socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `isAuthenticated()` boolean result contract, preserving
+  access-token truthiness without implying token validity, expiry checks, or
+  refresh-token authentication.
+
 ### 2026-10-11: Document Google Photos Authorization-URL Contract
 
 - **Contract**: documented `getGoogleAuthUrl(...)` callback input, relative

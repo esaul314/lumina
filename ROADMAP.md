@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-11
+Last updated: 2026-10-12
 
 ## Implementation Companion
 
@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (61): `getGoogleAuthUrl(...)` documents its callback input, URL result, and synchronous encoding failures; six isolated tests preserve client-ID-only fallback, Picker-only scope, query encoding, native coercion, branch-specific Unicode handling, current credential reads, and token/effect isolation without runtime changes.
-- Next Step 6 seam: document `saveGoogleCredentials(...)` string inputs and boolean result contract, preserving trimming, credential replacement, persistence, and logged failure ordering in the service shell.
+- Latest Step 6 slice (62): `saveGoogleCredentials(...)` documents string inputs, boolean results, and synchronous failure boundaries; seven isolated tests preserve trimming, replacement-before-persistence, success/error logging, no rollback on persistence failure, retry behavior, and token/effect isolation without runtime changes.
+- Next Step 6 seam: document `isAuthenticated()` boolean result contract, preserving access-token truthiness without implying token validity, expiry checks, or refresh-token authentication.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -236,8 +236,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (61): `server/services/googlePhotos.js` documents authorization URL construction, with isolated tests for client-ID-only fallback, Picker-only scope, encoding/coercion, branch-specific Unicode handling, current credential reads, and token/effect isolation; production exports and runtime behavior remain unchanged.
-  - Next Step 6 seam: document `saveGoogleCredentials(...)` string inputs and boolean result contract, preserving trimming, credential replacement, persistence, and logged failure ordering in the service shell.
+  - Latest Step 6 slice (62): `server/services/googlePhotos.js` documents credential saving, with isolated tests for trim/replacement ordering, empty inputs, malformed inputs, persistence failure without rollback, retry behavior, logging, and token/effect isolation; production exports and runtime behavior remain unchanged.
+  - Next Step 6 seam: document `isAuthenticated()` boolean result contract, preserving access-token truthiness without implying token validity, expiry checks, or refresh-token authentication.
 
 ### Shared domain flow
 

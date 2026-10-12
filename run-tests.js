@@ -1119,7 +1119,7 @@ const createGooglePhotosServiceFixture = ({
   };
 
   // Capture internal helpers without widening the production exports.
-  const { buildContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }) });`, {
+  const { buildContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1144,6 +1144,7 @@ const createGooglePhotosServiceFixture = ({
     getValidToken,
     refreshAccessToken,
     readTokens: () => ({ ...readTokens() }),
+    readCredentials: () => ({ ...readCredentials() }),
     authUrl: module.exports.getGoogleAuthUrl,
     saveCredentials: module.exports.saveGoogleCredentials,
     exchange: module.exports.exchangeGoogleCode,
@@ -1569,6 +1570,134 @@ const googlePhotosRefreshChecks = [
     }));
   })
 ];
+
+assertTest('Google Photos credential save documents its inputs, result, and replacement/failure contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * 🔒 saveGoogleCredentials'), source.indexOf(' * Build an authorization URL'));
+  assert.match(contract, /@param \{string\} clientId/);
+  assert.match(contract, /@param \{string\} clientSecret/);
+  assert.match(contract, /@returns \{boolean\}/);
+  assert.match(contract, /@throws \{TypeError\}/);
+  assert.match(contract, /outside the catch/);
+  assert.match(contract, /without\s+\* rollback/);
+  assert.match(contract, /not a pure projection/);
+});
+
+const googlePhotosCredentialSuccessLog = 'Google Photos Service: Credentials saved successfully to .env.';
+const googlePhotosCredentialFailureLog = 'Google Photos Service: Failed to save credentials:';
+const googlePhotosPreviousCredentials = Object.freeze({ GOOGLE_CLIENT_ID: 'old-client', GOOGLE_CLIENT_SECRET: 'old-secret' });
+
+assertTest('Google Photos credential save trims strings, preserves internal whitespace, and accepts empty values', () => {
+  const cases = [
+    [' \tclient\n', '\u00A0secret\uFEFF', 'client', 'secret'],
+    [' client +&= name ', ' secret\ninside ', 'client +&= name', 'secret\ninside'],
+    ['', '', '', ''],
+    [' \n', '\t ', '', '']
+  ];
+  cases.forEach(([clientId, clientSecret, id, secret]) => {
+    const fixture = createGooglePhotosServiceFixture({ envValues: googlePhotosPreviousCredentials });
+    assert.strictEqual(fixture.saveCredentials(clientId, clientSecret), true);
+    assert.deepStrictEqual(fixture.readCredentials(), { clientId: id, clientSecret: secret });
+    assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_CLIENT_ID: id, GOOGLE_CLIENT_SECRET: secret }]);
+    assert.deepStrictEqual(fixture.logs, [[googlePhotosCredentialSuccessLog]]);
+    assert.deepStrictEqual(fixture.errors, []);
+  });
+});
+
+assertTest('Google Photos credential save completes both trims before replacement and logs only after persistence', () => {
+  const events = [];
+  const previous = { clientId: 'old-client', clientSecret: 'old-secret' };
+  const next = { clientId: 'new-client', clientSecret: 'new-secret' };
+  const fixture = createGooglePhotosServiceFixture({
+    envValues: googlePhotosPreviousCredentials,
+    persist: patch => {
+      events.push('persist');
+      assert.deepStrictEqual(fixture.readCredentials(), next);
+      assert.deepStrictEqual(patch, { GOOGLE_CLIENT_ID: next.clientId, GOOGLE_CLIENT_SECRET: next.clientSecret });
+      assert.deepStrictEqual(fixture.logs, []);
+    }
+  });
+  const input = (field, result) => Object.freeze({ trim: () => {
+    events.push(field);
+    assert.deepStrictEqual(fixture.readCredentials(), previous);
+    return result;
+  } });
+  assert.strictEqual(fixture.saveCredentials(input('clientId', next.clientId), input('clientSecret', next.clientSecret)), true);
+  assert.deepStrictEqual(events, ['clientId', 'clientSecret', 'persist']);
+  assert.deepStrictEqual(fixture.logs, [[googlePhotosCredentialSuccessLog]]);
+});
+
+assertTest('Google Photos credential save leaves both credentials untouched on invalid or throwing trim inputs', () => {
+  const failure = new Error('Trim unavailable');
+  const inputs = [undefined, null, 0, false, {}, Symbol('unsupported'), { trim: () => { throw failure; } }];
+  inputs.flatMap(input => [[input, 'new-secret'], ['new-client', input]]).forEach(args => {
+    const fixture = createGooglePhotosServiceFixture({ envValues: googlePhotosPreviousCredentials });
+    assert.throws(() => fixture.saveCredentials(...args), err => err === failure || err.name === 'TypeError');
+    assert.deepStrictEqual(fixture.readCredentials(), { clientId: 'old-client', clientSecret: 'old-secret' });
+    assert.deepStrictEqual(fixture.persisted, []);
+    assert.deepStrictEqual(fixture.logs, []);
+    assert.deepStrictEqual(fixture.errors, []);
+  });
+});
+
+assertTest('Google Photos credential save reports persistence failure without rollback and supports a later retry', () => {
+  const failure = new Error('Persistence unavailable');
+  let attempts = 0;
+  const fixture = createGooglePhotosServiceFixture({
+    envValues: googlePhotosPreviousCredentials,
+    persist: () => {
+      attempts += 1;
+      assert.deepStrictEqual(fixture.readCredentials(), { clientId: 'new-client', clientSecret: 'new-secret' });
+      assert.deepStrictEqual(fixture.logs, []);
+      if (attempts === 1) throw failure;
+    }
+  });
+  assert.strictEqual(fixture.saveCredentials(' new-client ', ' new-secret '), false);
+  assert.deepStrictEqual(fixture.readCredentials(), { clientId: 'new-client', clientSecret: 'new-secret' });
+  assert.deepStrictEqual(fixture.logs, []);
+  assert.deepStrictEqual(fixture.errors, [[googlePhotosCredentialFailureLog, failure.message]]);
+  assert.strictEqual(fixture.saveCredentials('new-client', 'new-secret'), true);
+  assert.strictEqual(attempts, 2);
+  assert.deepStrictEqual(fixture.persisted, Array.from({ length: 2 }, () => ({ GOOGLE_CLIENT_ID: 'new-client', GOOGLE_CLIENT_SECRET: 'new-secret' })));
+  assert.deepStrictEqual(fixture.logs, [[googlePhotosCredentialSuccessLog]]);
+  assert.strictEqual(fixture.errors.length, 1);
+});
+
+assertTest('Google Photos credential save preserves native thrown-value handling after replacement', () => {
+  [null, undefined, 'failure', 0].forEach(failure => {
+    const fixture = createGooglePhotosServiceFixture({ persist: () => { throw failure; } });
+    if (failure == null) {
+      assert.throws(() => fixture.saveCredentials('client', 'secret'), err => err.name === 'TypeError');
+      assert.deepStrictEqual(fixture.errors, []);
+    } else {
+      assert.strictEqual(fixture.saveCredentials('client', 'secret'), false);
+      assert.deepStrictEqual(fixture.errors, [[googlePhotosCredentialFailureLog, undefined]]);
+    }
+    assert.deepStrictEqual(fixture.readCredentials(), { clientId: 'client', clientSecret: 'secret' });
+    assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_CLIENT_ID: 'client', GOOGLE_CLIENT_SECRET: 'secret' }]);
+    assert.deepStrictEqual(fixture.logs, []);
+  });
+});
+
+assertTest('Google Photos repeated credential saves retain tokens and avoid unrelated effects without suppressing persistence', () => {
+  const failIfCalled = () => { throw new Error('Unexpected credential-save effect'); };
+  const initialTokens = Object.freeze({ accessToken: 'previous', refreshToken: 'stored', expiry: 17 });
+  const fixture = createGooglePhotosServiceFixture({
+    initialTokens, envValues: googlePhotosPreviousCredentials,
+    now: failIfCalled, fetchResponse: failIfCalled, exists: failIfCalled,
+    cacheExists: failIfCalled, read: failIfCalled, write: failIfCalled
+  });
+  const inputs = Object.freeze([' client ', ' secret ']);
+  assert.deepStrictEqual([inputs, inputs].map(args => fixture.saveCredentials(...args)), [true, true]);
+  assert.deepStrictEqual(fixture.persisted, Array.from({ length: 2 }, () => ({ GOOGLE_CLIENT_ID: 'client', GOOGLE_CLIENT_SECRET: 'secret' })));
+  assert.deepStrictEqual(fixture.logs, Array.from({ length: 2 }, () => [googlePhotosCredentialSuccessLog]));
+  assert.deepStrictEqual(fixture.readTokens(), initialTokens);
+  assert.deepStrictEqual(inputs, [' client ', ' secret ']);
+  assert.deepStrictEqual(googlePhotosPreviousCredentials, { GOOGLE_CLIENT_ID: 'old-client', GOOGLE_CLIENT_SECRET: 'old-secret' });
+  assert.deepStrictEqual(fixture.writes, []);
+  assert.deepStrictEqual(fixture.warnings, []);
+  assert.deepStrictEqual(fixture.errors, []);
+});
 
 assertTest('Google Photos auth URL documents callback, branch encoding, and synchronous failure contracts', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');

@@ -285,7 +285,25 @@ function isBaseUrlStale(item) {
 
 /**
  * 🔒 saveGoogleCredentials
- * Persists Google Photos API Client Credentials to the shared .env store.
+ * Trim and replace both service credentials, then persist them synchronously.
+ *
+ * Both trim calls complete before replacement and outside the catch: invalid
+ * inputs or throwing trim methods propagate without logging, persistence, or
+ * credential replacement. Empty strings are accepted without validation.
+ * Native trim-method dispatch is preserved, not a supported non-string API.
+ *
+ * Persistence observes the replaced credentials. Success logs after persistence
+ * and returns true; a caught failure logs its message and returns false without
+ * rollback. Null/undefined thrown values or logging failures can still propagate
+ * from the error handler. Repeated saves still persist and log every time.
+ * Token state is unchanged. Credential replacement, persistence, and logging
+ * remain in the service shell; this is not a pure projection.
+ *
+ * @param {string} clientId Client ID, trimmed without validation.
+ * @param {string} clientSecret Client secret, trimmed without validation.
+ * @returns {boolean} True on logged success, false on a handled failure.
+ * @throws {TypeError} Invalid trim inputs or nullish caught failures.
+ * @throws {Error} Custom trim or logging failures propagate synchronously.
  */
 function saveGoogleCredentials(clientId, clientSecret) {
   credentials = { clientId: clientId.trim(), clientSecret: clientSecret.trim() };
