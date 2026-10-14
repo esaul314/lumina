@@ -793,8 +793,25 @@ async function listPickerMediaItems(sessionId) {
 }
 
 /**
- * 🗑️ deletePickerSession
- * Cleans up the picking session.
+ * Delete a Picker session or acknowledge a synthetic no-op.
+ *
+ * Native startsWith dispatch precedes authentication and the request catch.
+ * MOCK_ ids resolve true without token, clock, or network effects. Real ids
+ * await getValidToken(), including refresh-token-only state, outside the catch.
+ * Interpolate the id verbatim into one DELETE request with only a Bearer
+ * authorization header; no request body or response body is read.
+ *
+ * Return response.ok directly: Fetch responses supply a boolean, but malformed
+ * adapters are not validated or coerced. HTTP failures resolve false silently.
+ * Request/property-access failures log and resolve false without rolling back
+ * refreshed tokens. Input dispatch and authentication failures instead reject.
+ * Nullish thrown values reject while reading err.message without a deletion
+ * error log. Network, authentication, and logging stay in this effectful shell;
+ * repeated real calls issue new requests, not a cached or idempotent guarantee.
+ *
+ * @param {string} sessionId Picker id; MOCK_ bypasses authentication.
+ * @returns {Promise<boolean>} Synthetic acknowledgement, Fetch ok flag, or handled failure.
+ * @throws {unknown} Rejects on input dispatch, authentication, or error-handler failure.
  */
 async function deletePickerSession(sessionId) {
   if (sessionId.startsWith('MOCK_')) return true;

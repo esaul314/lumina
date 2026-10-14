@@ -6,6 +6,34 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-14: Document Google Photos Picker Session-Deletion Contract
+
+- **Contract**: documented `deletePickerSession(sessionId)` string inputs,
+  asynchronous Fetch boolean results, and failure boundaries. Native input
+  dispatch precedes authentication; synthetic ids acknowledge without effects.
+  Real ids resolve authentication outside the request catch, then issue one
+  verbatim DELETE with only a Bearer header and no body reads. HTTP failures
+  return false silently; request/property failures log and return false.
+- **Functional design**: retained the concise data-first effect shell rather
+  than introducing a pure, curried, or algebraic wrapper with no reusable
+  transformation. Declarative case tables compose with `map`, `flatMap`, and
+  `Promise.all` over independent injected adapters; no global patches, live
+  credentials, network requests, cache writes, or production exports are added.
+- **Tests**: eight focused tests pin the source contract, malformed-input
+  short-circuits, repeated synthetic no-ops, exact DELETE metadata, body-read
+  avoidance, awaited refresh and request completion, authentication rejections,
+  handled failures, refreshed-token retention, raw adapter flags, and repeated
+  real requests. Repeated deletion is not an idempotence guarantee.
+- **Hardening boundary**: recorded raw response flags, verbatim ids, and
+  nullish error-handler rejections in the existing Picker backlog. This slice
+  documents compatibility behavior without changing validation or recovery.
+- **Verification**: `npm test`, `npm run lint`, touched JavaScript syntax, and
+  `git diff --check` passed: 491 tests executed, zero failed assertions, and
+  13/13 sensor regressions passed. Optional socket smoke was sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `syncGoogleAlbum(...)` adapter/options and returned-item
+  contracts, preserving append/upsert, post-union policy, and effect ordering.
+
 ### 2026-10-13: Document Google Photos Picker Media-Listing Contract
 
 - **Contract**: documented `listPickerMediaItems(sessionId)` string inputs,

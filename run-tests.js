@@ -1151,6 +1151,7 @@ const createGooglePhotosServiceFixture = ({
     createPickerSession: module.exports.createPickerSession,
     getPickerSession: module.exports.getPickerSession,
     listPickerMediaItems: module.exports.listPickerMediaItems,
+    deletePickerSession: module.exports.deletePickerSession,
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
@@ -1691,6 +1692,170 @@ const googlePhotosPickerListingChecks = [
       }
       assert.deepStrictEqual(fixture.readTokens(), before);
       [fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  })
+];
+
+assertTest('Google Photos Picker deletion documents its input, boolean response, and failure boundaries', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Delete a Picker session or acknowledge'), source.indexOf('async function deletePickerSession(sessionId)'));
+  [/@param \{string\} sessionId/, /@returns \{Promise<boolean>\}/, /refresh-token-only state/,
+    /outside the catch/, /Interpolate the id verbatim/, /no request body or response body/,
+    /not validated or coerced/, /HTTP failures resolve false silently/, /Nullish thrown values/,
+    /not a cached or idempotent guarantee/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+const googlePhotosPickerDeletionChecks = [
+  assertAsyncTest('Google Photos Picker deletion rejects malformed ids before any effects', async () => {
+    const failIfCalled = () => { throw new Error('Unexpected deletion input effect'); };
+    await Promise.all([undefined, null, false, 0, 42, {}, [], Symbol('id')].map(async sessionId => {
+      const fixture = createGooglePhotosServiceFixture({ now: failIfCalled, fetchResponse: failIfCalled, persist: failIfCalled });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.deletePickerSession(sessionId), err => err.name === 'TypeError' && /startsWith/.test(err.message));
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker deletion repeats synthetic no-ops without authentication or cache effects', async () => {
+    const failIfCalled = () => { throw new Error('Unexpected synthetic deletion effect'); };
+    await Promise.all([{}, { accessToken: 'expired', expiry: 0 }, { refreshToken: 'fixture-refresh' }].map(async initialTokens => {
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens, now: failIfCalled, fetchResponse: failIfCalled, persist: failIfCalled, read: failIfCalled, write: failIfCalled
+      });
+      const before = fixture.readTokens();
+      assert.strictEqual(await fixture.deletePickerSession('MOCK_SESSION/fixture?raw'), true);
+      assert.strictEqual(await fixture.deletePickerSession('MOCK_SESSION/fixture?raw'), true);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker deletion preserves verbatim DELETE metadata and silent HTTP flags without body reads', async () => {
+    const cases = ['', 'session/with?raw#fragment', 'mock_lowercase', 'session ü'].flatMap(sessionId =>
+      [true, false].map(ok => ({ sessionId, ok })));
+    await Promise.all(cases.map(async ({ sessionId, ok }) => {
+      const requests = [];
+      const failIfCalled = () => { throw new Error('Unexpected deletion body read'); };
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000,
+        fetchResponse: async (url, options) => {
+          requests.push({ url, options: { ...options, headers: { ...options.headers } } });
+          return { ok, status: ok ? 204 : 403, json: failIfCalled, text: failIfCalled, arrayBuffer: failIfCalled };
+        }
+      });
+      const before = fixture.readTokens();
+      assert.strictEqual(await fixture.deletePickerSession(sessionId), ok);
+      assert.deepStrictEqual(requests, [{
+        url: `https://photospicker.googleapis.com/v1/sessions/${sessionId}`,
+        options: { method: 'DELETE', headers: { Authorization: 'Bearer cached' } }
+      }]);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker deletion awaits refresh-only authentication and DELETE completion', async () => {
+    const requests = [];
+    let finishRefresh;
+    let finishDelete;
+    const refreshJson = new Promise(resolve => { finishRefresh = resolve; });
+    const deletion = new Promise(resolve => { finishDelete = resolve; });
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens: { refreshToken: 'fixture-refresh' }, now: () => 1_000,
+      fetchResponse: async (url, options) => {
+        requests.push({ url, method: options.method, authorization: options.headers.Authorization });
+        return requests.length === 1 ? { ok: true, json: async () => refreshJson } : deletion;
+      }
+    });
+    let settled = false;
+    const pending = fixture.deletePickerSession('session').then(result => { settled = true; return result; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.strictEqual(requests.length, 1);
+    assert.strictEqual(settled, false);
+    finishRefresh({ access_token: 'refreshed', expires_in: 60 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepStrictEqual(requests, [
+      { url: 'https://oauth2.googleapis.com/token', method: 'POST', authorization: undefined },
+      { url: 'https://photospicker.googleapis.com/v1/sessions/session', method: 'DELETE', authorization: 'Bearer refreshed' }
+    ]);
+    assert.strictEqual(settled, false);
+    finishDelete({ ok: false });
+    assert.strictEqual(await pending, false);
+    assert.deepStrictEqual(fixture.readTokens(), { accessToken: 'refreshed', refreshToken: 'fixture-refresh', expiry: 61_000 });
+    [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  }),
+  assertAsyncTest('Google Photos Picker deletion rejects authentication failures outside its request catch', async () => {
+    const failure = new Error('fixture token failure');
+    const cases = [
+      [{}, () => { throw failure; }, /Not authenticated/, []],
+      [{ accessToken: 'cached', expiry: Infinity }, () => { throw failure; }, err => err === failure, []],
+      [{ accessToken: 'expired' }, () => 1_000, /No refresh token available/, []],
+      [{ refreshToken: 'fixture-refresh' }, () => 1_000, err => err === failure,
+        [['Google Photos Service: Access token refresh failed:', failure.message]]]
+    ];
+    await Promise.all(cases.map(async ([initialTokens, now, expected, errors]) => {
+      const requests = [];
+      const fixture = createGooglePhotosServiceFixture({ initialTokens, now, fetchResponse: async url => { requests.push(url); throw failure; } });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.deletePickerSession('session'), expected);
+      assert.deepStrictEqual(requests, initialTokens.refreshToken ? ['https://oauth2.googleapis.com/token'] : []);
+      assert.deepStrictEqual(fixture.errors, errors);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker deletion handles request and property failures but rejects nullish thrown values', async () => {
+    const failure = new Error('fixture deletion failure');
+    const cases = [
+      [async () => { throw failure; }, failure.message],
+      [async () => ({ get ok() { throw failure; } }), failure.message],
+      [async () => null, 'property-access'],
+      [async () => undefined, 'property-access'],
+      [async () => { throw 'opaque failure'; }, undefined],
+      ...[null, undefined].map(value => [async () => { throw value; }, null])
+    ];
+    await Promise.all(cases.map(async ([fetchResponse, message]) => {
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000, fetchResponse
+      });
+      const before = fixture.readTokens();
+      const pending = fixture.deletePickerSession('session');
+      if (message === null) await assert.rejects(pending, err => err.name === 'TypeError' && /message/.test(err.message));
+      else assert.strictEqual(await pending, false);
+      assert.strictEqual(fixture.errors.length, message === null ? 0 : 1);
+      if (message !== null) {
+        assert.strictEqual(fixture.errors[0][0], 'Google Photos Service: Failed to delete session session:');
+        if (message !== 'property-access') assert.strictEqual(fixture.errors[0][1], message);
+      }
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+    let calls = 0;
+    const refreshed = createGooglePhotosServiceFixture({
+      initialTokens: { refreshToken: 'fixture-refresh' }, now: () => 1_000,
+      fetchResponse: async () => {
+        if (++calls === 1) return { ok: true, json: async () => ({ access_token: 'refreshed', expires_in: 60 }) };
+        throw failure;
+      }
+    });
+    assert.strictEqual(await refreshed.deletePickerSession('session'), false);
+    assert.strictEqual(calls, 2);
+    assert.deepStrictEqual(refreshed.readTokens(), { accessToken: 'refreshed', refreshToken: 'fixture-refresh', expiry: 61_000 });
+    assert.deepStrictEqual(refreshed.errors, [['Google Photos Service: Failed to delete session session:', failure.message]]);
+    [refreshed.writes, refreshed.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  }),
+  assertAsyncTest('Google Photos Picker deletion forwards raw ok values and issues a new request on every real call', async () => {
+    await Promise.all([undefined, null, 0, 1, 'raw', Object.freeze({ flag: true })].map(async ok => {
+      let calls = 0;
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000,
+        fetchResponse: async () => { calls += 1; return { ok }; }
+      });
+      const before = fixture.readTokens();
+      assert.strictEqual(await fixture.deletePickerSession('session'), ok);
+      assert.strictEqual(await fixture.deletePickerSession('session'), ok);
+      assert.strictEqual(calls, 2);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
     }));
   })
 ];
@@ -7844,6 +8009,7 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // ============================================================================
 async function runIntegrationTests() {
   await Promise.all([
+    ...googlePhotosPickerDeletionChecks,
     ...googlePhotosPickerListingChecks,
     ...googlePhotosPickerRetrievalChecks,
     ...googlePhotosPickerCreationChecks,
