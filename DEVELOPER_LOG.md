@@ -6,6 +6,34 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-13: Document Google Photos Picker Media-Listing Contract
+
+- **Contract**: documented `listPickerMediaItems(sessionId)` string inputs,
+  fresh raw-item arrays, sequential pagination, and rejection boundaries.
+  Synthetic sessions bypass authentication; real sessions resolve one token,
+  encode query parameters, and await every JSON page before continuing.
+  `pageSize=50` is not a total cap. Arrays concatenate in order without
+  deduplication or validation; later failures reject without partial results.
+- **Functional design**: retained the readable data-first sequential effect
+  shell. Declarative cases compose with `map`, `flatMap`, and `Promise.all`
+  over isolated adapters. Array concatenation provides the useful monoidal
+  law directly: page partitioning and empty pages preserve the result.
+  No curried wrapper, dependency, runtime change, or production export added.
+- **Tests**: eight focused assertions cover source contracts, malformed ids,
+  fresh synthetic rows, refresh-token-only authentication, exact encoded GET
+  metadata, delayed JSON, token reuse, 250-row accumulation, concatenation
+  identities, duplicate/reference retention, native payload/token handling,
+  authentication versus request failures, HTTP text, and nullish errors.
+- **Hardening boundary**: recorded missing pagination bounds, cancellation,
+  response validation, and long-session authentication policy in the backlog.
+  These are compatibility observations, not guarantees of safe pagination.
+- **Verification**: `npm test`, `npm run lint`, touched JavaScript syntax, and
+  `git diff --check` passed. Optional socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `deletePickerSession(sessionId)` input, asynchronous
+  boolean result, and failure contract while preserving synthetic no-ops,
+  authentication placement, DELETE metadata, and handled request failures.
+
 ### 2026-10-13: Document Google Photos Picker Session-Retrieval Contract
 
 - **Contract**: documented `getPickerSession(sessionId)` string inputs,

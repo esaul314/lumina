@@ -1150,6 +1150,7 @@ const createGooglePhotosServiceFixture = ({
     isAuthenticated: module.exports.isAuthenticated,
     createPickerSession: module.exports.createPickerSession,
     getPickerSession: module.exports.getPickerSession,
+    listPickerMediaItems: module.exports.listPickerMediaItems,
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
@@ -1510,6 +1511,184 @@ const googlePhotosPickerRetrievalChecks = [
       const before = fixture.readTokens();
       await assert.rejects(fixture.getPickerSession('session'), expected);
       assert.deepStrictEqual(fixture.errors, message === null ? [] : [['Google Photos Service: Failed to get session session:', message]]);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  })
+];
+
+assertTest('Google Photos Picker listing documents its input, accumulated result, and sequential failure boundaries', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * List synthetic items or accumulate every page'), source.indexOf('async function listPickerMediaItems(sessionId)'));
+  [/@param \{string\} sessionId/, /@returns \{Promise<\{mediaItems: unknown\[\]\}>\}/,
+    /reuse that token across sequential/, /not a total-item limit/, /retaining duplicates and raw element references/,
+    /no cycle or page bound/, /reject outside the catch/, /no partial result/, /nullish thrown values/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+const googlePhotosPickerListingChecks = [
+  assertAsyncTest('Google Photos Picker listing rejects malformed ids before any effects', async () => {
+    const failIfCalled = () => { throw new Error('Unexpected listing effect'); };
+    await Promise.all([undefined, null, false, 0, 42, {}, [], Symbol('id')].map(async sessionId => {
+      const fixture = createGooglePhotosServiceFixture({ now: failIfCalled, fetchResponse: failIfCalled, persist: failIfCalled });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.listPickerMediaItems(sessionId), err => err.name === 'TypeError' && /startsWith/.test(err.message));
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker listing returns fresh ordered synthetic rows without authentication', async () => {
+    const failIfCalled = () => { throw new Error('Unexpected synthetic listing effect'); };
+    const ids = [10, 15, 29, 37, 43, 48, 54, 57, 62, 76, 85, 93, 104, 116, 122];
+    const expected = ids.map(id => ({ id: `MOCK_MEDIA_ITEM_${id}`, baseUrl: `https://picsum.photos/id/${id}/2560/1440`, mimeType: 'image/jpeg' }));
+    await Promise.all([{}, { accessToken: 'expired' }, { refreshToken: 'fixture-refresh' }].map(async initialTokens => {
+      const fixture = createGooglePhotosServiceFixture({ initialTokens, now: failIfCalled, fetchResponse: failIfCalled, read: failIfCalled, write: failIfCalled });
+      const before = fixture.readTokens();
+      const first = await fixture.listPickerMediaItems('MOCK_SESSION');
+      const second = await fixture.listPickerMediaItems('MOCK_SESSION');
+      assert.deepStrictEqual(Object.keys(first), ['mediaItems']);
+      [first, second].forEach(({ mediaItems }) => assert.deepStrictEqual(Array.from(mediaItems, row => ({ ...row })), expected));
+      assert.notStrictEqual(first, second);
+      assert.notStrictEqual(first.mediaItems, second.mediaItems);
+      first.mediaItems.forEach((row, index) => assert.notStrictEqual(row, second.mediaItems[index]));
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker listing refreshes once, encodes ids, and awaits each JSON page in order', async () => {
+    const requests = [];
+    let releaseFirst, releaseSecond;
+    const firstJson = new Promise(resolve => { releaseFirst = resolve; });
+    const secondJson = new Promise(resolve => { releaseSecond = resolve; });
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens: { refreshToken: 'fixture-refresh' }, now: () => 1_000,
+      fetchResponse: async (url, options) => {
+        requests.push({ url, options: { ...options, headers: { ...options.headers } } });
+        const payload = requests.length === 1 ? { access_token: 'refreshed', expires_in: 60 }
+          : requests.length === 2 ? firstJson : secondJson;
+        return { ok: true, json: async () => payload };
+      }
+    });
+    let settled = false;
+    const pending = fixture.listPickerMediaItems('session/ü?raw# +').then(result => { settled = true; return result; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.strictEqual(requests.length, 2);
+    assert.strictEqual(requests[0].url, 'https://oauth2.googleapis.com/token');
+    assert.strictEqual(settled, false);
+    const row = Object.freeze({ id: 'first', extra: true });
+    releaseFirst(Object.freeze({ mediaItems: Object.freeze([row]), nextPageToken: 'next/ü? +&' }));
+    await new Promise(resolve => setImmediate(resolve));
+    const base = 'https://photospicker.googleapis.com/v1/mediaItems?sessionId=session%2F%C3%BC%3Fraw%23%20%2B&pageSize=50';
+    assert.deepStrictEqual(requests.slice(1), [base, `${base}&pageToken=next%2F%C3%BC%3F%20%2B%26`].map(url => ({
+      url, options: { headers: { Authorization: 'Bearer refreshed', Accept: 'application/json' } }
+    })));
+    assert.strictEqual(settled, false);
+    releaseSecond(Object.freeze({ mediaItems: Object.freeze([null, row]) }));
+    const result = await pending;
+    assert.deepStrictEqual(Array.from(result.mediaItems), [row, null, row]);
+    assert.strictEqual(result.mediaItems[0], row);
+    assert.strictEqual(result.mediaItems[2], row);
+    assert.deepStrictEqual(fixture.readTokens(), { accessToken: 'refreshed', refreshToken: 'fixture-refresh', expiry: 61_000 });
+    [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  }),
+  assertAsyncTest('Google Photos Picker listing accumulates over 200 rows and obeys array concatenation identities', async () => {
+    const duplicate = Object.freeze({ id: 'repeated' });
+    const rows = Object.freeze(Array.from({ length: 250 }, (_, index) => index % 50 ? Object.freeze({ id: `item-${index}` }) : duplicate));
+    const partitions = [
+      [rows],
+      Array.from({ length: 5 }, (_, index) => Object.freeze(rows.slice(index * 50, (index + 1) * 50))),
+      [Object.freeze([]), rows, Object.freeze([])]
+    ];
+    await Promise.all(partitions.map(async pages => {
+      let calls = 0, clockReads = 0;
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => { clockReads += 1; return 1_000; },
+        fetchResponse: async () => {
+          const mediaItems = pages[calls++];
+          return { ok: true, json: async () => Object.freeze({ mediaItems, nextPageToken: calls < pages.length ? `page-${calls}` : '' }) };
+        }
+      });
+      const before = fixture.readTokens();
+      const { mediaItems } = await fixture.listPickerMediaItems('session');
+      assert.deepStrictEqual(Array.from(mediaItems), rows);
+      mediaItems.forEach((row, index) => assert.strictEqual(row, rows[index]));
+      assert.notStrictEqual(mediaItems, rows);
+      assert.strictEqual(calls, pages.length);
+      assert.strictEqual(clockReads, 1);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker listing skips non-array lists and uses native next-token truthiness', async () => {
+    const terminalTokens = [undefined, null, false, 0, '', NaN];
+    const payloads = [false, 42, 'raw', [], {}, { mediaItems: null }, { mediaItems: {} }, { mediaItems: 'not an array' }];
+    await Promise.all(payloads.flatMap(payload => terminalTokens.map(nextPageToken => ({ payload, nextPageToken }))).map(async ({ payload, nextPageToken }) => {
+      let calls = 0;
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000,
+        fetchResponse: async () => { calls += 1; return { ok: true, json: async () => typeof payload === 'object' ? { ...payload, nextPageToken } : payload }; }
+      });
+      assert.deepStrictEqual(Array.from((await fixture.listPickerMediaItems('')).mediaItems), []);
+      assert.strictEqual(calls, 1);
+    }));
+    await Promise.all([true, 7, ['page', '+']].map(async nextPageToken => {
+      const urls = [];
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000,
+        fetchResponse: async url => { urls.push(url); return { ok: true, json: async () => urls.length === 1 ? { nextPageToken } : {} }; }
+      });
+      assert.deepStrictEqual(Array.from((await fixture.listPickerMediaItems('session')).mediaItems), []);
+      assert.strictEqual(urls.length, 2);
+      assert.ok(urls[1].endsWith(`&pageToken=${encodeURIComponent(nextPageToken)}`));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker listing separates unlogged authentication from logged encoding failures', async () => {
+    const failure = new Error('fixture token failure');
+    const cases = [
+      [{}, () => { throw failure; }, /Not authenticated/, []],
+      [{ accessToken: 'cached', expiry: Infinity }, () => { throw failure; }, err => err === failure, []],
+      [{ accessToken: 'expired' }, () => 1_000, /No refresh token available/, []],
+      [{ refreshToken: 'fixture-refresh' }, () => 1_000, err => err === failure, [['Google Photos Service: Access token refresh failed:', failure.message]]]
+    ];
+    await Promise.all(cases.map(async ([initialTokens, now, expected, errors]) => {
+      const fixture = createGooglePhotosServiceFixture({ initialTokens, now, fetchResponse: async () => { throw failure; } });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.listPickerMediaItems('session'), expected);
+      assert.deepStrictEqual(fixture.errors, errors);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      assert.deepStrictEqual(fixture.persisted, []);
+    }));
+    const fixture = createGooglePhotosServiceFixture({ initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000 });
+    await assert.rejects(fixture.listPickerMediaItems('\uD800'), err => err.name === 'URIError');
+    assert.strictEqual(fixture.errors.length, 1);
+    assert.strictEqual(fixture.errors[0][0], 'Google Photos Service: Failed to list picker media items:');
+  }),
+  assertAsyncTest('Google Photos Picker listing rejects later-page failures without returning partial rows', async () => {
+    const failure = new Error('fixture page failure');
+    const cases = [
+      [async () => { throw failure; }, err => err === failure, failure.message],
+      [async () => ({ ok: false, status: 403, text: async () => 'fixture denied' }), err => err.message === 'Google Picker MediaItems failed (403): fixture denied', 'Google Picker MediaItems failed (403): fixture denied'],
+      [async () => ({ ok: false, status: 500, text: async () => { throw failure; } }), err => err === failure, failure.message],
+      [async () => ({ ok: true, json: async () => { throw failure; } }), err => err === failure, failure.message],
+      ...[null, undefined].map(payload => [async () => ({ ok: true, json: async () => payload }), err => err.name === 'TypeError', 'property-access']),
+      [async () => ({ ok: true, json: async () => ({ nextPageToken: Symbol('page') }) }), err => err.name === 'TypeError', 'encoding'],
+      [async () => { throw 'opaque failure'; }, err => err === 'opaque failure', undefined],
+      ...[null, undefined].map(value => [async () => { throw value; }, err => err.name === 'TypeError' && /message/.test(err.message), null])
+    ];
+    await Promise.all(cases.map(async ([failPage, expected, message]) => {
+      let calls = 0;
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000,
+        fetchResponse: async (...args) => ++calls === 1 ? { ok: true, json: async () => ({ mediaItems: [{ id: 'partial' }], nextPageToken: 'next' }) } : failPage(...args)
+      });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.listPickerMediaItems('session'), expected);
+      assert.strictEqual(calls, 2);
+      assert.strictEqual(fixture.errors.length, message === null ? 0 : 1);
+      if (message !== null) {
+        assert.strictEqual(fixture.errors[0][0], 'Google Photos Service: Failed to list picker media items:');
+        if (!['property-access', 'encoding'].includes(message)) assert.strictEqual(fixture.errors[0][1], message);
+      }
       assert.deepStrictEqual(fixture.readTokens(), before);
       [fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
     }));
@@ -7665,6 +7844,7 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // ============================================================================
 async function runIntegrationTests() {
   await Promise.all([
+    ...googlePhotosPickerListingChecks,
     ...googlePhotosPickerRetrievalChecks,
     ...googlePhotosPickerCreationChecks,
     ...googlePhotosAuthenticationPresenceChecks,

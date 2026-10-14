@@ -715,8 +715,30 @@ async function getPickerSession(sessionId) {
 }
 
 /**
- * 📸 listPickerMediaItems
- * Lists selected media items in the picking session.
+ * List synthetic items or accumulate every page of a selected Picker session.
+ *
+ * Native startsWith dispatch precedes authentication and the request catch.
+ * MOCK_ ids resolve fresh synthetic rows without token, clock, or network
+ * effects. Otherwise await getValidToken() once, including refresh-token-only
+ * state, and reuse that token across sequential default-GET requests.
+ * Session ids and truthy page tokens are encoded with encodeURIComponent;
+ * pageSize=50 is a request size, not a total-item limit. Await each JSON body
+ * before requesting the next page. Append only array-valued mediaItems in
+ * page order, retaining duplicates and raw element references without item
+ * validation. Missing/non-array lists contribute nothing. Continue while
+ * nextPageToken is truthy, with native coercion and no cycle or page bound.
+ *
+ * Input dispatch and token-resolution failures reject outside the catch.
+ * Encoding, request, HTTP-body, and JSON failures log then rethrow, discarding
+ * the accumulated result rather than resolving partial pages. HTTP failures
+ * await text() and include it in the status error. Nullish JSON fails property
+ * access; nullish thrown values instead fail while reading err.message,
+ * replacing that rejection without a listing error log. Authentication,
+ * network, token mutation, and logging remain in this effectful service shell.
+ *
+ * @param {string} sessionId Picker id; MOCK_ bypasses authentication.
+ * @returns {Promise<{mediaItems: unknown[]}>} Fresh array of synthetic or unvalidated selected items.
+ * @throws {unknown} Rejects on input dispatch, token, or page failures; no partial result.
  */
 async function listPickerMediaItems(sessionId) {
   if (sessionId.startsWith('MOCK_')) {
