@@ -543,9 +543,49 @@ async function getValidToken() {
   return tokens.accessToken;
 }
 
+/** @typedef {import('./googlePhotosCache.js').GooglePhotoMediaItem & {id: string}} GooglePhotoSyncInput */
+/** @typedef {GooglePhotoSyncInput & {url: string; source: string}} GooglePhotoSyncRow */
+
 /**
- * 💾 syncGoogleAlbum
- * Retrieves selected items from the Google Photos Picker session and caches them.
+ * @typedef {object} GooglePhotoSyncOptions
+ * @property {import('../domain/poolRetention.js').PoolPolicyInput} [poolPolicy] Post-union retention/cap policy.
+ * @property {Date | string | number} [now] Acquisition/retention time; defaults to a new Date, not the base-URL freshness clock.
+ * @property {(sessionId: string) => Promise<{mediaItems?: GooglePhotoSyncInput[]}>} [listMediaItems] Awaited Picker reader.
+ * @property {() => GooglePhotoSyncRow[]} [readCache] Synchronous cache reader.
+ * @property {(items: GooglePhotoSyncRow[]) => void} [writeCache] Synchronous retained-union writer.
+ * @property {(items: GooglePhotoSyncRow[]) => void} [cleanMediaFiles] Synchronous retained-union cleanup.
+ * @property {(items: GooglePhotoSyncRow[]) => Promise<void>} [downloadMediaItems] Background retained-union downloader.
+ */
+
+/**
+ * Append/upsert selected Picker images, then apply policy to the union.
+ *
+ * Options destructuring precedes the catch. The default listing adapter requires
+ * an access token before checking sessionId; refresh-token-only state fails this
+ * guard. Injected listing bypasses it. A falsy sessionId then logs and returns []
+ * without adapter calls. Await listing before reading the cache synchronously.
+ * Missing/non-array mediaItems act as empty input, not a no-op: policy, writing,
+ * cleanup, and download still run. Skip truthy MIME types not starting with
+ * image; preserve missing MIME compatibility and user metadata via cache helpers.
+ *
+ * Return built incoming rows in order, including duplicate ids and rows removed
+ * by policy, NOT the retained union. Write the deduplicated union after policy,
+ * then log counts, clean files, and start downloading that same retained array.
+ * Cache/cleanup adapters are synchronous; their return values are not awaited.
+ * Download must return a promise: completion is not awaited, and rejection is
+ * logged separately without rejecting an already successful sync.
+ *
+ * Synchronous adapter/start failures and listing rejection log and rethrow,
+ * without rollback of prior writes or cleanup. Nullish thrown values can replace
+ * the failure while reading err.message, including in the background handler.
+ * Repeated syncs still run effects. Keep networking, cache access, cleanup,
+ * downloads, and logging in this data-first effect shell; union and policy
+ * projections remain separate from orchestration.
+ *
+ * @param {string | null | undefined} sessionId Picker session; falsy values skip after the token guard.
+ * @param {GooglePhotoSyncOptions} [options={}] Defaults apply only to undefined adapter values.
+ * @returns {Promise<GooglePhotoSyncRow[]>} Built incoming rows, not persisted pool size or download completion.
+ * @throws {unknown} Rejects on options, authentication, listing, projection, or synchronous effect failures.
  */
 async function syncGoogleAlbum(sessionId, {
   poolPolicy,

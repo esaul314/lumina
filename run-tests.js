@@ -1152,6 +1152,7 @@ const createGooglePhotosServiceFixture = ({
     getPickerSession: module.exports.getPickerSession,
     listPickerMediaItems: module.exports.listPickerMediaItems,
     deletePickerSession: module.exports.deletePickerSession,
+    syncGoogleAlbum: module.exports.syncGoogleAlbum,
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
@@ -1162,6 +1163,192 @@ const createGooglePhotosServiceFixture = ({
     persisted
   };
 };
+
+assertTest('Google Photos Picker sync documents adapter contracts and incoming-versus-retained results', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf('/** @typedef {import(\'./googlePhotosCache.js\').GooglePhotoMediaItem & {id: string}} GooglePhotoSyncInput'), source.indexOf('async function syncGoogleAlbum'));
+  [/@typedef \{object\} GooglePhotoSyncOptions/, /@param \{GooglePhotoSyncOptions\} \[options=\{\}\]/,
+    /@returns \{Promise<GooglePhotoSyncRow\[\]>\}/, /refresh-token-only state fails/,
+    /NOT the retained union/, /their return values are not awaited/,
+    /completion is not awaited/, /without rollback/, /Nullish thrown values/
+  ].forEach(pattern => assert.match(contract, pattern));
+  ['poolPolicy', 'now', 'listMediaItems', 'readCache', 'writeCache', 'cleanMediaFiles', 'downloadMediaItems']
+    .forEach(name => assert.match(contract, new RegExp(`@property .*\\[${name}\\]`)));
+});
+
+const createPickerSyncOptions = (overrides = {}) => ({
+  now: '2026-10-14T00:00:00Z',
+  poolPolicy: { retentionDays: 30, maxPhotos: 5000 },
+  listMediaItems: async () => ({ mediaItems: [] }),
+  readCache: () => [],
+  writeCache: () => {},
+  cleanMediaFiles: () => {},
+  downloadMediaItems: async () => {},
+  ...overrides
+});
+
+const googlePhotosPickerSyncChecks = [
+  assertAsyncTest('Google Photos Picker sync preserves default token guard, injected bypass, and falsy-session skips', async () => {
+    await Promise.all([{}, { refreshToken: 'fixture-refresh' }].map(async initialTokens => {
+      const fixture = createGooglePhotosServiceFixture({ initialTokens });
+      await assert.rejects(fixture.syncGoogleAlbum(null), /No active token session/);
+      assert.strictEqual(fixture.logs.length, 0);
+      assert.strictEqual(fixture.errors.length, 1);
+      await assert.rejects(fixture.syncGoogleAlbum('session', null), err => err.name === 'TypeError');
+      assert.strictEqual(fixture.errors.length, 1, 'options failure precedes the catch');
+      const before = fixture.readTokens();
+      const failIfCalled = () => { throw new Error('Unexpected skipped sync effect'); };
+      await Promise.all([undefined, null, '', false, 0].map(async sessionId => {
+        const result = await fixture.syncGoogleAlbum(sessionId, createPickerSyncOptions({
+          listMediaItems: failIfCalled, readCache: failIfCalled, writeCache: failIfCalled,
+          cleanMediaFiles: failIfCalled, downloadMediaItems: failIfCalled
+        }));
+        assert.strictEqual(result.length, 0);
+      }));
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+      const authenticated = createGooglePhotosServiceFixture({ initialTokens: { accessToken: 'fixture-access' } });
+      assert.strictEqual((await authenticated.syncGoogleAlbum('')).length, 0);
+      assert.strictEqual(authenticated.errors.length, 0);
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker sync returns duplicate incoming rows while persisting a capped immutable union', async () => {
+    const fixture = createGooglePhotosServiceFixture();
+    const cached = Object.freeze([
+      Object.freeze({ id: 'new-0', url: 'old-url', rating: 7, cropPercent: 42, loved: true, addedAt: '2020-01-01T00:00:00Z' }),
+      Object.freeze({ id: 'ordinary', url: 'ordinary-url' }),
+      Object.freeze({ id: 'expired', url: 'expired-url', addedAt: '2020-01-01T00:00:00Z' })
+    ]);
+    const incoming = Object.freeze([
+      ...Array.from({ length: 14 }, (_, index) => Object.freeze({ id: `new-${index}`, baseUrl: `https://photos.example/${index}` })),
+      Object.freeze({ id: 'new-0', baseUrl: 'https://photos.example/replacement', createTime: '2020-05-01T12:00:00Z' }),
+      Object.freeze({ id: 'video', mimeType: 'video/mp4' })
+    ]);
+    const before = JSON.stringify({ cached, incoming });
+    const retained = [];
+    const result = await fixture.syncGoogleAlbum('session', createPickerSyncOptions({
+      poolPolicy: { retentionDays: 30, maxPhotos: 12 },
+      listMediaItems: async () => ({ mediaItems: incoming }), readCache: () => cached,
+      writeCache: items => retained.push(items),
+      cleanMediaFiles: items => assert.strictEqual(items, retained[0]),
+      downloadMediaItems: async items => assert.strictEqual(items, retained[0])
+    }));
+    assert.strictEqual(result.length, 15);
+    assert.strictEqual(result.filter(({ id }) => id === 'new-0').length, 2);
+    assert.strictEqual(retained[0].length, 12);
+    assert.strictEqual(retained[0].find(({ id }) => id === 'new-0').googleBaseUrl, 'https://photos.example/replacement');
+    assert.strictEqual(retained[0].find(({ id }) => id === 'new-0').createTime, '2020-05-01T12:00:00Z');
+    result.filter(({ id }) => id === 'new-0').forEach(row => {
+      assert.strictEqual(row.rating, 7);
+      assert.strictEqual(row.cropPercent, 42);
+      assert.strictEqual(row.loved, true);
+      assert.strictEqual(row.addedAt, cached[0].addedAt);
+    });
+    assert.ok(result.some(({ id }) => !retained[0].some(row => row.id === id)));
+    assert.ok(!retained[0].some(({ id }) => id === 'expired' || id === 'video'));
+    assert.strictEqual(JSON.stringify({ cached, incoming }), before);
+    assert.match(fixture.logs.at(-1)[0], /incoming=15, existing=3, merged=16, retained=12, policyDropped=4/);
+  }),
+  assertAsyncTest('Google Photos Picker sync awaits listing but resolves before background download and logs its later failure', async () => {
+    const fixture = createGooglePhotosServiceFixture();
+    const events = [];
+    let releaseListing;
+    let rejectDownload;
+    let settled = false;
+    const listing = new Promise(resolve => { releaseListing = resolve; });
+    const download = new Promise((_, reject) => { rejectDownload = reject; });
+    const pending = fixture.syncGoogleAlbum('session', createPickerSyncOptions({
+      listMediaItems: sessionId => { events.push(`list:${sessionId}`); return listing; },
+      readCache: () => { events.push('read'); return []; },
+      writeCache: () => events.push('write'), cleanMediaFiles: () => events.push('clean'),
+      downloadMediaItems: () => { events.push('download'); return download; }
+    })).then(result => { settled = true; return result; });
+    await flushPromises();
+    assert.deepStrictEqual(events, ['list:session']);
+    assert.strictEqual(settled, false);
+    releaseListing({ mediaItems: [{ id: 'photo' }] });
+    assert.strictEqual((await pending).length, 1);
+    assert.deepStrictEqual(events, ['list:session', 'read', 'write', 'clean', 'download']);
+    assert.strictEqual(fixture.errors.length, 0);
+    rejectDownload(new Error('download unavailable'));
+    await flushPromises();
+    assert.deepStrictEqual(fixture.errors, [['Google Photos Service: Error in background downloader:', 'download unavailable']]);
+    assert.strictEqual(settled, true);
+  }),
+  assertAsyncTest('Google Photos Picker sync still applies policy and effects to empty or non-array incoming lists', async () => {
+    await Promise.all([undefined, null, false, {}, 'items', []].map(async mediaItems => {
+      const fixture = createGooglePhotosServiceFixture();
+      const cached = Object.freeze([
+        Object.freeze({ id: 'ordinary', url: 'ordinary-url' }),
+        Object.freeze({ id: 'expired', url: 'expired-url', addedAt: '2020-01-01T00:00:00Z' })
+      ]);
+      const effects = [];
+      const result = await fixture.syncGoogleAlbum('empty-session', createPickerSyncOptions({
+        listMediaItems: async () => ({ mediaItems }), readCache: () => cached,
+        writeCache: items => effects.push(items), cleanMediaFiles: items => effects.push(items),
+        downloadMediaItems: async items => { effects.push(items); }
+      }));
+      assert.strictEqual(result.length, 0);
+      assert.strictEqual(effects.length, 3);
+      assert.deepStrictEqual(effects[0][0], cached[0]);
+      assert.notStrictEqual(effects[0][0], cached[0], 'union detaches retained cached rows');
+      assert.strictEqual(effects[0].length, 1);
+      assert.ok(effects.every(items => items === effects[0]));
+      assert.strictEqual(cached.length, 2);
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker sync logs and rethrows each adapter failure without undoing earlier effects', async () => {
+    const stages = ['listMediaItems', 'readCache', 'writeCache', 'cleanMediaFiles', 'downloadMediaItems'];
+    await Promise.all(stages.map(async (failedStage, index) => {
+      const fixture = createGooglePhotosServiceFixture();
+      const failure = new Error(`failed ${failedStage}`);
+      const events = [];
+      const values = [{ mediaItems: [] }, [], undefined, undefined, Promise.resolve()];
+      const adapters = Object.fromEntries(stages.map((stage, position) => [stage, () => {
+        events.push(stage);
+        if (stage === failedStage) throw failure;
+        return values[position];
+      }]));
+      await assert.rejects(fixture.syncGoogleAlbum('session', createPickerSyncOptions(adapters)), err => err === failure);
+      assert.deepStrictEqual(events, stages.slice(0, index + 1));
+      assert.deepStrictEqual(fixture.errors, [['Google Photos Service: Picker session sync failed:', failure.message]]);
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker sync preserves malformed payload and nullish thrown-value rejection boundaries', async () => {
+    await Promise.all([null, undefined, { mediaItems: [null] }].map(async payload => {
+      const fixture = createGooglePhotosServiceFixture();
+      let written = false;
+      await assert.rejects(fixture.syncGoogleAlbum('session', createPickerSyncOptions({
+        listMediaItems: async () => payload, writeCache: () => { written = true; }
+      })), err => err.name === 'TypeError');
+      assert.strictEqual(written, false);
+      assert.strictEqual(fixture.errors.length, 1);
+    }));
+    await Promise.all([null, undefined].map(async failure => {
+      const fixture = createGooglePhotosServiceFixture();
+      await assert.rejects(fixture.syncGoogleAlbum('session', createPickerSyncOptions({
+        listMediaItems: async () => { throw failure; }
+      })), err => err.name === 'TypeError' && /message/.test(err.message));
+      assert.deepStrictEqual(fixture.errors, []);
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker sync ignores synchronous adapter returns but requires a downloader promise on every call', async () => {
+    const fixture = createGooglePhotosServiceFixture();
+    const effects = [];
+    const unresolved = new Promise(() => {});
+    const options = createPickerSyncOptions({
+      writeCache: () => { effects.push('write'); return unresolved; },
+      cleanMediaFiles: () => { effects.push('clean'); return unresolved; }
+    });
+    await fixture.syncGoogleAlbum('session', options);
+    await fixture.syncGoogleAlbum('session', options);
+    assert.deepStrictEqual(effects, ['write', 'clean', 'write', 'clean']);
+    await assert.rejects(fixture.syncGoogleAlbum('session', { ...options, downloadMediaItems: () => undefined }),
+      err => err.name === 'TypeError' && /catch/.test(err.message));
+    assert.deepStrictEqual(effects, ['write', 'clean', 'write', 'clean', 'write', 'clean']);
+    assert.strictEqual(fixture.errors.length, 1);
+  })
+];
 
 assertTest('Google Photos authentication presence documents its boolean and service-state contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
@@ -8009,6 +8196,7 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // ============================================================================
 async function runIntegrationTests() {
   await Promise.all([
+    ...googlePhotosPickerSyncChecks,
     ...googlePhotosPickerDeletionChecks,
     ...googlePhotosPickerListingChecks,
     ...googlePhotosPickerRetrievalChecks,

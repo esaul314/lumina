@@ -6,6 +6,33 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-14: Document Google Photos Picker Sync Adapter Contract
+
+- **Contract**: named `syncGoogleAlbum(...)` input/result and injected adapter
+  contracts. Sync returns built incoming rows, including duplicate ids and
+  policy-dropped rows, not the persisted pool. Writes apply retention/capping
+  after append/upsert; cleanup and background download receive that same union.
+  Listing is awaited; synchronous cache/cleanup returns and download completion
+  are not. Earlier writes/cleanup are not rolled back on later failure.
+- **Functional design**: retained existing pure union and data-last policy
+  transforms, with the data-first effect shell explicit. Declarative adapter
+  records, immutable fixtures, `map`, and `Promise.all` keep tests compositional
+  without introducing an unnecessary curried or algebraic wrapper.
+- **Tests**: eight focused tests pin options/token guards, injected bypass,
+  falsy-session skips, metadata, immutable input preservation, duplicate results
+  versus capped union, empty/non-array input policy work, effect ordering,
+  delayed listing, background rejection, malformed payloads, nullish errors,
+  synchronous failures, and repeated effects without live cache/network access.
+- **Hardening boundary**: recorded refresh-token-only guard inconsistency,
+  incoming-versus-pool result semantics, partial effects, adapter expectations,
+  and error normalization separately. No runtime behavior or exports changed.
+- **Verification**: `npm test` passed: 499 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`);
+  unchanged runtime behavior requires no client build or service restart.
+- **Next seam**: document `findCachedMediaItem(...)` input and nullable cache-read
+  result, preserving strict matching, normalized reads, and failure propagation.
+
 ### 2026-10-14: Document Google Photos Picker Session-Deletion Contract
 
 - **Contract**: documented `deletePickerSession(sessionId)` string inputs,
