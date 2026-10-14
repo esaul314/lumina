@@ -106,7 +106,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `saveGoogleCredentials(...)` documents string inputs, boolean results, and synchronous failures; preserve trim completion before replacement, replacement before persistence, logged failure without rollback, and token isolation while keeping all effects in the service shell.
 - Latest Step 6 slice: `isAuthenticated()` documents its synchronous boolean presence contract; preserve native access-token truthiness, ignored expiry/refresh-token/credential fields, and current service-state reads without implying token validity or moving refresh effects into the predicate.
 - Latest Step 6 slice: `createPickerSession()` documents synthetic/unvalidated JSON results and branch-specific rejections; preserve the access-token guard, mock clock, awaited token resolution, exact POST metadata, and request-only error logging while keeping all effects in the service shell.
-- Next Step 6 seam: document `getPickerSession(sessionId)` input, asynchronous result, and rejection contract, preserving the synthetic-session shortcut and authenticated GET/logging boundaries.
+- Latest Step 6 slice: `getPickerSession(sessionId)` documents its string input, synthetic or unvalidated JSON result, and rejection boundaries; preserve native input dispatch, synthetic-session independence, verbatim GET metadata, refresh-token-only authentication, awaited JSON, and request-only logging without HTTP body reads in the service shell.
+- Next Step 6 seam: document `listPickerMediaItems(sessionId)` input, asynchronous result, pagination, and rejection contract, preserving synthetic items, ordered page accumulation, and authentication/request boundaries.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

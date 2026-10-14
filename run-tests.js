@@ -1149,6 +1149,7 @@ const createGooglePhotosServiceFixture = ({
     saveCredentials: module.exports.saveGoogleCredentials,
     isAuthenticated: module.exports.isAuthenticated,
     createPickerSession: module.exports.createPickerSession,
+    getPickerSession: module.exports.getPickerSession,
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
@@ -1382,6 +1383,135 @@ const googlePhotosPickerCreationChecks = [
       });
       await assert.rejects(fixture.createPickerSession(), err => err.name === 'TypeError' && /message/.test(err.message));
       assert.deepStrictEqual(fixture.errors, []);
+    }));
+  })
+];
+
+assertTest('Google Photos Picker retrieval documents its input, raw result, and rejection boundaries', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Retrieve a synthetic or authenticated Picker session'), source.indexOf('async function getPickerSession(sessionId)'));
+  [/@param \{string\} sessionId/, /@returns \{Promise<unknown>\}/, /refresh-token-only state/,
+    /interpolate the id verbatim/, /without shape validation/, /reject outside the request catch/,
+    /failure bodies are not read/, /Nullish thrown values/, /not a pure projection or validity guarantee/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+const googlePhotosPickerRetrievalChecks = [
+  assertAsyncTest('Google Photos Picker retrieval rejects malformed ids before authentication or other effects', async () => {
+    const failIfCalled = () => { throw new Error('Unexpected Picker input effect'); };
+    await Promise.all([undefined, null, false, 0, 42, {}, [], Symbol('id')].map(async sessionId => {
+      const fixture = createGooglePhotosServiceFixture({ now: failIfCalled, fetchResponse: failIfCalled, persist: failIfCalled });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.getPickerSession(sessionId), err => err.name === 'TypeError' && /startsWith/.test(err.message));
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker retrieval bypasses authentication and returns fresh synthetic records', async () => {
+    const failIfCalled = () => { throw new Error('Unexpected synthetic Picker effect'); };
+    await Promise.all([{}, { accessToken: 'expired', expiry: 0 }, { refreshToken: 'fixture-refresh' }].map(async initialTokens => {
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens, now: failIfCalled, fetchResponse: failIfCalled, persist: failIfCalled, read: failIfCalled, write: failIfCalled
+      });
+      const before = fixture.readTokens();
+      const sessionId = 'MOCK_SESSION/fixture?raw';
+      const first = await fixture.getPickerSession(sessionId);
+      const second = await fixture.getPickerSession(sessionId);
+      [first, second].forEach(result => assert.deepStrictEqual({ ...result }, {
+        id: sessionId, pickerUri: '/api/auth/google/sandbox-callback', mediaItemsSet: true
+      }));
+      assert.notStrictEqual(first, second);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker retrieval preserves verbatim ids, default GET options, and raw JSON identity', async () => {
+    const cases = ['', 'session/with?raw#fragment', 'mock_lowercase', 'session ü'].flatMap(sessionId =>
+      [null, false, 42, 'raw', Object.freeze([]), Object.freeze({ mediaItemsSet: false })].map(payload => ({ sessionId, payload })));
+    await Promise.all(cases.map(async ({ sessionId, payload }) => {
+      const requests = [];
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000,
+        fetchResponse: async (url, options) => {
+          requests.push({ url, options: { ...options, headers: { ...options.headers } } });
+          return { ok: true, json: async () => payload };
+        }
+      });
+      const before = fixture.readTokens();
+      assert.strictEqual(await fixture.getPickerSession(sessionId), payload);
+      assert.deepStrictEqual(requests, [{
+        url: `https://photospicker.googleapis.com/v1/sessions/${sessionId}`,
+        options: { headers: { Authorization: 'Bearer cached', Accept: 'application/json' } }
+      }]);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker retrieval keeps authentication failures outside the session error catch', async () => {
+    const failure = new Error('fixture resolution failure');
+    const cases = [
+      [{}, () => { throw failure; }, async () => { throw failure; }, /Not authenticated/, []],
+      [{ accessToken: 'cached', expiry: Infinity }, () => { throw failure; }, async () => { throw failure; }, err => err === failure, []],
+      [{ accessToken: 'expired' }, () => 1_000, async () => { throw failure; }, /No refresh token available/, []],
+      [{ refreshToken: 'fixture-refresh' }, () => 1_000, async () => { throw failure; }, err => err === failure,
+        [['Google Photos Service: Access token refresh failed:', failure.message]]]
+    ];
+    await Promise.all(cases.map(async ([initialTokens, now, fetchResponse, expected, errors]) => {
+      const fixture = createGooglePhotosServiceFixture({ initialTokens, now, fetchResponse });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.getPickerSession('session'), expected);
+      assert.deepStrictEqual(fixture.errors, errors);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      assert.deepStrictEqual(fixture.persisted, []);
+    }));
+  }),
+  assertAsyncTest('Google Photos Picker retrieval awaits refresh-only authentication and response JSON', async () => {
+    const requests = [];
+    let finishJson;
+    const responseJson = new Promise(resolve => { finishJson = resolve; });
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens: { refreshToken: 'fixture-refresh' }, now: () => 1_000,
+      fetchResponse: async (url, options) => {
+        requests.push({ url, authorization: options.headers.Authorization });
+        return { ok: true, json: async () => requests.length === 1
+          ? { access_token: 'refreshed', expires_in: 60 } : responseJson };
+      }
+    });
+    let settled = false;
+    const pending = fixture.getPickerSession('session').then(result => { settled = true; return result; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepStrictEqual(requests, [
+      { url: 'https://oauth2.googleapis.com/token', authorization: undefined },
+      { url: 'https://photospicker.googleapis.com/v1/sessions/session', authorization: 'Bearer refreshed' }
+    ]);
+    assert.strictEqual(settled, false);
+    const payload = Object.freeze({ id: 'session', mediaItemsSet: true });
+    finishJson(payload);
+    assert.strictEqual(await pending, payload);
+    assert.deepStrictEqual(fixture.readTokens(), { accessToken: 'refreshed', refreshToken: 'fixture-refresh', expiry: 61_000 });
+    [fixture.logs, fixture.errors, fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  }),
+  assertAsyncTest('Google Photos Picker retrieval logs request and JSON failures, skips HTTP bodies, and retains tokens', async () => {
+    const failure = new Error('fixture request failure');
+    const cases = [
+      [async () => { throw failure; }, err => err === failure, failure.message],
+      [async () => ({ ok: false, status: 403,
+        text: () => { throw new Error('Unexpected HTTP body read'); },
+        json: () => { throw new Error('Unexpected HTTP JSON read'); }
+      }), err => err.message === 'Google Picker GET session failed (403)', 'Google Picker GET session failed (403)'],
+      [async () => ({ ok: true, json: async () => { throw failure; } }), err => err === failure, failure.message],
+      [async () => { throw 'opaque failure'; }, err => err === 'opaque failure', undefined],
+      ...[null, undefined].map(value => [async () => { throw value; }, err => err.name === 'TypeError' && /message/.test(err.message), null])
+    ];
+    await Promise.all(cases.map(async ([fetchResponse, expected, message]) => {
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens: { accessToken: 'cached', expiry: Infinity }, now: () => 1_000, fetchResponse
+      });
+      const before = fixture.readTokens();
+      await assert.rejects(fixture.getPickerSession('session'), expected);
+      assert.deepStrictEqual(fixture.errors, message === null ? [] : [['Google Photos Service: Failed to get session session:', message]]);
+      assert.deepStrictEqual(fixture.readTokens(), before);
+      [fixture.writes, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
     }));
   })
 ];
@@ -7535,6 +7665,7 @@ assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if n
 // ============================================================================
 async function runIntegrationTests() {
   await Promise.all([
+    ...googlePhotosPickerRetrievalChecks,
     ...googlePhotosPickerCreationChecks,
     ...googlePhotosAuthenticationPresenceChecks,
     ...googlePhotosTokenChecks,

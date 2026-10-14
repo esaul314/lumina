@@ -664,8 +664,26 @@ async function createPickerSession() {
 }
 
 /**
- * 🔍 getPickerSession
- * Retrieves picking session details (used to check if user has selected items).
+ * Retrieve a synthetic or authenticated Picker session by its supplied id.
+ *
+ * Native startsWith dispatch happens before authentication or request handling.
+ * MOCK_ ids resolve a fresh synthetic record without token, clock, or network
+ * effects. Otherwise await getValidToken(), including refresh-token-only state,
+ * then interpolate the id verbatim into the authenticated GET URL.
+ * Successful response JSON is awaited and returned without shape validation.
+ *
+ * Input dispatch and token-resolution failures reject outside the request catch;
+ * token resolution retains its own refresh, mutation, and logging effects.
+ * Request, unsuccessful-status, and JSON failures enter the catch, which logs
+ * the supplied id and err.message before rethrowing the original value. HTTP
+ * failure bodies are not read. Nullish thrown values fail while reading
+ * err.message instead, replacing that rejection without a session error log.
+ * Authentication, clock, network, token refresh, and logging remain in this
+ * effectful service shell; this is not a pure projection or validity guarantee.
+ *
+ * @param {string} sessionId Picker id; MOCK_ bypasses authentication.
+ * @returns {Promise<unknown>} Synthetic record or unvalidated response JSON.
+ * @throws {unknown} Rejects on input dispatch, token, or request failures.
  */
 async function getPickerSession(sessionId) {
   if (sessionId.startsWith('MOCK_')) {

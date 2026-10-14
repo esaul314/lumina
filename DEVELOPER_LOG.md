@@ -6,6 +6,33 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-13: Document Google Photos Picker Session-Retrieval Contract
+
+- **Contract**: documented `getPickerSession(sessionId)` string inputs,
+  synthetic/unvalidated JSON results, and branch-specific rejections. Native
+  input dispatch precedes authentication; synthetic ids return fresh records
+  without token, clock, or network effects. Real ids await token resolution,
+  including refresh-token-only state, then use verbatim GET URL interpolation.
+  JSON is awaited unchanged; HTTP failures do not read response bodies.
+- **Functional design**: retained the concise data-first effect shell.
+  Pure functions, currying, partial application, composition, and Fantasy Land
+  wrappers would not simplify this orchestration boundary. Declarative case
+  tables compose with `map`, `flatMap`, and `Promise.all` over isolated adapters;
+  no runtime changes, dependencies, or production exports were added.
+- **Tests**: seven focused assertions pin the documented contract, malformed
+  inputs before effects, fresh synthetic records, exact GET options, verbatim
+  ids, raw JSON identity, authentication failures outside the session catch,
+  refresh-before-request ordering, delayed JSON completion, retained tokens,
+  request/HTTP/JSON failures, and nullish thrown-value replacement.
+- **Hardening boundary**: expanded the Picker backlog to include explicit id
+  validation/encoding and retrieval response/error normalization decisions.
+- **Verification**: `npm test`, `npm run lint`, touched JavaScript syntax, and
+  `git diff --check` passed. Optional socket smoke tests were sandbox-skipped
+  with `listen EPERM`; unchanged runtime behavior needs no build or restart.
+- **Next seam**: document `listPickerMediaItems(sessionId)` input, asynchronous
+  result, pagination, and rejection contract while preserving ordered pages
+  and the existing synthetic/authentication/request boundaries.
+
 ### 2026-10-12: Document Google Photos Picker Session-Creation Contract
 
 - **Contract**: documented `createPickerSession()` synthetic/unvalidated JSON

@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 ## Implementation Companion
 
@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (64): `createPickerSession()` documents synthetic or unvalidated JSON results and branch-specific rejections; seven isolated tests preserve the access-token guard, synthetic clock, exact POST metadata, awaited refresh/JSON completion, retained refreshed state, and request-only logging. Runtime behavior is unchanged; session creation is an effectful boundary, not a validity guarantee.
-- Next Step 6 seam: document `getPickerSession(sessionId)` input, asynchronous result, and rejection contract, preserving the synthetic-session shortcut and authenticated GET/logging boundaries.
+- Latest Step 6 slice (65): `getPickerSession(sessionId)` documents its input, synthetic or unvalidated JSON result, and branch-specific rejections; seven isolated tests preserve native input dispatch, synthetic-session independence, verbatim GET metadata, refresh-token-only authentication, awaited JSON, retained tokens, and request-only logging. Runtime behavior is unchanged; retrieval remains an effectful boundary, not a validity guarantee.
+- Next Step 6 seam: document `listPickerMediaItems(sessionId)` input, asynchronous result, pagination, and rejection contract, preserving synthetic items, ordered page accumulation, and authentication/request boundaries.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -236,8 +236,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (64): `server/services/googlePhotos.js` documents Picker session creation, with isolated tests for guard/synthetic behavior, exact POST metadata, awaited refresh/JSON, and logged versus unlogged failures; production exports and runtime behavior remain unchanged.
-  - Next Step 6 seam: document `getPickerSession(sessionId)` input, asynchronous result, and rejection contract, preserving the synthetic-session shortcut and authenticated GET/logging boundaries.
+  - Latest Step 6 slice (65): `server/services/googlePhotos.js` documents Picker session retrieval, with isolated tests for native input dispatch, synthetic records, verbatim GET metadata, refresh-token-only authentication, awaited JSON, and logged versus unlogged failures; production exports and runtime behavior remain unchanged.
+  - Next Step 6 seam: document `listPickerMediaItems(sessionId)` input, asynchronous result, pagination, and rejection contract, preserving synthetic items, ordered page accumulation, and authentication/request boundaries.
 
 ### Shared domain flow
 
