@@ -1119,7 +1119,7 @@ const createGooglePhotosServiceFixture = ({
   };
 
   // Capture internal helpers without widening the production exports.
-  const { buildContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
+  const { buildContentUrl, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1140,6 +1140,7 @@ const createGooglePhotosServiceFixture = ({
 
   return {
     buildContentUrl,
+    findCachedMediaItem,
     isBaseUrlStale,
     getValidToken,
     refreshAccessToken,
@@ -2928,6 +2929,115 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
     'Network unavailable', 'Body unavailable', 'Disk unavailable'
   ]);
   ['network', 'body', 'disk'].forEach((id, index) => assert.ok(fixture.warnings[index][0].includes(id)));
+});
+
+assertTest('Google Photos cache lookup documents exact matching and its nullable effect-shell result', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Read the normalized cache and return its first exact-id match'), source.indexOf('function findCachedMediaItem'));
+  [/@param \{string\} mediaItemId/, /@returns \{\(import\('\.\/googlePhotosCache\.js'\)\.GooglePhotoMediaItem & \{id: string; url: string\}\) \| null\}/,
+    /strict equality/, /Every call reads the cache/, /including on a miss/,
+    /failures propagate without a lookup catch/, /not a pure in-memory selector/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+assertTest('Google Photos cache lookup uses strict ids without trimming, decoding, or coercion', () => {
+  const fixture = createGooglePhotosServiceFixture({
+    nodeEnv: 'test', cacheExists: () => true,
+    read: () => JSON.stringify(['photo', '7', ' spaced '].map(id => ({ id, googlePickerSessionId: 'session' })))
+  });
+  const noCoercion = { toString: () => { throw new Error('Unexpected id coercion'); } };
+  [
+    ['photo', 'photo'], ['7', '7'], [' spaced ', ' spaced '],
+    ...['missing', 'PHOTO', ' photo ', 'spaced', '/api/google-photos/media/photo',
+      7, null, undefined, '', false, noCoercion].map(id => [id, null])
+  ].forEach(([id, expected]) => assert.strictEqual(fixture.findCachedMediaItem(id)?.id ?? null, expected));
+  [fixture.writes, fixture.warnings, fixture.errors, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+});
+
+assertTest('Google Photos cache lookup selects the first structurally usable row without playback policy', () => {
+  const input = Object.freeze([
+    null,
+    Object.freeze({ id: 'photo', url: '/api/google-photos/media/photo' }),
+    Object.freeze({ id: 'photo', url: 'https://example.test/legacy=old', rating: 1,
+      isBroken: true, loved: true, addedAt: '2000-01-01T00:00:00Z', createTime: '1999-01-01T00:00:00Z', custom: 'kept' }),
+    Object.freeze({ id: 'photo', googlePickerSessionId: 'later', rating: 10 }),
+    Object.freeze({ id: 'session-only', googlePickerSessionId: 'session' }),
+    Object.freeze({ id: 'MOCK_MEDIA_ITEM_42' })
+  ]);
+  const original = JSON.stringify(input);
+  const fixture = createGooglePhotosServiceFixture({ nodeEnv: 'test', cacheExists: () => true, read: () => original });
+  const row = fixture.findCachedMediaItem('photo');
+  assert.strictEqual(row.googleBaseUrl, 'https://example.test/legacy');
+  assert.strictEqual(row.url, '/api/google-photos/media/photo?w=2560&h=1440');
+  ['rating', 'isBroken', 'loved', 'addedAt', 'createTime', 'custom'].forEach(key => assert.strictEqual(row[key], input[2][key]));
+  ['session-only', 'MOCK_MEDIA_ITEM_42'].forEach(id => assert.strictEqual(fixture.findCachedMediaItem(id).id, id));
+  assert.strictEqual(JSON.stringify(input), original);
+  assert.deepStrictEqual(fixture.writes, []);
+});
+
+assertTest('Google Photos cache lookup reads current storage and normalizes even misses without memoization', () => {
+  const initial = JSON.stringify([{ id: 'photo', googlePickerSessionId: 'session' }]);
+  let stored = initial;
+  const effects = [];
+  const fixture = createGooglePhotosServiceFixture({
+    cacheExists: () => true,
+    read: () => { effects.push('read'); return stored; },
+    write: (_file, bytes) => { effects.push('write'); stored = bytes; }
+  });
+  assert.strictEqual(fixture.findCachedMediaItem('missing'), null);
+  const first = fixture.findCachedMediaItem('photo');
+  const second = fixture.findCachedMediaItem('photo');
+  assert.strictEqual(JSON.stringify(first), JSON.stringify(second));
+  assert.notStrictEqual(first, second);
+  first.rating = 2;
+  assert.strictEqual(second.rating, 10);
+  stored = JSON.stringify([{ ...second, rating: 8 }]);
+  assert.strictEqual(fixture.findCachedMediaItem('photo').rating, 8);
+  assert.deepStrictEqual(effects, ['read', 'write', 'read', 'read', 'read']);
+  assert.strictEqual(fixture.writes.length, 1);
+  const testFixture = createGooglePhotosServiceFixture({ nodeEnv: 'test', cacheExists: () => true,
+    read: () => initial, write: () => { throw new Error('Unexpected test-mode write'); } });
+  assert.strictEqual(testFixture.findCachedMediaItem('missing'), null);
+  assert.strictEqual(testFixture.findCachedMediaItem('photo').url, first.url);
+  assert.deepStrictEqual(testFixture.writes, []);
+});
+
+assertTest('Google Photos cache lookup returns null for missing files and caught read or parse errors', () => {
+  [
+    { cacheExists: () => false, read: () => { throw new Error('Unexpected missing-file read'); }, warning: false },
+    { cacheExists: () => true, read: () => { throw new Error('Read unavailable'); }, warning: true },
+    { cacheExists: () => true, read: () => '{', warning: true }
+  ].forEach(({ warning, ...adapters }) => {
+    const fixture = createGooglePhotosServiceFixture(adapters);
+    assert.strictEqual(fixture.findCachedMediaItem('photo'), null);
+    assert.strictEqual(fixture.warnings.length, warning ? 1 : 0);
+    if (warning) assert.match(fixture.warnings[0][0], /Failed to read media cache JSON/);
+    [fixture.writes, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache lookup propagates shape and normalization failures before even an invalid-id miss', () => {
+  ['{}', 'null', '42', '"cache"', '[{"id":7}]'].forEach(content => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => content });
+    assert.throws(() => fixture.findCachedMediaItem(undefined), err => err.name === 'TypeError');
+    [fixture.writes, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache lookup propagates unchanged existence and persistence errors on hits or misses', () => {
+  ['photo', 'missing', undefined].forEach(id => {
+    const failure = new Error('Cache effect failed');
+    [
+      { cacheExists: () => { throw failure; } },
+      { cacheExists: () => true,
+        read: () => JSON.stringify([{ id: 'photo', googlePickerSessionId: 'session' }]),
+        write: () => { throw failure; } }
+    ].forEach(adapters => {
+      const fixture = createGooglePhotosServiceFixture(adapters);
+      assert.throws(() => fixture.findCachedMediaItem(id), err => err === failure);
+      [fixture.writes, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+    });
+  });
 });
 
 assertTest('Google Photos cache read documents its normalized result and persistence boundary', () => {

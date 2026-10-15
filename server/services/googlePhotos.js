@@ -223,6 +223,26 @@ function applyCachedMediaItemMetadataToState(state, mediaIdentifier, metadata = 
   return updatedPhoto;
 }
 
+/**
+ * Read the normalized cache and return its first exact-id match, or null.
+ *
+ * The supplied id is compared with strict equality: no trimming, coercion,
+ * proxy-URL decoding, or input guard is applied. Every call reads the cache
+ * before searching, even for an absent or malformed id. The shared reader
+ * performs structural filtering and first-usable-id deduplication, not
+ * retention, broken-photo filtering, or network/file availability checks.
+ *
+ * The result is a newly normalized row, not a memoized or persisted reference.
+ * Normalization can synchronously persist changed serialization outside test
+ * mode, including on a miss. Missing files and caught read/parse failures
+ * yield null; reader warnings are retained. Valid non-array JSON, normalization,
+ * existence-check, and persistence failures propagate without a lookup catch.
+ * This remains a service effect shell, not a pure in-memory selector.
+ *
+ * @param {string} mediaItemId Stable Google Photos id, used verbatim.
+ * @returns {(import('./googlePhotosCache.js').GooglePhotoMediaItem & {id: string; url: string}) | null}
+ * @throws {unknown} Unhandled cache-reader or persistence failure.
+ */
 function findCachedMediaItem(mediaItemId) {
   return getCachedMediaItems().find((item) => item.id === mediaItemId) || null;
 }

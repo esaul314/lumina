@@ -110,7 +110,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `listPickerMediaItems(sessionId)` documents its string input, accumulated raw-item result, sequential pagination, and rejection boundaries; preserve encoded queries, one resolved token, ordered array concatenation without deduplication, truthy-token continuation, and rejection without partial results while keeping authentication/network/logging in the service shell.
 - Latest Step 6 slice: `deletePickerSession(sessionId)` documents its input, asynchronous Fetch boolean result, and failure boundaries; preserve synthetic no-ops, verbatim DELETE metadata without body reads, authentication outside the request catch, silent HTTP flags, handled request failures, and refreshed-token retention in the service shell.
 - Latest Step 6 slice: `syncGoogleAlbum(...)` documents named adapters/options, incoming rows versus the retained union, and ordered effects; preserve append/upsert, metadata, post-union policy, and background downloading while keeping pure union/policy projections outside the orchestration shell.
-- Next Step 6 seam: document `findCachedMediaItem(...)` input and nullable cache-read result, preserving strict id matching, normalized reads, and read/persistence failure propagation.
+- Latest Step 6 slice: `findCachedMediaItem(...)` documents exact-id inputs and nullable normalized rows; preserve strict equality, structural filtering, fresh reads, normalization persistence even on misses, and propagated failures while keeping filesystem effects in the service shell.
+- Next Step 6 seam: document `readCachedMediaItemsRaw()` unknown JSON result and missing/read/parse fallbacks, keeping existence-check failures explicit.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

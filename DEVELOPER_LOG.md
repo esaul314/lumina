@@ -6,6 +6,29 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-14: Document Google Photos Exact-ID Cache Lookup Contract
+
+- **Contract**: documented `findCachedMediaItem(...)` string input and nullable
+  normalized row. Matching uses strict equality without trimming, coercion, or
+  proxy decoding. Every call reads and normalizes before searching, even for
+  invalid ids; structural eligibility does not apply playback/retention policy.
+  Normalization can persist changes even on misses. Missing files and caught
+  read/parse failures yield null; unhandled reader/write failures propagate.
+- **Functional design**: retained the concise `find` projection and explicit
+  service effect boundary. Immutable fixtures and declarative case tables
+  exercise compatibility without introducing currying, a new algebra, or a
+  production export. Pure normalization remains in `googlePhotosCache.js`.
+- **Tests**: seven focused tests cover the source contract, strict matching,
+  first-usable duplicate selection, metadata and input preservation, fresh
+  detached results, changed-only writes, test-mode suppression, null fallbacks,
+  and shape/normalization/existence/write failures, without live cache access.
+- **Verification**: `npm test` passed: 506 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  Runtime behavior is unchanged; no client build or service restart required.
+- **Next seam**: document `readCachedMediaItemsRaw()` unknown JSON result and
+  missing/read/parse fallbacks, keeping existence-check failures explicit.
+
 ### 2026-10-14: Document Google Photos Picker Sync Adapter Contract
 
 - **Contract**: named `syncGoogleAlbum(...)` input/result and injected adapter
