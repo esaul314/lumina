@@ -68,6 +68,24 @@ function persistGoogleRefreshToken(refreshToken) {
   });
 }
 
+/**
+ * Project the shared proxy decoder's media id to a boolean.
+ *
+ * Delegates String(value || '').trim(), exact relative-prefix recognition,
+ * query removal, and one percent-decoding pass to getGooglePhotoMediaItemId.
+ * Any non-empty decoded id is true, including whitespace or path separators;
+ * this is vocabulary recognition, not URL validation or an availability check.
+ * Absolute URLs and empty ids are false. No post-decoding trim is applied.
+ *
+ * This data-first composition performs no service-state reads, authentication,
+ * cache, network, clock, persistence, or logging work. Native input coercion
+ * hooks can have effects; their failures and malformed-encoding URIErrors
+ * propagate unchanged rather than becoming false.
+ *
+ * @param {unknown} value Input accepted by the shared proxy decoder.
+ * @returns {boolean} Whether the decoder returns a non-empty media id.
+ * @throws {unknown} Native coercion or delegated URI decoding failure.
+ */
 function isGooglePhotoProxyUrl(value) {
   return Boolean(getGooglePhotoMediaItemId(value));
 }

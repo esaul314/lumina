@@ -1155,6 +1155,7 @@ const createGooglePhotosServiceFixture = ({
     authUrl: module.exports.getGoogleAuthUrl,
     saveCredentials: module.exports.saveGoogleCredentials,
     isAuthenticated: module.exports.isAuthenticated,
+    isGooglePhotoProxyUrl: module.exports.isGooglePhotoProxyUrl,
     createPickerSession: module.exports.createPickerSession,
     getPickerSession: module.exports.getPickerSession,
     listPickerMediaItems: module.exports.listPickerMediaItems,
@@ -1170,6 +1171,100 @@ const createGooglePhotosServiceFixture = ({
     persisted
   };
 };
+
+assertTest('Google Photos proxy predicate documents its composed unknown-input and failure contract', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Project the shared proxy decoder'), source.indexOf('function isGooglePhotoProxyUrl('));
+  [/@param \{unknown\} value/, /@returns \{boolean\}/, /@throws \{unknown\}/,
+    /not URL validation or an availability check/, /No post-decoding trim/,
+    /hooks can have effects/, /propagate unchanged/
+  ].forEach(pattern => assert.match(contract, pattern));
+  assert.match(source, /function isGooglePhotoProxyUrl\(value\) \{\s*return Boolean\(getGooglePhotoMediaItemId\(value\)\);\s*\}/);
+});
+
+assertTest('Google Photos proxy predicate recognizes only non-empty exact relative proxy paths', () => {
+  const { isGooglePhotoProxyUrl: recognize } = createGooglePhotosServiceFixture();
+  const prefix = '/api/google-photos/media/';
+  [
+    [undefined, false], [null, false], [false, false], [0, false], [0n, false], [NaN, false],
+    ['', false], [' \n\t', false], [true, false], [Symbol('fixture'), false],
+    [prefix, false], [`${prefix}?w=100`, false], [`${prefix} \t`, false],
+    [`https://fixture.invalid${prefix}id`, false], [`/${prefix}id`, false],
+    ['/api/google-photos/media', false], ['/API/google-photos/media/id', false],
+    ['/api/google-photos/media-other/id', false], ['id', false],
+    [`${prefix}id`, true], [` \n${prefix}id\t`, true], [`${prefix}id?w=100`, true]
+  ].forEach(([input, expected]) => assert.strictEqual(recognize(input), expected));
+});
+
+assertTest('Google Photos proxy predicate composes with the decoder and generated URLs across render options', () => {
+  const { isGooglePhotoProxyUrl: recognize } = createGooglePhotosServiceFixture();
+  ['', 'fixture', 'A/B+C', ' ', '?query#fragment', 'café 🖼', '%2F']
+    .flatMap(id => [{}, { width: 1080, height: 1920 }, { crop: true }]
+      .map(options => ({ id, url: buildGooglePhotoProxyUrl(id, Object.freeze(options)) })))
+    .forEach(({ id, url }) => {
+      assert.strictEqual(getGooglePhotoMediaItemId(url), id);
+      assert.strictEqual(recognize(url), Boolean(id));
+      assert.strictEqual(recognize(url), Boolean(getGooglePhotoMediaItemId(url)));
+    });
+});
+
+assertTest('Google Photos proxy predicate preserves single decoding and unvalidated non-empty ids', () => {
+  const { isGooglePhotoProxyUrl: recognize } = createGooglePhotosServiceFixture();
+  [
+    ['%20', ' '], ['%00', '\0'], ['%2F', '/'], ['A+B', 'A+B'], ['%253F', '%3F'],
+    ['%3F?ignored=%', '?'], ['id?ignored=%E0%A4', 'id'], ['#fragment', '#fragment'],
+    ['../id', '../id'], ['id/extra', 'id/extra'], ['%EF%BB%BF', '\ufeff']
+  ].forEach(([suffix, id]) => {
+    const url = `/api/google-photos/media/${suffix}`;
+    assert.strictEqual(getGooglePhotoMediaItemId(url), id);
+    assert.strictEqual(recognize(url), true);
+  });
+});
+
+assertTest('Google Photos proxy predicate propagates malformed id encodings but does not decode other vocabulary', () => {
+  const { isGooglePhotoProxyUrl: recognize } = createGooglePhotosServiceFixture();
+  ['%', '%GG', '%E0%A4', '%ED%A0%80', '%FF'].forEach(id => {
+    assert.throws(() => recognize(`/api/google-photos/media/${id}`), URIError);
+    assert.strictEqual(recognize(`https://fixture.invalid/api/google-photos/media/${id}`), false);
+    assert.strictEqual(recognize(`/other/${id}`), false);
+    assert.strictEqual(recognize(`/api/google-photos/media/?ignored=${id}`), false);
+  });
+});
+
+assertTest('Google Photos proxy predicate preserves native coercion hooks, frozen inputs, and unchanged failures', () => {
+  const { isGooglePhotoProxyUrl: recognize } = createGooglePhotosServiceFixture();
+  const events = [];
+  const input = Object.freeze({
+    [Symbol.toPrimitive]: hint => { events.push(hint); return ' /api/google-photos/media/fixture '; },
+    toString: () => assert.fail('primitive hook takes precedence')
+  });
+  assert.strictEqual(recognize(input), true);
+  assert.deepStrictEqual(events, ['string']);
+  assert.strictEqual(recognize(Object.freeze(['/api/google-photos/media/fixture'])), true);
+  const fallback = Object.freeze({ toString: () => ({}), valueOf: () => '/api/google-photos/media/fixture' });
+  assert.strictEqual(recognize(fallback), true);
+  [new Error('fixture coercion'), null, undefined].forEach(failure => {
+    const value = Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } });
+    assert.throws(() => recognize(value), error => error === failure);
+  });
+  assert.throws(() => recognize(Object.create(null)), TypeError);
+});
+
+assertTest('Google Photos proxy predicate is repeatable without service state, cache, clock, or transport effects', () => {
+  const failIfCalled = () => assert.fail('Unexpected proxy-recognition effect');
+  [{}, { accessToken: 'fixture-access', refreshToken: 'fixture-refresh', expiry: 123 }]
+    .forEach(initialTokens => {
+      const fixture = createGooglePhotosServiceFixture({
+        initialTokens, cacheExists: failIfCalled, read: failIfCalled, write: failIfCalled,
+        persist: failIfCalled, now: failIfCalled, fetchResponse: failIfCalled
+      });
+      const before = { tokens: fixture.readTokens(), credentials: fixture.readCredentials() };
+      [true, true, true].forEach(expected => assert.strictEqual(fixture.isGooglePhotoProxyUrl('/api/google-photos/media/fixture'), expected));
+      assert.deepStrictEqual({ tokens: fixture.readTokens(), credentials: fixture.readCredentials() }, before);
+      [fixture.writes, fixture.persisted, fixture.logs, fixture.warnings, fixture.errors]
+        .forEach(records => assert.deepStrictEqual(records, []));
+    });
+});
 
 assertTest('Google Photos refresh-token persistence documents normalization, skips, and synchronous effects', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');

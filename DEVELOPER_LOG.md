@@ -6,6 +6,29 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Google Photos Proxy Recognition Contract
+
+- **Contract**: documented `isGooglePhotoProxyUrl(...)` unknown input, boolean
+  result, and unchanged coercion/URI failures. Recognition delegates exact
+  relative-prefix matching, query removal, and one decoding pass to the shared
+  decoder; non-empty decoded ids are accepted without validation or a second
+  trim. Absolute URLs and empty ids remain false.
+- **Functional design**: retained the concise data-first decoder-to-Boolean
+  composition. Declarative tables and generated URL/render-option combinations
+  test that composition directly; adding currying or an algebraic wrapper would
+  not clarify this unary projection. Native input hooks remain caller effects.
+- **Tests**: seven focused tests cover the source contract, exact vocabulary,
+  generated round trips, single decoding, query handling, malformed encodings,
+  coercion order/failures, frozen inputs, repeatability, and service-effect
+  isolation. No production exports or runtime behavior changed.
+- **Verification**: `npm test` passed: 544 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart required for this contract-only slice.
+- **Next seam**: document `getLocalMediaFilePath(...)` input/string-result and
+  native coercion/path-normalization contract without implying containment
+  validation. This remains a pure projection, not a filesystem operation.
+
 ### 2026-10-16: Document Google Photos Refresh-Token Persistence Contract
 
 - **Contract**: documented `persistGoogleRefreshToken(...)` unknown inputs,
