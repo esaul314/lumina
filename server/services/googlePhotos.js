@@ -132,6 +132,29 @@ function writeCachedMediaItems(items) {
   fs.writeFileSync(CACHE_PATH, JSON.stringify(items, null, 2), 'utf8');
 }
 
+/**
+ * Upsert one supplied row into a freshly normalized cache, then persist it.
+ *
+ * Existing rows pass through the shared normalization/filter/dedupe pipeline
+ * before item.id is read. Native Map keys are used without trimming, coercion,
+ * or proxy decoding: replacement retains its position; a new key appends.
+ * The supplied row replaces the whole entry without normalization, metadata
+ * merging, retention, or cap enforcement. Callers own those policies.
+ *
+ * Every successful call writes, even for identical rows or in test mode, and
+ * returns the exact supplied reference only after the synchronous write.
+ * Outside test mode the reader may first persist changed normalization, so
+ * one call can write twice. Input getters and JSON hooks retain native effects.
+ * Reader, input-access, serialization, and write failures propagate without an
+ * upsert catch, retry, or rollback; an earlier normalization write can survive
+ * a later failure. Reader warnings remain its responsibility. Authentication,
+ * network, and clock work are not performed here.
+ *
+ * @template {import('./googlePhotosCache.js').GooglePhotoMediaItem & {id: string}} T
+ * @param {T} item Caller-prepared row; runtime inputs are not validated.
+ * @returns {T} The original row, not a merged or detached copy.
+ * @throws {unknown} Unhandled reader, input-access, serialization, or write failure.
+ */
 function updateCachedMediaItem(item) {
   const itemsMap = new Map(getCachedMediaItems().map((entry) => [entry.id, entry]));
   itemsMap.set(item.id, item);

@@ -1121,7 +1121,7 @@ const createGooglePhotosServiceFixture = ({
   };
 
   // Capture internal helpers without widening the production exports.
-  const { buildContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
+  const { buildContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, updateCachedMediaItem, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, updateCachedMediaItem, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1144,6 +1144,7 @@ const createGooglePhotosServiceFixture = ({
     buildContentUrl,
     readCachedMediaItemsRaw,
     writeCachedMediaItems,
+    updateCachedMediaItem,
     findCachedMediaItem,
     isBaseUrlStale,
     getValidToken,
@@ -2933,6 +2934,157 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
     'Network unavailable', 'Body unavailable', 'Disk unavailable'
   ]);
   ['network', 'body', 'disk'].forEach((id, index) => assert.ok(fixture.warnings[index][0].includes(id)));
+});
+
+assertTest('Google Photos cache upsert documents row identity, replacement, and ordered persistence', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Upsert one supplied row'), source.indexOf('function updateCachedMediaItem('));
+  [/@template .* T/, /@param \{T\} item/, /@returns \{T\}/, /@throws \{unknown\}/,
+    /replaces the whole entry/, /without trimming, coercion/, /even for identical rows or in test mode/,
+    /exact supplied reference/, /write twice/, /retry, or rollback/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+assertTest('Google Photos cache upsert replaces in place after first-usable normalization without merging metadata', () => {
+  const rows = Object.freeze([
+    null, Object.freeze({ id: 'unusable' }),
+    Object.freeze({ id: 'MOCK_first', custom: 'keep', rating: 1, isBroken: true, addedAt: '2000-01-01' }),
+    Object.freeze({ id: 'MOCK_target', loved: true, cropPercent: 35, title: 'old' }),
+    Object.freeze({ id: 'MOCK_target', title: 'duplicate' }), Object.freeze({ id: 'MOCK_last' })
+  ]);
+  const before = JSON.stringify(rows);
+  const item = Object.freeze({ id: 'MOCK_target', title: 'new', custom: Object.freeze({ keep: true }) });
+  const fixture = createGooglePhotosServiceFixture({ nodeEnv: 'test', cacheExists: () => true, read: () => before });
+  assert.strictEqual(fixture.updateCachedMediaItem(item), item);
+  const stored = JSON.parse(fixture.writes[0].bytes);
+  assert.deepStrictEqual(stored.map(({ id }) => id), ['MOCK_first', 'MOCK_target', 'MOCK_last']);
+  assert.deepStrictEqual(stored[1], item);
+  assert.strictEqual(stored[0].url, '/api/google-photos/media/MOCK_first?w=2560&h=1440');
+  assert.strictEqual(stored[0].custom, 'keep');
+  assert.strictEqual(stored[0].isBroken, true);
+  assert.strictEqual(stored[0].rating, 1);
+  assert.strictEqual(stored[0].addedAt, '2000-01-01');
+  assert.strictEqual(fixture.writes.length, 1);
+  assert.strictEqual(JSON.stringify(rows), before);
+});
+
+assertTest('Google Photos cache upsert uses verbatim Map keys and appends unvalidated incoming rows', () => {
+  const existing = { id: 'MOCK_key' };
+  [existing.id, ' MOCK_key ', '/api/google-photos/media/MOCK_key', undefined, '', 0, 7].forEach(id => {
+    const item = Object.freeze({ ...(id === undefined ? {} : { id }), custom: 'raw' });
+    const fixture = createGooglePhotosServiceFixture({ nodeEnv: 'test', cacheExists: () => true, read: () => JSON.stringify([existing]) });
+    assert.strictEqual(fixture.updateCachedMediaItem(item), item);
+    const stored = JSON.parse(fixture.writes[0].bytes);
+    assert.strictEqual(stored.length, id === existing.id ? 1 : 2);
+    assert.deepStrictEqual(stored.at(-1), item, 'incoming row is neither normalized nor validated');
+  });
+});
+
+assertTest('Google Photos cache upsert rereads and writes identical rows in both modes with stable bytes and identity', () => {
+  const failIfCalled = () => { throw new Error('Unexpected upsert effect'); };
+  ['production', 'test'].forEach(nodeEnv => {
+    const item = Object.freeze(normalizeCachedMediaItem({ id: 'MOCK_same', loved: true }));
+    let stored = JSON.stringify([item], null, 2);
+    let reads = 0;
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv, cacheExists: () => true, read: () => { reads += 1; return stored; },
+      write: (file, bytes) => { stored = bytes; return 'ignored'; },
+      now: failIfCalled, fetchResponse: failIfCalled, persist: failIfCalled
+    });
+    const before = { tokens: fixture.readTokens(), credentials: fixture.readCredentials() };
+    [item, item].forEach(row => assert.strictEqual(fixture.updateCachedMediaItem(row), row));
+    assert.strictEqual(reads, 2);
+    assert.strictEqual(fixture.writes.length, 2);
+    assert.strictEqual(fixture.writes[0].bytes, fixture.writes[1].bytes, 'value-idempotence does not suppress writes');
+    assert.deepStrictEqual({ tokens: fixture.readTokens(), credentials: fixture.readCredentials() }, before);
+    [fixture.warnings, fixture.logs, fixture.errors, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache upsert orders normalization writes before input access, JSON hooks, and final writes', () => {
+  ['production', 'test'].forEach(nodeEnv => {
+    const effects = [];
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv, cacheExists: () => { effects.push('exists'); return true; },
+      read: () => { effects.push('read'); return '[{"id":"MOCK_old"}]'; },
+      write: () => effects.push('write')
+    });
+    const item = Object.freeze({
+      get id() { effects.push('id'); return 'MOCK_new'; },
+      toJSON(key) { assert.strictEqual(this, item); effects.push(`json:${key}`); return { id: 'serialized' }; }
+    });
+    assert.strictEqual(fixture.updateCachedMediaItem(item), item);
+    assert.deepStrictEqual(effects, ['exists', 'read', ...(nodeEnv === 'test' ? [] : ['write']), 'id', 'json:1', 'write']);
+    assert.strictEqual(JSON.parse(fixture.writes.at(-1).bytes).at(-1).id, 'serialized');
+  });
+});
+
+assertTest('Google Photos cache upsert persists incoming rows after missing or handled corrupt-cache fallbacks', () => {
+  [
+    { cacheExists: () => false },
+    { cacheExists: () => true, read: () => '{' },
+    { cacheExists: () => true, read: () => { throw new Error('Read unavailable'); } }
+  ].forEach((options, index) => {
+    const fixture = createGooglePhotosServiceFixture(options);
+    const item = Object.freeze({ id: 'MOCK_new' });
+    assert.strictEqual(fixture.updateCachedMediaItem(item), item);
+    assert.deepStrictEqual(JSON.parse(fixture.writes[0].bytes), [item]);
+    assert.strictEqual(fixture.writes.length, 1);
+    assert.strictEqual(fixture.warnings.length, index ? 1 : 0);
+  });
+});
+
+assertTest('Google Photos cache upsert propagates reader failures before incoming id access or persistence', () => {
+  const failure = new Error('Reader adapter unavailable');
+  [
+    [{ cacheExists: () => { throw failure; } }, err => err === failure],
+    ...['null', '{}', '7', '[{"id":7}]'].map(raw => [{ cacheExists: () => true, read: () => raw }, err => err.name === 'TypeError']),
+    [{ cacheExists: () => true, read: () => '{', warn: () => { throw failure; } }, err => err === failure]
+  ].forEach(([options, matches]) => {
+    const fixture = createGooglePhotosServiceFixture(options);
+    const item = { get id() { return assert.fail('Input read before cache completed'); } };
+    assert.throws(() => fixture.updateCachedMediaItem(item), matches);
+    [fixture.writes, fixture.errors, fixture.logs].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache upsert preserves earlier normalization after input-access or serialization failures', () => {
+  const failure = new Error('Input hook failed');
+  [
+    [null, err => err.name === 'TypeError'], [undefined, err => err.name === 'TypeError'],
+    ...[failure, null, undefined].flatMap(thrown => [
+      [{ get id() { throw thrown; } }, err => err === thrown],
+      [{ id: 'MOCK_new', toJSON: () => { throw thrown; } }, err => err === thrown]
+    ]),
+    [{ id: 'MOCK_new', value: 1n }, err => err.name === 'TypeError']
+  ].forEach(([item, matches]) => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => '[{"id":"MOCK_old"}]' });
+    assert.throws(() => fixture.updateCachedMediaItem(item), matches);
+    assert.strictEqual(fixture.writes.length, 1, 'normalization already persisted before the failure');
+    assert.deepStrictEqual(JSON.parse(fixture.writes[0].bytes).map(({ id }) => id), ['MOCK_old']);
+    [fixture.warnings, fixture.errors, fixture.logs].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache upsert propagates normalization and final write failures without retry or rollback', () => {
+  [1, 2].flatMap(stage => [new Error('Disk unavailable'), null, undefined].map(failure => ({ stage, failure })))
+    .forEach(({ stage, failure }) => {
+      let stored = '[{"id":"MOCK_old"}]';
+      let attempts = 0;
+      let idReads = 0;
+      const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => stored, write: (file, bytes) => {
+        attempts += 1;
+        stored = bytes;
+        if (attempts === stage) throw failure;
+      } });
+      const item = { get id() { idReads += 1; return 'MOCK_new'; } };
+      assert.throws(() => fixture.updateCachedMediaItem(item), err => err === failure);
+      assert.strictEqual(attempts, stage);
+      assert.strictEqual(idReads, stage === 1 ? 0 : 2, 'key access then JSON getter access only after normalization');
+      assert.strictEqual(fixture.writes.length, stage - 1);
+      assert.deepStrictEqual(JSON.parse(stored).map(({ id }) => id), stage === 1 ? ['MOCK_old'] : ['MOCK_old', 'MOCK_new']);
+      [fixture.warnings, fixture.errors, fixture.logs].forEach(records => assert.deepStrictEqual(records, []));
+    });
 });
 
 assertTest('Google Photos cache writer documents serialization and caller-owned persistence policies', () => {

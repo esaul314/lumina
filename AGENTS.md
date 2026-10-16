@@ -113,7 +113,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `findCachedMediaItem(...)` documents exact-id inputs and nullable normalized rows; preserve strict equality, structural filtering, fresh reads, normalization persistence even on misses, and propagated failures while keeping filesystem effects in the service shell.
 - Latest Step 6 slice: `readCachedMediaItemsRaw()` documents its unknown JSON result and missing/read/parse fallbacks; preserve fresh UTF-8 reads, unvalidated shapes, detached results, and propagated existence-check/warning-handler failures while keeping filesystem/logging effects in the service shell.
 - Latest Step 6 slice: `writeCachedMediaItems(...)` documents native JSON serialization, synchronous UTF-8 writes, and its void result; preserve caller-owned guards, hook ordering, repeated writes, undefined-data rejection, and failures without retry/rollback while keeping persistence in the service shell.
-- Next Step 6 seam: document `updateCachedMediaItem(...)` normalized-cache upsert, unconditional persistence, and returned-row identity, keeping failures and effect order explicit.
+- Latest Step 6 slice: `updateCachedMediaItem(...)` documents normalized-cache whole-row upsert, unconditional persistence, and exact returned-row identity; preserve verbatim Map keys, ordered normalization/input/write effects, caller-owned row policy, and failures without rollback while keeping persistence in the service shell.
+- Next Step 6 seam: document `persistGoogleRefreshToken(...)` normalization, empty/mock skips, and synchronous persistence/failure contract, keeping token-state ownership explicit.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

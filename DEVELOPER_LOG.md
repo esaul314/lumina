@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Google Photos Cache Upsert Contract
+
+- **Contract**: documented `updateCachedMediaItem(...)` generic input/result
+  identity, freshly normalized existing rows, verbatim Map keys, stable replacement
+  order, whole-row replacement, and unconditional synchronous persistence.
+  Incoming normalization, metadata merging, retention, and caps remain caller
+  responsibilities. Reader normalization may persist before input access; later
+  failures propagate without retry or rollback, preserving earlier effects.
+- **Functional design**: retained the concise data-first Map shell and separate
+  pure normalization pipeline. Declarative case tables, frozen fixtures, and
+  isolated adapters test value-idempotence versus repeated write effects without
+  a new curried/algebraic wrapper, production export, or live cache access.
+  Recorded input validation and corrupt-cache recovery as separate hardening.
+- **Tests**: nine focused tests cover contracts, normalized ordering, whole-row
+  replacement, exact keys, unvalidated inputs, repeated calls in both modes,
+  identity, native hooks, read fallbacks, and reader/input/serialization/write
+  failures before versus after normalization persistence.
+- **Verification**: `npm test` passed: 530 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  Runtime behavior is unchanged; no client build or service restart required.
+- **Next seam**: document `persistGoogleRefreshToken(...)` normalization,
+  empty/mock skips, synchronous persistence/failures, and token-state ownership.
+
 ### 2026-10-16: Document Google Photos Cache Writer Contract
 
 - **Contract**: documented `writeCachedMediaItems(...)` unknown input, native
