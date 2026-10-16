@@ -6,6 +6,28 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Google Photos Refresh-Token Persistence Contract
+
+- **Contract**: documented `persistGoogleRefreshToken(...)` unknown inputs,
+  native falsy/String/trim normalization, case-sensitive mock skips, synchronous
+  single-field persistence, and void results. Adapter results are ignored;
+  coercion and persistence failures propagate without logging, retry, or
+  rollback. Service token/credential state remains caller-owned.
+- **Functional design**: retained the small data-first normalization/guard/effect
+  shell instead of adding a curried or algebraic wrapper. Declarative case
+  tables and frozen coercion fixtures keep policy checks separate from injected
+  persistence effects without widening production exports or using live secrets.
+- **Tests**: seven focused tests cover source contracts, skip and normalization
+  tables, native hook order, coercion failures, repeated writes in both modes,
+  ignored adapter results, state/effect isolation, and partial persistence
+  failures. Normalized-value idempotence does not imply write idempotence.
+- **Verification**: `npm test` passed: 537 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  Runtime behavior is unchanged; no client build or service restart required.
+- **Next seam**: document `isGooglePhotoProxyUrl(...)` unknown-input boolean
+  projection and delegated decoding failures at the pure proxy boundary.
+
 ### 2026-10-16: Document Google Photos Cache Upsert Contract
 
 - **Contract**: documented `updateCachedMediaItem(...)` generic input/result

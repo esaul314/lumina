@@ -38,6 +38,25 @@ let credentials = {
 };
 let tokens = { accessToken: '', refreshToken: readEnvVar('GOOGLE_REFRESH_TOKEN'), expiry: 0 };
 
+/**
+ * Persist a normalized refresh token without changing service token state.
+ *
+ * Uses String(refreshToken || '').trim(): falsy inputs become empty, while
+ * truthy inputs retain native string coercion and its possible hook effects.
+ * Empty results and case-sensitive MOCK_ prefixes skip persistence. Other
+ * results synchronously submit exactly one GOOGLE_REFRESH_TOKEN patch, even
+ * for repeated values or in test mode; no token validation occurs here.
+ *
+ * The persistence adapter's result is ignored, not returned or awaited.
+ * Coercion and synchronous persistence failures propagate unchanged without
+ * logging, retry, or rollback; adapter effects before failure can survive.
+ * Token/credential assignment belongs to callers. No cache, authentication,
+ * network, or clock work is performed here.
+ *
+ * @param {unknown} refreshToken Value to normalize; not a validity guarantee.
+ * @returns {void}
+ * @throws {unknown} Native coercion or synchronous persistence failure.
+ */
 function persistGoogleRefreshToken(refreshToken) {
   const normalized = String(refreshToken || '').trim();
   if (!normalized || normalized.startsWith('MOCK_')) {

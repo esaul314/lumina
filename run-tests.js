@@ -1115,13 +1115,13 @@ const createGooglePhotosServiceFixture = ({
       persistEnvVars: values => {
         const patch = { ...values };
         persisted.push(patch);
-        persist(patch);
+        return persist(patch);
       }
     }
   };
 
   // Capture internal helpers without widening the production exports.
-  const { buildContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, updateCachedMediaItem, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, updateCachedMediaItem, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
+  const { persistGoogleRefreshToken, buildContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, updateCachedMediaItem, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ persistGoogleRefreshToken, buildContentUrl: buildGooglePhotoContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, updateCachedMediaItem, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1141,6 +1141,7 @@ const createGooglePhotosServiceFixture = ({
   }, { filename });
 
   return {
+    persistGoogleRefreshToken,
     buildContentUrl,
     readCachedMediaItemsRaw,
     writeCachedMediaItems,
@@ -1169,6 +1170,107 @@ const createGooglePhotosServiceFixture = ({
     persisted
   };
 };
+
+assertTest('Google Photos refresh-token persistence documents normalization, skips, and synchronous effects', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Persist a normalized refresh token'), source.indexOf('function persistGoogleRefreshToken('));
+  [/@param \{unknown\} refreshToken/, /@returns \{void\}/, /@throws \{unknown\}/,
+    /String\(refreshToken \|\| ''\)\.trim\(\)/, /case-sensitive MOCK_/, /not returned or awaited/,
+    /without changing service token state/, /logging, retry, or rollback/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+assertTest('Google Photos refresh-token persistence skips falsy, whitespace, and trimmed mock values in both modes', () => {
+  ['production', 'test'].forEach(nodeEnv => {
+    const fixture = createGooglePhotosServiceFixture({ nodeEnv });
+    [undefined, null, false, 0, -0, 0n, NaN, '', ' \t\n\u00a0', 'MOCK_', ' \nMOCK_fixture\t', [], [' ']]
+      .forEach(value => assert.strictEqual(fixture.persistGoogleRefreshToken(value), undefined));
+    assert.deepStrictEqual(fixture.persisted, []);
+  });
+});
+
+assertTest('Google Photos refresh-token persistence trims boundaries without validating or changing case', () => {
+  const cases = [
+    ['  fixture-refresh\n', 'fixture-refresh'], ['\u00a0fixture\ufeff', 'fixture'],
+    ['  fixture inner\nspace  ', 'fixture inner\nspace'], ['mock_fixture', 'mock_fixture'],
+    ['xMOCK_fixture', 'xMOCK_fixture'], ['MOCK', 'MOCK'], [true, 'true'],
+    [42, '42'], [Infinity, 'Infinity'], [7n, '7'], [Symbol('fixture'), 'Symbol(fixture)'],
+    [Object.freeze(['fixture', 'row']), 'fixture,row'], [Object.freeze({}), '[object Object]']
+  ];
+  cases.forEach(([value, normalized]) => {
+    const fixture = createGooglePhotosServiceFixture();
+    assert.strictEqual(fixture.persistGoogleRefreshToken(value), undefined);
+    assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_REFRESH_TOKEN: normalized }]);
+  });
+});
+
+assertTest('Google Photos refresh-token persistence preserves native coercion hint and ordering before skip or write', () => {
+  [' fixture ', ' MOCK_fixture '].forEach(text => {
+    const events = [];
+    const input = Object.freeze({
+      [Symbol.toPrimitive]: hint => { events.push(hint); return text; },
+      toString: () => assert.fail('primitive hook takes precedence')
+    });
+    const fixture = createGooglePhotosServiceFixture({ persist: () => events.push('persist') });
+    fixture.persistGoogleRefreshToken(input);
+    assert.deepStrictEqual(events, text.trim().startsWith('MOCK_') ? ['string'] : ['string', 'persist']);
+  });
+  const events = [];
+  const input = Object.freeze({
+    toString: () => { events.push('toString'); return {}; },
+    valueOf: () => { events.push('valueOf'); return ' fixture '; }
+  });
+  const fixture = createGooglePhotosServiceFixture({ persist: () => events.push('persist') });
+  fixture.persistGoogleRefreshToken(input);
+  assert.deepStrictEqual(events, ['toString', 'valueOf', 'persist']);
+  assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_REFRESH_TOKEN: 'fixture' }]);
+});
+
+assertTest('Google Photos refresh-token persistence propagates coercion failures before persistence without logging', () => {
+  [new Error('fixture coercion'), null, undefined].forEach(failure => {
+    const fixture = createGooglePhotosServiceFixture();
+    const input = Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } });
+    assert.throws(() => fixture.persistGoogleRefreshToken(input), error => error === failure);
+    [fixture.persisted, fixture.logs, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+  });
+  const fixture = createGooglePhotosServiceFixture();
+  assert.throws(() => fixture.persistGoogleRefreshToken(Object.create(null)), error => error.name === 'TypeError');
+  assert.deepStrictEqual(fixture.persisted, []);
+});
+
+assertTest('Google Photos refresh-token persistence repeats writes, ignores adapter results, and leaves service state isolated', () => {
+  ['production', 'test'].forEach(nodeEnv => {
+    const failIfCalled = () => assert.fail('Unexpected unrelated refresh-token effect');
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv, initialTokens: { accessToken: 'fixture-access', refreshToken: 'fixture-old', expiry: 123 },
+      envValues: { GOOGLE_CLIENT_ID: 'fixture-client', GOOGLE_CLIENT_SECRET: 'fixture-secret' },
+      persist: () => Object.freeze({ get then() { return failIfCalled(); } }),
+      cacheExists: failIfCalled, read: failIfCalled, write: failIfCalled, now: failIfCalled, fetchResponse: failIfCalled
+    });
+    const before = { tokens: fixture.readTokens(), credentials: fixture.readCredentials() };
+    [' fixture-new ', 'fixture-new'].forEach(value => assert.strictEqual(fixture.persistGoogleRefreshToken(value), undefined));
+    assert.deepStrictEqual(fixture.persisted, Array.from({ length: 2 }, () => ({ GOOGLE_REFRESH_TOKEN: 'fixture-new' })));
+    assert.notStrictEqual(fixture.persisted[0], fixture.persisted[1]);
+    assert.deepStrictEqual({ tokens: fixture.readTokens(), credentials: fixture.readCredentials() }, before);
+    [fixture.writes, fixture.logs, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos refresh-token persistence propagates synchronous failures without retry or rollback', () => {
+  [new Error('fixture persistence'), null, undefined].forEach(failure => {
+    const effects = [];
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens: { refreshToken: 'fixture-old' },
+      persist: patch => { effects.push(patch.GOOGLE_REFRESH_TOKEN); throw failure; }
+    });
+    const before = fixture.readTokens();
+    assert.throws(() => fixture.persistGoogleRefreshToken(' fixture-new '), error => error === failure);
+    assert.deepStrictEqual(effects, ['fixture-new']);
+    assert.deepStrictEqual(fixture.persisted, [{ GOOGLE_REFRESH_TOKEN: 'fixture-new' }]);
+    assert.deepStrictEqual(fixture.readTokens(), before);
+    [fixture.logs, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
 
 assertTest('Google Photos Picker sync documents adapter contracts and incoming-versus-retained results', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
