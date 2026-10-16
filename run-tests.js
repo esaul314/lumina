@@ -1104,9 +1104,10 @@ const createGooglePhotosServiceFixture = ({
       existsSync: file => file.endsWith('.jpg') ? exists(file)
         : file.endsWith('google_photos_cache.json') ? cacheExists(file) : true,
       readFileSync: read,
-      writeFileSync: (file, bytes) => {
-        write(file, bytes);
+      writeFileSync: (file, bytes, encoding) => {
+        const result = write(file, bytes, encoding);
         writes.push({ file, bytes });
+        return result;
       }
     },
     '../config/env.js': {
@@ -1120,7 +1121,7 @@ const createGooglePhotosServiceFixture = ({
   };
 
   // Capture internal helpers without widening the production exports.
-  const { buildContentUrl, readCachedMediaItemsRaw, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, readCachedMediaItemsRaw, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
+  const { buildContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, readCachedMediaItemsRaw, writeCachedMediaItems, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1142,6 +1143,7 @@ const createGooglePhotosServiceFixture = ({
   return {
     buildContentUrl,
     readCachedMediaItemsRaw,
+    writeCachedMediaItems,
     findCachedMediaItem,
     isBaseUrlStale,
     getValidToken,
@@ -2931,6 +2933,126 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
     'Network unavailable', 'Body unavailable', 'Disk unavailable'
   ]);
   ['network', 'body', 'disk'].forEach((id, index) => assert.ok(fixture.warnings[index][0].includes(id)));
+});
+
+assertTest('Google Photos cache writer documents serialization and caller-owned persistence policies', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Serialize the supplied value'), source.indexOf('function writeCachedMediaItems'));
+  [/@param \{unknown\} items/, /@returns \{void\}/, /@throws \{unknown\}/,
+    /two-space indentation/, /test-mode guard/, /callers own/, /undefined serialization/,
+    /not an atomic file replacement/, /without logging/, /return undefined/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+assertTest('Google Photos cache writer preserves frozen duplicate rows and metadata in exact UTF-8 JSON', () => {
+  const items = Object.freeze([
+    Object.freeze({ id: 'same', title: 'Café 🌌', custom: Object.freeze({ keep: true }) }),
+    Object.freeze({ id: 'same', rating: 0 }), null
+  ]);
+  const calls = [];
+  const fixture = createGooglePhotosServiceFixture({ write: (...args) => calls.push(args) });
+  assert.strictEqual(fixture.writeCachedMediaItems(items), undefined);
+  const expected = '[\n  {\n    "id": "same",\n    "title": "Café 🌌",\n    "custom": {\n      "keep": true\n    }\n  },\n  {\n    "id": "same",\n    "rating": 0\n  },\n  null\n]';
+  assert.deepStrictEqual(calls, [[path.join(__dirname, 'server/config/google_photos_cache.json'), expected, 'utf8']]);
+  assert.strictEqual(JSON.stringify(items, null, 2), expected);
+  assert.strictEqual(fixture.writes.length, 1);
+});
+
+assertTest('Google Photos cache writer delegates scalar, omission, and array encoding to native JSON', () => {
+  const cases = [
+    [null, 'null'], [false, 'false'], [42, '42'], ['cache', '"cache"'], [[], '[]'], [{}, '{}'],
+    [NaN, 'null'], [Infinity, 'null'],
+    [{ keep: 1, omit: undefined, fn: () => {}, symbol: Symbol('omitted') }, '{\n  "keep": 1\n}'],
+    [Array(1), '[\n  null\n]'],
+    [[undefined, () => {}, Symbol('null'), NaN], '[\n  null,\n  null,\n  null,\n  null\n]']
+  ];
+  cases.forEach(([value, expected]) => {
+    const fixture = createGooglePhotosServiceFixture();
+    assert.strictEqual(fixture.writeCachedMediaItems(value), undefined);
+    assert.strictEqual(fixture.writes[0].bytes, expected);
+  });
+});
+
+assertTest('Google Photos cache writer writes every call in production and test mode without unrelated effects', () => {
+  const failIfCalled = () => { throw new Error('Unexpected cache writer effect'); };
+  ['production', 'test'].forEach(nodeEnv => {
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv, read: failIfCalled, cacheExists: failIfCalled, exists: failIfCalled,
+      now: failIfCalled, persist: failIfCalled, fetchResponse: failIfCalled,
+      write: () => 'ignored adapter result'
+    });
+    const before = { tokens: fixture.readTokens(), credentials: fixture.readCredentials() };
+    [[], [], { raw: true }].forEach(value => assert.strictEqual(fixture.writeCachedMediaItems(value), undefined));
+    assert.deepStrictEqual(fixture.writes.map(({ bytes }) => bytes), ['[]', '[]', '{\n  "raw": true\n}']);
+    assert.deepStrictEqual({ tokens: fixture.readTokens(), credentials: fixture.readCredentials() }, before);
+    [fixture.warnings, fixture.errors, fixture.logs, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache writer completes native toJSON and getter hooks before the synchronous write', () => {
+  const effects = [];
+  const fixture = createGooglePhotosServiceFixture({ write: () => effects.push('write') });
+  const value = {
+    toJSON(key) {
+      assert.strictEqual(this, value);
+      effects.push(['toJSON', key]);
+      return { get selected() { effects.push('getter'); return true; } };
+    }
+  };
+  fixture.writeCachedMediaItems(value);
+  effects.push('returned');
+  assert.deepStrictEqual(effects, [['toJSON', ''], 'getter', 'write', 'returned']);
+  assert.strictEqual(fixture.writes[0].bytes, '{\n  "selected": true\n}');
+});
+
+assertTest('Google Photos cache writer propagates serialization failures before any write or log', () => {
+  const cycle = {};
+  cycle.self = cycle;
+  const failure = new Error('Serialization hook failed');
+  const cases = [
+    [cycle, err => err.name === 'TypeError'], [1n, err => err.name === 'TypeError'],
+    ...[failure, null, undefined].flatMap(thrown => [
+      [{ toJSON: () => { throw thrown; } }, err => err === thrown],
+      [{ get value() { throw thrown; } }, err => err === thrown]
+    ])
+  ];
+  cases.forEach(([value, matches]) => {
+    const fixture = createGooglePhotosServiceFixture();
+    assert.throws(() => fixture.writeCachedMediaItems(value), matches);
+    [fixture.writes, fixture.warnings, fixture.errors, fixture.logs].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache writer forwards undefined serialization to the rejecting filesystem adapter', () => {
+  [undefined, () => {}, Symbol('unsupported'), { toJSON: () => undefined }].forEach(value => {
+    const failure = new TypeError('Undefined data rejected');
+    const calls = [];
+    const fixture = createGooglePhotosServiceFixture({ write: (...args) => { calls.push(args); throw failure; } });
+    assert.throws(() => fixture.writeCachedMediaItems(value), err => err === failure);
+    assert.deepStrictEqual(calls, [[path.join(__dirname, 'server/config/google_photos_cache.json'), undefined, 'utf8']]);
+    [fixture.writes, fixture.warnings, fixture.errors, fixture.logs].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos cache writer propagates write failures without retries or rollback and permits later calls', () => {
+  [new Error('Disk unavailable'), null, undefined].forEach(failure => {
+    let stored = 'previous';
+    let attempts = 0;
+    const fixture = createGooglePhotosServiceFixture({ write: (file, bytes) => {
+      attempts += 1;
+      stored = bytes;
+      if (attempts === 1) throw failure;
+    } });
+    assert.throws(() => fixture.writeCachedMediaItems(['first']), err => err === failure);
+    assert.strictEqual(attempts, 1);
+    assert.strictEqual(stored, '[\n  "first"\n]');
+    assert.strictEqual(fixture.writes.length, 0);
+    assert.strictEqual(fixture.writeCachedMediaItems(['later']), undefined);
+    assert.strictEqual(attempts, 2);
+    assert.strictEqual(stored, '[\n  "later"\n]');
+    assert.strictEqual(fixture.writes.length, 1);
+    [fixture.warnings, fixture.errors, fixture.logs].forEach(records => assert.deepStrictEqual(records, []));
+  });
 });
 
 assertTest('Google Photos raw cache reader documents unknown JSON and explicit failure boundaries', () => {

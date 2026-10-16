@@ -6,6 +6,29 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Google Photos Cache Writer Contract
+
+- **Contract**: documented `writeCachedMediaItems(...)` unknown input, native
+  two-space JSON serialization, synchronous UTF-8 write, and void result.
+  Normalization, validation, equality checks, and test-mode guards belong to
+  callers. Native hooks run before writing; undefined serialization reaches the
+  rejecting filesystem adapter. Failures propagate without retry or rollback.
+- **Functional design**: retained the concise data-first persistence shell and
+  separate pure row projections. Declarative case tables and isolated adapters
+  test encoding and effects without a curried/algebraic wrapper, new production
+  export, global patches, or live cache access. Recorded atomic/recoverable
+  persistence as separate hardening work, not a silent behavior change.
+- **Tests**: eight focused tests cover contracts, exact bytes and encoding,
+  frozen metadata/duplicates, native scalar/array encoding and hooks, repeated
+  writes in both modes, ignored adapter results, undefined data, and failures
+  before versus during writing, including later calls after partial effects.
+- **Verification**: `npm test` passed: 521 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  Runtime behavior is unchanged; no client build or service restart required.
+- **Next seam**: document `updateCachedMediaItem(...)` normalized-cache upsert,
+  unconditional persistence, returned-row identity, and ordered failure paths.
+
 ### 2026-10-16: Document Google Photos Raw Cache Reader Contract
 
 - **Contract**: documented `readCachedMediaItemsRaw()` as returning unknown,

@@ -108,6 +108,26 @@ function readCachedMediaItemsRaw() {
   }
 }
 
+/**
+ * Serialize the supplied value and synchronously replace the cache file.
+ *
+ * Uses native JSON.stringify with no replacer and two-space indentation, then
+ * writes once as UTF-8 without an added newline. No normalization, validation,
+ * deduplication, equality check, or test-mode guard occurs here; callers own
+ * those policies. Native getters/toJSON hooks run before the write and may
+ * have effects. An undefined serialization result reaches the filesystem,
+ * whose real adapter rejects it rather than writing an empty cache.
+ *
+ * Serialization and filesystem failures propagate unchanged without logging,
+ * retry, or rollback. This is a direct write, not an atomic file replacement;
+ * a failed write can leave a changed file. No cache read, authentication,
+ * network, or clock work occurs. Successful calls return undefined regardless
+ * of the filesystem adapter's result.
+ *
+ * @param {unknown} items Value to serialize; row policy belongs to callers.
+ * @returns {void}
+ * @throws {unknown} Serialization-hook, JSON encoding, or filesystem failure.
+ */
 function writeCachedMediaItems(items) {
   fs.writeFileSync(CACHE_PATH, JSON.stringify(items, null, 2), 'utf8');
 }
