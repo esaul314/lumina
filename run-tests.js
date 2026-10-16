@@ -1156,6 +1156,7 @@ const createGooglePhotosServiceFixture = ({
     saveCredentials: module.exports.saveGoogleCredentials,
     isAuthenticated: module.exports.isAuthenticated,
     isGooglePhotoProxyUrl: module.exports.isGooglePhotoProxyUrl,
+    getLocalMediaFilePath: module.exports.getLocalMediaFilePath,
     createPickerSession: module.exports.createPickerSession,
     getPickerSession: module.exports.getPickerSession,
     listPickerMediaItems: module.exports.listPickerMediaItems,
@@ -1171,6 +1172,92 @@ const createGooglePhotosServiceFixture = ({
     persisted
   };
 };
+
+assertTest('Google Photos local path documents unknown input, normalized result, and native failures', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Project an id to a local JPG path'), source.indexOf('const getLocalMediaFilePath ='));
+  [/@param \{unknown\} mediaItemId/, /@returns \{string\}/, /@throws \{unknown\}/,
+    /without accessing the filesystem/, /containment validation/,
+    /Percent escapes remain literal/, /coercion hooks can have effects/,
+    /propagate unchanged/
+  ].forEach(pattern => assert.match(contract, pattern));
+  assert.ok(source.includes('const getLocalMediaFilePath = (mediaItemId) => path.join(MEDIA_DIR, `${mediaItemId}.jpg`);'));
+});
+
+assertTest('Google Photos local path preserves native scalar coercion and unconditional JPG suffixes', () => {
+  const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
+  const directory = path.join(path.dirname(require.resolve('./server/services/googlePhotos.js')), '..', 'config', 'google_photos_media');
+  [
+    [undefined, 'undefined.jpg'], [null, 'null.jpg'], [false, 'false.jpg'],
+    [0, '0.jpg'], [-0, '0.jpg'], [NaN, 'NaN.jpg'], [Infinity, 'Infinity.jpg'],
+    [7n, '7.jpg'], ['', '.jpg'], ['photo', 'photo.jpg'],
+    ['photo.jpg', 'photo.jpg.jpg'], [' photo ', ' photo .jpg'],
+    ['café 🖼', 'café 🖼.jpg'], ['%2F%2E%2E', '%2F%2E%2E.jpg'],
+    ['id?x=1#fragment', 'id?x=1#fragment.jpg']
+  ].forEach(([input, filename]) => assert.strictEqual(project(input), path.join(directory, filename)));
+});
+
+assertTest('Google Photos local path normalizes segments after suffixing without enforcing containment', () => {
+  const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
+  const directory = path.dirname(project('fixture'));
+  [
+    ['.', '..jpg'], ['..', '...jpg'], ['nested/../photo', 'photo.jpg'],
+    ['nested//photo', 'nested/photo.jpg'], ['nested/', 'nested/.jpg'],
+    ['/photo', 'photo.jpg'], ['../photo', '../photo.jpg'],
+    ['../../photo', '../../photo.jpg'], ['../', '../.jpg']
+  ].forEach(([input, suffix]) => assert.strictEqual(project(input), path.join(directory, suffix)));
+  assert.strictEqual(path.relative(directory, project('../photo')), '../photo.jpg');
+  assert.strictEqual(project('a\\b'), path.join(directory, 'a\\b.jpg'));
+  assert.strictEqual(project('nul\0id'), path.join(directory, 'nul\0id.jpg'));
+});
+
+assertTest('Google Photos local path preserves frozen inputs and native string-hint hook ordering', () => {
+  const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
+  const events = [];
+  const value = Object.freeze({
+    [Symbol.toPrimitive]: hint => { events.push(hint); return 'fixture'; },
+    toString: () => assert.fail('primitive hook takes precedence')
+  });
+  assert.strictEqual(project(value), project('fixture'));
+  assert.deepStrictEqual(events, ['string']);
+  const fallback = Object.freeze({
+    toString: () => { events.push('toString'); return {}; },
+    valueOf: () => { events.push('valueOf'); return 42; }
+  });
+  assert.strictEqual(project(fallback), project(42));
+  assert.deepStrictEqual(events, ['string', 'toString', 'valueOf']);
+  assert.strictEqual(project(Object.freeze(['a', 'b'])), project('a,b'));
+  assert.strictEqual(project(Object.freeze({})), project('[object Object]'));
+});
+
+assertTest('Google Photos local path propagates coercion failures without stringifying Symbols', () => {
+  const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
+  [Symbol('fixture'), Object(Symbol('fixture')), Object.create(null),
+    Object.freeze({ [Symbol.toPrimitive]: () => ({}) })
+  ].forEach(input => assert.throws(() => project(input), error => error.name === 'TypeError'));
+  [new Error('fixture coercion'), null, undefined].forEach(failure => {
+    const value = Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } });
+    assert.throws(() => project(value), error => error === failure);
+  });
+});
+
+assertTest('Google Photos local path is repeatable without service state or filesystem effects in either mode', () => {
+  const failIfCalled = () => assert.fail('Unexpected local-path projection effect');
+  ['production', 'test'].flatMap(nodeEnv => [{}, { accessToken: 'fixture-access', expiry: 123 }]
+    .map(initialTokens => ({ nodeEnv, initialTokens })))
+    .forEach(options => {
+      const fixture = createGooglePhotosServiceFixture({
+        ...options, exists: failIfCalled, cacheExists: failIfCalled, read: failIfCalled,
+        write: failIfCalled, persist: failIfCalled, now: failIfCalled, fetchResponse: failIfCalled
+      });
+      const before = { tokens: fixture.readTokens(), credentials: fixture.readCredentials() };
+      const results = ['fixture', 'fixture', 'fixture'].map(fixture.getLocalMediaFilePath);
+      assert.ok(results.every(result => result === results[0]));
+      assert.deepStrictEqual({ tokens: fixture.readTokens(), credentials: fixture.readCredentials() }, before);
+      [fixture.writes, fixture.persisted, fixture.logs, fixture.warnings, fixture.errors]
+        .forEach(records => assert.deepStrictEqual(records, []));
+    });
+});
 
 assertTest('Google Photos proxy predicate documents its composed unknown-input and failure contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');

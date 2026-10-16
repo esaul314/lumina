@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Google Photos Local Media Path Contract
+
+- **Contract**: documented `getLocalMediaFilePath(...)` unknown input, platform
+  path result, and native coercion failures. JPG suffixing precedes path
+  normalization; whitespace, existing extensions, and percent escapes retain
+  their native meaning. Path construction performs no filesystem access and
+  does not validate ids or guarantee containment in the media directory.
+- **Functional design**: retained the concise data-first projection; currying
+  and algebraic wrappers would add ceremony to a unary transformation. Native
+  input hooks remain caller effects. Corrected the misleading effectful-section
+  comment without changing runtime behavior or production exports.
+- **Tests**: six focused tests use declarative cases, frozen inputs, and isolated
+  adapters to cover scalar coercion, suffixing, normalization, traversal-shaped
+  inputs, hook order/failures, repeatability, and service-effect isolation.
+- **Security follow-up**: recorded media-id validation and path confinement
+  before local reads/writes as separate hardening work. The route forwards ids
+  to the service, and a cache miss does not prevent a subsequent local read;
+  this is code-path evidence, not a claim of a demonstrated live exploit.
+- **Verification**: `npm test` passed: 550 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart required for this contract-only slice.
+- **Next seam**: document generic `difference(...)` contracts and test ordered,
+  immutable set-difference laws without introducing an algebraic wrapper.
+
 ### 2026-10-16: Document Google Photos Proxy Recognition Contract
 
 - **Contract**: documented `isGooglePhotoProxyUrl(...)` unknown input, boolean

@@ -1175,7 +1175,23 @@ const getOrphanedFiles = (allFiles, activeIds) => {
   return allFiles.filter(file => orphans.has(path.parse(file).name));
 };
 
-// File system effectful operations
+/**
+ * Project an id to a local JPG path without accessing the filesystem.
+ *
+ * Native template interpolation appends .jpg before path.join normalizes the
+ * result against the module's fixed media directory. No trimming, encoding,
+ * decoding, id validation, or containment validation is performed: dot segments
+ * and separators can resolve outside that directory, and existing extensions
+ * receive another .jpg suffix. Percent escapes remain literal path characters.
+ *
+ * This data-first projection reads no service state, clock, cache, or transport
+ * and performs no persistence or logging. Native coercion hooks can have effects;
+ * thrown values and coercion TypeErrors (including Symbols) propagate unchanged.
+ *
+ * @param {unknown} mediaItemId Value interpolated with the native string hint.
+ * @returns {string} Normalized platform path, not a verified or confined file.
+ * @throws {unknown} Native input coercion failure.
+ */
 const getLocalMediaFilePath = (mediaItemId) => path.join(MEDIA_DIR, `${mediaItemId}.jpg`);
 
 /**

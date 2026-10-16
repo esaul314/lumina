@@ -116,7 +116,8 @@ Current migration checkpoint:
 - Latest Step 6 slice: `updateCachedMediaItem(...)` documents normalized-cache whole-row upsert, unconditional persistence, and exact returned-row identity; preserve verbatim Map keys, ordered normalization/input/write effects, caller-owned row policy, and failures without rollback while keeping persistence in the service shell.
 - Latest Step 6 slice: `persistGoogleRefreshToken(...)` documents unknown-input normalization, case-sensitive mock skips, synchronous persistence, and void results; preserve native coercion, repeated writes, ignored adapter results, and unchanged failures while keeping token-state assignment with callers and persistence in the service shell.
 - Latest Step 6 slice: `isGooglePhotoProxyUrl(...)` documents unknown-input boolean projection and delegated coercion/decoding failures; preserve exact relative vocabulary, one-pass decoding, and non-empty-id truthiness without adding validation or service effects to the pure composition.
-- Next Step 6 seam: document `getLocalMediaFilePath(...)` input/string-result and native coercion/path-normalization contract, preserving the pure path projection without implying containment validation.
+- Latest Step 6 slice: `getLocalMediaFilePath(...)` documents unknown-input/string-result and native coercion/path-normalization contracts; preserve suffix-before-normalization and propagated failures without implying containment validation or moving filesystem effects into the pure projection. Media-id validation and path confinement remain separate security hardening work.
+- Next Step 6 seam: document the generic `difference(...)` input/result contract and test ordered, immutable set-difference laws without adding an algebraic wrapper.
 - `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
 
 ```mermaid

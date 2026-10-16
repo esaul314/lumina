@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (74): `isGooglePhotoProxyUrl(...)` documents its unknown-input boolean projection and delegated failures; seven focused tests preserve exact relative vocabulary, decoder composition, one-pass decoding, native coercion, and service-effect isolation. The concise data-first composition and runtime behavior remain unchanged.
-- Next Step 6 seam: document `getLocalMediaFilePath(...)` input/string-result and native coercion/path-normalization contract, preserving the pure path projection without implying containment validation.
+- Latest Step 6 slice (75): `getLocalMediaFilePath(...)` documents its unknown-input/string-result contract; six focused tests preserve native coercion, suffix-before-normalization, unvalidated paths, failures, and service-effect isolation. The concise data-first projection and runtime behavior remain unchanged; path containment is separate security hardening work.
+- Next Step 6 seam: document the generic `difference(...)` input/result contract and test ordered, immutable set-difference laws without adding an algebraic wrapper.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -236,8 +236,9 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (74): `server/services/googlePhotos.js` documents proxy recognition as the shared decoder composed with Boolean; isolated tests pin exact relative vocabulary, round trips, non-empty decoded ids, coercion/decoding failures, and absence of service effects. Production exports and runtime behavior remain unchanged.
-  - Next Step 6 seam: document `getLocalMediaFilePath(...)` input/string-result and native coercion/path-normalization contract, preserving the pure path projection without implying containment validation.
+  - Latest Step 6 slice (75): `server/services/googlePhotos.js` documents local JPG path construction without filesystem access or containment validation; isolated tests pin native coercion, suffixing, normalization, propagated failures, and absence of service effects. Production exports and runtime behavior remain unchanged.
+  - Security follow-up: validate media ids and enforce media-directory containment before filesystem access in the media proxy and background download paths; path construction alone does not provide that guarantee. Track this separately from behavior-preserving contracts.
+  - Next Step 6 seam: document the generic `difference(...)` input/result contract and test ordered, immutable set-difference laws without adding an algebraic wrapper.
 
 ### Shared domain flow
 
