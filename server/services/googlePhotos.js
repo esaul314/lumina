@@ -78,6 +78,23 @@ function buildGooglePhotoContentUrl(baseUrl, { width = DEFAULT_RENDER_WIDTH, hei
   return `${baseUrl}=${directives.join('-')}`;
 }
 
+/**
+ * Read the cache as unvalidated JSON, without normalization or persistence.
+ *
+ * Each call checks existence, then synchronously reads UTF-8 and parses anew.
+ * Any valid JSON value is returned, including non-array objects, scalars, and
+ * null; row validation and normalization belong to the consuming boundary.
+ * Missing files return a fresh empty array without reading or warning. Read
+ * and parse failures warn with err.message before returning a fresh empty
+ * array. This fallback does not repair, overwrite, or delete the cache.
+ *
+ * The existence check is outside the catch. Its failures propagate unchanged,
+ * as do failures in the warning handler (including nullish thrown values whose
+ * message cannot be read). No authentication, network, or clock work occurs.
+ *
+ * @returns {unknown} Parsed JSON, or a fresh empty array on a handled failure.
+ * @throws {unknown} Existence-check or warning-handler failure.
+ */
 function readCachedMediaItemsRaw() {
   if (!fs.existsSync(CACHE_PATH)) {
     return [];

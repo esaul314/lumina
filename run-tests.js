@@ -1085,6 +1085,7 @@ const createGooglePhotosServiceFixture = ({
   read = () => '[]',
   fetchResponse = async () => { throw new Error('Unexpected fetch'); },
   write = () => {},
+  warn = () => {},
   now = Date.now,
   initialTokens = {},
   envValues = {},
@@ -1119,7 +1120,7 @@ const createGooglePhotosServiceFixture = ({
   };
 
   // Capture internal helpers without widening the production exports.
-  const { buildContentUrl, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
+  const { buildContentUrl, readCachedMediaItemsRaw, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens, readCredentials } = runInNewContext(`${fs.readFileSync(filename, 'utf8')}\n;tokens = { ...tokens, ...initialTokens };\n;({ buildContentUrl: buildGooglePhotoContentUrl, readCachedMediaItemsRaw, findCachedMediaItem, isBaseUrlStale, getValidToken, refreshAccessToken, readTokens: () => ({ ...tokens }), readCredentials: () => ({ ...credentials }) });`, {
     module,
     require: id => adapters[id] ?? serviceRequire(id),
     __dirname: path.dirname(filename),
@@ -1133,13 +1134,14 @@ const createGooglePhotosServiceFixture = ({
     fetch: fetchResponse,
     console: {
       log: (...args) => logs.push(args),
-      warn: (...args) => warnings.push(args),
+      warn: (...args) => { warn(...args); warnings.push(args); },
       error: (...args) => errors.push(args)
     }
   }, { filename });
 
   return {
     buildContentUrl,
+    readCachedMediaItemsRaw,
     findCachedMediaItem,
     isBaseUrlStale,
     getValidToken,
@@ -2929,6 +2931,103 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
     'Network unavailable', 'Body unavailable', 'Disk unavailable'
   ]);
   ['network', 'body', 'disk'].forEach((id, index) => assert.ok(fixture.warnings[index][0].includes(id)));
+});
+
+assertTest('Google Photos raw cache reader documents unknown JSON and explicit failure boundaries', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Read the cache as unvalidated JSON'), source.indexOf('function readCachedMediaItemsRaw'));
+  [/@returns \{unknown\}/, /without normalization or persistence/,
+    /fresh empty array/, /existence check is outside the catch/,
+    /warning handler/, /No authentication, network, or clock work/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+assertTest('Google Photos raw cache reader returns fresh empty arrays for missing files without reads', () => {
+  const checked = [];
+  const fixture = createGooglePhotosServiceFixture({
+    cacheExists: file => { checked.push(path.basename(file)); return false; },
+    read: () => { throw new Error('Unexpected missing-file read'); }
+  });
+  const first = fixture.readCachedMediaItemsRaw();
+  const second = fixture.readCachedMediaItemsRaw();
+  [first, second].forEach(value => { assert.ok(Array.isArray(value)); assert.strictEqual(value.length, 0); });
+  assert.notStrictEqual(first, second);
+  assert.deepStrictEqual(checked, ['google_photos_cache.json', 'google_photos_cache.json']);
+  [fixture.writes, fixture.warnings, fixture.errors, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+});
+
+assertTest('Google Photos raw cache reader preserves all JSON shapes without filtering or normalization', () => {
+  [null, false, true, 0, 42, 'cache', {}, { items: [1] }, [],
+    [null, { id: 7 }, { id: 'same', custom: 'first' }, { id: 'same', custom: 'second' }]
+  ].forEach(value => {
+    const content = JSON.stringify(value);
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => content,
+      now: () => { throw new Error('Unexpected clock read'); } });
+    assert.strictEqual(JSON.stringify(fixture.readCachedMediaItemsRaw()), content);
+    [fixture.writes, fixture.warnings, fixture.errors, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos raw cache reader checks and reads UTF-8 on every call with detached parsed results', () => {
+  let stored = '[{"id":"photo","custom":{"rating":3}}]';
+  const effects = [];
+  const fixture = createGooglePhotosServiceFixture({
+    cacheExists: file => { effects.push(['exists', file]); return true; },
+    read: (file, encoding) => { effects.push(['read', file, encoding]); return stored; }
+  });
+  const first = fixture.readCachedMediaItemsRaw();
+  const second = fixture.readCachedMediaItemsRaw();
+  assert.notStrictEqual(first, second);
+  assert.notStrictEqual(first[0].custom, second[0].custom);
+  first[0].custom.rating = 9;
+  assert.strictEqual(second[0].custom.rating, 3);
+  stored = '[{"id":"new"}]';
+  assert.strictEqual(fixture.readCachedMediaItemsRaw()[0].id, 'new');
+  const cachePath = effects[0][1];
+  assert.strictEqual(path.basename(cachePath), 'google_photos_cache.json');
+  assert.deepStrictEqual(effects, Array.from({ length: 3 }).flatMap(() => [['exists', cachePath], ['read', cachePath, 'utf8']]));
+  [fixture.writes, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+});
+
+assertTest('Google Photos raw cache reader warns and returns fresh empty arrays after read or parse failures', () => {
+  [
+    [() => { throw new Error('Read unavailable'); }, 'Read unavailable'],
+    ...['{', ''].map(content => [() => content, /JSON/]),
+    [() => { throw 'read failed'; }, undefined]
+  ].forEach(([read, expectedDetail]) => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read });
+    const results = [fixture.readCachedMediaItemsRaw(), fixture.readCachedMediaItemsRaw()];
+    results.forEach(value => { assert.ok(Array.isArray(value)); assert.strictEqual(value.length, 0); });
+    assert.notStrictEqual(...results);
+    assert.strictEqual(fixture.warnings.length, 2);
+    fixture.warnings.forEach(([message, detail]) => {
+      assert.strictEqual(message, 'Google Photos Service: Failed to read media cache JSON:');
+      if (expectedDetail instanceof RegExp) assert.match(detail, expectedDetail);
+      else assert.strictEqual(detail, expectedDetail);
+    });
+    [fixture.writes, fixture.errors, fixture.persisted].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos raw cache reader propagates existence failures unchanged before reading or warning', () => {
+  [new Error('Existence unavailable'), null, undefined].forEach(failure => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => { throw failure; },
+      read: () => { throw new Error('Unexpected read'); } });
+    assert.throws(() => fixture.readCachedMediaItemsRaw(), err => err === failure);
+    [fixture.writes, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
+  });
+});
+
+assertTest('Google Photos raw cache reader does not catch failures in its warning handler', () => {
+  [null, undefined].forEach(failure => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => { throw failure; } });
+    assert.throws(() => fixture.readCachedMediaItemsRaw(), err => err.name === 'TypeError');
+    assert.deepStrictEqual(fixture.warnings, []);
+  });
+  const failure = new Error('Warning unavailable');
+  const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => '{', warn: () => { throw failure; } });
+  assert.throws(() => fixture.readCachedMediaItemsRaw(), err => err === failure);
+  [fixture.writes, fixture.warnings, fixture.errors].forEach(records => assert.deepStrictEqual(records, []));
 });
 
 assertTest('Google Photos cache lookup documents exact matching and its nullable effect-shell result', () => {

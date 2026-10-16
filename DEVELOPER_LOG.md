@@ -6,6 +6,27 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Google Photos Raw Cache Reader Contract
+
+- **Contract**: documented `readCachedMediaItemsRaw()` as returning unknown,
+  unvalidated JSON, including non-array shapes. Each call checks existence and
+  reads UTF-8 anew. Missing files and handled read/parse failures return fresh
+  empty arrays without repairing or overwriting the file. Existence-check and
+  warning-handler failures propagate, including nullish thrown-value failures.
+- **Functional design**: retained the small explicit filesystem/logging shell;
+  pure normalization remains at its existing boundary. Declarative case tables
+  and isolated adapters test behavior without a new curried/algebraic wrapper,
+  production export, live cache access, or global effect patches.
+- **Tests**: seven focused tests cover the source contract, missing-file skips,
+  valid JSON shapes, duplicate/metadata preservation, fresh detached results,
+  UTF-8 effect order, fallback identities, warning details, and failure paths.
+- **Verification**: `npm test` passed: 513 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  Runtime behavior is unchanged; no client build or service restart required.
+- **Next seam**: document `writeCachedMediaItems(...)` serialization and
+  synchronous persistence contract, keeping caller-owned guards explicit.
+
 ### 2026-10-14: Document Google Photos Exact-ID Cache Lookup Contract
 
 - **Contract**: documented `findCachedMediaItem(...)` string input and nullable
