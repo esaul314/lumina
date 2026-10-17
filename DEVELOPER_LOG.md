@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Pure Cached Metadata Merge Laws and Aliases
+
+- **Contract**: refined `mergeCachedMediaItemMetadata(...)` read-only inputs,
+  decode-before-projection ordering, strict row ids, shallow cloning, last-match
+  output aliases, !== change detection, and unchanged projection failures.
+  No-ops still copy truthy rows; sparse/falsy entries and nested aliases survive.
+- **Functional design**: retained the pure data-first map and explicit cache
+  shell. Projected patches compose by right-biased spread, with value identity
+  and associative composition. Tests use local partial application and generated
+  patch triples; result envelopes are not a Monoid of patch composition because
+  changed flags can cancel and references differ. No runtime rewrite, production
+  export, dependency, or algebraic wrapper was needed.
+- **Tests**: eight focused tests cover strict raw/proxy identifiers, duplicate
+  matches, shallow aliases, sparse/no-op copies, NaN/signed-zero/reference
+  comparisons, projected-patch laws, noncompositional flags, eager failures, and
+  native mapping/accessor failures. Tests use detached inputs, not live cache,
+  credentials, or network services.
+- **Verification**: `npm test` passed: 610 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart was needed for this contract-only slice.
+- **Next**: refine `buildGooglePhotoMetadataPatch(...)` allowlist, eager reads,
+  undefined omission, alias, and projection laws. Validation and cache recovery
+  remain separate policy work.
+
 ### 2026-10-17: Specify Cached Google Photos Metadata Update Contracts
 
 - **Contract**: refined `updateCachedMediaItemMetadata(...)` read-before-input

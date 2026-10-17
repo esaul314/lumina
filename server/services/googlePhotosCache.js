@@ -271,13 +271,36 @@ function buildGooglePhotoMetadataPatch(metadata = {}) {
 
 /**
  * Immutably merge an allowlisted metadata patch into matching cached rows.
- * A proxy URL or a plain media id identifies the row; missing matches and empty
- * patches produce a no-change result while retaining the existing clone shape.
+ * Decode a same-origin proxy id once, otherwise trim the truthy identifier's
+ * string form. Decoded ids are not retrimmed; rows match by strict id equality,
+ * without row coercion, URL fallback, normalization, deduplication, or policy.
+ * Identifier decoding precedes eager patch projection, both before any guard
+ * or mapping. Undefined patch fields are omitted; other values are unvalidated.
  *
- * @param {CachedGooglePhotoRows | null | undefined} items
+ * Every call maps a new array and shallow-copies every truthy row, including
+ * unmatched rows and no-ops. Nullish collections become empty arrays; falsy
+ * entries and sparse holes survive. Nested references remain shared. Every
+ * matching occurrence receives the patch; updatedItem aliases the last matching
+ * output row, even when changed is false. Missing ids/matches and empty patches
+ * return null updatedItem. No input assignment or cache I/O occurs here.
+ *
+ * changed ORs strict !== comparisons over all matches: NaN counts as changed,
+ * signed zero does not, and object values compare by reference, not structure.
+ * For ordinary records and a fixed id, projected patches compose by right-biased
+ * spread on row values, with {} as value identity, not reference identity.
+ * Project each patch before composing: a later undefined field must not erase
+ * an earlier defined field. Repeated scalar patches are value-idempotent;
+ * changed is not a compositional summary (reverting patches can cancel).
+ *
+ * Native decoding, property access, spread, or map failures escape unchanged;
+ * no partial result is returned. Purity assumes ordinary data: caller-supplied
+ * accessors/coercion hooks can have effects which this helper cannot roll back.
+ *
+ * @param {Readonly<CachedGooglePhotoRows> | null | undefined} items
  * @param {unknown} mediaIdentifier
  * @param {GooglePhotoMetadataInput} [metadata={}]
  * @returns {CachedGooglePhotoMetadataMerge}
+ * @throws {unknown} Identifier, patch, or row projection failure.
  */
 function mergeCachedMediaItemMetadata(items, mediaIdentifier, metadata = {}) {
   const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();

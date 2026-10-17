@@ -942,8 +942,12 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /@param \{GooglePhotoMediaItem\[\] \| null \| undefined\} syncedItems/);
   assert.match(cacheSource, /@returns \{GooglePhotoMediaItem\[\]\}/);
   assert.match(cacheSource, /@typedef \{Partial<Record<GooglePhotoMetadataField, unknown>>\} GooglePhotoMetadataInput/);
-  assert.match(cacheSource, /@param \{CachedGooglePhotoRows \| null \| undefined\} items/);
+  assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
+  assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
+  assert.match(cacheSource, /changed ORs strict !== comparisons over all matches/);
+  assert.match(cacheSource, /Project each patch before composing/);
+  assert.match(cacheSource, /@throws \{unknown\} Identifier, patch, or row projection failure/);
   assert.match(cacheSource, /Pool retention\/capping\s+\* is deliberately composed by the effectful sync shell after this union/);
   assert.doesNotMatch(cacheSource, /\b(?:fs|fetch)\b/);
   assert.match(serviceSource, /require\('\.\/googlePhotosCache\.js'\)/);
@@ -5785,6 +5789,146 @@ assertTest('Google Photos metadata merge preserves immutable no-match and empty-
     assert.notStrictEqual(result.items[0], source[0]);
   });
   assert.strictEqual(source[0].loved, undefined);
+});
+
+assertTest('pure cached metadata merge decodes identifiers once and matches only strict row ids', () => {
+  [
+    [' photo ', 'photo', true], ['photo', ' photo ', false], ['photo', undefined, false],
+    ['12', 12, false], [12, '12', true], [0, '0', false],
+    [buildGooglePhotoProxyUrl('A/B'), 'A/B', true],
+    [buildGooglePhotoProxyUrl('%2F'), '%2F', true],
+    [buildGooglePhotoProxyUrl(' photo '), ' photo ', true],
+    [buildGooglePhotoProxyUrl(' photo '), 'photo', false]
+  ].forEach(([identifier, id, matches]) => {
+    const row = Object.freeze({ id, url: buildGooglePhotoProxyUrl('photo'), source: 'other', isBroken: true });
+    const result = mergeCachedMediaItemMetadata(Object.freeze([row]), identifier, Object.freeze({ loved: true }));
+    assert.strictEqual(result.changed, matches);
+    assert.strictEqual(result.updatedItem, matches ? result.items[0] : null);
+    assert.deepStrictEqual(result.items, [{ ...row, ...(matches ? { loved: true } : {}) }]);
+  });
+});
+
+assertTest('pure cached metadata merge copies repeated aliases and returns the last duplicate match', () => {
+  const nested = Object.freeze({ label: 'retained' });
+  const first = Object.freeze({ id: 'photo', rating: 1, nested });
+  const last = Object.freeze({ id: 'photo', rating: 7, nested });
+  const sibling = Object.freeze({ id: 'other', nested });
+  const rows = Object.freeze([first, first, sibling, last]);
+  const patchValue = Object.freeze({ custom: true });
+  const result = mergeCachedMediaItemMetadata(rows, 'photo', Object.freeze({ rating: 7, orientation: patchValue }));
+  assert.strictEqual(result.changed, true);
+  assert.strictEqual(result.updatedItem, result.items[3]);
+  assert.notStrictEqual(result.items[0], result.items[1]);
+  rows.forEach((row, index) => {
+    assert.notStrictEqual(result.items[index], row);
+    assert.strictEqual(result.items[index].nested, nested);
+    assert.deepStrictEqual(result.items[index], { ...row, ...(row.id === 'photo' ? { rating: 7, orientation: patchValue } : {}) });
+    if (row.id === 'photo') assert.strictEqual(result.items[index].orientation, patchValue);
+  });
+  assert.deepStrictEqual(rows.map(({ rating }) => rating), [1, 1, undefined, 7]);
+  assert.strictEqual(mergeCachedMediaItemMetadata([first, last], 'photo', { rating: 7 }).changed, true);
+});
+
+assertTest('pure cached metadata no-ops preserve sparse and falsy entries without reference identity', () => {
+  const row = Object.freeze({ id: 'photo', nested: Object.freeze({ retained: true }) });
+  const rows = Object.freeze([row].concat(Array(1), [null, undefined, false, 0, '']));
+  [['', { loved: true }], ['missing', { loved: true }], ['photo', {}], ['photo', { loved: undefined, title: 'ignored' }]]
+    .forEach(([id, patch]) => {
+      const result = mergeCachedMediaItemMetadata(rows, id, patch);
+      assert.deepStrictEqual(result, { items: rows, updatedItem: null, changed: false });
+      assert.notStrictEqual(result.items, rows);
+      assert.notStrictEqual(result.items[0], row);
+      assert.strictEqual(result.items[0].nested, row.nested);
+      assert.strictEqual(1 in result.items, false);
+    });
+  [undefined, null, false, 0, ''].forEach((rows) => {
+    assert.deepStrictEqual(mergeCachedMediaItemMetadata(rows, 'photo', { rating: 0 }), { items: [], updatedItem: null, changed: false });
+  });
+});
+
+assertTest('pure cached metadata change detection uses strict equality rather than validation or deep equality', () => {
+  const shared = Object.freeze({ direction: 'portrait' });
+  [[NaN, NaN, true], [0, -0, false], [shared, shared, false], [shared, { ...shared }, true],
+    [7, null, true], [false, false, false], [undefined, 0, true]].forEach(([before, after, changed]) => {
+    const row = Object.freeze({ id: 'photo', rating: before });
+    const patch = Object.freeze({ rating: after });
+    const result = mergeCachedMediaItemMetadata(Object.freeze([row]), 'photo', patch);
+    assert.strictEqual(result.changed, changed);
+    assert.strictEqual(result.updatedItem, result.items[0]);
+    assert.ok(Object.is(result.updatedItem.rating, after));
+    assert.ok(Object.is(row.rating, before));
+    assert.notStrictEqual(result.updatedItem, row);
+  });
+});
+
+assertTest('pure cached metadata row values obey projected right-biased patch composition', () => {
+  const project = googlePhotosCache.buildGooglePhotoMetadataPatch;
+  const apply = (patch) => (rows) => mergeCachedMediaItemMetadata(rows, 'photo', patch).items;
+  const combine = (left, right) => ({ ...project(left), ...project(right) });
+  const rows = Object.freeze([Object.freeze({ id: 'photo', rating: 3, loved: false }), Object.freeze({ id: 'other' }), null]);
+  const patches = [{}, { rating: 0 }, { loved: true, rating: undefined }, { rating: null, title: 'ignored' }].map(Object.freeze);
+  patches.flatMap((a) => patches.flatMap((b) => patches.map((c) => [a, b, c]))).forEach(([a, b, c]) => {
+    assert.deepStrictEqual(apply(b)(apply(a)(rows)), apply(combine(a, b))(rows));
+    assert.deepStrictEqual(combine(combine(a, b), c), combine(a, combine(b, c)));
+    assert.deepStrictEqual(combine({}, a), project(a));
+    assert.deepStrictEqual(combine(a, {}), project(a));
+    assert.deepStrictEqual(apply(a)(apply(a)(rows)), apply(a)(rows));
+  });
+  assert.deepStrictEqual(apply({})(rows), rows);
+  assert.strictEqual(apply(combine({ rating: 0 }, { rating: undefined }))(rows)[0].rating, 0);
+  assert.strictEqual(apply({ ...{ rating: 0 }, ...{ rating: undefined } })(rows)[0].rating, 3);
+});
+
+assertTest('pure cached metadata result envelopes are not a patch-composition monoid', () => {
+  const rows = [{ id: 'photo', rating: 3 }];
+  const first = mergeCachedMediaItemMetadata(rows, 'photo', { rating: 7 });
+  const reverted = mergeCachedMediaItemMetadata(first.items, 'photo', { rating: 3 });
+  const combined = mergeCachedMediaItemMetadata(rows, 'photo', { rating: 3 });
+  assert.deepStrictEqual(reverted.items, combined.items);
+  assert.strictEqual(first.changed || reverted.changed, true);
+  assert.strictEqual(combined.changed, false);
+  const identity = mergeCachedMediaItemMetadata(rows, 'photo', {});
+  assert.strictEqual(identity.updatedItem, null);
+  assert.strictEqual(combined.updatedItem, combined.items[0]);
+  const repeatedNaN = mergeCachedMediaItemMetadata([{ id: 'photo', rating: NaN }], 'photo', { rating: NaN });
+  assert.strictEqual(repeatedNaN.changed, true);
+});
+
+assertTest('pure cached metadata merge projects inputs before guards and propagates failures in order', () => {
+  const events = [];
+  const identifier = { toString: () => { events.push('id'); return ''; } };
+  const metadata = { get rating() { events.push('patch'); return undefined; } };
+  const rows = [{ get id() { events.push('row-id'); return 'photo'; } }];
+  mergeCachedMediaItemMetadata(rows, identifier, metadata);
+  assert.deepStrictEqual(events, ['id', 'id', 'patch', 'row-id']);
+  events.length = 0;
+  assert.throws(() => mergeCachedMediaItemMetadata(rows, '/api/google-photos/media/%', metadata), URIError);
+  assert.deepStrictEqual(events, []);
+  assert.throws(() => mergeCachedMediaItemMetadata(rows, '', null), TypeError);
+  assert.deepStrictEqual(events, []);
+  [undefined, null, false, 0, '', new Error('projection')].forEach((failure) => {
+    let caught = false;
+    try { mergeCachedMediaItemMetadata(rows, '', { get rating() { throw failure; } }); }
+    catch (error) { caught = true; assert.strictEqual(error, failure); }
+    assert.strictEqual(caught, true);
+  });
+  assert.deepStrictEqual(events, []);
+});
+
+assertTest('pure cached metadata merge retains native map failures and does not assign partial row updates', () => {
+  [{}, 42, 'rows'].forEach((rows) => {
+    assert.throws(() => mergeCachedMediaItemMetadata(rows, 'photo', {}), TypeError);
+  });
+  const first = Object.freeze({ id: 'photo', rating: 3 });
+  const failure = new Error('row access');
+  let accesses = 0;
+  const failing = { get id() { accesses += 1; throw failure; } };
+  const rows = Object.freeze([first, failing]);
+  assert.throws(() => mergeCachedMediaItemMetadata(rows, 'photo', { rating: 7 }), (error) => error === failure);
+  assert.strictEqual(first.rating, 3);
+  assert.strictEqual(rows[0], first);
+  assert.strictEqual(rows[1], failing);
+  assert.strictEqual(accesses, 1, 'caller accessor effects survive failure without a partial result');
 });
 
 assertTest('applyCachedMediaItemMetadataToState keeps Google Photos toggle state in sync with the live snapshot', () => {
