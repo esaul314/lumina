@@ -1067,16 +1067,31 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * resolution, which can authenticate again; its rejection prevents retrieval.
  * No content request starts until preparation completes.
  *
- * A failed candidate may trigger one final Picker refresh and retry. Synthetic
- * `MOCK_` ids skip authentication and disk writes; real items use a valid
- * token, and successful non-empty downloads are cached locally. Authentication,
- * Picker/network requests, file access, persistence, and logging remain in
- * this effectful service boundary.
+ * Retrieve candidates sequentially with the initially resolved token (or empty
+ * headers for synthetic MOCK_ ids). Only HTTP non-ok responses advance to the
+ * next candidate; their bodies are not read. Thrown fetch, arrayBuffer,
+ * Buffer conversion, write, and header-access failures reject immediately,
+ * without another candidate or final refresh. Successful responses decode via
+ * Buffer.from, write non-empty real-item bytes, then read the content-type
+ * header. Empty buffers still succeed. MIME selection uses truthiness without
+ * validation: response header, original cached MIME, then image/jpeg.
  *
- * For remote content, the returned content type prefers the response header
- * and falls back to the cached MIME type or `image/jpeg`. If retrieval cannot
- * produce a successful response, the promise rejects with the last fetch/refresh error or a
- * media-specific fallback error.
+ * After all HTTP failures, a truthy cached Picker session permits one final
+ * refresh and one retry only for an exact URL not already tried. The retry
+ * reuses the initially resolved token and original MIME hint, even if refresh
+ * replaces service tokens or persists new metadata. Unlike the candidate loop,
+ * this retry writes even empty real-item buffers before reading the header.
+ * Synthetic ids skip content authentication and byte writes, not necessarily
+ * Picker authentication or metadata persistence.
+ *
+ * Final refresh/projection/request/decoding/write/header failures are caught
+ * as the last error; a retry HTTP failure supplies a distinct status error.
+ * A duplicate URL retains the last candidate HTTP error. Exhaustion rejects
+ * with a truthy last error verbatim; falsy caught values instead select the
+ * media-specific fallback error. There is no retry after this final attempt,
+ * no rollback of prior effects, and no additional logging in this catch.
+ * Authentication, requests, file access, persistence, and logging remain in
+ * this effectful service boundary, separate from pure cache/URL projections.
  *
  * @param {string} mediaItemId Stable Google Photos media-item id.
  * @param {GooglePhotoRenderOptions} [renderOptions={}] Optional content dimensions and crop directive.

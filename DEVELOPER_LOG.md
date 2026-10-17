@@ -6,6 +6,35 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Remote Media Retrieval and Final Picker Retry Contracts
+
+- **Contract**: refined `fetchMediaItemBytes(...)` remote retrieval: HTTP errors
+  advance sequentially without reading bodies; thrown fetch/decoding/write/header
+  failures reject immediately. Successful responses decode, write non-empty
+  real-item bytes, then select MIME by header/original-hint/default truthiness.
+  Final Picker refresh retries only a new exact URL, retains the original token
+  and MIME hint despite refreshed state, and writes even empty real-item bytes.
+  Its catch preserves truthy failures and substitutes a fallback for falsy ones;
+  prior cache/byte effects survive. Synthetic content skips auth and byte writes,
+  not necessarily Picker authentication or metadata persistence.
+- **Functional design**: retained pure cache/URL projections and the data-first
+  effect shell. Declarative case tables compose through `map`, `flatMap`, and
+  `Promise.all`; a deferred response checks sequential fallback. Currying or a
+  new algebra would obscure effect order. No executable production code,
+  dependencies, or exports changed.
+- **Tests**: eight focused tests use isolated service adapters for MIME/Buffer
+  results, HTTP sequencing, initial versus final failure boundaries, token/hint
+  retention, synthetic retry, empty bytes, exact uniqueness, and retained writes.
+  No live credentials, cache files, or network services are accessed.
+- **Verification**: `npm test` passed: 586 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart was needed for this contract-only slice.
+- **Follow-up**: recorded recovery, token reuse, empty-byte, MIME, and error
+  normalization decisions as separate hardening work. Next: refine live metadata
+  application contracts for identifier decoding, match precedence, alias identity,
+  and partial failures; retain pure projections and the explicit mutation shell.
+
 ### 2026-10-16: Specify Media Candidate URL Preparation Contract
 
 - **Contract**: refined `fetchMediaItemBytes(...)` candidate preparation:

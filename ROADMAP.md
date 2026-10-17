@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## Implementation Companion
 
@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (79): `fetchMediaItemBytes(...)` documents candidate-URL preparation; eight focused tests preserve awaited authentication, missing/stale Picker refresh precedence, original-base fallback, exact ordered deduplication, on-demand resolution, and preparation failures. Declarative cases use isolated effect adapters; runtime behavior and production exports remain unchanged.
-- Next Step 6 seam: refine `fetchMediaItemBytes(...)` remote retrieval and final Picker retry contracts with isolated tests for HTTP versus thrown failures, response decoding, MIME fallback, disk-write ordering, empty-buffer differences, and retry uniqueness; keep media-path validation and confinement in the separate security backlog.
+- Latest Step 6 slice (80): `fetchMediaItemBytes(...)` documents remote retrieval and final Picker retry; eight focused tests preserve sequential HTTP fallback versus immediate thrown rejection, decoding, MIME truthiness, write ordering, empty-buffer differences, exact retry uniqueness, retained token/hint, and partial effects. Declarative cases use isolated adapters; runtime behavior and production exports remain unchanged.
+- Next Step 6 seam: refine `applyCachedMediaItemMetadataToState(...)` identifier decoding, match precedence, alias identity, and partial-failure contracts with isolated tests; preserve pure metadata/id projections and keep live mutation in the service shell.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -236,9 +236,10 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (79): `server/services/googlePhotos.js` documents `fetchMediaItemBytes(...)` candidate-URL preparation; isolated tests preserve awaited authentication, refresh precedence, cached-base fallback, exact deduplication, on-demand resolution, and failure ordering without changing runtime behavior or production exports.
+  - Latest Step 6 slice (80): `server/services/googlePhotos.js` documents `fetchMediaItemBytes(...)` remote retrieval and final Picker retry; isolated tests preserve sequential HTTP fallback, thrown failure boundaries, decoding, original token/MIME hint, empty-buffer differences, write ordering, and exact retry uniqueness without changing runtime behavior or production exports.
   - Security follow-up: validate media ids and enforce media-directory containment before filesystem access in the media proxy and background download paths; path construction alone does not provide that guarantee. Track this separately from behavior-preserving contracts.
-  - Next Step 6 seam: refine `fetchMediaItemBytes(...)` remote retrieval and final Picker retry contracts with isolated tests for HTTP versus thrown failures, response decoding, MIME fallback, disk-write ordering, empty-buffer differences, and retry uniqueness; keep media-path validation and confinement in the separate security backlog.
+  - Media retrieval hardening follow-up: choose bounded network/decoding failure recovery, refreshed-token reuse, consistent empty-byte handling, validated MIME values, and thrown-value normalization explicitly. Current retries retain the original token/hint, and prior cache/byte writes survive later failures; keep policy changes separate from contract-only work.
+  - Next Step 6 seam: refine `applyCachedMediaItemMetadataToState(...)` identifier decoding, match precedence, alias identity, and partial-failure contracts with isolated tests; preserve pure metadata/id projections and keep live mutation in the service shell.
 
 ### Shared domain flow
 
