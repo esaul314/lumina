@@ -203,6 +203,13 @@ function updateCachedMediaItem(item) {
 /**
  * Apply an allowlisted metadata patch to a cached Google Photos row.
  *
+ * Every call reads, normalizes, filters, and deduplicates the cache before
+ * decoding the identifier or projecting metadata, even for invalid identifiers
+ * or empty patches. Outside exact NODE_ENV 'test', that reader may persist
+ * normalization before a later no-match result or projection failure. Missing
+ * files and handled read/parse failures become empty caches; valid non-array
+ * JSON and unhandled reader failures still propagate.
+ *
  * The service reads the normalized cache and delegates the immutable merge to
  * `mergeCachedMediaItemMetadata`. It returns the copied matching row, including
  * when its values are unchanged, or `null` when the identifier or patch does
@@ -210,9 +217,30 @@ function updateCachedMediaItem(item) {
  * actually changes and the process is not in test mode; the projected row is
  * returned even when persistence is skipped.
  *
+ * The merge decodes a proxy id once or trims the raw fallback, then compares
+ * cached ids with strict equality, without trimming row ids or consulting row
+ * URLs. Undefined patch fields are omitted; false, zero, null, and unvalidated
+ * values remain. Change detection uses !==, not deep equality: NaN changes,
+ * signed zero does not, and equal-looking object references can differ.
+ *
+ * A changed result writes the full normalized projection after any reader
+ * write, not just the matching row. Test mode suppresses both writes, not reads
+ * or projection. Repeated calls read anew; equal persisted scalar patches are
+ * value-idempotent but still return fresh shallow copies. Returned edits do
+ * not persist themselves. No retention, pool cap, authentication, network, or
+ * clock work occurs here.
+ *
+ * Input access/coercion, unhandled reader, serialization, and write failures
+ * propagate unchanged without an updater catch, logging, retry, or rollback.
+ * Reader warnings remain reader-owned; earlier normalization or partial file
+ * writes can survive failure. The row is returned only after required writes
+ * complete. This data-first effect shell retains the pure merge separately;
+ * it is not an atomic transaction or an immutable cache store.
+ *
  * @param {unknown} mediaIdentifier A Google media id or Lumina proxy URL.
  * @param {GooglePhotoMetadataPatchInput} [metadata={}]
  * @returns {LiveGooglePhoto | null}
+ * @throws {unknown} Unhandled read, input-projection, serialization, or write failure.
  */
 function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
   const currentItems = getCachedMediaItems();

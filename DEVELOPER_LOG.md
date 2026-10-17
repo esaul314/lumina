@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Cached Google Photos Metadata Update Contracts
+
+- **Contract**: refined `updateCachedMediaItemMetadata(...)` read-before-input
+  ordering, strict cached-id matching, copied results, !== change detection,
+  full-cache changed-only writes, and exact test-mode suppression. Reader
+  normalization can persist before no-match results or later failures; required
+  writes complete before return, without updater recovery or rollback.
+- **Functional design**: retained the pure immutable merge and data-first cache
+  shell. Declarative case tables compose through `map` and `forEach` with
+  isolated adapters; repeated persisted scalar patches are value-idempotent,
+  not reference-idempotent. No curried/algebraic wrapper, executable production
+  change, dependency, or production export was needed.
+- **Tests**: eight focused tests cover eager input access, handled/unhandled
+  reads, surviving normalization writes, raw/proxy versus strict row ids,
+  undefined/falsy/NaN/object patches, exact test-mode behavior, first-usable-id
+  persistence, copied results, serialization, and unchanged thrown values.
+  No live credentials, cache files, or network services accessed by these tests.
+- **Verification**: `npm test` passed: 602 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart was needed for this contract-only slice.
+- **Follow-up**: recorded normalization/write atomicity and metadata validation
+  separately. Next: refine the pure metadata merge's identifier, clone/alias,
+  strict change-detection, and composition contracts with focused tests.
+
 ### 2026-10-17: Specify Live Google Photos Metadata Application Contracts
 
 - **Contract**: refined `applyCachedMediaItemMetadataToState(...)` decoding and

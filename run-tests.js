@@ -987,6 +987,11 @@ assertTest('Google Photos cache metadata updater documents its read, return, and
   assert.match(source, /full cache is written only when a matched row\s+\* actually changes and the process is not in test mode/);
   assert.match(source, /const currentItems = getCachedMediaItems\(\);\s+const merged = mergeCachedMediaItemMetadata\(currentItems, mediaIdentifier, metadata\);/);
   assert.match(source, /if \(merged\.changed && process\.env\.NODE_ENV !== 'test'\)\s+\{\s+writeCachedMediaItems\(merged\.items\);/);
+  [/before\s+\* decoding the identifier/, /normalization before a later no-match/,
+    /strict equality, without trimming row ids/, /Change detection uses !==/,
+    /Test mode suppresses both writes, not reads/, /not an atomic transaction/,
+    /@throws \{unknown\} Unhandled read, input-projection, serialization, or write failure/
+  ].forEach(pattern => assert.match(source, pattern));
 });
 
 assertTest('Google Photos Picker refresh documents its fallback, result, and cache-effect contract', () => {
@@ -1173,6 +1178,7 @@ const createGooglePhotosServiceFixture = ({
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
+    updateMetadata: module.exports.updateCachedMediaItemMetadata,
     fetchBytes: module.exports.fetchMediaItemBytes,
     writes,
     warnings,
@@ -6048,6 +6054,174 @@ assertTest('live Google Photos metadata retains committed list and partial activ
       assert.strictEqual(other.rating, key === 'activePhoto' ? 3 : 9);
       assert.strictEqual(other.isBroken, key !== 'activePhoto');
     });
+});
+
+assertTest('cached metadata updates read before eagerly decoding identifiers and projecting patches', () => {
+  ['photo', ''].forEach(id => {
+    const events = [];
+    const fields = ['rating', 'isBroken', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved', 'orientation', 'width', 'height'];
+    const metadata = Object.freeze(Object.defineProperties({}, Object.fromEntries(fields.map(key => [key, {
+      get: () => { events.push(key); return undefined; }
+    }]))));
+    const fixture = createGooglePhotosServiceFixture({
+      cacheExists: () => { events.push('cache'); return false; },
+      now: () => assert.fail('metadata updates must not read the clock')
+    });
+    const identifier = { toString: () => { events.push('identifier'); return id; } };
+    assert.strictEqual(fixture.updateMetadata(identifier, metadata), null);
+    assert.deepStrictEqual(events, ['cache', 'identifier', 'identifier', ...fields]);
+    assert.deepStrictEqual([fixture.writes, fixture.warnings, fixture.logs, fixture.errors, fixture.persisted], [[], [], [], [], []]);
+  });
+});
+
+assertTest('cached metadata reader failures precede projection while handled read failures permit no-match results', () => {
+  const failure = new Error('isolated cache failure');
+  [
+    { cacheExists: () => { throw failure; }, matches: error => error === failure },
+    ...['null', '{}', '42'].map(json => ({ read: () => json, matches: error => error?.name === 'TypeError' })),
+    { read: () => { throw failure; }, warn: () => { throw failure; }, matches: error => error === failure }
+  ].forEach(({ matches, ...adapters }) => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, ...adapters });
+    const identifier = { toString: () => assert.fail('reader failure must precede input access') };
+    assert.throws(() => fixture.updateMetadata(identifier, null), matches);
+    assert.deepStrictEqual([fixture.writes, fixture.errors], [[], []]);
+  });
+  [() => '{invalid', () => { throw failure; }].forEach(read => {
+    const events = [];
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read, warn: () => events.push('warning') });
+    assert.strictEqual(fixture.updateMetadata('photo', { get rating() { events.push('patch'); return 0; } }), null);
+    assert.deepStrictEqual(events, ['warning', 'patch']);
+    assert.strictEqual(fixture.warnings.length, 1);
+    assert.deepStrictEqual([fixture.writes, fixture.errors], [[], []]);
+  });
+});
+
+assertTest('cached metadata normalization writes survive later invalid inputs and projection failures', () => {
+  const failure = new Error('isolated projection failure');
+  const row = { id: 'photo', googleBaseUrl: 'https://fixture.invalid/photo' };
+  [
+    { identifier: '', metadata: {}, matches: null },
+    { identifier: 'missing', metadata: { rating: 0 }, matches: null },
+    { identifier: '/api/google-photos/media/%', metadata: {}, matches: error => error?.name === 'URIError' },
+    { identifier: { toString: () => { throw failure; } }, metadata: {}, matches: error => error === failure },
+    { identifier: 'photo', metadata: null, matches: error => error?.name === 'TypeError' },
+    { identifier: 'photo', metadata: { get rating() { throw failure; } }, matches: error => error === failure }
+  ].forEach(({ identifier, metadata, matches }) => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => JSON.stringify([row]) });
+    const run = () => fixture.updateMetadata(identifier, metadata);
+    if (matches) assert.throws(run, matches);
+    else assert.strictEqual(run(), null);
+    assert.strictEqual(fixture.writes.length, 1);
+    assert.deepStrictEqual(JSON.parse(fixture.writes[0].bytes), [googlePhotosCache.normalizeCachedMediaItem(row)]);
+    assert.deepStrictEqual([fixture.warnings, fixture.errors], [[], []]);
+  });
+  const fixture = createGooglePhotosServiceFixture({
+    cacheExists: () => true, read: () => JSON.stringify([row]), write: () => { throw failure; }
+  });
+  assert.throws(() => fixture.updateMetadata({ toString: () => assert.fail('write failure must precede decoding') }), error => error === failure);
+});
+
+assertTest('cached metadata matching decodes inputs but preserves strict cached ids and copied results', () => {
+  [
+    ['photo', ' photo ', true], ['photo', '/api/google-photos/media/photo?render=1', true],
+    ['a/b', '/api/google-photos/media/a%2Fb', true], ['a%2Fb', '/api/google-photos/media/a%252Fb', true],
+    [' photo ', 'photo', false], [' photo ', '/api/google-photos/media/%20photo%20', true],
+    ['other', '/api/google-photos/media/photo', false]
+  ].forEach(([id, identifier, matches]) => {
+    const row = Object.freeze(googlePhotosCache.normalizeCachedMediaItem({ id, googleBaseUrl: 'https://fixture.invalid/photo' }));
+    const metadata = Object.freeze({ rating: 10, title: 'ignored', loved: undefined });
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => JSON.stringify([row]) });
+    const results = [fixture.updateMetadata(identifier, metadata), fixture.updateMetadata(identifier, metadata)];
+    results.forEach(result => assert.deepStrictEqual(result, matches ? row : null));
+    if (matches) assert.notStrictEqual(results[0], results[1]);
+    assert.deepStrictEqual(fixture.writes, []);
+  });
+});
+
+assertTest('cached metadata change detection uses strict inequality rather than validation or deep equality', () => {
+  [
+    { initial: 10, value: 10, changed: false }, { initial: 10, value: 0, changed: true },
+    { initial: 10, value: false, changed: true }, { initial: 10, value: null, changed: true },
+    { initial: 0, value: -0, changed: false }, { initial: 10, value: NaN, changed: true },
+    { initial: { score: 10 }, value: Object.freeze({ score: 10 }), changed: true },
+    { initial: 10, value: undefined, changed: false }
+  ].forEach(({ initial, value, changed }) => {
+    const row = googlePhotosCache.normalizeCachedMediaItem({ id: 'photo', googleBaseUrl: 'https://fixture.invalid/photo', rating: initial });
+    const metadata = Object.freeze({ rating: value, title: 'ignored' });
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => JSON.stringify([row]) });
+    const result = fixture.updateMetadata('photo', metadata);
+    assert.strictEqual(fixture.writes.length, Number(changed));
+    if (value === undefined) assert.strictEqual(result, null);
+    else {
+      assert.ok(Object.is(result.rating, value));
+      assert.strictEqual(result.title, undefined);
+      if (changed) assert.deepStrictEqual(JSON.parse(fixture.writes[0].bytes), JSON.parse(JSON.stringify([{ ...row, rating: value }])));
+    }
+    assert.strictEqual(row.rating, initial);
+  });
+});
+
+assertTest('cached metadata test-mode suppression is exact and does not suppress repeated reads or projections', () => {
+  ['test', 'TEST', ' test ', 'production', null].forEach(nodeEnv => {
+    const row = { id: 'photo', googleBaseUrl: 'https://fixture.invalid/photo', loved: false };
+    let reads = 0;
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv, cacheExists: () => true, read: () => { reads += 1; return JSON.stringify([row]); }
+    });
+    const results = [fixture.updateMetadata('photo', { loved: true }), fixture.updateMetadata('photo', { loved: true })];
+    assert.strictEqual(reads, 2);
+    results.forEach(result => assert.strictEqual(result.loved, true));
+    assert.notStrictEqual(results[0], results[1]);
+    assert.strictEqual(fixture.writes.length, nodeEnv === 'test' ? 0 : 4, 'each fresh dirty read normalizes before its changed patch');
+    assert.strictEqual(row.loved, false);
+  });
+});
+
+assertTest('cached metadata updates persist the full first-usable-id projection and repeated scalar patches only read', () => {
+  const rows = [
+    { id: 'photo', googleBaseUrl: 'https://fixture.invalid/photo', rating: 10, extra: { retained: true } },
+    { id: 'photo', googleBaseUrl: 'https://fixture.invalid/duplicate', rating: 1 },
+    { id: 'unusable' }, { id: 'sibling', googlePickerSessionId: 'session', rating: 5 }, null
+  ];
+  let bytes = JSON.stringify(rows);
+  let reads = 0;
+  const fixture = createGooglePhotosServiceFixture({
+    cacheExists: () => true, read: () => { reads += 1; return bytes; }, write: (file, next) => { bytes = next; }
+  });
+  const first = fixture.updateMetadata('photo', Object.freeze({ rating: 0 }));
+  assert.strictEqual(fixture.writes.length, 2, 'normalization and metadata writes are separate');
+  const persisted = JSON.parse(bytes);
+  assert.deepStrictEqual(persisted.map(({ id, rating }) => [id, rating]), [['photo', 0], ['sibling', 5]]);
+  assert.deepStrictEqual(persisted[0].extra, { retained: true });
+  const second = fixture.updateMetadata('photo', { rating: 0 });
+  assert.deepStrictEqual(second, first);
+  assert.notStrictEqual(second, first);
+  first.rating = 9;
+  assert.strictEqual(JSON.parse(bytes)[0].rating, 0, 'editing the returned copy is not a write');
+  assert.strictEqual(second.rating, 0);
+  assert.strictEqual(reads, 2);
+  assert.strictEqual(fixture.writes.length, 2);
+  assert.strictEqual(rows[0].rating, 10);
+});
+
+assertTest('cached metadata serialization and write failures propagate without updater recovery or rollback', () => {
+  const row = googlePhotosCache.normalizeCachedMediaItem({ id: 'photo', googleBaseUrl: 'https://fixture.invalid/photo' });
+  const cycle = {}; cycle.self = cycle;
+  [cycle, 1n].forEach(width => {
+    const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => JSON.stringify([row]) });
+    assert.throws(() => fixture.updateMetadata('photo', { width }), error => error?.name === 'TypeError');
+    assert.deepStrictEqual([fixture.writes, fixture.warnings, fixture.errors], [[], [], []]);
+  });
+  [undefined, null, false, 0, '', new Error('isolated write failure')].forEach(failure => {
+    let partialBytes;
+    const fixture = createGooglePhotosServiceFixture({
+      cacheExists: () => true, read: () => JSON.stringify([row]),
+      write: (file, bytes) => { partialBytes = bytes; throw failure; }
+    });
+    assert.throws(() => fixture.updateMetadata('photo', { rating: 0 }), error => error === failure);
+    assert.strictEqual(JSON.parse(partialBytes)[0].rating, 0);
+    assert.deepStrictEqual([fixture.writes, fixture.warnings, fixture.errors], [[], [], []]);
+  });
 });
 
 assertTest('updateCachedMediaItemMetadata persists only changed cache projections outside test mode', () => {
