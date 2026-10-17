@@ -1173,12 +1173,20 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
 const difference = (setA, setB) => new Set([...setA].filter(x => !setB.has(x)));
 
 /**
- * Return directory entries whose parsed basename is absent from the active ids.
- * Matching ignores the file extension, and the result preserves input order.
+ * Project entries whose platform-parsed basename is absent from the active ids.
+ * path.parse(...).name removes directories and only the final extension;
+ * active ids match exactly, without trimming, decoding, or case folding.
+ * Return a fresh array of original entries, preserving duplicates and order
+ * without mutating either input. Empty active ids retain every entry.
  *
- * @param {string[]} allFiles Directory entries to inspect.
- * @param {string[]} activeIds Media ids that must be retained.
- * @returns {string[]} Entries whose parsed basename is not active.
+ * This pure data-first projection performs no filesystem access or deletion.
+ * Inputs are not validated or coerced; native container/path failures and
+ * caller-owned iteration/method hook failures propagate unchanged.
+ *
+ * @param {ReadonlyArray<string>} allFiles Directory entries or path strings to inspect.
+ * @param {ReadonlyArray<string>} activeIds Exact media ids that must be retained.
+ * @returns {string[]} Detached ordered entries whose parsed basename is not active.
+ * @throws {unknown} Native input/path or caller-owned hook failure.
  */
 const getOrphanedFiles = (allFiles, activeIds) => {
   const activeSet = new Set(activeIds);

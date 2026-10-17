@@ -6,6 +6,33 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Orphaned File Projection Contract and Laws
+
+- **Contract**: refined `getOrphanedFiles(...)` to accept read-only arrays and
+  return a detached array of original entries in input order, including
+  duplicates. Platform basename parsing removes directories and the final
+  extension; active ids match without trimming, decoding, or case folding.
+  Native container/path and caller-owned hook failures propagate unchanged.
+- **Functional design**: retained the concise pure data-first Set projection.
+  For fixed active ids, filtering preserves array concatenation and its empty
+  identity; repeated filtering is idempotent, and successive active-id sets
+  compose through union. These laws need no curried or algebraic wrapper.
+  Filesystem reads and deletion remain in the cleanup shell; runtime behavior
+  and production exports are unchanged.
+- **Tests**: six focused tests use declarative path cases, frozen inputs, and
+  generated active-id subsets to cover exact basename matching, duplicate/order
+  preservation, detached results, empty identities, composition laws, and
+  uncoerced invalid-entry/native hook failures. Moved helper-contract assertions
+  out of the cleanup-shell test into the focused projection test.
+- **Verification**: `npm test` passed: 562 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart was needed for this contract-only slice.
+- **Next seam**: refine the `fetchMediaItemBytes(...)` local-cache fast-path
+  contract with isolated tests for non-empty hits, empty/read-failure fallback,
+  and failures before authentication. Media-path validation and confinement
+  remain separate security work.
+
 ### 2026-10-16: Document Ordered Set Difference Contract and Laws
 
 - **Contract**: documented `difference(...)` generic read-only Set inputs and

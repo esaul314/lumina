@@ -1044,11 +1044,6 @@ assertTest('Google Photos media-byte fetch documents its result and effect bound
 assertTest('Google Photos orphan cleanup documents its input and effect boundary', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
 
-  assert.match(source, /Return directory entries whose parsed basename is absent from the active ids/);
-  assert.match(source, /Matching ignores the file extension, and the result preserves input order/);
-  assert.match(source, /@param \{string\[\]\} allFiles Directory entries to inspect/);
-  assert.match(source, /@param \{string\[\]\} activeIds Media ids that must be retained/);
-  assert.match(source, /@returns \{string\[\]\} Entries whose parsed basename is not active/);
   assert.match(source, /Remove locally cached files that are not represented by the supplied items/);
   assert.match(source, /A missing media directory and test mode are no-ops[\s\S]*synchronously unlinks each result/);
   assert.match(source, /Listing, projection, and unlink failures\s+\* are caught and warned; cleanup is best-effort and does not propagate them/);
@@ -5689,6 +5684,96 @@ assertTest('getOrphanedFiles matches parsed ids and preserves orphan order witho
   assert.deepStrictEqual(orphans, ['item2.jpg', 'item4.webp']);
   assert.deepStrictEqual(allFiles, ['item1.jpg', 'item2.jpg', 'item1.png', 'item3.jpg', 'item4.webp']);
   assert.deepStrictEqual(activeIds, ['item1', 'item3']);
+});
+
+assertTest('getOrphanedFiles documents readonly inputs and a pure detached projection', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Project entries whose platform-parsed basename'), source.indexOf('const getOrphanedFiles ='));
+  ['@param {ReadonlyArray<string>} allFiles', '@param {ReadonlyArray<string>} activeIds',
+    '@returns {string[]}', '@throws {unknown}', 'preserving duplicates and order',
+    'no filesystem access or deletion', 'failures propagate unchanged'].forEach(text => assert.ok(contract.includes(text)));
+});
+
+assertTest('getOrphanedFiles matches exact platform basenames without normalizing ids', () => {
+  [
+    ['nested/item.jpg', 'item', true],
+    ['nested/item.png', 'nested/item', false],
+    ['photo.raw.jpg', 'photo.raw', true],
+    ['photo.raw.jpg', 'photo', false],
+    ['.hidden', '.hidden', true],
+    ['.hidden.jpg', '.hidden', true],
+    ['photo.', 'photo', true],
+    ['folder/', 'folder', true],
+    ['', '', true],
+    ['/', '', true],
+    ['Photo.JPG', 'photo', false],
+    [' photo .jpg', 'photo', false],
+    ['photo%2Fone.jpg', 'photo/one', false],
+    ['photo%2Fone.jpg', 'photo%2Fone', true]
+  ].forEach(([file, id, active]) => {
+    assert.deepStrictEqual(getOrphanedFiles(Object.freeze([file]), Object.freeze([id])), active ? [] : [file]);
+  });
+});
+
+assertTest('getOrphanedFiles preserves original paths, duplicate entries, and order in a fresh result', () => {
+  const files = Object.freeze(['z.jpg', 'nested/a.jpg', 'z.jpg', 'z.png', 'other/a.webp', 'm.jpg']);
+  const active = Object.freeze(['a', 'a', 'missing']);
+  const result = getOrphanedFiles(files, active);
+  assert.deepStrictEqual(result, ['z.jpg', 'z.jpg', 'z.png', 'm.jpg']);
+  assert.notStrictEqual(result, files);
+  assert.notStrictEqual(result, getOrphanedFiles(files, active));
+  result.push('new.jpg');
+  assert.deepStrictEqual(files, ['z.jpg', 'nested/a.jpg', 'z.jpg', 'z.png', 'other/a.webp', 'm.jpg']);
+  assert.deepStrictEqual(active, ['a', 'a', 'missing']);
+});
+
+assertTest('getOrphanedFiles has fresh empty and no-exclusion identities', () => {
+  [[], ['a.jpg'], ['a.jpg', 'a.jpg', 'nested/b.png']].forEach(values => {
+    const files = Object.freeze(values);
+    const retained = getOrphanedFiles(files, Object.freeze([]));
+    assert.deepStrictEqual(retained, files);
+    assert.notStrictEqual(retained, files);
+    const empty = Object.freeze([]);
+    const result = getOrphanedFiles(empty, files);
+    assert.deepStrictEqual(result, []);
+    assert.notStrictEqual(result, empty);
+    assert.deepStrictEqual(getOrphanedFiles(files, files.map(file => path.parse(file).name)), []);
+  });
+});
+
+assertTest('getOrphanedFiles obeys ordered concatenation, idempotence, and active-union laws', () => {
+  const universe = ['a', 'b', 'missing'];
+  const selections = Array.from({ length: 2 ** universe.length }, (_, mask) =>
+    Object.freeze(universe.filter((_, index) => mask & (1 << index))));
+  const left = Object.freeze(['b.jpg', 'nested/a.png', 'b.jpg']);
+  const right = Object.freeze(['a.jpg', 'z.webp', 'z.webp']);
+  const files = Object.freeze([...left, ...right]);
+  selections.forEach(first => {
+    const result = getOrphanedFiles(files, first);
+    assert.deepStrictEqual(result, files.filter(file => !first.includes(path.parse(file).name)));
+    assert.deepStrictEqual(result, [...getOrphanedFiles(left, first), ...getOrphanedFiles(right, first)]);
+    assert.deepStrictEqual(getOrphanedFiles(result, first), result);
+    selections.forEach(second => assert.deepStrictEqual(
+      getOrphanedFiles(result, second),
+      getOrphanedFiles(files, [...first, ...second])
+    ));
+  });
+});
+
+assertTest('getOrphanedFiles propagates native input and hook failures without coercion', () => {
+  [
+    [null, []],
+    [{}, []],
+    [[], {}],
+    [[null], []],
+    [[42], []],
+    [[Symbol('file')], []]
+  ].forEach(([files, active]) => assert.throws(() => getOrphanedFiles(files, active), TypeError));
+  const failure = new Error('caller hook');
+  const file = Object.freeze({ toString: () => { throw failure; } });
+  assert.throws(() => getOrphanedFiles([file], []), TypeError);
+  const active = Object.freeze({ [Symbol.iterator]: () => { throw failure; } });
+  assert.throws(() => getOrphanedFiles([], active), error => error === failure);
 });
 
 assertTest('getLocalMediaFilePath builds correct JPG file destination path', () => {
