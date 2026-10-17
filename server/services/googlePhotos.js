@@ -268,17 +268,40 @@ function updateCachedMediaItemMetadata(mediaIdentifier, metadata = {}) {
 /**
  * Apply allowlisted metadata to the live snapshot's matching Google Photos.
  *
+ * Decode the identifier first, falling back to String(mediaIdentifier || '').trim()
+ * when the proxy decoder returns empty. Decoded ids are not trimmed again;
+ * fallback can coerce an input twice and accepts non-proxy strings verbatim
+ * after trimming. Build the patch next, dropping only undefined allowlisted
+ * values without validation. Both projections run before the state/id/patch
+ * guard, so malformed encoding, coercion hooks, and metadata access can throw
+ * even for absent state. Null metadata is not the default empty object.
+ *
+ * Match with String(photo.id || decodedProxyId || '').trim(): a truthy row id
+ * bypasses URL decoding, even if it trims empty or does not match. Falsy ids
+ * fall back to the proxy URL; no source, availability, or broken/loved filter
+ * applies. Identifier decoding and row matching have distinct trim behavior.
+ *
  * This effect-shell operation replaces `photosList` with a mapped array,
  * shallow-copies matching rows, and preserves unmatched row references. It
  * updates matching active frame objects in place, retaining their identity.
- * It returns the last updated photo in application order, or `null` when the
- * state, identifier, patch, or matching photo is absent. A valid identifier
- * and patch still remap `photosList` when no row matches.
+ * List order precedes activePhoto then activeSecondPhoto; the last match is
+ * returned, including equal-value updates. Repeated list aliases produce
+ * distinct shallow copies; active aliases still mutate their shared original.
+ * Non-array lists are skipped. Guarded inputs and absent matches return null;
+ * a valid identifier and patch still remap `photosList` when no row matches.
+ *
+ * A failed map does not assign its new array; later active-frame failures keep
+ * the assigned list and earlier mutations, including partial Object.assign
+ * fields. Accessors can also throw or have effects. Failures propagate without
+ * catch, retry, rollback, logging, persistence, authentication, or network work.
+ * Keep pure id/patch projections separate from this ordered data-first shell;
+ * its observable alias mutation is not an immutable or transactional transform.
  *
  * @param {MutableGooglePhotoState | null | undefined} state
  * @param {unknown} mediaIdentifier A Google media id or Lumina proxy URL.
  * @param {GooglePhotoMetadataPatchInput} [metadata={}]
  * @returns {LiveGooglePhoto | null}
+ * @throws {unknown} Input decoding/access or live snapshot mutation failure.
  */
 function applyCachedMediaItemMetadataToState(state, mediaIdentifier, metadata = {}) {
   const mediaItemId = getGooglePhotoMediaItemId(mediaIdentifier) || String(mediaIdentifier || '').trim();

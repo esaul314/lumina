@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Live Google Photos Metadata Application Contracts
+
+- **Contract**: refined `applyCachedMediaItemMetadataToState(...)` decoding and
+  pre-guard projection, truthy row-id precedence, last-match results, copied
+  list rows versus in-place active aliases, and unchanged thrown values. A
+  failed map leaves its new array unassigned; later assignment failures retain
+  committed list updates and partial active fields. Accessor effects can survive.
+- **Functional design**: retained pure id/patch projections and the ordered
+  data-first mutation shell. Declarative case tables compose with `map`,
+  `flatMap`, and `forEach`; equal-value patches are value-idempotent, not
+  reference-idempotent. An immutable/algebraic wrapper would misrepresent alias
+  effects. No executable production code, dependencies, or exports changed.
+- **Tests**: eight focused tests cover raw/proxy coercion and trim distinctions,
+  eager access and failures, id precedence, application order, non-array lists,
+  aliases, repeated values, and map/list-setter/active-field failures using
+  detached snapshots. No live credentials, caches, or network services accessed.
+- **Verification**: `npm test` passed: 594 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart was needed for this contract-only slice.
+- **Follow-up**: recorded normalization and atomicity as separate hardening
+  work. Next: refine cached metadata update read/projection ordering, copied
+  result versus changed-only persistence, test-mode suppression, and failures
+  using isolated adapters while retaining the pure merge and service shell.
+
 ### 2026-10-17: Specify Remote Media Retrieval and Final Picker Retry Contracts
 
 - **Contract**: refined `fetchMediaItemBytes(...)` remote retrieval: HTTP errors

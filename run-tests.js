@@ -969,6 +969,12 @@ assertTest('Google Photos live metadata updater documents its snapshot mutation 
   assert.match(source, /replaces `photosList` with a mapped array[\s\S]*shallow-copies matching rows, and preserves unmatched row references/);
   assert.match(source, /updates matching active frame objects in place, retaining their identity/);
   assert.match(source, /still remap `photosList` when no row matches/);
+  assert.match(source, /Both projections run before the state\/id\/patch\s+\* guard/);
+  assert.match(source, /truthy row id\s+\* bypasses URL decoding/);
+  assert.match(source, /Repeated list aliases produce\s+\* distinct shallow copies/);
+  assert.match(source, /failed map does not assign its new array/);
+  assert.match(source, /including partial Object.assign\s+\* fields/);
+  assert.match(source, /@throws \{unknown\} Input decoding\/access or live snapshot mutation failure/);
 });
 
 assertTest('Google Photos cache metadata updater documents its read, return, and write contract', () => {
@@ -5865,6 +5871,183 @@ assertTest('applyCachedMediaItemMetadataToState returns null for invalid input a
   assert.strictEqual(state.photosList[0].rating, 8);
   assert.strictEqual(state.activePhoto.rating, 6);
   assert.strictEqual(photo.loved, undefined);
+});
+
+assertTest('live Google Photos metadata preserves identifier decoding and raw fallback distinctions', () => {
+  const prefix = '/api/google-photos/media/';
+  [
+    { identifier: '  photo  ', id: 'photo', matches: true },
+    { identifier: `${prefix}photo%2Fone?w=1`, id: 'photo/one', matches: true },
+    { identifier: `${prefix}photo%252Fone`, id: 'photo%2Fone', matches: true },
+    { identifier: `${prefix}%20photo%20`, id: ' photo ', matches: false },
+    { identifier: prefix, id: prefix, matches: true },
+    { identifier: `https://example.test${prefix}photo`, id: `https://example.test${prefix}photo`, matches: true },
+    { identifier: 7, id: '7', matches: true },
+    { identifier: 0, id: '0', matches: false }
+  ].forEach(({ identifier, id, matches }) => {
+    const photo = Object.freeze({ id });
+    const state = { photosList: [photo] };
+    const result = applyCachedMediaItemMetadataToState(state, identifier, { loved: true });
+    assert.strictEqual(result, matches ? state.photosList[0] : null);
+    assert.strictEqual(state.photosList[0].loved, matches ? true : undefined);
+    assert.strictEqual(photo.loved, undefined);
+  });
+});
+
+assertTest('live Google Photos metadata matches truthy ids before proxy URLs without source filtering', () => {
+  const url = buildGooglePhotoProxyUrl('photo');
+  [
+    { id: 'other', url, matches: false },
+    { id: '   ', url, matches: false },
+    { id: url, url, matches: false },
+    ...[undefined, null, '', false, 0].map((id) => ({ id, url, matches: true })),
+    { id: ' photo ', url: '/api/google-photos/media/%', matches: true },
+    { url: '/api/google-photos/media/%20photo%20', matches: true }
+  ].forEach(({ matches, ...identity }) => {
+    const photo = Object.freeze({ ...identity, source: 'other-source', isBroken: true });
+    const state = { activePhoto: { ...photo } };
+    const result = applyCachedMediaItemMetadataToState(state, 'photo', { rating: 0 });
+    assert.strictEqual(result, matches ? state.activePhoto : null);
+    assert.strictEqual(state.activePhoto.rating, matches ? 0 : undefined);
+    assert.strictEqual(state.activePhoto.isBroken, true);
+  });
+});
+
+assertTest('live Google Photos metadata projects inputs before guards and preserves thrown values', () => {
+  const events = [];
+  const identifier = { toString: () => { events.push('id'); return 'photo'; } };
+  const fields = ['rating', 'isBroken', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved', 'orientation', 'width', 'height'];
+  const metadata = Object.fromEntries(fields.map((field) => [field, undefined]));
+  fields.forEach((field) => Object.defineProperty(metadata, field, {
+    get: () => { events.push(field); return field === 'loved' ? false : undefined; }
+  }));
+  assert.strictEqual(applyCachedMediaItemMetadataToState(null, identifier, metadata), null);
+  assert.deepStrictEqual(events, ['id', 'id', ...fields]);
+  [undefined, null, false, 0, '', new Error('input fixture')].forEach((failure) => {
+    const fail = () => { throw failure; };
+    [
+      () => applyCachedMediaItemMetadataToState(null, { toString: fail }, metadata),
+      () => applyCachedMediaItemMetadataToState(null, '', { get rating() { return fail(); } })
+    ].forEach((run) => {
+      assert.throws(run, (error) => error === failure);
+    });
+  });
+  assert.throws(() => applyCachedMediaItemMetadataToState(null, '/api/google-photos/media/%', metadata), URIError);
+  assert.throws(() => applyCachedMediaItemMetadataToState(null, '', null), TypeError);
+  let reads = 0;
+  const changingId = { toString: () => ++reads === 1 ? 'not-a-proxy' : 'photo' };
+  const state = { activePhoto: { id: 'photo' } };
+  assert.strictEqual(applyCachedMediaItemMetadataToState(state, changingId, { loved: false }), state.activePhoto);
+  assert.strictEqual(reads, 2);
+  assert.strictEqual(state.activePhoto.loved, false);
+});
+
+assertTest('live Google Photos metadata returns the last match and skips non-array lists', () => {
+  [false, true].flatMap((primary) => [false, true].map((secondary) => ({ primary, secondary })))
+    .forEach(({ primary, secondary }) => {
+      const photosList = [{ id: 'photo' }, { id: 'other' }, { id: 'photo' }];
+      const state = {
+        photosList,
+        activePhoto: { id: primary ? 'photo' : 'other' },
+        activeSecondPhoto: { id: secondary ? 'photo' : 'other' }
+      };
+      const result = applyCachedMediaItemMetadataToState(state, 'photo', { loved: null });
+      assert.strictEqual(result, secondary ? state.activeSecondPhoto : primary ? state.activePhoto : state.photosList[2]);
+      assert.strictEqual(state.photosList[1], photosList[1]);
+      assert.strictEqual(result.loved, null);
+    });
+  [undefined, null, {}, 'not-an-array'].forEach((photosList) => {
+    const state = { photosList, activePhoto: { id: 'photo' } };
+    assert.strictEqual(applyCachedMediaItemMetadataToState(state, 'photo', { width: 'unvalidated' }), state.activePhoto);
+    assert.strictEqual(state.photosList, photosList);
+    assert.strictEqual(state.activePhoto.width, 'unvalidated');
+  });
+});
+
+assertTest('live Google Photos metadata preserves aliases and value idempotence without reference idempotence', () => {
+  const nested = Object.freeze({ caption: 'shared' });
+  const shared = { id: 'photo', loved: false, nested };
+  const original = [shared, shared, null, undefined];
+  const state = { photosList: original, activePhoto: shared, activeSecondPhoto: shared };
+  const patch = Object.freeze({ loved: true, rating: 0, unsupported: 'ignored' });
+  assert.strictEqual(applyCachedMediaItemMetadataToState(state, 'photo', patch), shared);
+  const first = state.photosList;
+  assert.notStrictEqual(first, original);
+  assert.notStrictEqual(first[0], first[1]);
+  assert.notStrictEqual(first[0], shared);
+  assert.strictEqual(state.activePhoto, state.activeSecondPhoto);
+  assert.strictEqual(original[0].loved, true, 'active aliases mutate the original list row');
+  [first[0], first[1], shared].forEach((photo) => {
+    assert.strictEqual(photo.nested, nested);
+    assert.strictEqual(photo.unsupported, undefined);
+  });
+  assert.strictEqual(applyCachedMediaItemMetadataToState(state, 'photo', patch), shared);
+  assert.deepStrictEqual(state.photosList, first);
+  assert.notStrictEqual(state.photosList, first);
+  assert.notStrictEqual(state.photosList[0], first[0]);
+  assert.strictEqual(state.activePhoto, shared);
+  assert.deepStrictEqual(patch, { loved: true, rating: 0, unsupported: 'ignored' });
+});
+
+assertTest('live Google Photos metadata keeps the old list and frames on map decoding or copy failure', () => {
+  ['decode', 'copy'].forEach((stage) => {
+    const failure = new Error('copy fixture');
+    const first = Object.freeze({ id: 'photo', rating: 1 });
+    const failing = stage === 'decode'
+      ? { url: '/api/google-photos/media/%' }
+      : { id: 'photo', get title() { throw failure; } };
+    const photosList = [first, failing];
+    const activePhoto = { id: 'photo', rating: 2 };
+    const state = { photosList, activePhoto };
+    assert.throws(() => applyCachedMediaItemMetadataToState(state, 'photo', { rating: 9 }),
+      (error) => stage === 'decode' ? error instanceof URIError : error === failure);
+    assert.strictEqual(state.photosList, photosList);
+    assert.strictEqual(state.photosList[0], first);
+    assert.strictEqual(first.rating, 1);
+    assert.strictEqual(activePhoto.rating, 2);
+  });
+});
+
+assertTest('live Google Photos metadata propagates list assignment failure before active mutations', () => {
+  const failure = new Error('list setter fixture');
+  const photosList = [{ id: 'photo', rating: 1 }];
+  const activePhoto = { id: 'photo', rating: 2 };
+  let attempted;
+  const state = {
+    get photosList() { return photosList; },
+    set photosList(value) { attempted = value; throw failure; },
+    activePhoto
+  };
+  assert.throws(() => applyCachedMediaItemMetadataToState(state, 'photo', { rating: 9 }), (error) => error === failure);
+  assert.notStrictEqual(attempted, photosList);
+  assert.strictEqual(attempted[0].rating, 9);
+  assert.strictEqual(state.photosList, photosList);
+  assert.strictEqual(photosList[0].rating, 1);
+  assert.strictEqual(activePhoto.rating, 2);
+});
+
+assertTest('live Google Photos metadata retains committed list and partial active fields after assignment failure', () => {
+  ['activePhoto', 'activeSecondPhoto'].flatMap((key) => [false, true].map((partial) => ({ key, partial })))
+    .forEach(({ key, partial }) => {
+      const photosList = [{ id: 'photo', rating: 1 }];
+      const state = {
+        photosList,
+        activePhoto: { id: 'photo', rating: 2, isBroken: false },
+        activeSecondPhoto: { id: 'photo', rating: 3, isBroken: false }
+      };
+      const failing = state[key];
+      Object.defineProperty(failing, partial ? 'isBroken' : 'rating', { writable: false });
+      assert.throws(() => applyCachedMediaItemMetadataToState(state, 'photo', { isBroken: true, rating: 9 }), TypeError);
+      assert.notStrictEqual(state.photosList, photosList);
+      assert.strictEqual(state.photosList[0].rating, 9);
+      assert.strictEqual(photosList[0].rating, 1);
+      assert.strictEqual(state[key], failing);
+      assert.strictEqual(failing.rating, partial ? 9 : key === 'activePhoto' ? 2 : 3);
+      assert.strictEqual(failing.isBroken, false);
+      const other = state[key === 'activePhoto' ? 'activeSecondPhoto' : 'activePhoto'];
+      assert.strictEqual(other.rating, key === 'activePhoto' ? 3 : 9);
+      assert.strictEqual(other.isBroken, key !== 'activePhoto');
+    });
 });
 
 assertTest('updateCachedMediaItemMetadata persists only changed cache projections outside test mode', () => {
