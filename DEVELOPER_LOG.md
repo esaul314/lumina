@@ -6,6 +6,35 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Specify Media Candidate URL Preparation Contract
+
+- **Contract**: refined `fetchMediaItemBytes(...)` candidate preparation:
+  authentication completes first; missing/stale Picker bases refresh before
+  the original cached base is appended. Truthy, exact-unique rendered URLs
+  retain first-occurrence order. Only an empty candidate list resolves on
+  demand, which can authenticate again. Preparation finishes before content
+  requests; handled refresh/persistence/projection failures warn and fall back,
+  while freshness, cached projection, warning, and resolver failures reject.
+  Prior cache/token effects are not rolled back.
+- **Functional design**: retained pure cache/URL projections and the existing
+  data-first effect shell. Declarative tables composed with `map` and
+  `Promise.all` cover independent cases; deferred OAuth makes sequencing
+  explicit. A new curried or algebraic wrapper would obscure ordered effects.
+  No executable production code, dependencies, or exports changed.
+- **Tests**: eight focused tests use the existing isolated service fixture for
+  authentication rejection/waiting, fresh versus inclusive-TTL refresh, missing
+  bases/sessions, refresh precedence, original-base fallback, exact duplicate
+  elimination, synthetic/on-demand resolution, and preparation failures. New
+  tests do not access live credentials, cache files, or network services.
+- **Verification**: `npm test` passed: 578 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart was needed for this contract-only slice.
+- **Next seam**: remote retrieval and final Picker retry contracts covering
+  HTTP versus thrown failures, decoding, MIME fallback, disk-write ordering,
+  empty-buffer differences, and retry uniqueness. Media-path validation and
+  confinement remain in the separate security backlog.
+
 ### 2026-10-16: Specify Local Media Byte Cache Contract
 
 - **Contract**: refined `fetchMediaItemBytes(...)` local-cache semantics:

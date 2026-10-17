@@ -1342,6 +1342,197 @@ assertAsyncTest('Google Photos local-byte warning failures preserve catch and re
   assert.strictEqual(fixture.warnings[0][1], failure.message);
 });
 
+assertTest('Google Photos candidate preparation documents ordering, exact uniqueness, and failure boundaries', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Resolve and return image bytes'), source.indexOf('async function fetchMediaItemBytes'));
+  [/await authentication before preparing/, /inclusive 55-minute TTL/, /original cached base/,
+    /exact-unique URLs in first-occurrence order/, /not canonicalized/, /forwarded unchanged/,
+    /freshness check is outside/, /Cached-base projection is outside/,
+    /Only an empty candidate list/, /authenticate again/, /until preparation completes/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+assertAsyncTest('Google Photos candidate preparation authenticates before inspecting render options or refreshing Picker', async () => {
+  const row = { id: 'photo', googlePickerSessionId: 'session' };
+  const fixture = createGooglePhotosServiceFixture({ nodeEnv: 'test', cacheExists: () => true, read: () => JSON.stringify([row]) });
+  const options = Object.freeze({ get width() { return assert.fail('authentication must finish before projection'); } });
+  await assert.rejects(fixture.fetchBytes('photo', options), /Not authenticated/);
+  assert.deepStrictEqual([fixture.warnings, fixture.errors, fixture.writes], [[], [], []]);
+});
+
+assertAsyncTest('Google Photos candidate preparation awaits OAuth completion before Picker and rendered content', async () => {
+  const events = [];
+  let releaseToken;
+  const tokenResponse = new Promise(resolve => { releaseToken = resolve; });
+  const fixture = createGooglePhotosServiceFixture({
+    nodeEnv: 'test', initialTokens: { refreshToken: 'fixture-refresh' }, now: () => 0,
+    cacheExists: () => true, read: () => '[{"id":"photo","googlePickerSessionId":"session"}]',
+    write: file => events.push(file.endsWith('.json') ? 'cache' : 'bytes'),
+    fetchResponse: async (url, { headers }) => {
+      if (url === 'https://oauth2.googleapis.com/token') { events.push('oauth'); return tokenResponse; }
+      assert.strictEqual(headers.Authorization, 'Bearer refreshed-token');
+      if (url.startsWith('https://photospicker.googleapis.com/')) {
+        events.push('picker');
+        return { ok: true, json: async () => ({ mediaItems: [{ id: 'photo', baseUrl: 'https://fixture.invalid/refreshed' }] }) };
+      }
+      events.push('content');
+      assert.strictEqual(url, 'https://fixture.invalid/refreshed=w640-h1440');
+      return { ok: true, headers: { get: () => null }, arrayBuffer: async () => Buffer.from('fixture') };
+    }
+  });
+  const result = fixture.fetchBytes('photo', Object.freeze({ get width() { events.push('project'); return 640; } }));
+  assert.deepStrictEqual(events, ['oauth']);
+  releaseToken({ ok: true, json: async () => { events.push('token-json'); return { access_token: 'refreshed-token', expires_in: 3600 }; } });
+  await result;
+  assert.deepStrictEqual(events, ['oauth', 'token-json', 'picker', 'cache', 'project', 'content', 'bytes']);
+  assert.strictEqual(fixture.readTokens().accessToken, 'refreshed-token');
+});
+
+assertAsyncTest('Google Photos candidate preparation refreshes only missing or stale session bases before content retrieval', async () => {
+  const clock = 10000000;
+  const base = 'https://fixture.invalid/original';
+  const refreshed = 'https://fixture.invalid/refreshed';
+  const cases = [
+    { session: 'session', base, timestamp: clock - 3300000 + 1, refresh: false },
+    { session: 'session', base, timestamp: clock - 3300000, refresh: true },
+    { session: 'session', base, timestamp: undefined, refresh: true },
+    { session: 'session', base: undefined, timestamp: clock, refresh: true },
+    { session: undefined, base, timestamp: undefined, refresh: false }
+  ];
+  await Promise.all(cases.map(async ({ session, base: cachedBase, timestamp, refresh }) => {
+    const events = [];
+    const row = { id: 'photo', googleBaseUrl: cachedBase, googleBaseUrlFetchedAt: timestamp, googlePickerSessionId: session };
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv: 'test', initialTokens: { accessToken: 'fixture-token', expiry: clock + 1000000 },
+      now: () => { events.push('clock'); return clock; },
+      cacheExists: () => true, read: () => JSON.stringify([row]),
+      write: file => events.push(file.endsWith('.json') ? 'cache' : 'bytes'),
+      fetchResponse: async (url, { headers }) => {
+        assert.strictEqual(headers.Authorization, 'Bearer fixture-token');
+        if (url.startsWith('https://photospicker.googleapis.com/')) {
+          events.push('picker');
+          assert.ok(url.includes('sessionId=session&pageSize=50'));
+          return { ok: true, json: async () => ({ mediaItems: [{ id: 'photo', baseUrl: refreshed }] }) };
+        }
+        events.push('content');
+        assert.strictEqual(url, `${refresh ? refreshed : base}=w640-h480-c`);
+        return { ok: true, headers: { get: () => 'image/png' }, arrayBuffer: async () => Buffer.from('fixture') };
+      }
+    });
+    await fixture.fetchBytes('photo', Object.freeze({ width: 640, height: 480, crop: true }));
+    assert.strictEqual(events[0], 'clock');
+    assert.deepStrictEqual(events.filter(event => event !== 'clock'), refresh ? ['picker', 'cache', 'content', 'bytes'] : ['content', 'bytes']);
+    assert.deepStrictEqual([fixture.warnings, fixture.errors], [[], []]);
+  }));
+});
+
+assertAsyncTest('Google Photos candidate preparation retains original-base fallback and deduplicates exact rendered URLs', async () => {
+  await Promise.all([true, false].map(async sameBase => {
+    const base = 'https://fixture.invalid/original';
+    const refreshed = sameBase ? base : 'https://fixture.invalid/ORIGINAL';
+    const content = [];
+    let pickerCalls = 0;
+    const row = { id: 'photo', googleBaseUrl: base, googlePickerSessionId: 'session' };
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv: 'test', initialTokens: { accessToken: 'fixture-token', expiry: 1000000 }, now: () => 0,
+      cacheExists: () => true, read: () => JSON.stringify([row]),
+      fetchResponse: async url => {
+        if (url.startsWith('https://photospicker.googleapis.com/')) {
+          pickerCalls++;
+          return { ok: true, json: async () => ({ mediaItems: [{ id: 'photo', baseUrl: refreshed }] }) };
+        }
+        content.push(url);
+        return { ok: false, status: 403 };
+      }
+    });
+    await assert.rejects(fixture.fetchBytes('photo'), /media fetch failed \(403\)/);
+    assert.deepStrictEqual(content, [...new Set([refreshed, base])].map(url => `${url}=w2560-h1440`));
+    assert.strictEqual(pickerCalls, 2); // The final refresh must not refetch an already tried URL.
+    assert.strictEqual(JSON.parse(fixture.writes[0].bytes)[0].googleBaseUrl, refreshed);
+    assert.deepStrictEqual([fixture.warnings, fixture.errors], [[], []]);
+  }));
+});
+
+assertAsyncTest('Google Photos candidate preparation handles Picker listing and persistence failures with cached-base fallback', async () => {
+  await Promise.all(['listing', 'persistence'].map(async mode => {
+    const failure = new Error(`${mode} fixture`);
+    const events = [];
+    const row = { id: 'photo', googleBaseUrl: 'https://fixture.invalid/original', googlePickerSessionId: 'session' };
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv: 'test', initialTokens: { accessToken: 'fixture-token', expiry: 1000000 }, now: () => 0,
+      cacheExists: () => true, read: () => JSON.stringify([row]),
+      write: file => { if (file.endsWith('.json')) { events.push('persist'); throw failure; } },
+      warn: () => events.push('warn'),
+      fetchResponse: async url => {
+        if (url.startsWith('https://photospicker.googleapis.com/')) {
+          events.push('picker');
+          if (mode === 'listing') throw failure;
+          return { ok: true, json: async () => ({ mediaItems: [{ id: 'photo', baseUrl: 'https://fixture.invalid/refreshed' }] }) };
+        }
+        events.push('content');
+        assert.strictEqual(url, 'https://fixture.invalid/original=w2560-h1440');
+        return { ok: true, headers: { get: () => null }, arrayBuffer: async () => Buffer.from('fixture') };
+      }
+    });
+    await fixture.fetchBytes('photo');
+    assert.deepStrictEqual(events, ['picker', ...(mode === 'persistence' ? ['persist'] : []), 'warn', 'content']);
+    assert.strictEqual(fixture.warnings[0][1], failure.message);
+    assert.strictEqual(fixture.errors.length, mode === 'listing' ? 1 : 0);
+  }));
+});
+
+assertAsyncTest('Google Photos candidate preparation resolves on demand only without a usable base and supports synthetic ids', async () => {
+  await Promise.all(['missing', 'picker miss', 'synthetic'].map(async mode => {
+    const requests = [];
+    const id = mode === 'synthetic' ? 'MOCK_MEDIA_ITEM_42' : 'photo';
+    const row = { id, googlePickerSessionId: 'session' };
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv: 'test', initialTokens: mode === 'synthetic' ? {} : { accessToken: 'fixture-token', expiry: 1000000 },
+      now: () => { requests.push('authenticate'); return 0; },
+      cacheExists: () => mode === 'picker miss', read: () => JSON.stringify([row]),
+      fetchResponse: async (url, { headers }) => {
+        requests.push(url);
+        assert.strictEqual(headers.Authorization, mode === 'synthetic' ? undefined : 'Bearer fixture-token');
+        if (url.startsWith('https://photospicker.googleapis.com/')) return { ok: true, json: async () => ({ mediaItems: [] }) };
+        if (url.startsWith('https://photoslibrary.googleapis.com/')) return { ok: true, json: async () => ({ baseUrl: 'https://fixture.invalid/on-demand' }) };
+        assert.strictEqual(url, mode === 'synthetic' ? 'https://picsum.photos/id/42/2560/1440' : 'https://fixture.invalid/on-demand=w640-h480');
+        return { ok: true, headers: { get: () => null }, arrayBuffer: async () => Buffer.from('fixture') };
+      }
+    });
+    await fixture.fetchBytes(id, Object.freeze({ width: 640, height: 480 }));
+    assert.strictEqual(requests.filter(request => request === 'authenticate').length, mode === 'synthetic' ? 0 : mode === 'missing' ? 2 : 3);
+    const urls = requests.filter(request => request !== 'authenticate');
+    assert.strictEqual(urls.length, mode === 'synthetic' ? 1 : mode === 'missing' ? 2 : 3);
+    assert.strictEqual(fixture.warnings.length, mode === 'picker miss' ? 1 : 0);
+    assert.strictEqual(fixture.writes.length, mode === 'synthetic' ? 0 : 1);
+  }));
+});
+
+assertAsyncTest('Google Photos candidate preparation rejects clock, projection, warning, and resolver failures before content requests', async () => {
+  const failure = new Error('preparation fixture');
+  await Promise.all(['clock', 'cached projection', 'refreshed projection', 'warning', 'resolver'].map(async mode => {
+    let clockReads = 0;
+    const row = { id: 'photo', googleBaseUrl: mode === 'resolver' ? undefined : 'https://fixture.invalid/original',
+      googlePickerSessionId: mode === 'cached projection' || mode === 'resolver' ? undefined : 'session', googleBaseUrlFetchedAt: 1 };
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv: 'test', initialTokens: { accessToken: 'fixture-token', expiry: 10000000 },
+      now: () => { if (++clockReads === 2 && mode === 'clock') throw failure; return 4000000; },
+      cacheExists: () => mode !== 'resolver', read: () => JSON.stringify([row]),
+      warn: () => { if (mode === 'warning') throw failure; },
+      fetchResponse: async url => {
+        if (mode === 'warning' || mode === 'resolver') throw failure;
+        assert.ok(url.startsWith('https://photospicker.googleapis.com/'), 'preparation must fail before any content request');
+        return { ok: true, json: async () => ({ mediaItems: [{ id: 'photo', baseUrl: 'https://fixture.invalid/refreshed' }] }) };
+      }
+    });
+    const options = mode.endsWith('projection') ? Object.freeze({ get width() { throw failure; } }) : undefined;
+    await assert.rejects(fixture.fetchBytes('photo', options), error => error === failure);
+    assert.strictEqual(fixture.warnings.length, mode === 'refreshed projection' ? 1 : 0);
+    assert.strictEqual(fixture.writes.length, mode === 'refreshed projection' ? 1 : 0);
+    assert.strictEqual(fixture.errors.length, mode === 'warning' || mode === 'resolver' ? 1 : 0);
+  }));
+});
+
 assertTest('Google Photos local path documents unknown input, normalized result, and native failures', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
   const contract = source.slice(source.indexOf(' * Project an id to a local JPG path'), source.indexOf('const getLocalMediaFilePath ='));

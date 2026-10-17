@@ -1051,9 +1051,23 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * not rolled back. Path construction does not validate ids or enforce
  * containment.
  *
- * Otherwise the service builds deduplicated content-URL candidates from a
- * missing or stale Picker refresh, the cached base URL, or an on-demand media
- * URL refresh. A failed candidate may trigger one final Picker refresh and retry. Synthetic
+ * Otherwise await authentication before preparing deduplicated content-URL candidates.
+ * A truthy Picker session triggers refresh only when its base URL is absent
+ * or stale (inclusive 55-minute TTL). Append the rendered refreshed base first,
+ * then the original cached base, even after refresh persists a replacement row.
+ * Retain only truthy, exact-unique URLs in first-occurrence order; differing
+ * strings are not canonicalized. Render options are forwarded unchanged.
+ *
+ * Picker refresh, persistence, and refreshed-URL projection failures warn and
+ * fall through to the original cached base. The freshness check is outside
+ * that catch; its clock failures reject without this warning. Warning-handler
+ * failures also reject. Prior cache/token effects are not rolled back.
+ * Cached-base projection is outside the catch and may reject after a handled
+ * refresh failure. Only an empty candidate list awaits on-demand media URL
+ * resolution, which can authenticate again; its rejection prevents retrieval.
+ * No content request starts until preparation completes.
+ *
+ * A failed candidate may trigger one final Picker refresh and retry. Synthetic
  * `MOCK_` ids skip authentication and disk writes; real items use a valid
  * token, and successful non-empty downloads are cached locally. Authentication,
  * Picker/network requests, file access, persistence, and logging remain in
