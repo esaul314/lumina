@@ -247,11 +247,29 @@ function dedupeMediaItemsById(items = []) {
 
 /**
  * Project only metadata fields Lumina allows users to edit on cached rows.
- * Undefined values are omitted, while explicit false, zero, and null values
- * remain meaningful patches.
+ * Read rating, isBroken, cropPercent, cropPositionY, preventPairing, loved,
+ * orientation, width, and height eagerly in that order, then omit undefined.
+ * Native property reads include inherited and non-enumerable fields; unsupported
+ * keys are neither enumerated nor read. Other values remain unvalidated and
+ * uncoerced, including false, zero, null, NaN, and reference-valued metadata.
  *
- * @param {GooglePhotoMetadataInput} [metadata={}]
+ * Return a fresh plain object with own enumerable writable/configurable fields
+ * in allowlist order. Nested references remain shared; no input assignment or
+ * cache I/O occurs. Omitted/undefined input uses {}, but null throws; other
+ * primitives follow native property access rather than a record-type guard.
+ *
+ * For ordinary data records, projection is value-idempotent, not reference-
+ * idempotent. Projected patches form a right-biased spread Monoid on values
+ * with {} as identity. Projection is not a homomorphism from raw spread:
+ * a later undefined field erases a raw value but is absent after projection.
+ *
+ * Property-access failures escape unchanged, stop later reads, and return no
+ * partial patch. Purity assumes ordinary data: getter/proxy effects can survive
+ * failure and are not rolled back. Keep validation and recovery policy separate.
+ *
+ * @param {Readonly<GooglePhotoMetadataInput>} [metadata={}]
  * @returns {GooglePhotoMetadataInput}
+ * @throws {unknown} Native null access or caller-supplied property-read failure.
  */
 function buildGooglePhotoMetadataPatch(metadata = {}) {
   return Object.fromEntries(

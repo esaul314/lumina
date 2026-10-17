@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Pure Metadata Allowlist Projection Contracts
+
+- **Contract**: refined `buildGooglePhotoMetadataPatch(...)` read-only input,
+  fixed eager read order, inherited/non-enumerable fields, undefined-only
+  omission, fresh plain output, shallow aliases, and unchanged read failures.
+  Null fails natively; other primitives follow native property access.
+- **Functional design**: retained the pure data-first
+  `entries -> filter -> fromEntries` pipeline. Projection is value-idempotent,
+  not reference-idempotent. Projected patches compose by right-biased spread;
+  raw spread with undefined fields does not commute with projection.
+  No runtime change, production export, dependency, or algebraic wrapper needed.
+- **Tests**: seven focused tests compose declarative field/value cases and
+  generated frozen records. They cover output order/descriptors, reference
+  retention, ignored keys, inherited fields, eager proxy reads, primitive/null
+  behavior, stopped reads, exact thrown values, and projection closure/idempotence.
+  No live cache, credentials, network services, or daemon state accessed.
+- **Verification**: `npm test` passed: 617 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart needed for this contract-only slice.
+- **Next**: refine `getPickerItemMimeType(...)` nested/legacy fallback,
+  truthiness, native coercion, and failures; keep MIME validation and network
+  effects separate.
+
 ### 2026-10-17: Specify Pure Cached Metadata Merge Laws and Aliases
 
 - **Contract**: refined `mergeCachedMediaItemMetadata(...)` read-only inputs,

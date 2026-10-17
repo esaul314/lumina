@@ -942,6 +942,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /@param \{GooglePhotoMediaItem\[\] \| null \| undefined\} syncedItems/);
   assert.match(cacheSource, /@returns \{GooglePhotoMediaItem\[\]\}/);
   assert.match(cacheSource, /@typedef \{Partial<Record<GooglePhotoMetadataField, unknown>>\} GooglePhotoMetadataInput/);
+  assert.match(cacheSource, /@param \{Readonly<GooglePhotoMetadataInput>\} \[metadata=\{\}\]/);
+  assert.match(cacheSource, /unsupported\s+\* keys are neither enumerated nor read/);
+  assert.match(cacheSource, /projection is value-idempotent, not reference-/);
+  assert.match(cacheSource, /@throws \{unknown\} Native null access or caller-supplied property-read failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5774,6 +5778,134 @@ assertTest('Google Photos metadata patches omit undefined fields and retain expl
     width: 1200,
     height: 800
   });
+});
+
+assertTest('metadata projection retains every defined allowlisted value without coercion or cloning', () => {
+  const fields = ['rating', 'isBroken', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved', 'orientation', 'width', 'height'];
+  const object = Object.freeze({ nested: true });
+  const array = Object.freeze([object]);
+  const callable = () => 'opaque';
+  const values = [undefined, null, false, true, 0, -0, NaN, Infinity, '', 'verbatim', 1n, Symbol('opaque'), object, array, callable];
+
+  fields.forEach((field) => values.forEach((value) => {
+    const input = Object.freeze({ [field]: value });
+    const patch = googlePhotosCache.buildGooglePhotoMetadataPatch(input);
+    assert.deepStrictEqual(Object.keys(patch), value === undefined ? [] : [field]);
+    assert.ok(Object.is(patch[field], value));
+    assert.ok(Object.is(input[field], value));
+    assert.notStrictEqual(patch, input);
+  }));
+});
+
+assertTest('metadata projection orders fresh plain output fields independently of input enumeration', () => {
+  const fields = ['rating', 'isBroken', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved', 'orientation', 'width', 'height'];
+  const input = Object.freeze(Object.defineProperties(Object.fromEntries(
+    [...fields].reverse().map((field, index) => [field, index])
+  ), {
+    title: { enumerable: true, get: () => { throw new Error('Unsupported key read'); } },
+    [Symbol('ignored')]: { enumerable: true, get: () => { throw new Error('Symbol read'); } },
+    ['__proto__']: { value: { polluted: true }, enumerable: true }
+  }));
+  const patch = googlePhotosCache.buildGooglePhotoMetadataPatch(input);
+  assert.strictEqual(Object.getPrototypeOf(patch), Object.prototype);
+  assert.deepStrictEqual(Reflect.ownKeys(patch), fields);
+  fields.forEach((field) => assert.deepStrictEqual(Object.getOwnPropertyDescriptor(patch, field), {
+    value: input[field], enumerable: true, writable: true, configurable: true
+  }));
+  assert.notStrictEqual(googlePhotosCache.buildGooglePhotoMetadataPatch(input), patch);
+});
+
+assertTest('metadata projection reads inherited and non-enumerable allowlisted properties', () => {
+  const nested = Object.freeze({ retained: true });
+  const prototype = Object.freeze({ rating: 4, loved: true });
+  const input = Object.freeze(Object.defineProperties(Object.create(prototype), {
+    cropPercent: { value: 0 },
+    orientation: { get: () => nested },
+    height: { value: undefined }
+  }));
+  const patch = googlePhotosCache.buildGooglePhotoMetadataPatch(input);
+  assert.deepStrictEqual(patch, { rating: 4, cropPercent: 0, loved: true, orientation: nested });
+  assert.strictEqual(patch.orientation, nested);
+  assert.deepStrictEqual(Object.keys(input), []);
+  assert.strictEqual(Object.getPrototypeOf(input), prototype);
+  assert.deepStrictEqual(googlePhotosCache.buildGooglePhotoMetadataPatch(Object.freeze(
+    Object.assign(Object.create(null), { rating: 0 })
+  )), { rating: 0 });
+});
+
+assertTest('metadata projection eagerly reads each allowed key once without reflecting on input keys', () => {
+  const fields = ['rating', 'isBroken', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved', 'orientation', 'width', 'height'];
+  [undefined, false].forEach((value) => {
+    const reads = [];
+    const input = new Proxy({}, {
+      get: (_, field) => { reads.push(field); return value; },
+      ownKeys: () => { throw new Error('Input enumeration'); },
+      has: () => { throw new Error('Input membership check'); },
+      getOwnPropertyDescriptor: () => { throw new Error('Input descriptor read'); }
+    });
+    assert.deepStrictEqual(googlePhotosCache.buildGooglePhotoMetadataPatch(input), value === undefined
+      ? {} : Object.fromEntries(fields.map((field) => [field, value])));
+    assert.deepStrictEqual(reads, fields);
+  });
+});
+
+assertTest('metadata projection defaults only undefined and preserves native primitive and null access', () => {
+  const empty = googlePhotosCache.buildGooglePhotoMetadataPatch();
+  [undefined, false, true, 0, 1, '', 'text', 1n, Symbol('input')].forEach((input) => {
+    const patch = googlePhotosCache.buildGooglePhotoMetadataPatch(input);
+    assert.deepStrictEqual(patch, {});
+    assert.notStrictEqual(patch, empty);
+  });
+  assert.throws(() => googlePhotosCache.buildGooglePhotoMetadataPatch(null), TypeError);
+  const input = Object.freeze({
+    rating: 0,
+    toString: () => { throw new Error('Unexpected coercion'); },
+    valueOf: () => { throw new Error('Unexpected coercion'); }
+  });
+  assert.deepStrictEqual(googlePhotosCache.buildGooglePhotoMetadataPatch(input), { rating: 0 });
+});
+
+assertTest('metadata projection propagates exact read failures without later reads or partial results', () => {
+  const fields = ['rating', 'isBroken', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved', 'orientation', 'width', 'height'];
+  fields.forEach((failedField, index) => [undefined, null, false, 0, '', new Error('Read failure')].forEach((failure) => {
+    const reads = [];
+    const input = new Proxy({}, { get: (_, field) => {
+      reads.push(field);
+      if (field === failedField) throw failure;
+      return 0;
+    } });
+    const sentinel = Symbol('no result');
+    let result = sentinel;
+    let caught = false;
+    try {
+      result = googlePhotosCache.buildGooglePhotoMetadataPatch(input);
+    } catch (error) {
+      caught = true;
+      assert.strictEqual(error, failure);
+    }
+    assert.strictEqual(caught, true);
+    assert.strictEqual(result, sentinel);
+    assert.deepStrictEqual(reads, fields.slice(0, index + 1));
+  }));
+  const { proxy, revoke } = Proxy.revocable({}, {});
+  revoke();
+  assert.throws(() => googlePhotosCache.buildGooglePhotoMetadataPatch(proxy), TypeError);
+});
+
+assertTest('metadata projection is value-idempotent and closed over defined allowlisted fields', () => {
+  const project = googlePhotosCache.buildGooglePhotoMetadataPatch;
+  const values = [undefined, false, 0, null, Object.freeze({ shared: true })];
+  values.forEach((rating) => values.forEach((loved) => values.forEach((width) => {
+    const input = Object.freeze({ ignored: 'discard', width, loved, rating });
+    const once = Object.freeze(project(input));
+    const twice = project(once);
+    const expected = Object.fromEntries(Object.entries({ rating, loved, width }).filter(([, value]) => value !== undefined));
+    assert.deepStrictEqual(once, expected);
+    assert.deepStrictEqual(twice, once);
+    assert.notStrictEqual(twice, once);
+    Object.keys(once).forEach((field) => assert.strictEqual(twice[field], once[field]));
+    assert.deepStrictEqual(project({ ...input, ignored: 'different' }), once);
+  })));
 });
 
 assertTest('Google Photos metadata merge preserves immutable no-match and empty-patch semantics', () => {
