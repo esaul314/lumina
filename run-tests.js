@@ -1034,7 +1034,7 @@ assertTest('Google Photos media-byte fetch documents its result and effect bound
   assert.match(source, /fs\.unlinkSync\(localFilePath\);/);
   assert.match(source, /deduplicated content-URL candidates[\s\S]*one final Picker refresh and retry/);
   assert.match(source, /Authentication,\s+\* Picker\/network requests, file access, persistence, and logging remain in\s+\* this effectful service boundary/);
-  assert.match(source, /The returned content type prefers the response header and falls back to the\s+\* cached MIME type or `image\/jpeg`/);
+  assert.match(source, /the returned content type prefers the response header\s+\* and falls back to the cached MIME type or `image\/jpeg`/);
   assert.match(source, /async function fetchMediaItemBytes\(mediaItemId, renderOptions = \{\}\)/);
   assert.match(source, /contentType: cachedItem\?\.mimeType \|\| 'image\/jpeg'/);
   assert.match(source, /res\.headers\.get\('content-type'\) \|\| contentTypeHint/);
@@ -1080,6 +1080,7 @@ const createGooglePhotosServiceFixture = ({
   read = () => '[]',
   fetchResponse = async () => { throw new Error('Unexpected fetch'); },
   write = () => {},
+  unlink = () => {},
   warn = () => {},
   now = Date.now,
   initialTokens = {},
@@ -1099,6 +1100,7 @@ const createGooglePhotosServiceFixture = ({
       existsSync: file => file.endsWith('.jpg') ? exists(file)
         : file.endsWith('google_photos_cache.json') ? cacheExists(file) : true,
       readFileSync: read,
+      unlinkSync: unlink,
       writeFileSync: (file, bytes, encoding) => {
         const result = write(file, bytes, encoding);
         writes.push({ file, bytes });
@@ -1160,6 +1162,7 @@ const createGooglePhotosServiceFixture = ({
     exchange: module.exports.exchangeGoogleCode,
     download: module.exports.downloadSyncMediaItems,
     readCache: module.exports.getCachedMediaItems,
+    fetchBytes: module.exports.fetchMediaItemBytes,
     writes,
     warnings,
     logs,
@@ -1167,6 +1170,177 @@ const createGooglePhotosServiceFixture = ({
     persisted
   };
 };
+
+assertTest('Google Photos local-byte contract distinguishes cache hits, fallback, and pre-authentication failures', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Resolve and return image bytes'), source.indexOf('async function fetchMediaItemBytes'));
+  [/normalization write precede/, /missing metadata row does not block/, /original Buffer/,
+    /without reading render/, /MIME selection uses truthiness/, /Repeated calls read anew/,
+    /read or unlink failures warn/, /reject before authentication/, /not rolled back/,
+    /does not validate ids or enforce\s+\* containment/, /@throws \{unknown\}/
+  ].forEach(pattern => assert.match(contract, pattern));
+});
+
+assertAsyncTest('Google Photos local-byte hits retain buffer identity and MIME truthiness without authentication', async () => {
+  await Promise.all([undefined, '', null, false, 'image/png', ' custom/type ', 42].map(async mimeType => {
+    const events = [];
+    const bytes = Buffer.from('local fixture');
+    const row = { id: 'local', url: '/api/google-photos/media/local', googleBaseUrl: 'https://fixture.invalid/photo', mimeType };
+    const options = Object.freeze({ get width() { return assert.fail('local hit must not inspect render options'); } });
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv: 'test',
+      cacheExists: () => { events.push('metadata'); return mimeType !== undefined; },
+      exists: () => { events.push('exists'); return true; },
+      read: (file, encoding) => {
+        events.push(encoding ?? 'bytes');
+        return encoding ? JSON.stringify([row]) : bytes;
+      },
+      now: () => assert.fail('local hit must not read the clock'),
+      unlink: () => assert.fail('non-empty hit must not unlink')
+    });
+    const results = await Promise.all([fixture.fetchBytes('local', options), fixture.fetchBytes('local', null)]);
+    results.forEach(result => {
+      assert.strictEqual(result.buffer, bytes);
+      assert.strictEqual(result.contentType, mimeType || 'image/jpeg');
+    });
+    assert.notStrictEqual(results[0], results[1]);
+    const call = ['metadata', ...(mimeType === undefined ? [] : ['utf8']), 'exists', 'bytes'];
+    assert.deepStrictEqual(events, [...call, ...call]);
+    assert.deepStrictEqual([fixture.writes, fixture.warnings, fixture.errors, fixture.persisted], [[], [], [], []]);
+    assert.strictEqual(fixture.readTokens().accessToken, '');
+  }));
+});
+
+assertAsyncTest('Google Photos local-byte hits normalize metadata before reading the file', async () => {
+  const events = [];
+  const bytes = Buffer.from('local fixture');
+  const fixture = createGooglePhotosServiceFixture({
+    cacheExists: () => true,
+    read: (file, encoding) => {
+      if (encoding) return JSON.stringify([{ id: 'local', googleBaseUrl: 'https://fixture.invalid/photo' }]);
+      events.push('bytes');
+      return bytes;
+    },
+    write: file => events.push(file.endsWith('.json') ? 'normalize' : 'download'),
+    exists: () => { events.push('exists'); return true; }
+  });
+  assert.strictEqual((await fixture.fetchBytes('local')).buffer, bytes);
+  assert.deepStrictEqual(events, ['normalize', 'exists', 'bytes']);
+  assert.strictEqual(fixture.writes.length, 1);
+  assert.strictEqual(JSON.parse(fixture.writes[0].bytes)[0].url, '/api/google-photos/media/local?w=2560&h=1440');
+});
+
+assertAsyncTest('Google Photos local-byte misses and handled file failures continue through authenticated retrieval', async () => {
+  await Promise.all(['missing', 'empty', 'read failure', 'unlink failure'].map(async mode => {
+    const events = [];
+    const failure = new Error(mode);
+    const bytes = Buffer.from('remote fixture');
+    const row = { id: 'local', url: '/api/google-photos/media/local', googleBaseUrl: 'https://fixture.invalid/photo', mimeType: 'image/png' };
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv: 'test',
+      initialTokens: { accessToken: 'fixture-token', expiry: 1000000 },
+      now: () => { events.push('authenticate'); return 0; },
+      cacheExists: () => true,
+      exists: () => { events.push('exists'); return mode !== 'missing'; },
+      read: (file, encoding) => {
+        if (encoding) return JSON.stringify([row]);
+        events.push('read');
+        if (mode === 'read failure') throw failure;
+        return Buffer.alloc(0);
+      },
+      warn: () => events.push('warn'),
+      unlink: () => { events.push('unlink'); if (mode === 'unlink failure') throw failure; },
+      fetchResponse: async (url, options) => {
+        events.push('fetch');
+        assert.strictEqual(url, 'https://fixture.invalid/photo=w640-h480-c');
+        assert.strictEqual(options.headers.Authorization, 'Bearer fixture-token');
+        return { ok: true, headers: { get: () => null }, arrayBuffer: async () => bytes };
+      },
+      write: () => events.push('write')
+    });
+    const result = await fixture.fetchBytes('local', Object.freeze({ width: 640, height: 480, crop: true }));
+    assert.deepStrictEqual(result.buffer, bytes);
+    assert.strictEqual(result.contentType, 'image/png');
+    const localEffects = {
+      missing: [], empty: ['read', 'warn', 'unlink'],
+      'read failure': ['read', 'warn'], 'unlink failure': ['read', 'warn', 'unlink', 'warn']
+    }[mode];
+    assert.deepStrictEqual(events, ['exists', ...localEffects, 'authenticate', 'fetch', 'write']);
+    assert.strictEqual(fixture.writes.length, 1);
+    assert.ok(fixture.writes[0].file.endsWith('/local.jpg'));
+    if (mode.endsWith('failure')) assert.strictEqual(fixture.warnings.at(-1)[1], failure.message);
+  }));
+});
+
+assertAsyncTest('Google Photos local-byte fallback preserves prior effects when authentication rejects', async () => {
+  const events = [];
+  const fixture = createGooglePhotosServiceFixture({
+    exists: () => true,
+    read: () => Buffer.alloc(0),
+    warn: () => events.push('warn'),
+    unlink: () => events.push('unlink')
+  });
+  await assert.rejects(fixture.fetchBytes('local'), /Not authenticated/);
+  assert.deepStrictEqual(events, ['warn', 'unlink']);
+  assert.deepStrictEqual(fixture.writes, []);
+});
+
+assertAsyncTest('Google Photos local-byte cache, path, and existence failures reject before authentication', async () => {
+  const failure = new Error('pre-authentication fixture');
+  const cases = [
+    { cacheExists: () => { throw failure; } },
+    { cacheExists: () => true, read: () => '{}', native: true },
+    { cacheExists: () => true, read: () => '[{"id":"local"}]', write: () => { throw failure; } },
+    { id: Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } }) },
+    { exists: () => { throw failure; } }
+  ];
+  await Promise.all(cases.map(async ({ id = 'local', native = false, ...adapters }) => {
+    const fixture = createGooglePhotosServiceFixture({
+      initialTokens: { accessToken: 'fixture-token' },
+      now: () => assert.fail('must not authenticate'),
+      read: () => assert.fail('must not read local bytes'),
+      ...adapters
+    });
+    await assert.rejects(fixture.fetchBytes(id), error => native ? error.name === 'TypeError' : error === failure);
+    assert.deepStrictEqual([fixture.writes, fixture.warnings, fixture.errors], [[], [], []]);
+  }));
+});
+
+assertAsyncTest('Google Photos local-byte nullish read failures reject in the warning handler', async () => {
+  await Promise.all([null, undefined].map(async failure => {
+    const fixture = createGooglePhotosServiceFixture({
+      exists: () => true,
+      read: () => { throw failure; },
+      unlink: () => assert.fail('read failure must not unlink')
+    });
+    await assert.rejects(fixture.fetchBytes('local'), error => error.name === 'TypeError');
+    assert.deepStrictEqual([fixture.warnings, fixture.errors, fixture.writes], [[], [], []]);
+  }));
+});
+
+assertAsyncTest('Google Photos local-byte warning failures preserve catch and rejection ordering', async () => {
+  const failure = new Error('warning adapter');
+  await Promise.all(['empty', 'read failure'].map(async mode => {
+    const fixture = createGooglePhotosServiceFixture({
+      exists: () => true,
+      read: () => { if (mode === 'read failure') throw new Error('read adapter'); return Buffer.alloc(0); },
+      warn: () => { throw failure; },
+      unlink: () => assert.fail('warning failure must not unlink')
+    });
+    await assert.rejects(fixture.fetchBytes('local'), error => error === failure);
+    assert.deepStrictEqual([fixture.warnings, fixture.errors, fixture.writes], [[], [], []]);
+  }));
+  let attempts = 0;
+  const fixture = createGooglePhotosServiceFixture({
+    exists: () => true,
+    read: () => Buffer.alloc(0),
+    warn: () => { if (++attempts === 1) throw failure; },
+    unlink: () => assert.fail('initial warning failure skips deletion')
+  });
+  await assert.rejects(fixture.fetchBytes('local'), /Not authenticated/);
+  assert.strictEqual(attempts, 2);
+  assert.strictEqual(fixture.warnings[0][1], failure.message);
+});
 
 assertTest('Google Photos local path documents unknown input, normalized result, and native failures', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');

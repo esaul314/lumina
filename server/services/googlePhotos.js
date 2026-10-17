@@ -1036,23 +1036,38 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * Resolve and return image bytes for a Google Photos media item.
  *
  * A non-empty local file is returned immediately, using cached MIME metadata
- * or `image/jpeg`; an empty file is removed and fetched again. Otherwise the
- * service builds deduplicated content-URL candidates from a missing or stale
- * Picker refresh, the cached base URL, or an on-demand media URL refresh. A
- * failed candidate may trigger one final Picker refresh and retry. Synthetic
+ * or `image/jpeg`; an empty file is removed and fetched again. Cache lookup
+ * and any normalization write precede path construction and file existence
+ * checks, even on a local hit. A missing metadata row does not block a local
+ * read. Non-empty hits return the original Buffer without reading render
+ * options, authenticating, checking base-URL age, or fetching remote content.
+ * MIME selection uses truthiness, not validation. Repeated calls read anew.
+ *
+ * Empty-file deletion follows its warning; read or unlink failures warn and
+ * continue to the authenticated fetch path. Cache lookup, path construction,
+ * and existence-check failures instead reject before authentication, outside
+ * the local-file catch. Failures in its catch's warning handler also reject,
+ * including a nullish caught value failing at err.message. Prior effects are
+ * not rolled back. Path construction does not validate ids or enforce
+ * containment.
+ *
+ * Otherwise the service builds deduplicated content-URL candidates from a
+ * missing or stale Picker refresh, the cached base URL, or an on-demand media
+ * URL refresh. A failed candidate may trigger one final Picker refresh and retry. Synthetic
  * `MOCK_` ids skip authentication and disk writes; real items use a valid
  * token, and successful non-empty downloads are cached locally. Authentication,
  * Picker/network requests, file access, persistence, and logging remain in
  * this effectful service boundary.
  *
- * The returned content type prefers the response header and falls back to the
- * cached MIME type or `image/jpeg`. If retrieval cannot produce a successful
- * response, the promise rejects with the last fetch/refresh error or a
+ * For remote content, the returned content type prefers the response header
+ * and falls back to the cached MIME type or `image/jpeg`. If retrieval cannot
+ * produce a successful response, the promise rejects with the last fetch/refresh error or a
  * media-specific fallback error.
  *
  * @param {string} mediaItemId Stable Google Photos media-item id.
  * @param {GooglePhotoRenderOptions} [renderOptions={}] Optional content dimensions and crop directive.
  * @returns {Promise<GooglePhotoMediaBytes>} The fetched bytes and content type.
+ * @throws {unknown} Rejects on unhandled cache, path, existence, warning, authentication, or retrieval failure.
  */
 async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
   const cachedItem = findCachedMediaItem(mediaItemId);

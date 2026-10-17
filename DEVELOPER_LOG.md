@@ -6,6 +6,34 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Specify Local Media Byte Cache Contract
+
+- **Contract**: refined `fetchMediaItemBytes(...)` local-cache semantics:
+  metadata lookup and normalization writes precede file access; a missing row
+  does not block local reads. Non-empty hits retain Buffer identity and native
+  MIME truthiness, bypassing authentication, render options, and remote work.
+  Repeated calls read anew. Empty/read/unlink fallbacks preserve warning and
+  deletion order; cache/path/existence and catch-handler failures reject before
+  authentication, without rollback. Path confinement remains separate work.
+- **Functional design**: retained existing pure cache/path projections and the
+  data-first effect shell. Declarative case tables composed with `map` and
+  `Promise.all` make independent scenarios explicit; a new curried or algebraic
+  wrapper would obscure these ordered effects. No executable production code
+  or exports changed.
+- **Tests**: eight focused tests use isolated filesystem, token, clock, logging,
+  and network adapters, including normalized URL query parameters, MIME cases,
+  repeated reads, authenticated fallback, partial effects, and native/handler
+  rejection ordering. Extended the existing fixture with an injected unlink
+  adapter and the already-exported byte fetcher; no live cache or credentials
+  are used by the new tests.
+- **Verification**: `npm test` passed: 570 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart was needed for this contract-only slice.
+- **Next seam**: candidate-URL preparation contracts and isolated tests covering
+  authentication order, Picker refresh precedence, cached-base fallback,
+  deduplication, and on-demand URL resolution before retrieval.
+
 ### 2026-10-16: Document Orphaned File Projection Contract and Laws
 
 - **Contract**: refined `getOrphanedFiles(...)` to accept read-only arrays and
