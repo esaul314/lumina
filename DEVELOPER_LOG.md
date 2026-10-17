@@ -6,6 +6,34 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-16: Document Ordered Set Difference Contract and Laws
+
+- **Contract**: documented `difference(...)` generic read-only Set inputs and
+  fresh Set result. Native membership uses SameValueZero for primitives and
+  reference identity for objects; left insertion order is preserved. Result
+  membership is detached, but retained values are not cloned.
+- **Functional design**: kept the existing data-first spread/filter projection
+  unchanged. Successive exclusions compose through right-hand union, but set
+  difference is not associative and therefore is not a Semigroup/Monoid
+  operation. Currying or an algebraic wrapper would add ceremony here.
+  Filesystem, cache, and cleanup effects remain outside this pure helper;
+  custom iteration and membership hooks remain caller-owned effects.
+- **Tests**: six focused tests cover the source contract, ordering, fresh
+  results, native equality, shallow identity, empty/self subtraction, and
+  generated finite-set exclusion, immutability, and composition laws, including
+  a non-associativity counterexample. No runtime or export changes.
+- **Test reliability**: the full suite exposed an unrelated fixed July fixture
+  aging outside sensor statistics' 90-day window. Replaced only its timestamps
+  and expectations with a single current-day reference and local-noon readings;
+  hourly replacement, CSV contents, and statistics assertions remain intact.
+- **Verification**: `npm test` passed: 556 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart required; production behavior is unchanged.
+- **Next seam**: refine `getOrphanedFiles(...)` read-only input contracts and
+  test basename matching, duplicate/order preservation, and immutable
+  projection laws while keeping filesystem effects in the cleanup shell.
+
 ### 2026-10-16: Document Google Photos Local Media Path Contract
 
 - **Contract**: documented `getLocalMediaFilePath(...)` unknown input, platform

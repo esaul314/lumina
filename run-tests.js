@@ -5603,6 +5603,85 @@ assertTest('difference functional helper computes set difference correctly', () 
   assert.deepStrictEqual([...diff].sort(), ['a', 'c']);
 });
 
+assertTest('difference documents generic readonly inputs and a fresh ordered result', () => {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotos'), 'utf8');
+  const contract = source.slice(source.indexOf(' * Return a fresh set of left-hand values'), source.indexOf('const difference ='));
+  ['@template T', '@param {ReadonlySet<T>} setA', '@param {ReadonlySet<T>} setB', '@returns {Set<T>}',
+    'SameValueZero', 'reference identity', 'not cloned', 'failures propagate'].forEach(text => assert.ok(contract.includes(text)));
+  assert.ok(source.includes('const difference = (setA, setB) => new Set([...setA].filter(x => !setB.has(x)));'));
+});
+
+assertTest('difference preserves left order and isolates result membership from both inputs', () => {
+  const left = new Set(['z', 'a', 'm', 'b']);
+  const right = new Set(['b', 'absent', 'a']);
+  const result = difference(left, right);
+  assert.deepStrictEqual([...result], ['z', 'm']);
+  assert.notStrictEqual(result, left);
+  assert.notStrictEqual(result, right);
+  assert.notStrictEqual(result, difference(left, right));
+  result.delete('z');
+  result.add('new');
+  assert.deepStrictEqual([...left], ['z', 'a', 'm', 'b']);
+  assert.deepStrictEqual([...right], ['b', 'absent', 'a']);
+});
+
+assertTest('difference uses native SameValueZero membership and retains object identity', () => {
+  const shared = Object.freeze({ id: 'same' });
+  const distinct = Object.freeze({ id: 'same' });
+  const symbol = Symbol('same');
+  const otherSymbol = Symbol('same');
+  const left = new Set([NaN, -0, shared, distinct, symbol, otherSymbol, '1', 1, null, undefined]);
+  const right = new Set([NaN, +0, shared, symbol, 1, undefined]);
+  const result = difference(left, right);
+  assert.deepStrictEqual([...result], [distinct, otherSymbol, '1', null]);
+  assert.strictEqual([...result][0], distinct);
+  assert.strictEqual(left.size, 10);
+  assert.strictEqual(right.size, 6);
+});
+
+assertTest('difference satisfies empty exclusion and self-subtraction with fresh results', () => {
+  [[], ['b', 'a'], [null, undefined, NaN]].forEach(values => {
+    const input = new Set(values);
+    const retained = difference(input, new Set());
+    const self = difference(input, input);
+    const empty = new Set();
+    const absent = difference(empty, input);
+    assert.deepStrictEqual([...retained], values);
+    assert.notStrictEqual(retained, input);
+    assert.deepStrictEqual([...self], []);
+    assert.notStrictEqual(self, input);
+    assert.deepStrictEqual([...absent], []);
+    assert.notStrictEqual(absent, empty);
+    assert.deepStrictEqual([...input], values);
+  });
+});
+
+assertTest('difference satisfies exclusion and repeated-subtraction laws over finite sets', () => {
+  const universe = ['z', 'a', 'm'];
+  const subsets = Array.from({ length: 2 ** universe.length }, (_, mask) =>
+    new Set(universe.filter((_, index) => mask & (1 << index))));
+  subsets.forEach(left => subsets.forEach(right => {
+    const before = [[...left], [...right]];
+    const result = difference(left, right);
+    assert.ok([...result].every(value => left.has(value) && !right.has(value)));
+    assert.ok([...left].every(value => result.has(value) !== right.has(value)));
+    assert.deepStrictEqual([...difference(result, right)], [...result]);
+    assert.deepStrictEqual([[...left], [...right]], before);
+  }));
+});
+
+assertTest('difference composes successive exclusions as right-hand union, not associativity', () => {
+  const subsets = [[], ['b'], ['a'], ['b', 'a']].map(values => new Set(values));
+  subsets.forEach(left => subsets.forEach(first => subsets.forEach(second => {
+    assert.deepStrictEqual(
+      [...difference(difference(left, first), second)],
+      [...difference(left, new Set([...first, ...second]))]
+    );
+  })));
+  const same = new Set(['a']);
+  assert.notDeepStrictEqual(difference(difference(same, same), same), difference(same, difference(same, same)));
+});
+
 assertTest('getOrphanedFiles matches parsed ids and preserves orphan order without mutation', () => {
   const allFiles = ['item1.jpg', 'item2.jpg', 'item1.png', 'item3.jpg', 'item4.webp'];
   const activeIds = ['item1', 'item3'];
@@ -6236,20 +6315,23 @@ assertTest('sensor history projections preserve input, null invalid clocks, boun
 
 assertTest('stores one latest reading per hour and exports queryable CSV', () => {
   const store = createSensorHistoryStore();
+  const today = new Date();
+  const [firstReadingAt, latestReadingAt] = [5, 55].map(minute =>
+    new Date(new Date(today).setHours(12, minute, 0, 0)).toISOString());
   const reading = observedAt => ({
     environment: {
       observedAt,
       indoor: { temperatureC: 22, humidityPercent: 50 }
     }
   });
-  store.record(reading('2026-07-18T21:05:00.000Z'));
-  store.record(reading('2026-07-18T21:55:00.000Z'));
+  store.record(reading(firstReadingAt));
+  store.record(reading(latestReadingAt));
   const rows = store.history({ limit: 10 });
   assert.strictEqual(rows.length, 1);
-  assert.strictEqual(rows[0].observed_at, '2026-07-18T21:55:00.000Z');
+  assert.strictEqual(rows[0].observed_at, latestReadingAt);
   assert.deepStrictEqual(JSON.parse(rows[0].gateway_metrics_json), {});
   assert.match(store.exportCsv({ limit: 10 }), /hour_key,observed_at,source/);
-  assert.match(store.exportCsv({ limit: 10 }), /2026-07-18T21,2026-07-18T21:55:00.000Z/);
+  assert.ok(store.exportCsv({ limit: 10 }).includes(`${latestReadingAt.slice(0, 13)},${latestReadingAt}`));
   const stats = store.stats({ days: 400, dayStart: 0, dayEnd: 23 });
   assert.strictEqual(stats.days, 90);
   assert.strictEqual(stats.day_start, 0);

@@ -1157,7 +1157,19 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
   throw lastError || new Error(`Google Photos Service: Failed to fetch media bytes for item ${mediaItemId}.`);
 }
 
-// Pure functional helpers for set difference and orphaned file mapping
+/**
+ * Return a fresh set of left-hand values absent from the right-hand set.
+ * Preserve left insertion order and native Set membership (SameValueZero for
+ * primitives, reference identity for objects), without mutating either input.
+ * Values are retained by reference, not cloned. With ordinary Sets this is a
+ * pure data-first projection; custom iteration/membership hooks remain caller
+ * effects and their failures propagate without validation or recovery.
+ *
+ * @template T
+ * @param {ReadonlySet<T>} setA Values to retain unless excluded.
+ * @param {ReadonlySet<T>} setB Values to exclude.
+ * @returns {Set<T>} Detached set in left-hand insertion order.
+ */
 const difference = (setA, setB) => new Set([...setA].filter(x => !setB.has(x)));
 
 /**
