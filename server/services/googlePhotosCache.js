@@ -100,7 +100,32 @@ function getPickerItemBaseUrl(item) {
   return String(getPickerMediaFile(item).baseUrl || '').trim();
 }
 
-/** @param {GooglePhotoMediaItem | null | undefined} item @returns {string} */
+/**
+ * Project a trimmed MIME hint from nested Picker or legacy flat metadata.
+ *
+ * For ordinary data, a truthy object-valued mediaFile (including arrays) is
+ * selected; otherwise the row itself is used. A truthy selected mimeType wins,
+ * then a truthy flat mimeType, then ''. Selection precedes String(...) and
+ * trim(): whitespace suppresses fallback, case/parameters remain verbatim,
+ * and arbitrary truthy values use native string coercion, not MIME validation.
+ * Nullish rows and ordinary primitives without metadata return ''.
+ *
+ * Reads include inherited/non-enumerable properties without enumerating keys.
+ * The shared file selector reads a truthy mediaFile again for typeof and, when
+ * object-valued, again for its result. When the row itself is selected, a
+ * falsy mimeType is read twice.
+ * Accessors can therefore change selection or fail natively. No reads or
+ * coercions occur after a failure; caller hook effects are not rolled back.
+ *
+ * Ordinary read-only data is unchanged. The output is trim-normalized and
+ * stable when re-embedded as either a flat or nested MIME hint; this is a
+ * scalar projection, not an endomorphism on media records. Keep validation
+ * and network/cache effects outside this pure data-first boundary.
+ *
+ * @param {Readonly<GooglePhotoMediaItem> | null | undefined} item
+ * @returns {string} Trimmed, unvalidated hint, or the empty-string fallback.
+ * @throws {unknown} Native property-access or string-coercion failure.
+ */
 function getPickerItemMimeType(item) {
   return String(getPickerMediaFile(item).mimeType || item?.mimeType || '').trim();
 }

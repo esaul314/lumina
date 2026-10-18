@@ -6,6 +6,29 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Pure Picker MIME Projection Contracts
+
+- **Contract**: refined `getPickerItemMimeType(...)` read-only nested/legacy
+  inputs, truthiness-before-trimming, native coercion, repeated property reads,
+  and exact failures. Whitespace-only nested hints suppress flat fallback;
+  case, parameters, and invalid MIME text are deliberately not validated.
+- **Functional design**: retained the concise pure data-first projection.
+  Trim-normalized results are stable under flat/nested re-embedding, not a
+  record endomorphism. No currying, algebraic wrapper, dependency, executable
+  production change, or new export is needed. Validation and effects stay separate.
+- **Tests**: seven focused tests compose declarative cases over frozen records
+  and isolated hooks. They cover fallback/shape selection, empty identities,
+  coercion order, lazy reads, inherited/non-enumerable metadata, normalization
+  stability, exact thrown values, and native changing-accessor failures.
+  No live cache, credentials, network services, or daemon state accessed.
+- **Verification**: `npm test` passed: 624 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart needed for this contract-only slice.
+- **Next**: refine `getGooglePhotoMediaItemId(...)` unknown-input coercion,
+  proxy-prefix/query decoding, and failures; keep identifier validation and
+  filesystem containment separate.
+
 ### 2026-10-17: Specify Pure Metadata Allowlist Projection Contracts
 
 - **Contract**: refined `buildGooglePhotoMetadataPatch(...)` read-only input,

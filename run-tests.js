@@ -946,6 +946,9 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /unsupported\s+\* keys are neither enumerated nor read/);
   assert.match(cacheSource, /projection is value-idempotent, not reference-/);
   assert.match(cacheSource, /@throws \{unknown\} Native null access or caller-supplied property-read failure/);
+  assert.match(cacheSource, /@param \{Readonly<GooglePhotoMediaItem> \| null \| undefined\} item/);
+  assert.match(cacheSource, /scalar projection, not an endomorphism on media records/);
+  assert.match(cacheSource, /@throws \{unknown\} Native property-access or string-coercion failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5731,6 +5734,144 @@ assertTest('buildGooglePhotoProxyUrl still supports explicit crop opt-in', () =>
 assertTest('Google Photos proxy URLs round-trip their media item ids', () => {
   const proxyUrl = buildGooglePhotoProxyUrl('A/B+C');
   assert.strictEqual(getGooglePhotoMediaItemId(proxyUrl), 'A/B+C');
+});
+
+assertTest('Picker MIME projection selects truthy hints before trimming without validating MIME syntax', () => {
+  const { getPickerItemMimeType: project } = googlePhotosCache;
+  const falsy = [undefined, null, false, 0, -0, NaN, '', 0n];
+  falsy.forEach(mimeType => {
+    assert.strictEqual(project(Object.freeze({ mediaFile: Object.freeze({ mimeType }), mimeType: ' image/legacy ' })), 'image/legacy');
+    assert.strictEqual(project(Object.freeze({ mediaFile: Object.freeze({ mimeType }), mimeType })), '');
+  });
+  [
+    [' image/jpeg ', 'image/jpeg'], ['\t\n ', ''],
+    [' Image/JPEG; quality=90 ', 'Image/JPEG; quality=90'],
+    ['not a MIME type', 'not a MIME type']
+  ].forEach(([mimeType, expected]) => {
+    const item = Object.freeze({ mediaFile: Object.freeze({ mimeType }), mimeType: 'image/legacy' });
+    assert.strictEqual(project(item), expected);
+    assert.strictEqual(project(Object.freeze({ mimeType })), expected);
+    assert.strictEqual(item.mediaFile.mimeType, mimeType);
+  });
+});
+
+assertTest('Picker MIME projection preserves native file-shape selection and empty identities', () => {
+  const project = googlePhotosCache.getPickerItemMimeType;
+  [undefined, null, false, true, 0, 1, '', 'text', 1n, Symbol('row')].forEach(item => {
+    assert.strictEqual(project(item), '');
+  });
+  const callable = Object.assign(() => {}, { mimeType: 'image/ignored' });
+  [undefined, null, false, 0, '', 'text', 1, true, 1n, Symbol('file'), callable].forEach(mediaFile => {
+    assert.strictEqual(project(Object.freeze({ mediaFile, mimeType: ' image/flat ' })), 'image/flat');
+  });
+  [[], {}, new String('file'), Object.create(null)].forEach(mediaFile => {
+    Object.defineProperty(mediaFile, 'mimeType', { value: ' image/nested ' });
+    assert.strictEqual(project(Object.freeze({ mediaFile: Object.freeze(mediaFile), mimeType: 'image/flat' })), 'image/nested');
+  });
+});
+
+assertTest('Picker MIME projection uses native String coercion with string-hint hooks only on the chosen value', () => {
+  const project = googlePhotosCache.getPickerItemMimeType;
+  [[true, 'true'], [42, '42'], [Infinity, 'Infinity'], [1n, '1'], [Symbol('mime'), 'Symbol(mime)'], [[], ''], [[' image/png '], 'image/png']]
+    .forEach(([mimeType, expected]) => assert.strictEqual(project({ mediaFile: { mimeType }, mimeType: 'image/flat' }), expected));
+  const events = [];
+  const mimeType = Object.freeze({
+    [Symbol.toPrimitive]: hint => { events.push(hint); return ' image/custom '; }
+  });
+  const item = Object.freeze({
+    mediaFile: Object.freeze({ mimeType }),
+    get mimeType() { throw new Error('Unused fallback must not be read'); }
+  });
+  assert.strictEqual(project(item), 'image/custom');
+  assert.deepStrictEqual(events, ['string']);
+  const legacyValue = Object.freeze({
+    toString: () => { events.push('toString'); return {}; },
+    valueOf: () => { events.push('valueOf'); return ' image/legacy '; }
+  });
+  assert.strictEqual(project({ mimeType: legacyValue }), 'image/legacy');
+  assert.deepStrictEqual(events, ['string', 'toString', 'valueOf']);
+});
+
+assertTest('Picker MIME projection preserves repeated file reads and lazy flat fallback order', () => {
+  [undefined, {}, { mimeType: '' }, { mimeType: ' image/nested ' }].forEach(mediaFile => {
+    const events = [];
+    const nested = mediaFile && new Proxy(mediaFile, { get: (target, key) => { events.push(`nested.${String(key)}`); return target[key]; } });
+    const row = new Proxy({ mediaFile: nested, mimeType: ' image/flat ' }, {
+      get: (target, key) => { events.push(String(key)); return target[key]; },
+      ownKeys: () => { throw new Error('Must not enumerate metadata'); }
+    });
+    const selected = !!mediaFile?.mimeType;
+    assert.strictEqual(googlePhotosCache.getPickerItemMimeType(row), selected ? 'image/nested' : 'image/flat');
+    assert.deepStrictEqual(events, mediaFile
+      ? ['mediaFile', 'mediaFile', 'mediaFile', 'nested.mimeType', ...(!selected ? ['mimeType'] : [])]
+      : ['mediaFile', 'mimeType']);
+  });
+  const events = [];
+  const row = { get mimeType() { events.push('mimeType'); return events.length === 1 ? 0 : ' image/second-read '; } };
+  assert.strictEqual(googlePhotosCache.getPickerItemMimeType(row), 'image/second-read');
+  assert.deepStrictEqual(events, ['mimeType', 'mimeType']);
+});
+
+assertTest('Picker MIME projection reads inherited fields and is stable under flat or nested re-embedding', () => {
+  const project = googlePhotosCache.getPickerItemMimeType;
+  const file = Object.freeze(Object.create(Object.freeze({ mimeType: ' image/inherited ' })));
+  const item = Object.freeze(Object.create(Object.freeze({ mediaFile: file })));
+  assert.strictEqual(project(item), 'image/inherited');
+  assert.deepStrictEqual(Reflect.ownKeys(item), []);
+  const hidden = Object.freeze(Object.defineProperty({}, 'mimeType', { value: ' image/hidden ' }));
+  assert.strictEqual(project(hidden), 'image/hidden');
+  ['', ' image/jpeg ', '\t\n', 'Image/PNG; x=1', 'invalid', true, 3, Symbol('mime')].forEach(mimeType => {
+    const flat = Object.freeze({ mimeType });
+    const nested = Object.freeze({ mediaFile: Object.freeze({ mimeType }) });
+    const result = project(flat);
+    assert.strictEqual(project(nested), result);
+    assert.strictEqual(result.trim(), result);
+    assert.strictEqual(project(Object.freeze({ mimeType: result })), result);
+    assert.strictEqual(project(Object.freeze({ mediaFile: Object.freeze({ mimeType: result }) })), result);
+    assert.strictEqual(flat.mimeType, mimeType);
+    assert.strictEqual(nested.mediaFile.mimeType, mimeType);
+  });
+});
+
+assertTest('Picker MIME projection propagates exact hook failures and stops subsequent reads', () => {
+  ['file', 'nested', 'flat', 'coercion'].forEach(stage => {
+    [undefined, null, false, 0, '', new Error('MIME hook failure')].forEach(failure => {
+      const events = [];
+      const observe = (key, value) => { events.push(key); if (key === stage) throw failure; return value; };
+      const coercible = { [Symbol.toPrimitive]: () => observe('coercion', 'image/custom') };
+      const file = { get mimeType() { return observe('nested', stage === 'flat' ? '' : coercible); } };
+      const row = {
+        get mediaFile() { return observe('file', file); },
+        get mimeType() { return observe('flat', coercible); }
+      };
+      let caught = false;
+      let result = 'not returned';
+      try { result = googlePhotosCache.getPickerItemMimeType(row); } catch (error) {
+        caught = true;
+        assert.strictEqual(error, failure);
+      }
+      assert.strictEqual(caught, true);
+      assert.strictEqual(result, 'not returned');
+      const prefix = ['file', 'file', 'file', 'nested', ...(stage === 'flat' ? ['flat'] : ['coercion'])];
+      assert.deepStrictEqual(events, stage === 'file' ? ['file'] : prefix.slice(0, prefix.indexOf(stage) + 1));
+    });
+  });
+});
+
+assertTest('Picker MIME projection retains native failures from changing file accessors and invalid coercion', () => {
+  const project = googlePhotosCache.getPickerItemMimeType;
+  const reads = [];
+  const row = {
+    get mediaFile() { reads.push('mediaFile'); return reads.length < 3 ? {} : null; },
+    get mimeType() { throw new Error('Must fail before the fallback'); }
+  };
+  assert.throws(() => project(row), TypeError);
+  assert.deepStrictEqual(reads, ['mediaFile', 'mediaFile', 'mediaFile']);
+  assert.throws(() => project({ mimeType: { [Symbol.toPrimitive]: () => ({}) } }), TypeError);
+  assert.throws(() => project({ mimeType: Object.create(null) }), TypeError);
+  const { proxy, revoke } = Proxy.revocable({}, {});
+  revoke();
+  assert.throws(() => project(proxy), TypeError);
 });
 
 assertTest('mergeCachedMediaItemMetadata updates pairing flags for cached Google Photos rows', () => {
