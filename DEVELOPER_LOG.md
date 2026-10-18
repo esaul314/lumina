@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-18: Specify Pure Cache Row Normalization Contracts
+
+- **Contract**: refined `normalizeCachedMediaItem(...)` read-only persisted-row
+  inputs, truthy-id guard, independent flat dimensions, cached/legacy base
+  precedence, default proxy rendering, shallow metadata, and exact failures.
+  Ratings default only on undefined; loved accepts only literal true.
+- **Functional design**: retained the concise pure data-first projection.
+  Generated ordinary records with own enumerable string ids and safe positive
+  integer dimensions verify value-idempotence, not reference identity. A large
+  numeric-dimension counterexample rules out global idempotence. No currying,
+  algebraic wrapper, dependency, executable production change, or export added.
+  Eligibility, validation, clocks, and cache I/O remain separate.
+- **Tests**: eight focused tests compose declarative tables, frozen data,
+  inherited/hidden fields, symbol metadata, and isolated access/coercion hooks.
+  Failures stop later work without partial results or caller-hook rollback.
+  No new live cache, credential, network, or daemon access added.
+- **Verification**: `npm test` passed: 667 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, whitespace, and
+  unchanged executable production AST checks passed. Optional socket smoke was
+  sandbox-skipped (`listen EPERM`). No client build or service restart needed.
+- **Next**: refine `isUsableCachedMediaItem(...)` structural guards, mock-id
+  bypass, refreshability truthiness, and native failures without changing
+  behavior or exports.
+
 ### 2026-10-18: Specify Pure Legacy Base URL Contracts
 
 - **Contract**: refined `extractLegacyBaseUrl(...)` unknown-input coercion,

@@ -320,8 +320,37 @@ function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now
 /**
  * Normalize a persisted cache record into Lumina's stable render shape.
  *
- * @param {GooglePhotoMediaItem | null | undefined} item
- * @returns {(GooglePhotoMediaItem & {id: string; url: string}) | null}
+ * A nullish row or falsy id returns null before other reads. This is a truthy
+ * guard, not identifier validation: native property reads also accept inherited
+ * ids and boxed primitives. Parse the row's width then height with native
+ * base-10 parseInt; each positive finite result survives independently, otherwise
+ * use 2560/1440. Nested Picker dimensions are ignored; no safe-integer cap applies.
+ * Select a truthy googleBaseUrl before legacy URL extraction, then String/trim;
+ * whitespace can suppress fallback and normalize to undefined. Preferred bases
+ * retain equals signs. URL validity and structural eligibility are not checked.
+ *
+ * Spread own enumerable fields (including symbols) into a fresh plain object,
+ * retaining shallow metadata aliases, then override source, proxy URL, base,
+ * dimensions, rating, and loved. The proxy uses default render dimensions, not
+ * the parsed row dimensions. Only undefined ratings become 10; loved is true
+ * only for literal true. Inherited/hidden metadata is not spread, but named reads
+ * still see it. Accessors may run repeatedly: id at guard/spread/proxy stages,
+ * and a defined rating at spread/check/value stages when enumerable.
+ *
+ * Ordinary read-only records stay unchanged. On ordinary records with an own
+ * enumerable string id and safe positive integer dimensions, normalization is value-idempotent,
+ * not reference-idempotent. It is not globally idempotent: a large parsed number
+ * can stringify exponentially and parse differently on the next pass. Keep this
+ * pure data-first projection separate from eligibility, clocks, and cache I/O.
+ *
+ * Read/coercion/spread/URI failures propagate unchanged and stop later work;
+ * no partial result or fallback row is returned. Prior caller-hook effects are
+ * not rolled back. Spread runs after dimension/base projection, before proxy
+ * encoding, rating, and loved reads.
+ *
+ * @param {Readonly<GooglePhotoMediaItem> | null | undefined} item
+ * @returns {(GooglePhotoMediaItem & {id: string; url: string; width: number; height: number; loved: boolean}) | null}
+ * @throws {unknown} Native property-read, coercion, spread, or URI-encoding failure.
  */
 function normalizeCachedMediaItem(item) {
   if (!item?.id) {

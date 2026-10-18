@@ -965,6 +965,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /Split at the first literal '=' regardless of its context/);
   assert.match(cacheSource, /This projection is not globally idempotent/);
   assert.match(cacheSource, /@throws \{unknown\} Native string-coercion failure\./);
+  assert.match(cacheSource, /truthy\s+\* guard, not identifier validation/);
+  assert.match(cacheSource, /proxy uses default render dimensions, not\s+\* the parsed row dimensions/);
+  assert.match(cacheSource, /not reference-idempotent\. It is not globally idempotent/);
+  assert.match(cacheSource, /@throws \{unknown\} Native property-read, coercion, spread, or URI-encoding failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -7335,6 +7339,149 @@ assertTest('Google Photos cache normalization keeps open metadata and defaults m
   assert.deepStrictEqual(normalized.customPickerField, { retained: true });
   assert.deepStrictEqual(cachedItem, original);
   assert.strictEqual(googlePhotosCache.normalizeCachedMediaItem({ url: 'missing-id' }), null);
+});
+
+assertTest('Cache normalization guards only truthy ids before reading any other fields', () => {
+  [undefined, null, false, 0, '', 1, Symbol('row')].forEach(row => assert.strictEqual(normalizeCachedMediaItem(row), null));
+  [undefined, null, false, 0, -0, 0n, NaN, ''].forEach(id => {
+    const row = Object.freeze({ id, get width() { throw Error('must not read'); } });
+    assert.strictEqual(normalizeCachedMediaItem(row), null);
+  });
+  [' ', 'MOCK_test', 42, true].forEach(id => {
+    const row = Object.freeze({ id });
+    const result = normalizeCachedMediaItem(row);
+    assert.strictEqual(result.id, id, 'truthy ids are preserved, not normalized to strings');
+    assert.strictEqual(result.url, buildGooglePhotoProxyUrl(id));
+    assert.strictEqual(result.source, 'google_photos');
+    assert.strictEqual(result.googleBaseUrl, undefined);
+  });
+});
+
+assertTest('Cache normalization parses flat dimensions independently without changing proxy defaults', () => {
+  [[undefined, 2560], [null, 2560], ['', 2560], ['bad', 2560], [0, 2560], [-3, 2560],
+    [Infinity, 2560], ['2.9px', 2], ['  +31tail', 31], ['0x10', 2560], ['1e3', 1],
+    [1e21, 1], ['1000000000000000000000', 1e21]].forEach(([width, expected]) => {
+    const row = Object.freeze({ id: 'dimensions', width, height: '17px', mediaFileMetadata: { width: 9, height: 8 } });
+    const result = normalizeCachedMediaItem(row);
+    assert.strictEqual(result.width, expected);
+    assert.strictEqual(result.height, 17);
+    assert.strictEqual(result.url, '/api/google-photos/media/dimensions?w=2560&h=1440');
+  });
+  assert.strictEqual(normalizeCachedMediaItem({ id: 'dimensions', width: 7, height: -1 }).height, 1440);
+  assert.strictEqual(normalizeCachedMediaItem({ id: 'dimensions', mediaFile: { mediaFileMetadata: { width: 9 } } }).width, 2560);
+});
+
+assertTest('Cache normalization selects cached bases before trimming and does not validate URLs', () => {
+  [[undefined, ' legacy=w10 ', 'legacy'], ['', ' legacy=w10 ', 'legacy'], [0, 'legacy=w10', 'legacy'],
+    ['   ', 'legacy=w10', undefined], [' base=w10 ', 'ignored=w10', 'base=w10'],
+    [42, 'ignored', '42'], [Symbol('base'), 'ignored', 'Symbol(base)'],
+    [undefined, '/api/google-photos/media/photo', undefined], [undefined, '=w10', undefined],
+    [undefined, ' not a URL =w10', 'not a URL']].forEach(([googleBaseUrl, url, expected]) => {
+    assert.strictEqual(normalizeCachedMediaItem(Object.freeze({ id: 'base', googleBaseUrl, url })).googleBaseUrl, expected);
+  });
+  const row = Object.freeze({ id: 'base', googleBaseUrl: ' ', get url() { throw Error('fallback suppressed'); } });
+  // A hidden URL is not spread either; an enumerable getter would still run at spread time.
+  const hidden = Object.freeze(Object.create(row, { id: { value: 'base', enumerable: true } }));
+  assert.strictEqual(normalizeCachedMediaItem(hidden).googleBaseUrl, undefined);
+});
+
+assertTest('Cache normalization preserves own enumerable metadata and shallow aliases in fresh plain rows', () => {
+  const symbol = Symbol('metadata');
+  const metadata = Object.freeze({ retained: true });
+  const row = Object.freeze(Object.defineProperties(Object.create({ inherited: 'not copied' }), {
+    id: { value: 'metadata', enumerable: true }, source: { value: 'old', enumerable: true },
+    custom: { value: metadata, enumerable: true }, [symbol]: { value: metadata, enumerable: true },
+    hidden: { value: 'not copied' }, createTime: { value: 'date', enumerable: true },
+    cropPercent: { value: null, enumerable: true }, isBroken: { value: true, enumerable: true }
+  }));
+  const result = normalizeCachedMediaItem(row);
+  assert.notStrictEqual(result, row);
+  assert.strictEqual(Object.getPrototypeOf(result), Object.prototype);
+  assert.strictEqual(result.custom, metadata);
+  assert.strictEqual(result[symbol], metadata);
+  assert.strictEqual(result.hidden, undefined);
+  assert.strictEqual(result.inherited, undefined);
+  assert.strictEqual(result.createTime, 'date');
+  assert.strictEqual(result.cropPercent, null);
+  assert.strictEqual(result.isBroken, true, 'normalization does not filter broken photos');
+  assert.strictEqual(row.source, 'old');
+  Reflect.ownKeys(result).forEach(key => {
+    const descriptor = Object.getOwnPropertyDescriptor(result, key);
+    assert.ok(descriptor.enumerable && descriptor.writable && descriptor.configurable);
+  });
+});
+
+assertTest('Cache normalization defaults only undefined ratings and accepts only literal true loved flags', () => {
+  const values = [undefined, null, false, 0, NaN, '', 'true', 1, true, Object.freeze({ value: true })];
+  values.flatMap(rating => values.map(loved => Object.freeze({ id: 'metadata', rating, loved }))).forEach(row => {
+    const result = normalizeCachedMediaItem(row);
+    assert.strictEqual(result.rating, row.rating === undefined ? 10 : row.rating);
+    assert.strictEqual(result.loved, row.loved === true);
+  });
+});
+
+assertTest('Cache normalization preserves inherited named reads and accessor ordering', () => {
+  const events = [];
+  const read = (key, value) => ({ get() { events.push(key); return value; } });
+  const row = Object.freeze(Object.create(null, {
+    id: read('id', 'hidden'), width: read('width', { [Symbol.toPrimitive](hint) { events.push(hint); return '19px'; } }),
+    height: read('height', 23), googleBaseUrl: read('base', ' base '),
+    rating: read('rating', 0), loved: read('loved', true)
+  }));
+  const result = normalizeCachedMediaItem(Object.freeze(Object.create(row)));
+  assert.deepStrictEqual(events, ['id', 'width', 'string', 'height', 'base', 'id', 'rating', 'rating', 'loved']);
+  assert.strictEqual(Object.hasOwn(result, 'id'), false, 'inherited ids are read but not copied');
+  assert.strictEqual(result.width, 19);
+  assert.strictEqual(result.rating, 0);
+  assert.strictEqual(result.loved, true);
+  let ids = 0;
+  let ratings = 0;
+  const changing = Object.freeze({ get id() { return ['guard', 'copied', 'encoded'][ids++]; }, get rating() { return ++ratings; } });
+  const changed = normalizeCachedMediaItem(changing);
+  assert.strictEqual(changed.id, 'copied');
+  assert.strictEqual(changed.url, buildGooglePhotoProxyUrl('encoded'));
+  assert.strictEqual(changed.rating, 3);
+});
+
+assertTest('Cache normalization propagates exact failures and stops later projection without partial returns', () => {
+  [undefined, null, false, 0, '', Error('projection')].forEach(failure => {
+    ['id', 'width', 'height', 'googleBaseUrl', 'spread', 'rating', 'loved'].forEach(stage => {
+      const events = [];
+      const keys = ['id', 'width', 'height', 'googleBaseUrl', 'spread', 'rating', 'loved'];
+      const input = Object.freeze(Object.create(null, Object.fromEntries(keys.map(key => [key, {
+        enumerable: key === 'spread',
+        get() { events.push(key); if (key === stage) throw failure; return key === 'id' ? 'photo' : 1; }
+      }]))));
+      let returned = false;
+      let caught = false;
+      try { normalizeCachedMediaItem(input); returned = true; } catch (error) { caught = true; assert.strictEqual(error, failure); }
+      assert.ok(caught && !returned);
+      assert.strictEqual(events.at(-1), stage);
+    });
+  });
+  [
+    [{ id: 'photo', width: Symbol('dimension') }, TypeError],
+    [{ id: 'photo', googleBaseUrl: Object.create(null) }, TypeError],
+    [{ id: Symbol('photo') }, TypeError], [{ id: '\uD800' }, URIError]
+  ].forEach(([row, error]) => assert.throws(() => normalizeCachedMediaItem(Object.freeze(row)), error));
+  const failure = Error('enumeration');
+  assert.throws(() => normalizeCachedMediaItem(new Proxy({ id: 'photo' }, { ownKeys() { throw failure; } })), error => error === failure);
+});
+
+assertTest('Cache normalization is value-idempotent on ordinary safe-dimension rows, not globally', () => {
+  [1, 17, 2560, Number.MAX_SAFE_INTEGER].flatMap(width => [1, 1440].map(height => Object.freeze({
+    id: 'law /?%', width, height, url: ' legacy=w10 ', rating: 0, loved: true, custom: Object.freeze({ kept: true })
+  }))).forEach(row => {
+    const once = normalizeCachedMediaItem(row);
+    const twice = normalizeCachedMediaItem(once);
+    assert.deepStrictEqual(twice, once);
+    assert.notStrictEqual(twice, once);
+    assert.strictEqual(twice.custom, row.custom);
+    assert.strictEqual(row.url, ' legacy=w10 ');
+  });
+  const once = normalizeCachedMediaItem(Object.freeze({ id: 'large', width: '1000000000000000000000' }));
+  assert.strictEqual(once.width, 1e21);
+  assert.strictEqual(normalizeCachedMediaItem(once).width, 1);
 });
 
 assertTest('Google Photos Picker merges accumulate ordinary cache rows across sessions', () => {
