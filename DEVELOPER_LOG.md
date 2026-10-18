@@ -6,6 +6,29 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Pure Proxy Media-ID Decoding Contracts
+
+- **Contract**: refined `getGooglePhotoMediaItemId(...)` unknown-input coercion,
+  outer trimming, exact relative prefix, first-query splitting, one-pass
+  decoding, and native failures. Decoded whitespace, plus signs, fragments,
+  and separators remain unvalidated; malformed encoded ids throw, but query
+  text and unsupported prefixes are not decoded.
+- **Functional design**: retained the concise pure data-first decoder.
+  Generated well-formed ids obey the proxy codec's round-trip law across
+  render options, not decoder idempotence. No algebraic wrapper, currying,
+  dependency, executable production change, or new export is needed.
+  Identifier validation and filesystem containment remain separate security work.
+- **Tests**: seven focused tests use declarative cases, frozen inputs,
+  generated codec pairs, and isolated coercion hooks. Native failures retain
+  their thrown values and prior hook effects without fallback reads.
+  No live cache, credentials, network services, or daemon state accessed.
+- **Verification**: `npm test` passed: 631 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart needed for this contract-only slice.
+- **Next**: refine `buildGooglePhotoProxyUrl(...)` render-option defaults,
+  native coercion/encoding, and failure contracts; keep validation separate.
+
 ### 2026-10-17: Specify Pure Picker MIME Projection Contracts
 
 - **Contract**: refined `getPickerItemMimeType(...)` read-only nested/legacy

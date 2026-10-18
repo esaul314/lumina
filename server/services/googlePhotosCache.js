@@ -72,8 +72,29 @@ function buildGooglePhotoProxyUrl(mediaItemId, { width = DEFAULT_RENDER_WIDTH, h
 /**
  * Decode a media id only from Lumina's Google Photos proxy URL vocabulary.
  *
+ * Falsy inputs select '' before native String(...) coercion; truthy inputs
+ * use native coercion (the string hint for objects), then outer trimming.
+ * Only the exact, case-sensitive relative prefix matches: absolute URLs
+ * are not accepted.
+ * The first literal '?' ends the encoded id; its suffix is ignored, even
+ * when malformed. Empty ids return '' without decoding. Non-empty ids use
+ * decodeURIComponent once: '+' and fragments stay literal, encoded separators
+ * decode, and decoded whitespace is not trimmed again. No URL parser, id
+ * validation, or filesystem containment check is implied.
+ *
+ * Ordinary inputs are unchanged. For well-formed UTF-16 string ids, decoding
+ * buildGooglePhotoProxyUrl(id, options) returns id independently of render
+ * options. This codec round-trip is not decoder idempotence: decoded ids are
+ * not necessarily proxy URLs. Keep this pure data-first projection separate
+ * from validation and cache/filesystem effects.
+ *
+ * Native coercion and malformed percent/UTF-8 decoding failures propagate;
+ * unsupported prefixes return '' before decoding. Caller coercion-hook effects
+ * are not rolled back, and no fallback result is returned after a failure.
+ *
  * @param {unknown} value
- * @returns {string}
+ * @returns {string} Once-decoded, unvalidated id, or the empty-string fallback.
+ * @throws {unknown} Native string-coercion failure or URIError from decoding.
  */
 function getGooglePhotoMediaItemId(value) {
   const text = String(value || '').trim();

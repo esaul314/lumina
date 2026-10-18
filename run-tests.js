@@ -949,6 +949,9 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /@param \{Readonly<GooglePhotoMediaItem> \| null \| undefined\} item/);
   assert.match(cacheSource, /scalar projection, not an endomorphism on media records/);
   assert.match(cacheSource, /@throws \{unknown\} Native property-access or string-coercion failure/);
+  assert.match(cacheSource, /codec round-trip is not decoder idempotence/);
+  assert.match(cacheSource, /@returns \{string\} Once-decoded, unvalidated id/);
+  assert.match(cacheSource, /@throws \{unknown\} Native string-coercion failure or URIError from decoding/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5734,6 +5737,105 @@ assertTest('buildGooglePhotoProxyUrl still supports explicit crop opt-in', () =>
 assertTest('Google Photos proxy URLs round-trip their media item ids', () => {
   const proxyUrl = buildGooglePhotoProxyUrl('A/B+C');
   assert.strictEqual(getGooglePhotoMediaItemId(proxyUrl), 'A/B+C');
+});
+
+assertTest('Google Photos media id decoder preserves falsy and ordinary unsupported input identities', () => {
+  [undefined, null, false, true, 0, -0, NaN, Infinity, 1, '', ' ', 0n, 1n,
+    Symbol('id'), Object.freeze({}), Object.freeze([])].forEach(value => {
+    assert.strictEqual(getGooglePhotoMediaItemId(value), '');
+  });
+  const value = Object.freeze(['/api/google-photos/media/array%2Fid?w=1']);
+  assert.strictEqual(getGooglePhotoMediaItemId(value), 'array/id');
+  assert.deepStrictEqual(value, ['/api/google-photos/media/array%2Fid?w=1']);
+});
+
+assertTest('Google Photos media id decoder accepts only the exact relative prefix after outer trimming', () => {
+  [
+    ['', ''], ['/api/google-photos/media/', ''], ['/api/google-photos/media/?w=1', ''],
+    [' \t/api/google-photos/media/id\n ', 'id'],
+    ['https://example.invalid/api/google-photos/media/id', ''],
+    ['//example.invalid/api/google-photos/media/id', ''],
+    ['/API/google-photos/media/id', ''], ['/api/google-photos/media', ''],
+    ['/api/google-photos/media-other/id', ''], ['prefix/api/google-photos/media/id', '']
+  ].forEach(([value, expected]) => assert.strictEqual(getGooglePhotoMediaItemId(value), expected));
+});
+
+assertTest('Google Photos media id decoder splits only the first query marker and decodes exactly once', () => {
+  [
+    ['id?w=1?h=2', 'id'], ['id?%', 'id'], ['?%ZZ', ''],
+    ['A%2FB%2BC', 'A/B+C'], ['A+B', 'A+B'], ['A%252FB', 'A%2FB'],
+    ['%3F%23%25?ignored', '?#%'], ['id#fragment', 'id#fragment'],
+    ['id#fragment?query', 'id#fragment'], ['../folder/id', '../folder/id'],
+    ['%2e%2e%2Fid', '../id'], ['%20id%20', ' id '], ['%20', ' '],
+    ['%00', '\0'], ['%E9%9B%AA%F0%9F%8C%8C', '雪🌌']
+  ].forEach(([suffix, expected]) => {
+    assert.strictEqual(getGooglePhotoMediaItemId(`/api/google-photos/media/${suffix}`), expected);
+  });
+});
+
+assertTest('Google Photos media id decoder uses native string-hint coercion once without enumerating input', () => {
+  const calls = [];
+  const value = new Proxy(Object.freeze({
+    [Symbol.toPrimitive]: hint => {
+      calls.push(`coerce:${hint}`);
+      return ' /api/google-photos/media/hook%2Fid?w=1 ';
+    }
+  }), {
+    get: (target, key, receiver) => {
+      calls.push(key);
+      return Reflect.get(target, key, receiver);
+    },
+    ownKeys: () => { throw new Error('Unexpected enumeration'); }
+  });
+  assert.strictEqual(getGooglePhotoMediaItemId(value), 'hook/id');
+  assert.deepStrictEqual(calls, [Symbol.toPrimitive, 'coerce:string']);
+  calls.length = 0;
+  assert.strictEqual(getGooglePhotoMediaItemId(Object.freeze({
+    toString: () => { calls.push('toString'); return {}; },
+    valueOf: () => { calls.push('valueOf'); return '/api/google-photos/media/fallback'; }
+  })), 'fallback');
+  assert.deepStrictEqual(calls, ['toString', 'valueOf']);
+});
+
+assertTest('Google Photos media id decoder propagates exact coercion failures without later fallback reads', () => {
+  [undefined, null, false, 0, '', new Error('coercion failed')].forEach(failure => {
+    const calls = [];
+    const value = Object.freeze({
+      [Symbol.toPrimitive]: hint => { calls.push(hint); throw failure; },
+      get toString() { throw new Error('Unexpected fallback read'); }
+    });
+    let rejected = false;
+    let result = 'not returned';
+    try { result = getGooglePhotoMediaItemId(value); }
+    catch (error) { rejected = true; assert.strictEqual(error, failure); }
+    assert.strictEqual(rejected, true);
+    assert.strictEqual(result, 'not returned');
+    assert.deepStrictEqual(calls, ['string']);
+  });
+  [Object.freeze({ [Symbol.toPrimitive]: () => ({}) }), Object.create(null)].forEach(value => {
+    assert.throws(() => getGooglePhotoMediaItemId(value), TypeError);
+  });
+});
+
+assertTest('Google Photos media id decoder rejects malformed encoded ids but never decodes unsupported URLs or queries', () => {
+  ['%', '%0', '%GG', '%FF', '%C0%AF', '%E2%82', '%ED%A0%80', '%F4%90%80%80'].forEach(encodedId => {
+    assert.throws(() => getGooglePhotoMediaItemId(`/api/google-photos/media/${encodedId}?ignored`), URIError);
+    assert.strictEqual(getGooglePhotoMediaItemId(`/unsupported/${encodedId}`), '');
+    assert.strictEqual(getGooglePhotoMediaItemId(`/api/google-photos/media/valid?${encodedId}`), 'valid');
+  });
+});
+
+assertTest('Google Photos proxy codec round-trips generated well-formed ids independently of render options', () => {
+  const atoms = ['', 'plain', ' /+?#% ', '雪🌌', '\0', '../'];
+  const ids = atoms.flatMap(left => atoms.map(right => `${left}${right}`));
+  const options = [undefined, Object.freeze({}), Object.freeze({ width: 1080, height: 1920, crop: true })];
+  ids.forEach(id => options.forEach(renderOptions => {
+    const before = renderOptions && { ...renderOptions };
+    const url = buildGooglePhotoProxyUrl(id, renderOptions);
+    assert.strictEqual(getGooglePhotoMediaItemId(url), id);
+    assert.deepStrictEqual(renderOptions, before);
+  }));
+  assert.strictEqual(getGooglePhotoMediaItemId(getGooglePhotoMediaItemId(buildGooglePhotoProxyUrl('id'))), '');
 });
 
 assertTest('Picker MIME projection selects truthy hints before trimming without validating MIME syntax', () => {
