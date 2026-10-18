@@ -175,11 +175,32 @@ function getPickerItemMimeType(item) {
 }
 
 /**
- * Project valid Picker dimensions, using the established render defaults for
- * missing or malformed values.
+ * Project Picker dimensions from nested or legacy flat file metadata.
  *
- * @param {GooglePhotoMediaItem | null | undefined} item
- * @returns {{width: number; height: number}}
+ * The shared file selector uses truthy object-valued mediaFile (including
+ * arrays), otherwise the row. Its truthy mediaFile reads repeat. A truthy
+ * selected mediaFileMetadata wins as a whole, then flat mediaFileMetadata,
+ * then {}: missing nested fields do not fall back individually. When the row
+ * itself is selected, falsy metadata is read twice. Reads include inherited
+ * and non-enumerable fields; truthy primitive metadata uses boxed reads.
+ * Top-level row dimensions and existing cache dimensions are not consulted.
+ *
+ * Read and parse width before reading height, using native base-10 parseInt
+ * (string-hint coercion). Numeric prefixes, fractions, and exponent notation
+ * retain native behavior, not strict dimension validation. Each positive
+ * finite parsed value wins independently; otherwise use 2560 for width or
+ * 1440 for height. There is no safe-integer limit or maximum-size clamp.
+ * Normalization is not globally idempotent under metadata re-embedding:
+ * sufficiently large numeric results stringify in exponent notation.
+ *
+ * Ordinary read-only data stays unchanged; return a fresh dimension pair.
+ * Keep this pure data-first projection separate from cache-row clocks/I/O.
+ * Native access/coercion failures propagate unchanged, without reading later
+ * fields or returning defaults; prior caller-hook effects are not rolled back.
+ *
+ * @param {Readonly<GooglePhotoMediaItem> | null | undefined} item
+ * @returns {{width: number; height: number}} Independently defaulted dimensions.
+ * @throws {unknown} Native property-access or integer-coercion failure.
  */
 function getPickerItemDimensions(item) {
   const metadata = getPickerMediaFile(item).mediaFileMetadata || item?.mediaFileMetadata || {};

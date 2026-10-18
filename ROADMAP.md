@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-17
+Last updated: 2026-10-18
 
 ## Implementation Companion
 
@@ -31,8 +31,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (87): `buildGooglePhotoProxyUrl(...)` refines read-only render options, undefined-only defaults, ordered native coercion, distinct id/query encoding, crop truthiness, and failure contracts. Seven focused tests verify immutable ordinary inputs, exact access/coercion ordering, native failures, and encoding edge cases; existing generated codec round-trips remain covered. The existing pure data-first projection needs no algebraic wrapper; runtime behavior and exports remain unchanged. Validation stays separate.
-- Next Step 6 seam: refine `getPickerItemDimensions(...)` nested/legacy metadata selection, native integer parsing, independent defaults, and failure contracts through existing cache-row builders; preserve the pure projection without widening exports.
+- Latest Step 6 slice (88): `getPickerItemDimensions(...)` refines read-only nested/legacy metadata selection, native integer parsing, independent defaults, and failure contracts. Seven focused tests through the existing cache-row builder preserve whole-metadata precedence, inherited/hidden reads, exact coercion ordering, and immutable ordinary inputs. Generated safe-integer cases verify re-embedding stability, with a large-number counterexample to global idempotence. The existing pure data-first projection needs no algebraic wrapper; runtime behavior and exports remain unchanged.
+- Next Step 6 seam: refine `getPickerItemBaseUrl(...)` nested/legacy file selection, truthiness-before-trimming, native string coercion, and failure contracts through the existing cache-row builder; preserve the pure projection without widening exports.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -236,12 +236,12 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (87): `server/services/googlePhotosCache.js` refines the pure proxy URL builder's read-only options, undefined-only defaults, ordered coercion, id/query encoding, crop truthiness, and failures. Seven focused tests preserve native compatibility and ordinary input immutability; existing generated codec round-trips remain covered. Runtime behavior and exports are unchanged; validation remains separate.
+  - Latest Step 6 slice (88): `server/services/googlePhotosCache.js` refines pure Picker dimension selection, native decimal-prefix parsing, independent defaults, and failures. Seven focused tests through the cache-row builder preserve whole-metadata precedence, immutable ordinary inputs, and stopped reads/coercions. Generated safe-integer re-embedding cases and a large-number counterexample keep normalization claims precise. Runtime behavior and exports are unchanged; validation remains separate.
   - Cached metadata hardening follow-up: choose normalization/write atomicity and metadata validation explicitly; normalization can persist before invalid inputs fail, !== treats NaN and equal-looking objects as changes, and returned unvalidated values may normalize differently on reread. Keep policy changes separate from contract work.
   - Live metadata hardening follow-up: decide identifier normalization and atomicity separately; decoded input ids and row ids trim differently, truthy row ids bypass URLs, and active-frame failures can leave committed list/field updates. Accessor effects are not rolled back.
   - Security follow-up: validate media ids and enforce media-directory containment before filesystem access in the media proxy and background download paths; path construction alone does not provide that guarantee. Track this separately from behavior-preserving contracts.
   - Media retrieval hardening follow-up: choose bounded network/decoding failure recovery, refreshed-token reuse, consistent empty-byte handling, validated MIME values, and thrown-value normalization explicitly. Current retries retain the original token/hint, and prior cache/byte writes survive later failures; keep policy changes separate from contract-only work.
-  - Next Step 6 seam: refine `getPickerItemDimensions(...)` nested/legacy metadata selection, native integer parsing, independent defaults, and failure contracts through existing cache-row builders; preserve the pure projection without widening exports.
+  - Next Step 6 seam: refine `getPickerItemBaseUrl(...)` nested/legacy file selection, truthiness-before-trimming, native string coercion, and failure contracts through the existing cache-row builder; preserve the pure projection without widening exports.
 
 ### Shared domain flow
 

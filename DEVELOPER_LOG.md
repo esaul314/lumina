@@ -6,6 +6,32 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-18: Specify Pure Picker Dimension Contracts
+
+- **Contract**: refined `getPickerItemDimensions(...)` read-only nested/legacy
+  metadata selection, native base-10 parsing, independent defaults, repeated
+  reads, and exact access/coercion failures. Truthy metadata wins as a whole;
+  top-level row dimensions and existing cache dimensions do not supply fallback.
+- **Functional design**: retained the concise pure data-first projection.
+  Generated safe-integer pairs verify flat/nested re-embedding stability;
+  a large-number counterexample rules out global idempotence because native
+  number stringification can introduce exponent notation. No algebraic wrapper,
+  currying, dependency, executable production change, or new export is needed.
+  Validation, cache-row clocks, and persistence remain separate.
+- **Tests**: seven focused tests use declarative cases, frozen data, hidden and
+  inherited fields, and isolated hooks through the existing cache-row builder.
+  They preserve whole-metadata precedence, native numeric prefixes, independent
+  defaults, width-before-height coercion, and unchanged thrown values. Failures
+  stop subsequent reads without rolling back prior caller-hook effects.
+  No live cache, credentials, network services, or daemon state accessed.
+- **Verification**: `npm test` passed: 645 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart needed for this contract-only slice.
+- **Next**: refine `getPickerItemBaseUrl(...)` file selection, truthiness before
+  trimming, native string coercion, and failures through the existing cache-row
+  builder without widening exports.
+
 ### 2026-10-17: Specify Pure Proxy URL Builder Contracts
 
 - **Contract**: refined `buildGooglePhotoProxyUrl(...)` read-only render options,

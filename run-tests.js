@@ -955,6 +955,9 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /@param \{Readonly<RenderOptions>\} \[options=\{\}\]/);
   assert.match(cacheSource, /codec law, not URL-builder idempotence/);
   assert.match(cacheSource, /@throws \{unknown\} Native property-read, coercion, or URI-encoding failure/);
+  assert.match(cacheSource, /missing nested fields do not fall back individually/);
+  assert.match(cacheSource, /Normalization is not globally idempotent under metadata re-embedding/);
+  assert.match(cacheSource, /@throws \{unknown\} Native property-access or integer-coercion failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5642,6 +5645,143 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
   assert.strictEqual(refreshed.createTime, createTime, 'an omitted refresh timestamp should retain the cached creation time');
   assert.strictEqual(normalizeCachedMediaItem(refreshed).createTime, createTime, 'cache normalization should preserve the creation time');
   assert.strictEqual(item.mimeType, 'image/jpeg');
+});
+
+const pickerDimensionsFromCacheRow = item => {
+  const { width, height } = buildCachedMediaItem(item, 'dimensions-session', {}, 0);
+  return { width, height };
+};
+
+assertTest('Picker dimensions select whole nested metadata before legacy fallback', () => {
+  const flat = Object.freeze({ width: '800', height: '600' });
+  [undefined, null, false, true, 0, 1, 1n, NaN, '', 'file', Symbol('file'), () => {}].forEach(mediaFile => {
+    assert.deepStrictEqual(pickerDimensionsFromCacheRow(Object.freeze({ id: 'dimensions', mediaFile, mediaFileMetadata: flat })), { width: 800, height: 600 });
+  });
+  [undefined, null, false, 0, '', NaN].forEach(mediaFileMetadata => {
+    const mediaFile = Object.freeze({ mediaFileMetadata });
+    assert.deepStrictEqual(pickerDimensionsFromCacheRow(Object.freeze({ id: 'dimensions', mediaFile, mediaFileMetadata: flat })), { width: 800, height: 600 });
+  });
+  [true, 1, 'metadata', Symbol('metadata'), {}, []].forEach(mediaFileMetadata => {
+    const mediaFile = Object.freeze({ mediaFileMetadata: Object.freeze(mediaFileMetadata) });
+    assert.deepStrictEqual(pickerDimensionsFromCacheRow(Object.freeze({ id: 'dimensions', mediaFile, mediaFileMetadata: flat })), { width: 2560, height: 1440 });
+  });
+  const mediaFile = Object.freeze({ mediaFileMetadata: Object.freeze({ width: '4032' }) });
+  assert.deepStrictEqual(pickerDimensionsFromCacheRow(Object.freeze({ id: 'dimensions', mediaFile, mediaFileMetadata: flat })), { width: 4032, height: 1440 });
+  const row = buildCachedMediaItem(Object.freeze({ id: 'dimensions', width: 1, height: 2 }), 'session', Object.freeze({ width: 3, height: 4 }), 0);
+  assert.deepStrictEqual([row.width, row.height], [2560, 1440]);
+});
+
+assertTest('Picker dimensions preserve native decimal-prefix parsing and independent defaults', () => {
+  [
+    [undefined, null], [null, null], [false, null], [true, null], ['', null], [' \t\n', null],
+    [0, null], [-0, null], [-12, null], [NaN, null], [Infinity, null], [-Infinity, null],
+    ['0x10', null], ['0b11', null], ['-3px', null], ['.5', null], ['1'.padEnd(310, '0'), null],
+    [' +004032px ', 4032], ['12.75', 12], [12.75, 12], ['3e4', 3], ['1e-7', 1],
+    [1e21, 1], [1e-7, 1], [5e-324, 5], ['9007199254740992', 9007199254740992],
+    ['1'.padEnd(22, '0'), 1e21], [33n, 33]
+  ].forEach(([value, parsed]) => {
+    const dimensions = mediaFileMetadata => pickerDimensionsFromCacheRow(Object.freeze({ id: 'dimensions', mediaFileMetadata: Object.freeze(mediaFileMetadata) }));
+    assert.deepStrictEqual(dimensions({ width: value, height: '720' }), { width: parsed ?? 2560, height: 720 });
+    assert.deepStrictEqual(dimensions({ width: '1080', height: value }), { width: 1080, height: parsed ?? 1440 });
+  });
+});
+
+assertTest('Picker dimensions read inherited hidden metadata without enumeration or mutation', () => {
+  const metadata = Object.freeze(Object.defineProperty(Object.create(Object.freeze({ width: '1200px' })), 'height', { value: '800.9' }));
+  const file = Object.freeze(Object.defineProperty([], 'mediaFileMetadata', { value: metadata }));
+  const item = Object.freeze(Object.create(Object.freeze({ id: 'dimensions', mediaFile: file })));
+  const input = new Proxy(item, { ownKeys: () => { throw new Error('Must not enumerate Picker metadata'); } });
+  const first = pickerDimensionsFromCacheRow(input);
+  assert.deepStrictEqual(first, { width: 1200, height: 800 });
+  assert.deepStrictEqual(pickerDimensionsFromCacheRow(input), first);
+  assert.deepStrictEqual(Reflect.ownKeys(item), []);
+  assert.deepStrictEqual([metadata.width, metadata.height], ['1200px', '800.9']);
+  [Object.freeze([24, 99]), Object.freeze({ toString: () => '24px' }), Object.freeze({ toString: () => ({}), valueOf: () => 24 })].forEach(width => {
+    assert.deepStrictEqual(pickerDimensionsFromCacheRow({ id: 'dimensions', mediaFileMetadata: Object.freeze({ width, height: '9' }) }), { width: 24, height: 9 });
+  });
+});
+
+assertTest('Picker dimensions finish width coercion before height reads and later cache-row work', () => {
+  const events = [];
+  const stop = new Error('Stop at the later base-URL projection');
+  const dimension = name => Object.freeze({ [Symbol.toPrimitive]: hint => { events.push(`${name}:${hint}`); return name === 'width' ? '1200px' : '800px'; } });
+  const metadata = Object.freeze({
+    get width() { events.push('width'); return dimension('width'); },
+    get height() { events.push('height'); return dimension('height'); }
+  });
+  const file = Object.freeze({
+    get mediaFileMetadata() { events.push('metadata'); return metadata; },
+    get baseUrl() { events.push('baseUrl'); throw stop; }
+  });
+  const item = Object.freeze({ id: 'dimensions', get mediaFile() { events.push('file'); return file; } });
+  assert.throws(() => pickerDimensionsFromCacheRow(item), error => error === stop);
+  assert.deepStrictEqual(events, ['file', 'file', 'file', 'metadata', 'width', 'width:string', 'height', 'height:string', 'file', 'file', 'file', 'baseUrl']);
+});
+
+assertTest('Picker dimensions preserve exact hook failures and stop subsequent reads', () => {
+  ['file1', 'file2', 'file3', 'nested', 'flat', 'width', 'coerceWidth', 'height', 'coerceHeight'].forEach(stage => {
+    [undefined, null, false, 0, '', new Error('Dimension hook failure')].forEach(failure => {
+      const events = [];
+      const observe = (key, value) => { events.push(key); if (key === stage) throw failure; return value; };
+      const dimension = name => Object.freeze({ [Symbol.toPrimitive]: () => observe(`coerce${name}`, '1200') });
+      const metadata = Object.freeze({
+        get width() { return observe('width', dimension('Width')); },
+        get height() { return observe('height', dimension('Height')); }
+      });
+      const file = Object.freeze({ get mediaFileMetadata() { return observe('nested', stage === 'flat' ? null : metadata); } });
+      let reads = 0;
+      const item = Object.freeze({
+        id: 'dimensions',
+        get mediaFile() { return observe(`file${++reads}`, file); },
+        get mediaFileMetadata() { return observe('flat', metadata); }
+      });
+      let caught = false;
+      let result = 'not returned';
+      try { result = pickerDimensionsFromCacheRow(item); } catch (error) {
+        caught = true;
+        assert.strictEqual(error, failure);
+      }
+      assert.strictEqual(caught, true);
+      assert.strictEqual(result, 'not returned');
+      const order = ['file1', 'file2', 'file3', 'nested', ...(stage === 'flat' ? ['flat'] : []), 'width', 'coerceWidth', 'height', 'coerceHeight'];
+      assert.deepStrictEqual(events, order.slice(0, order.indexOf(stage) + 1));
+    });
+  });
+});
+
+assertTest('Picker dimensions retain repeated flat reads and native coercion or changing-file failures', () => {
+  const events = [];
+  const metadata = Object.freeze({ width: '640', height: '480' });
+  const item = Object.freeze({ id: 'dimensions', get mediaFileMetadata() { events.push('metadata'); return events.length === 1 ? 0 : metadata; } });
+  assert.deepStrictEqual(pickerDimensionsFromCacheRow(item), { width: 640, height: 480 });
+  assert.deepStrictEqual(events, ['metadata', 'metadata']);
+  [Symbol('dimension'), Object.create(null), { [Symbol.toPrimitive]: () => ({}) }].forEach(value => {
+    ['width', 'height'].forEach(field => {
+      assert.throws(() => pickerDimensionsFromCacheRow({ id: 'dimensions', mediaFileMetadata: { width: '640', height: '480', [field]: value } }), TypeError);
+    });
+  });
+  const reads = [];
+  const changing = { id: 'dimensions', get mediaFile() { reads.push('file'); return reads.length < 3 ? {} : null; } };
+  assert.throws(() => pickerDimensionsFromCacheRow(changing), TypeError);
+  assert.deepStrictEqual(reads, ['file', 'file', 'file']);
+});
+
+assertTest('Picker dimensions are stable for re-embedded safe integers but not all large results', () => {
+  const values = [1, 2, 10, 1440, 2560, 4032, Number.MAX_SAFE_INTEGER];
+  values.flatMap(width => values.map(height => Object.freeze({ width, height }))).forEach(metadata => {
+    const flat = Object.freeze({ id: 'dimensions', mediaFileMetadata: metadata });
+    const nested = Object.freeze({ id: 'dimensions', mediaFile: Object.freeze({ mediaFileMetadata: metadata }) });
+    [flat, nested].forEach(item => {
+      const dimensions = pickerDimensionsFromCacheRow(item);
+      assert.deepStrictEqual(dimensions, metadata);
+      assert.deepStrictEqual(pickerDimensionsFromCacheRow({ id: 'dimensions', mediaFileMetadata: Object.freeze(dimensions) }), metadata);
+      assert.deepStrictEqual(pickerDimensionsFromCacheRow({ id: 'dimensions', mediaFile: Object.freeze({ mediaFileMetadata: dimensions }) }), metadata);
+      assert.strictEqual(item.mediaFileMetadata ?? item.mediaFile.mediaFileMetadata, metadata);
+    });
+  });
+  const dimensions = pickerDimensionsFromCacheRow({ id: 'dimensions', mediaFileMetadata: { width: '1'.padEnd(22, '0'), height: '480' } });
+  assert.deepStrictEqual(dimensions, { width: 1e21, height: 480 });
+  assert.deepStrictEqual(pickerDimensionsFromCacheRow({ id: 'dimensions', mediaFileMetadata: dimensions }), { width: 1, height: 480 });
 });
 
 assertAsyncTest('Google Photos Picker sync stores and retains creation time across media refreshes', async () => {
