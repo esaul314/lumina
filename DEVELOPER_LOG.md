@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-18: Specify Pure Legacy Base URL Contracts
+
+- **Contract**: refined `extractLegacyBaseUrl(...)` unknown-input coercion,
+  exact rejected prefixes, first-literal-equals splitting, and native failures.
+  Splitting is not URL-aware; the head is not retrimmed. The cache-row builder
+  retains that head, while cache normalization trims it again.
+- **Functional design**: retained the concise pure data-first projection.
+  Generated cases verify fixed points on normalized equals-free, non-rejected
+  bases; a trailing-space counterexample rules out global idempotence. No
+  algebraic wrapper, currying, dependency, executable production change, or new
+  export is needed. Validation and cache-row clocks/I/O remain separate.
+- **Tests**: seven focused tests compose declarative tables, frozen data,
+  inherited/hidden fields, and isolated hooks through existing cache projections.
+  Preferred bases suppress extraction; native failures stop later work without
+  rolling back caller-hook effects. No live cache, credentials, network services,
+  or daemon state accessed.
+- **Verification**: `npm test` passed: 659 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart needed for this contract-only slice.
+- **Next**: refine `normalizeCachedMediaItem(...)` persisted-row inputs, render
+  projection, fallback/metadata preservation, and failures without changing
+  behavior or exports.
+
 ### 2026-10-18: Specify Pure Picker Base URL Contracts
 
 - **Contract**: refined `getPickerItemBaseUrl(...)` read-only nested/legacy

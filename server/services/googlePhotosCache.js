@@ -242,10 +242,31 @@ function getPickerItemDimensions(item) {
 }
 
 /**
- * Recover the base URL from an older cache record when possible.
+ * Recover an unvalidated base from a legacy cache URL.
  *
- * @param {string | null | undefined} url
- * @returns {string}
+ * Falsy inputs select '' before native String(...) coercion; truthy values
+ * use native string-hint coercion, including symbols, then outer trimming.
+ * Empty text, the exact case-sensitive relative proxy prefix, and the
+ * 'undefined=' prefix return ''. Absolute proxy URLs and prefix lookalikes
+ * are not rejected. No URL parsing, decoding, or validation is implied.
+ *
+ * Split at the first literal '=' regardless of its context (including query
+ * strings); discard the entire suffix. An empty head returns ''. The head
+ * is not trimmed again, so whitespace immediately before '=' survives.
+ * This projection is not globally idempotent: 'base =w10' yields 'base ',
+ * which yields 'base' on another pass. Trim-normalized, equals-free,
+ * non-rejected strings are fixed points.
+ *
+ * Ordinary inputs stay unchanged. Native coercion failures propagate exactly
+ * without a fallback result; prior caller-hook effects are not rolled back.
+ * Keep this pure data-first projection separate from cache-row clocks/I/O.
+ * Callers short-circuit before legacy extraction when a preferred base wins;
+ * the builder retains the head verbatim, while normalization trims it again
+ * and projects an empty result to undefined.
+ *
+ * @param {unknown} url
+ * @returns {string} Unvalidated first head, or the empty-string fallback.
+ * @throws {unknown} Native string-coercion failure.
  */
 function extractLegacyBaseUrl(url) {
   const value = String(url || '').trim();

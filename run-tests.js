@@ -961,6 +961,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /missing\/falsy nested bases do not fall back to the flat row's baseUrl/);
   assert.match(cacheSource, /The selected baseUrl is read once/);
   assert.match(cacheSource, /cache-row builder applies its own cached\/legacy fallback after trimming/);
+  assert.match(cacheSource, /@param \{unknown\} url/);
+  assert.match(cacheSource, /Split at the first literal '=' regardless of its context/);
+  assert.match(cacheSource, /This projection is not globally idempotent/);
+  assert.match(cacheSource, /@throws \{unknown\} Native string-coercion failure\./);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5777,6 +5781,110 @@ assertTest('Picker base URL scalars are stable under flat and nested re-embeddin
       assert.strictEqual(item.baseUrl ?? item.mediaFile.baseUrl, input);
     });
   });
+});
+
+const legacyBaseUrlFromCacheRow = url => pickerBaseUrlFromCacheRow(Object.freeze({ id: 'legacy' }), Object.freeze({ url }));
+
+assertTest('Legacy base URLs preserve truthiness before native string coercion', () => {
+  [
+    [undefined, ''], [null, ''], [false, ''], [0, ''], [-0, ''], [0n, ''], [NaN, ''], ['', ''],
+    [' \t\n\uFEFF', ''], [true, 'true'], [42, '42'], [42n, '42'], [Infinity, 'Infinity'],
+    [Symbol('legacy'), 'Symbol(legacy)'], [Object.freeze([1, 2]), '1,2'],
+    [Object.freeze({ toString: () => ' base=w10 ' }), 'base'],
+    [Object.freeze({ toString: () => ({}), valueOf: () => 0 }), '0']
+  ].forEach(([input, expected]) => assert.strictEqual(legacyBaseUrlFromCacheRow(input), expected));
+});
+
+assertTest('Legacy base URLs reject only exact trimmed prefixes', () => {
+  [
+    ['/api/google-photos/media/', ''], ['/api/google-photos/media/id?w=1', ''],
+    [' \t/api/google-photos/media/id=w10\n', ''], ['undefined=w10', ''], [' undefined=anything ', ''],
+    ['/API/google-photos/media/id=w10', '/API/google-photos/media/id'],
+    ['/api/google-photos/media', '/api/google-photos/media'],
+    ['https://example.test/api/google-photos/media/id=w10', 'https://example.test/api/google-photos/media/id'],
+    ['Undefined=w10', 'Undefined'], ['undefined =w10', 'undefined '], ['undefined', 'undefined'],
+    ['%2Fapi%2Fgoogle-photos%2Fmedia%2Fid=w10', '%2Fapi%2Fgoogle-photos%2Fmedia%2Fid']
+  ].forEach(([input, expected]) => assert.strictEqual(legacyBaseUrlFromCacheRow(input), expected));
+});
+
+assertTest('Legacy base URLs split the first literal equals without validating or retrimming', () => {
+  [
+    ['base=w800-h600-c=extra', 'base'], ['=w10', ''], ['==', ''], [' \t=ignored ', ''],
+    [' HTTP://Example.test/A?x=1&y=2#part ', 'HTTP://Example.test/A?x'],
+    ['base%3Dencoded=w10', 'base%3Dencoded'], ['base#fragment=w10', 'base#fragment'],
+    ['not a URL=w10', 'not a URL'], ['base \t=w10 ', 'base \t'], ['\ud800=w10', '\ud800']
+  ].forEach(([input, expected]) => assert.strictEqual(legacyBaseUrlFromCacheRow(input), expected));
+  const row = Object.freeze({ id: 'legacy', url: ' base \t=w10 ' });
+  assert.strictEqual(legacyBaseUrlFromCacheRow(row.url), 'base \t');
+  assert.strictEqual(normalizeCachedMediaItem(row).googleBaseUrl, 'base');
+  assert.strictEqual(normalizeCachedMediaItem(Object.freeze({ id: 'legacy', url: '=ignored' })).googleBaseUrl, undefined);
+});
+
+assertTest('Legacy base URLs read hidden inherited cache fields without enumeration or mutation', () => {
+  const url = Object.freeze({ [Symbol.toPrimitive]: hint => { assert.strictEqual(hint, 'string'); return ' hidden=w10 '; } });
+  const prototype = Object.freeze(Object.defineProperty({}, 'url', { value: url }));
+  const existing = Object.freeze(Object.create(prototype));
+  const input = new Proxy(existing, { ownKeys: () => { throw new Error('Must not enumerate existing cache fields'); } });
+  const item = Object.freeze({ id: 'legacy' });
+  assert.strictEqual(pickerBaseUrlFromCacheRow(item, input), 'hidden');
+  assert.strictEqual(pickerBaseUrlFromCacheRow(item, input), 'hidden');
+  assert.deepStrictEqual(Reflect.ownKeys(existing), []);
+  assert.strictEqual(prototype.url, url);
+});
+
+assertTest('Legacy extraction follows preferred bases and precedes later cache-row work', () => {
+  const blocked = Object.freeze({ get url() { throw new Error('Must not read legacy fallback'); } });
+  assert.strictEqual(pickerBaseUrlFromCacheRow({ id: 'legacy', baseUrl: ' fresh ' }, blocked), 'fresh');
+  const cached = Object.freeze(Object.assign(Object.create(blocked), { googleBaseUrl: ' cached ' }));
+  assert.strictEqual(pickerBaseUrlFromCacheRow({ id: 'legacy', baseUrl: ' ' }, cached), ' cached ');
+  const normalized = normalizeCachedMediaItem(Object.freeze({ id: 'legacy', googleBaseUrl: ' ', get url() { return 'legacy=w10'; } }));
+  assert.strictEqual(normalized.googleBaseUrl, undefined, 'truthy whitespace cached bases suppress legacy extraction before trimming');
+  const events = [];
+  const stop = new Error('Stop before cache-row clocks');
+  const existing = Object.freeze({
+    get googleBaseUrl() { events.push('cached'); return ''; },
+    get url() { events.push('url'); return { [Symbol.toPrimitive]: hint => { events.push(`coerce:${hint}`); return ' base=w10 '; } }; }
+  });
+  const item = Object.freeze({ id: 'legacy', get createTime() { events.push('later'); throw stop; } });
+  assert.throws(() => pickerBaseUrlFromCacheRow(item, existing), error => error === stop);
+  assert.deepStrictEqual(events, ['cached', 'url', 'coerce:string', 'later']);
+});
+
+assertTest('Legacy coercion failures propagate exactly without returning a fallback or doing later work', () => {
+  ['url', 'coerce'].forEach(stage => {
+    [undefined, null, false, 0, '', new Error('Legacy hook failure')].forEach(failure => {
+      const events = [];
+      const observe = (key, value) => { events.push(key); if (key === stage) throw failure; return value; };
+      const existing = Object.freeze({ get url() { return observe('url', { [Symbol.toPrimitive]: () => observe('coerce', 'base') }); } });
+      const item = Object.freeze({ id: 'legacy', get createTime() { throw new Error('Must not reach later work'); } });
+      let caught = false;
+      let result = 'not returned';
+      try { result = pickerBaseUrlFromCacheRow(item, existing); } catch (error) {
+        caught = true;
+        assert.strictEqual(error, failure);
+      }
+      assert.strictEqual(caught, true);
+      assert.strictEqual(result, 'not returned');
+      assert.deepStrictEqual(events, stage === 'url' ? ['url'] : ['url', 'coerce']);
+    });
+  });
+  [Object.create(null), { [Symbol.toPrimitive]: () => ({}) }, { toString: () => ({}), valueOf: () => ({}) }].forEach(url => {
+    assert.throws(() => legacyBaseUrlFromCacheRow(url), TypeError);
+  });
+});
+
+assertTest('Legacy extraction fixes normalized equals-free bases but is not globally idempotent', () => {
+  const bases = ['', 'base', 'https://example.test/%3D?x', '%2F', '\ud800', 'inside space'];
+  const padding = ['', ' ', '\t\n', '\uFEFF'];
+  const suffixes = ['', '=w10', '=first=second', '=?x=1'];
+  bases.flatMap(base => padding.flatMap(space => suffixes.map(suffix => ({ base, input: `${space}${base}${suffix}${space}` })))).forEach(({ base, input }) => {
+    const projected = legacyBaseUrlFromCacheRow(input);
+    assert.strictEqual(projected, base);
+    assert.strictEqual(legacyBaseUrlFromCacheRow(projected), projected);
+  });
+  const once = legacyBaseUrlFromCacheRow('base =w10');
+  assert.strictEqual(once, 'base ');
+  assert.strictEqual(legacyBaseUrlFromCacheRow(once), 'base');
 });
 
 const pickerDimensionsFromCacheRow = item => {
