@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-18: Specify Pure Picker Base URL Contracts
+
+- **Contract**: refined `getPickerItemBaseUrl(...)` read-only nested/legacy
+  file selection, truthiness-before-trimming, native string coercion, repeated
+  reads, and exact failures. A selected nested file never falls back to the
+  flat base. The builder applies cached/legacy fallback after trimming, so a
+  whitespace-only incoming base permits fallback. Values are not URL-validated.
+- **Functional design**: retained the concise pure data-first scalar projection.
+  Generated flat/nested re-embedding cases verify normalization stability,
+  not a record endomorphism. No algebraic wrapper, currying, dependency,
+  executable production change, or new export is needed. URL validation,
+  cache-row clocks, and persistence remain separate.
+- **Tests**: seven focused tests use declarative cases, frozen data, hidden and
+  inherited fields, and isolated hooks through the existing cache-row builder.
+  They preserve native coercion ordering and exact thrown values; failures stop
+  subsequent reads without rolling back prior caller-hook effects. No live
+  cache, credentials, network services, or daemon state accessed.
+- **Verification**: `npm test` passed: 652 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart needed for this contract-only slice.
+- **Next**: refine `extractLegacyBaseUrl(...)` legacy coercion, rejected prefixes,
+  first-directive splitting, and failures through existing cache projections
+  without changing behavior or exports.
+
 ### 2026-10-18: Specify Pure Picker Dimension Contracts
 
 - **Contract**: refined `getPickerItemDimensions(...)` read-only nested/legacy

@@ -958,6 +958,9 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /missing nested fields do not fall back individually/);
   assert.match(cacheSource, /Normalization is not globally idempotent under metadata re-embedding/);
   assert.match(cacheSource, /@throws \{unknown\} Native property-access or integer-coercion failure/);
+  assert.match(cacheSource, /missing\/falsy nested bases do not fall back to the flat row's baseUrl/);
+  assert.match(cacheSource, /The selected baseUrl is read once/);
+  assert.match(cacheSource, /cache-row builder applies its own cached\/legacy fallback after trimming/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5645,6 +5648,135 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
   assert.strictEqual(refreshed.createTime, createTime, 'an omitted refresh timestamp should retain the cached creation time');
   assert.strictEqual(normalizeCachedMediaItem(refreshed).createTime, createTime, 'cache normalization should preserve the creation time');
   assert.strictEqual(item.mimeType, 'image/jpeg');
+});
+
+const pickerBaseUrlFromCacheRow = (item, existing = {}) => buildCachedMediaItem(item, 'base-session', existing, 0).googleBaseUrl;
+
+assertTest('Picker base URLs select nested files without falling back to flat bases', () => {
+  [undefined, null, false, true, 0, 1, 1n, NaN, '', 'file', Symbol('file'), () => {}].forEach(mediaFile => {
+    assert.strictEqual(pickerBaseUrlFromCacheRow(Object.freeze({ id: 'base', mediaFile, baseUrl: ' flat ' })), 'flat');
+  });
+  [undefined, null, false, 0, NaN, '', ' \t\n'].forEach(baseUrl => {
+    const item = Object.freeze({ id: 'base', baseUrl: 'flat', mediaFile: Object.freeze({ baseUrl }) });
+    assert.strictEqual(pickerBaseUrlFromCacheRow(item), '');
+    assert.strictEqual(pickerBaseUrlFromCacheRow(item, Object.freeze({ googleBaseUrl: ' cached ' })), ' cached ');
+    assert.strictEqual(pickerBaseUrlFromCacheRow(item, Object.freeze({ url: ' legacy=w800-h600 ' })), 'legacy');
+  });
+  [Object.freeze({ baseUrl: ' nested ' }), Object.freeze(Object.assign([], { baseUrl: ' nested ' }))].forEach(mediaFile => {
+    assert.strictEqual(pickerBaseUrlFromCacheRow(Object.freeze({ id: 'base', baseUrl: 'flat', mediaFile }), { googleBaseUrl: 'cached' }), 'nested');
+  });
+});
+
+assertTest('Picker base URLs preserve truthiness before native coercion and trimming', () => {
+  [
+    [undefined, ''], [null, ''], [false, ''], [0, ''], [-0, ''], [0n, ''], [NaN, ''], ['', ''],
+    [' \t\n\uFEFF', ''], [true, 'true'], [12, '12'], [12n, '12'], [Infinity, 'Infinity'],
+    [Symbol('base'), 'Symbol(base)'], [Object.freeze([1, 2]), '1,2'],
+    [Object.freeze({ toString: () => ' base ' }), 'base'],
+    [Object.freeze({ toString: () => ({}), valueOf: () => 0 }), '0'],
+    [' HTTP://Example.test/a=b?x=1#part ', 'HTTP://Example.test/a=b?x=1#part'],
+    ['undefined=w800', 'undefined=w800'], ['\ud800', '\ud800']
+  ].forEach(([baseUrl, expected]) => {
+    assert.strictEqual(pickerBaseUrlFromCacheRow(Object.freeze({ id: 'base', baseUrl })), expected);
+    assert.strictEqual(pickerBaseUrlFromCacheRow(Object.freeze({ id: 'base', mediaFile: Object.freeze({ baseUrl }) })), expected);
+  });
+});
+
+assertTest('Picker base URLs read inherited hidden fields without enumeration or mutation', () => {
+  const file = Object.freeze(Object.defineProperty([], 'baseUrl', { value: ' hidden ' }));
+  const item = Object.freeze(Object.create(Object.freeze({ id: 'base', mediaFile: file })));
+  const input = new Proxy(item, { ownKeys: () => { throw new Error('Must not enumerate Picker fields'); } });
+  assert.strictEqual(pickerBaseUrlFromCacheRow(input), 'hidden');
+  assert.strictEqual(pickerBaseUrlFromCacheRow(input), 'hidden');
+  assert.deepStrictEqual(Reflect.ownKeys(item), []);
+  assert.strictEqual(file.baseUrl, ' hidden ');
+  const flat = Object.freeze(Object.create(Object.freeze({ id: 'base', baseUrl: ' inherited ' })));
+  assert.strictEqual(pickerBaseUrlFromCacheRow(flat), 'inherited');
+});
+
+assertTest('Picker base URL coercion precedes cached fallback and later cache-row work', () => {
+  const events = [];
+  const stop = new Error('Stop before cache-row clocks');
+  const base = Object.freeze({ [Symbol.toPrimitive]: hint => { events.push(`coerce:${hint}`); return ' base '; } });
+  const file = Object.freeze({
+    get mediaFileMetadata() { events.push('metadata'); return {}; },
+    get baseUrl() { events.push('baseUrl'); return base; }
+  });
+  let reads = 0;
+  const item = Object.freeze({
+    id: 'base',
+    get mediaFile() { events.push(`file${++reads}`); return file; },
+    get baseUrl() { throw new Error('Must not read the flat base'); },
+    get createTime() { events.push('later'); throw stop; }
+  });
+  const existing = Object.freeze({ get googleBaseUrl() { throw new Error('Must not read cached fallback'); } });
+  assert.throws(() => pickerBaseUrlFromCacheRow(item, existing), error => error === stop);
+  assert.deepStrictEqual(events, ['file1', 'file2', 'file3', 'metadata', 'file4', 'file5', 'file6', 'baseUrl', 'coerce:string', 'later']);
+});
+
+assertTest('Picker base URL hook failures propagate exactly and stop subsequent reads', () => {
+  ['file4', 'file5', 'file6', 'baseUrl', 'coerce'].forEach(stage => {
+    [undefined, null, false, 0, '', new Error('Base hook failure')].forEach(failure => {
+      const events = [];
+      const observe = (key, value) => { events.push(key); if (key === stage) throw failure; return value; };
+      const file = Object.freeze({ get baseUrl() { return observe('baseUrl', { [Symbol.toPrimitive]: () => observe('coerce', 'base') }); } });
+      let reads = 0;
+      const item = Object.freeze({
+        id: 'base',
+        get mediaFile() { return observe(`file${++reads}`, file); },
+        get createTime() { throw new Error('Must not reach later cache-row work'); }
+      });
+      const existing = Object.freeze({ get googleBaseUrl() { throw new Error('Must not reach fallback'); } });
+      let caught = false;
+      let result = 'not returned';
+      try { result = pickerBaseUrlFromCacheRow(item, existing); } catch (error) {
+        caught = true;
+        assert.strictEqual(error, failure);
+      }
+      assert.strictEqual(caught, true);
+      assert.strictEqual(result, 'not returned');
+      const order = ['file1', 'file2', 'file3', 'file4', 'file5', 'file6', 'baseUrl', 'coerce'];
+      assert.deepStrictEqual(events, order.slice(0, order.indexOf(stage) + 1));
+    });
+  });
+});
+
+assertTest('Picker base URLs retain changing-file behavior and native coercion failures', () => {
+  let reads = 0;
+  let baseReads = 0;
+  const item = Object.freeze({
+    id: 'base',
+    get mediaFile() { return ++reads === 5 ? 'not an object' : {}; },
+    get baseUrl() { baseReads++; return ' flat '; }
+  });
+  assert.strictEqual(pickerBaseUrlFromCacheRow(item), 'flat');
+  assert.strictEqual(baseReads, 1);
+  [null, undefined].forEach(value => {
+    let fileReads = 0;
+    const changing = { id: 'base', get mediaFile() { return ++fileReads === 6 ? value : {}; } };
+    assert.throws(() => pickerBaseUrlFromCacheRow(changing), TypeError);
+    assert.strictEqual(fileReads, 6);
+  });
+  [Object.create(null), { [Symbol.toPrimitive]: () => ({}) }, { toString: () => ({}), valueOf: () => ({}) }].forEach(baseUrl => {
+    assert.throws(() => pickerBaseUrlFromCacheRow({ id: 'base', baseUrl }), TypeError);
+  });
+});
+
+assertTest('Picker base URL scalars are stable under flat and nested re-embedding', () => {
+  const values = ['', 'base', 'a=b?x=1#part', 'HTTP://Example.test/A', '%2F', '\ud800', 'inside space'];
+  const padding = ['', ' ', '\t\n', '\uFEFF'];
+  const rows = baseUrl => [
+    Object.freeze({ id: 'base', baseUrl }),
+    Object.freeze({ id: 'base', mediaFile: Object.freeze({ baseUrl }) })
+  ];
+  values.flatMap(value => padding.map(space => ({ value, input: `${space}${value}${space}` }))).forEach(({ value, input }) => {
+    rows(input).forEach(item => {
+      const projected = pickerBaseUrlFromCacheRow(item);
+      assert.strictEqual(projected, value);
+      rows(projected).forEach(row => assert.strictEqual(pickerBaseUrlFromCacheRow(row), projected));
+      assert.strictEqual(item.baseUrl ?? item.mediaFile.baseUrl, input);
+    });
+  });
 });
 
 const pickerDimensionsFromCacheRow = item => {

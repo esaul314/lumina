@@ -139,7 +139,35 @@ function getPickerMediaFile(item) {
   return item?.mediaFile && typeof item.mediaFile === 'object' ? item.mediaFile : item || {};
 }
 
-/** @param {GooglePhotoMediaItem | null | undefined} item @returns {string} */
+/**
+ * Project a trimmed base URL from the selected Picker or legacy flat file.
+ *
+ * For ordinary data, truthy object-valued mediaFile (including arrays) wins;
+ * otherwise use the row itself. Only the selected file's baseUrl is read:
+ * missing/falsy nested bases do not fall back to the flat row's baseUrl.
+ * Falsy bases select '' before native String(...) coercion, then trim().
+ * Truthy values retain native string-hint coercion, including symbols and
+ * arbitrary non-URL text; no URL validation, encoding, or directive stripping
+ * is implied. Nullish rows and ordinary primitives without metadata yield ''.
+ *
+ * Reads include inherited/non-enumerable fields without enumerating keys.
+ * The shared selector reads truthy mediaFile again for typeof and, when
+ * object-valued, again for its result; changing accessors can alter selection
+ * or fail natively. The selected baseUrl is read once.
+ * Access/coercion failures propagate unchanged and stop subsequent work;
+ * prior caller-hook effects are not rolled back, and no fallback is returned.
+ *
+ * Ordinary read-only data stays unchanged. The trim-normalized scalar is
+ * stable under flat/nested re-embedding, not an endomorphism on media records.
+ * Keep this pure data-first projection separate from cache-row clocks/I/O.
+ * The cache-row builder applies its own cached/legacy fallback after trimming;
+ * whitespace therefore permits that fallback, unlike a truthy whitespace
+ * nested MIME hint suppressing the MIME helper's flat fallback.
+ *
+ * @param {Readonly<GooglePhotoMediaItem> | null | undefined} item
+ * @returns {string} Trimmed, unvalidated base, or the empty-string fallback.
+ * @throws {unknown} Native property-access or string-coercion failure.
+ */
 function getPickerItemBaseUrl(item) {
   return String(getPickerMediaFile(item).baseUrl || '').trim();
 }
