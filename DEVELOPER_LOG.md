@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-17: Specify Pure Proxy URL Builder Contracts
+
+- **Contract**: refined `buildGooglePhotoProxyUrl(...)` read-only render options,
+  undefined-only independent defaults, eager option reads, dimension-before-id
+  coercion, ordered query fields, truthy crop, and exact native failures.
+  Ids use one-pass URI encoding without trimming; query dimensions use form
+  encoding and replace lone surrogates, while malformed UTF-16 ids reject.
+- **Functional design**: retained the concise pure data-first projection and
+  existing generated codec round-trip coverage, not builder idempotence.
+  No algebraic wrapper, currying, dependency, executable production change,
+  or new export is needed. Validation and cache/filesystem effects stay separate.
+- **Tests**: seven focused tests use declarative cases, frozen inputs,
+  inherited/non-enumerable options, and isolated hooks. They verify encoding,
+  exact access/coercion order, stopped reads, and unchanged thrown values;
+  prior hook effects survive failures without a fallback URL.
+  No live cache, credentials, network services, or daemon state accessed.
+- **Verification**: `npm test` passed: 638 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, and whitespace
+  checks passed. Optional socket smoke was sandbox-skipped (`listen EPERM`).
+  No client build or service restart needed for this contract-only slice.
+- **Next**: refine `getPickerItemDimensions(...)` nested/legacy metadata
+  selection, native integer parsing, independent defaults, and failures through
+  existing cache-row builders without widening exports.
+
 ### 2026-10-17: Specify Pure Proxy Media-ID Decoding Contracts
 
 - **Contract**: refined `getGooglePhotoMediaItemId(...)` unknown-input coercion,

@@ -952,6 +952,9 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /codec round-trip is not decoder idempotence/);
   assert.match(cacheSource, /@returns \{string\} Once-decoded, unvalidated id/);
   assert.match(cacheSource, /@throws \{unknown\} Native string-coercion failure or URIError from decoding/);
+  assert.match(cacheSource, /@param \{Readonly<RenderOptions>\} \[options=\{\}\]/);
+  assert.match(cacheSource, /codec law, not URL-builder idempotence/);
+  assert.match(cacheSource, /@throws \{unknown\} Native property-read, coercion, or URI-encoding failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5732,6 +5735,113 @@ assertTest('buildGooglePhotoProxyUrl preserves same-origin rendering for browser
 assertTest('buildGooglePhotoProxyUrl still supports explicit crop opt-in', () => {
   const proxyUrl = buildGooglePhotoProxyUrl('A/B+C', { width: 1080, height: 1920, crop: true });
   assert.strictEqual(proxyUrl, '/api/google-photos/media/A%2FB%2BC?w=1080&h=1920&c=1');
+});
+
+assertTest('Google Photos proxy builder defaults only undefined options and dimensions independently', () => {
+  const expected = '/api/google-photos/media/id?w=2560&h=1440';
+  assert.strictEqual(buildGooglePhotoProxyUrl('id'), expected);
+  [undefined, false, true, 0, '', 'text', 1n, Symbol('options'), Object.freeze({}),
+    Object.freeze({ width: undefined, height: undefined, crop: undefined })].forEach(options => {
+    assert.strictEqual(buildGooglePhotoProxyUrl('id', options), expected);
+  });
+  [
+    [{ width: 1080 }, 'w=1080&h=1440'], [{ height: 1920 }, 'w=2560&h=1920'],
+    [{ width: null, height: 0 }, 'w=null&h=0'], [{ width: -0, height: NaN }, 'w=0&h=NaN']
+  ].forEach(([options, query]) => {
+    const before = { ...options };
+    assert.strictEqual(buildGooglePhotoProxyUrl('id', Object.freeze(options)), `/api/google-photos/media/id?${query}`);
+    assert.deepStrictEqual(options, before);
+  });
+});
+
+assertTest('Google Photos proxy builder form-encodes native dimension strings without validation', () => {
+  [
+    [false, true, 'w=false&h=true'], ['', -1.5, 'w=&h=-1.5'],
+    [Infinity, 1n, 'w=Infinity&h=1'], [Symbol('size'), [], 'w=Symbol%28size%29&h='],
+    [' +&=/#?', '雪🌌', 'w=+%2B%26%3D%2F%23%3F&h=%E9%9B%AA%F0%9F%8C%8C'],
+    ['\uD800', '\uDC00', 'w=%EF%BF%BD&h=%EF%BF%BD']
+  ].forEach(([width, height, query]) => {
+    assert.strictEqual(buildGooglePhotoProxyUrl('id', Object.freeze({ width, height })), `/api/google-photos/media/id?${query}`);
+  });
+});
+
+assertTest('Google Photos proxy builder appends crop by truthiness without reading coercion hooks', () => {
+  const opaque = Object.freeze({ [Symbol.toPrimitive]: () => { throw new Error('Crop must not be coerced'); } });
+  [undefined, null, false, 0, -0, NaN, '', 0n].forEach(crop => {
+    assert.strictEqual(buildGooglePhotoProxyUrl('id', Object.freeze({ crop })), '/api/google-photos/media/id?w=2560&h=1440');
+  });
+  [true, 1, 'false', 1n, Symbol('crop'), Object.freeze([]), opaque].forEach(crop => {
+    assert.strictEqual(buildGooglePhotoProxyUrl('id', Object.freeze({ crop })), '/api/google-photos/media/id?w=2560&h=1440&c=1');
+  });
+});
+
+assertTest('Google Photos proxy builder encodes ids once without trimming or a falsy fallback', () => {
+  [
+    [undefined, 'undefined'], [null, 'null'], [false, 'false'], [0, '0'], [0n, '0'],
+    [NaN, 'NaN'], ['', ''], [' id ', '%20id%20'], ['A/B+C?#%', 'A%2FB%2BC%3F%23%25'],
+    ['A%2FB', 'A%252FB'], ['雪🌌', '%E9%9B%AA%F0%9F%8C%8C'], ['\0', '%00'],
+    [Object.freeze(['a', 'b']), 'a%2Cb']
+  ].forEach(([id, encoded]) => {
+    assert.strictEqual(buildGooglePhotoProxyUrl(id), `/api/google-photos/media/${encoded}?w=2560&h=1440`);
+  });
+});
+
+assertTest('Google Photos proxy builder reads only named options before ordered string-hint coercion', () => {
+  const calls = [];
+  const scalar = (label, value) => Object.freeze({
+    [Symbol.toPrimitive]: hint => { calls.push(`${label}:${hint}`); return value; }
+  });
+  const prototype = Object.create(null, {
+    width: { value: scalar('width', 'a b') },
+    height: { value: scalar('height', 'c+d') },
+    crop: { value: true }
+  });
+  const options = new Proxy(Object.freeze(Object.create(Object.freeze(prototype))), {
+    get: (target, key, receiver) => { calls.push(key); return Reflect.get(target, key, receiver); },
+    ownKeys: () => { throw new Error('Unexpected options enumeration'); }
+  });
+  assert.strictEqual(buildGooglePhotoProxyUrl(scalar('id', 'a/b'), options), '/api/google-photos/media/a%2Fb?w=a+b&h=c%2Bd&c=1');
+  assert.deepStrictEqual(calls, ['width', 'height', 'crop', 'width:string', 'height:string', 'id:string']);
+  calls.length = 0;
+  const id = Object.freeze({
+    toString: () => { calls.push('toString'); return {}; },
+    valueOf: () => { calls.push('valueOf'); return 'fallback'; }
+  });
+  assert.strictEqual(buildGooglePhotoProxyUrl(id), '/api/google-photos/media/fallback?w=2560&h=1440');
+  assert.deepStrictEqual(calls, ['toString', 'valueOf']);
+});
+
+assertTest('Google Photos proxy builder propagates exact failures and stops later reads or coercions', () => {
+  const stages = ['read:width', 'read:height', 'read:crop', 'coerce:width', 'coerce:height', 'coerce:id'];
+  stages.forEach(stage => [undefined, null, false, 0, '', new Error('projection failed')].forEach(failure => {
+    const calls = [];
+    const observe = label => { calls.push(label); if (label === stage) throw failure; };
+    const scalar = label => Object.freeze({ [Symbol.toPrimitive]: () => { observe(`coerce:${label}`); return '1'; } });
+    const options = Object.freeze(Object.fromEntries(['width', 'height', 'crop'].map(key => [key, key === 'crop' ? true : scalar(key)])));
+    const input = new Proxy(options, { get: (target, key) => { observe(`read:${key}`); return Reflect.get(target, key); } });
+    let rejected = false;
+    let result = 'not returned';
+    try { result = buildGooglePhotoProxyUrl(scalar('id'), input); }
+    catch (error) { rejected = true; assert.strictEqual(error, failure); }
+    assert.strictEqual(rejected, true);
+    assert.strictEqual(result, 'not returned');
+    assert.deepStrictEqual(calls, stages.slice(0, stages.indexOf(stage) + 1));
+  }));
+});
+
+assertTest('Google Photos proxy builder retains native null, symbol, malformed coercion, and UTF-16 failures', () => {
+  const id = Object.freeze({ [Symbol.toPrimitive]: () => { throw new Error('Id must not be read'); } });
+  assert.throws(() => buildGooglePhotoProxyUrl(id, null), TypeError);
+  [Symbol('id'), Object.create(null), Object.freeze({ [Symbol.toPrimitive]: () => ({}) })].forEach(value => {
+    assert.throws(() => buildGooglePhotoProxyUrl(value), TypeError);
+  });
+  ['\uD800', '\uDC00', 'x\uD800y', '\uDC00\uD800'].forEach(value => {
+    assert.throws(() => buildGooglePhotoProxyUrl(value), URIError);
+  });
+  [Object.create(null), Object.freeze({ [Symbol.toPrimitive]: () => ({}) })].forEach(value => {
+    assert.throws(() => buildGooglePhotoProxyUrl(id, { width: value }), TypeError);
+    assert.throws(() => buildGooglePhotoProxyUrl(id, { height: value }), TypeError);
+  });
 });
 
 assertTest('Google Photos proxy URLs round-trip their media item ids', () => {

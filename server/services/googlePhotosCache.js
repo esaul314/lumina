@@ -52,9 +52,32 @@ const GOOGLE_PHOTO_PROXY_PREFIX = '/api/google-photos/media/';
 /**
  * Build the same-origin proxy URL used to render cached Picker media.
  *
+ * Omitted/undefined options use {}; width/height independently default only
+ * on undefined, and crop defaults to false. Native destructuring reads width,
+ * height, then crop (including inherited/non-enumerable fields) before any
+ * coercion. Null options throw; ordinary primitives use boxed property reads.
+ * Width then height use String(...), without validation or clamping. Query
+ * fields stay ordered w, h, then c=1 for truthy crop, without coercing crop.
+ * URLSearchParams uses form encoding (spaces become '+') and replaces lone
+ * surrogates in dimensions, unlike encodeURIComponent on the id.
+ *
+ * The id is encoded once, after dimension coercion, with native
+ * encodeURIComponent: no trimming, truthy fallback, or identifier validation.
+ * Empty ids still produce a URL; percent text is encoded again. For ordinary
+ * well-formed string ids, the decoder round-trips successful builds regardless
+ * of render options. This is a codec law, not URL-builder idempotence.
+ * Ordinary read-only inputs stay unchanged; keep this pure data-first
+ * projection separate from validation and cache/filesystem effects.
+ *
+ * Property-read/coercion failures propagate unchanged; null options and symbol
+ * ids throw TypeError, and malformed UTF-16 ids throw URIError. Later reads or
+ * coercions do not run after a failure, but prior caller-hook effects survive.
+ * No fallback URL is returned.
+ *
  * @param {string} mediaItemId
- * @param {RenderOptions} [options={}]
- * @returns {string}
+ * @param {Readonly<RenderOptions>} [options={}]
+ * @returns {string} Relative proxy URL with an encoded id and ordered query.
+ * @throws {unknown} Native property-read, coercion, or URI-encoding failure.
  */
 function buildGooglePhotoProxyUrl(mediaItemId, { width = DEFAULT_RENDER_WIDTH, height = DEFAULT_RENDER_HEIGHT, crop = false } = {}) {
   const params = new URLSearchParams({
