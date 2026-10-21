@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-21: Specify Pure Cache Eligibility Contracts
+
+- **Contract**: refined `isUsableCachedMediaItem(...)` read-only structural
+  eligibility, ordered id/url guards, exact mock-prefix bypass, raw base/session
+  truthiness, and native failures. Eligibility is not proof of successful media
+  retrieval; expiry, authentication, validation, and broken/rating flags remain
+  outside this predicate.
+- **Functional design**: retained the concise pure data-first predicate, directly
+  usable by filter. Ordinary-record filtering preserves concatenation, empty
+  identity, row references, and idempotence; predicate idempotence does not apply.
+  No currying, algebraic wrapper, dependency, executable production change, or
+  export added. Retrieval and cache I/O stay in the service shell.
+- **Tests**: seven focused tests compose declarative truthiness/prefix tables,
+  frozen records, inherited/hidden fields, native method dispatch, and isolated
+  access hooks. Exact failures stop later work without a fallback boolean or
+  caller-hook rollback. No new live cache, credential, network, or daemon access.
+- **Verification**: `npm test` passed: 674 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, whitespace, and
+  unchanged executable production AST checks passed. Optional socket smoke was
+  sandbox-skipped (`listen EPERM`). No client build or service restart needed.
+- **Next**: refine `dedupeMediaItemsById(...)` read-only inputs, first-occurrence
+  ordering, native id coercion, sparse-array behavior, and failures without
+  changing behavior or exports.
+
 ### 2026-10-18: Specify Pure Cache Row Normalization Contracts
 
 - **Contract**: refined `normalizeCachedMediaItem(...)` read-only persisted-row

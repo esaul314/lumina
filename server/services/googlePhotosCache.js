@@ -376,10 +376,30 @@ function normalizeCachedMediaItem(item) {
 }
 
 /**
- * A cache row is usable when the service can resolve media bytes for it.
+ * Test structural cache eligibility, not whether media bytes are reachable.
+ * Nullish rows or falsy id/url fields return false, reading id before url.
+ * A surviving id is read again and receives a native startsWith('MOCK_')
+ * call: the exact case-sensitive prefix bypasses refreshability reads, but
+ * never the id/url guard. No explicit coercion, trimming, or validation is added.
+ * Non-string ids can throw or supply their own startsWith method; its receiver
+ * is the id, and its result is tested for truthiness rather than literal true.
  *
- * @param {GooglePhotoMediaItem | null | undefined} item
- * @returns {boolean}
+ * Other rows return Boolean(googleBaseUrl || googlePickerSessionId). A truthy
+ * base skips the session read; whitespace and other truthy values qualify
+ * without coercion. This does not check expiry, authentication, URL validity,
+ * broken/rating flags, MIME, or local files. Retrieval remains in the shell.
+ * Native reads include inherited/non-enumerable fields, without enumeration.
+ * Ordinary read-only inputs remain unchanged; the pure data-first predicate
+ * composes directly with filter, whose repeated application retains the same
+ * row references for ordinary records. The predicate is not an endomorphism
+ * on records; do not confuse filter idempotence with predicate idempotence.
+ *
+ * Property-read and method-call failures propagate unchanged, with no fallback
+ * boolean or later reads. Prior caller-hook effects are not rolled back.
+ *
+ * @param {Readonly<GooglePhotoMediaItem> | null | undefined} item
+ * @returns {boolean} Structural eligibility only, not successful retrieval.
+ * @throws {unknown} Native property-read or startsWith method-call failure.
  */
 function isUsableCachedMediaItem(item) {
   if (!item?.id || !item?.url) {

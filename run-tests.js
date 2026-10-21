@@ -969,6 +969,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /proxy uses default render dimensions, not\s+\* the parsed row dimensions/);
   assert.match(cacheSource, /not reference-idempotent\. It is not globally idempotent/);
   assert.match(cacheSource, /@throws \{unknown\} Native property-read, coercion, spread, or URI-encoding failure/);
+  assert.match(cacheSource, /Test structural cache eligibility, not whether media bytes are reachable/);
+  assert.match(cacheSource, /filter idempotence with predicate idempotence/);
+  assert.match(cacheSource, /@returns \{boolean\} Structural eligibility only, not successful retrieval/);
+  assert.match(cacheSource, /@throws \{unknown\} Native property-read or startsWith method-call failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -7314,6 +7318,125 @@ assertTest('legacy Google Photos cache rows without baseUrl or picker session ar
   });
 
   assert.strictEqual(isUsableCachedMediaItem(healthy), true, 'Rows with picker session metadata should remain eligible');
+});
+
+assertTest('Cache eligibility guards id before url without reading refreshability metadata', () => {
+  [undefined, null, false, 0, '', 1, Symbol('row')].forEach(row => assert.strictEqual(isUsableCachedMediaItem(row), false));
+  const falsy = [undefined, null, false, 0, -0, 0n, NaN, ''];
+  falsy.forEach(id => assert.strictEqual(isUsableCachedMediaItem(Object.freeze({
+    id, get url() { throw Error('must not read url'); }
+  })), false));
+  falsy.forEach(url => assert.strictEqual(isUsableCachedMediaItem(Object.freeze({
+    id: 'MOCK_photo', url, get googleBaseUrl() { throw Error('must not read base'); }
+  })), false));
+});
+
+assertTest('Cache eligibility mock bypass uses the exact prefix only after structural guards', () => {
+  ['MOCK_', 'MOCK_photo', 'MOCK_ /?%', 'MOCK_\uD800'].forEach(id => {
+    const row = Object.freeze({
+      id, url: 'not a URL',
+      get googleBaseUrl() { throw Error('mock must not read base'); },
+      get googlePickerSessionId() { throw Error('mock must not read session'); }
+    });
+    assert.strictEqual(isUsableCachedMediaItem(row), true);
+  });
+  ['MOCK', 'mock_photo', 'Mock_photo', ' MOCK_photo', 'xMOCK_photo', '%4DOCK_photo', ' '].forEach(id => {
+    assert.strictEqual(isUsableCachedMediaItem(Object.freeze({ id, url: 'url' })), false);
+    assert.strictEqual(isUsableCachedMediaItem(Object.freeze({ id, url: 'url', googlePickerSessionId: 'session' })), true);
+  });
+});
+
+assertTest('Cache eligibility uses raw base and session truthiness without coercion or validity checks', () => {
+  const opaque = Object.freeze({ [Symbol.toPrimitive]() { throw Error('must not coerce'); } });
+  const values = [undefined, null, false, 0, 0n, NaN, '', ' ', 'expired', 1, Symbol('value'), opaque];
+  values.flatMap(googleBaseUrl => values.map(googlePickerSessionId => Object.freeze({
+    id: 'photo', url: opaque, googleBaseUrl, googlePickerSessionId,
+    googleBaseUrlFetchedAt: 0, isBroken: true, rating: 0, mimeType: 'invalid'
+  }))).forEach(row => {
+    const expected = Boolean(row.googleBaseUrl) || Boolean(row.googlePickerSessionId);
+    assert.strictEqual(isUsableCachedMediaItem(row), expected);
+    assert.strictEqual(row.url, opaque);
+    assert.strictEqual(row.isBroken, true);
+  });
+});
+
+assertTest('Cache eligibility reads inherited hidden fields in short-circuit order without enumeration', () => {
+  [
+    ['MOCK_photo', '', '', true, ['id', 'url', 'id']],
+    ['photo', ' ', '', true, ['id', 'url', 'id', 'googleBaseUrl']],
+    ['photo', '', 'session', true, ['id', 'url', 'id', 'googleBaseUrl', 'googlePickerSessionId']],
+    ['photo', '', '', false, ['id', 'url', 'id', 'googleBaseUrl', 'googlePickerSessionId']]
+  ].forEach(([id, googleBaseUrl, googlePickerSessionId, expected, order]) => {
+    const events = [];
+    const values = { id, url: 'url', googleBaseUrl, googlePickerSessionId };
+    const prototype = Object.freeze(Object.create(null, Object.fromEntries(Object.entries(values).map(([key, value]) => [key, {
+      get() { events.push(key); return value; }
+    }]))));
+    const row = new Proxy(Object.freeze(Object.create(prototype)), {
+      ownKeys() { throw Error('must not enumerate'); }
+    });
+    assert.strictEqual(isUsableCachedMediaItem(row), expected);
+    assert.deepStrictEqual(events, order);
+  });
+});
+
+assertTest('Cache eligibility preserves native method receivers, truthy results, and repeated id reads', () => {
+  [undefined, null, false, 0, '', 'false', 1, Object.freeze({})].forEach(result => {
+    const id = Object.freeze({ startsWith(prefix) { assert.strictEqual(this, id); assert.strictEqual(prefix, 'MOCK_'); return result; } });
+    assert.strictEqual(isUsableCachedMediaItem(Object.freeze({ id, url: true })), Boolean(result));
+  });
+  [42, true, 1n, Symbol('id'), [], {}, { startsWith: true }].forEach(id => {
+    assert.throws(() => isUsableCachedMediaItem(Object.freeze({ id, url: 'url' })), TypeError);
+  });
+  let reads = 0;
+  const changing = Object.freeze({ get id() { return ++reads === 1 ? 'guard' : 'MOCK_second'; }, url: 'url' });
+  assert.strictEqual(isUsableCachedMediaItem(changing), true);
+  assert.strictEqual(reads, 2);
+  reads = 0;
+  assert.throws(() => isUsableCachedMediaItem(Object.freeze({
+    get id() { return ++reads === 1 ? 'guard' : null; }, url: 'url'
+  })), TypeError);
+});
+
+assertTest('Cache eligibility propagates exact read and method failures without later work or fallback', () => {
+  ['id', 'url', 'startsWith', 'call', 'googleBaseUrl', 'googlePickerSessionId'].forEach(stage => {
+    [undefined, null, false, 0, '', Error('eligibility failure')].forEach(failure => {
+      const events = [];
+      const visit = (key, value) => { events.push(key); if (key === stage) throw failure; return value; };
+      const id = Object.freeze({ get startsWith() { return visit('startsWith', () => visit('call', false)); } });
+      const values = { id, url: 'url', googleBaseUrl: '', googlePickerSessionId: 'session' };
+      const row = Object.freeze(Object.create(null, Object.fromEntries(Object.entries(values).map(([key, value]) => [key, {
+        get() { return visit(key, value); }
+      }]))));
+      let caught = false;
+      let returned = false;
+      try { isUsableCachedMediaItem(row); returned = true; } catch (error) { caught = true; assert.strictEqual(error, failure); }
+      assert.ok(caught && !returned);
+      assert.strictEqual(events.at(-1), stage);
+    });
+  });
+});
+
+assertTest('Cache eligibility composes as an immutable idempotent filter that preserves concatenation', () => {
+  const rows = Object.freeze([
+    null, Object.freeze({ id: 'missing-url', googleBaseUrl: 'base' }),
+    Object.freeze({ id: 'MOCK_photo', url: 'url' }),
+    Object.freeze({ id: 'base', url: 'url', googleBaseUrl: ' ' }),
+    Object.freeze({ id: 'session', url: 'url', googlePickerSessionId: 'expired' }),
+    Object.freeze({ id: 'unrefreshable', url: 'url' })
+  ]);
+  const before = structuredClone(rows);
+  const eligible = items => items.filter(isUsableCachedMediaItem);
+  const once = eligible(rows);
+  assert.deepStrictEqual(once, rows.slice(2, 5));
+  assert.deepStrictEqual(eligible(once), once);
+  once.forEach((row, index) => assert.strictEqual(row, rows[index + 2]));
+  assert.deepStrictEqual(eligible([]), []);
+  rows.map((_, split) => [rows.slice(0, split), rows.slice(split)]).forEach(([left, right]) => {
+    assert.deepStrictEqual(eligible([...left, ...right]), [...eligible(left), ...eligible(right)]);
+  });
+  assert.deepStrictEqual(rows, before);
+  assert.strictEqual(isUsableCachedMediaItem(isUsableCachedMediaItem(rows[2])), false, 'filter idempotence is not predicate idempotence');
 });
 
 assertTest('Google Photos cache normalization keeps open metadata and defaults malformed dimensions immutably', () => {
