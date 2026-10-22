@@ -939,7 +939,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /^\/\/ @ts-check/);
   assert.match(cacheSource, /@typedef \{Record<string, unknown> & \{/);
   assert.match(cacheSource, /@param \{GooglePhotoMediaItem \| null \| undefined\} item/);
-  assert.match(cacheSource, /@param \{GooglePhotoMediaItem\[\] \| null \| undefined\} syncedItems/);
+  assert.match(cacheSource, /@param \{ReadonlyArray<Readonly<GooglePhotoMediaItem>> \| null \| undefined\} syncedItems/);
+  assert.match(cacheSource, /@param \{ReadonlyArray<Readonly<GooglePhotoMediaItem>>\} \[cachedItems=\[\]\]/);
+  assert.match(cacheSource, /noncommutative Monoid\s+\* on values, not references/);
+  assert.match(cacheSource, /@throws \{unknown\} Native collection, property-read, coercion, or spread failure/);
   assert.match(cacheSource, /@returns \{GooglePhotoMediaItem\[\]\}/);
   assert.match(cacheSource, /@typedef \{Partial<Record<GooglePhotoMetadataField, unknown>>\} GooglePhotoMetadataInput/);
   assert.match(cacheSource, /@param \{Readonly<GooglePhotoMetadataInput>\} \[metadata=\{\}\]/);
@@ -987,7 +990,7 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /changed ORs strict !== comparisons over all matches/);
   assert.match(cacheSource, /Project each patch before composing/);
   assert.match(cacheSource, /@throws \{unknown\} Identifier, patch, or row projection failure/);
-  assert.match(cacheSource, /Pool retention\/capping\s+\* is deliberately composed by the effectful sync shell after this union/);
+  assert.match(cacheSource, /Retention\/capping, cache I\/O, and recovery stay in callers/);
   assert.doesNotMatch(cacheSource, /\b(?:fs|fetch)\b/);
   assert.match(serviceSource, /require\('\.\/googlePhotosCache\.js'\)/);
   assert.doesNotMatch(serviceSource, /function (?:buildGooglePhotoMetadataPatch|mergeCachedMediaItemMetadata)\(/);
@@ -7914,6 +7917,158 @@ assertTest('Google Photos pair merge obeys associative idempotent metadata laws 
   assert.notDeepStrictEqual(mergeSyncedPair(samples[2], samples[3]), mergeSyncedPair(samples[3], samples[2]));
   const inherited = Object.freeze(Object.assign(Object.create({ rating: 4 }), { id: 'pair' }));
   assert.notDeepStrictEqual(mergeSyncedPair(inherited, inherited), inherited, 'law excludes inherited records');
+});
+
+assertTest('Google Photos union keeps cached first ownership and incoming last values in first-key order', () => {
+  const cached = Object.freeze([
+    Object.freeze({ id: 'a', title: 'old a', rating: 2 }),
+    Object.freeze({ id: 'b', title: 'first b' }), Object.freeze({ id: 'b', title: 'later b' }),
+    Object.freeze({ id: 'c', title: 'old c' })
+  ]);
+  const incoming = Object.freeze([
+    Object.freeze({ id: 'c', title: 'first c' }), Object.freeze({ id: 'd', title: 'first d' }),
+    Object.freeze({ id: 'a', title: 'new a', rating: 9 }), Object.freeze({ id: 'c', title: 'last c' })
+  ]);
+  assert.deepStrictEqual(mergeSyncedMediaItems(incoming, cached), [
+    { id: 'b', title: 'first b' }, { id: 'c', title: 'last c' },
+    { id: 'd', title: 'first d' }, { id: 'a', title: 'new a', rating: 2 }
+  ]);
+});
+
+assertTest('Google Photos union distinguishes trimmed comparison keys from exact cached ids', () => {
+  [
+    { cached: [{ id: ' a ', rating: 2 }], incoming: { id: 'a', rating: 9 }, ids: [' a ', 'a'], ratings: [2, 9] },
+    { cached: [{ id: 1, rating: 2 }], incoming: { id: '1', rating: 9 }, ids: [1, '1'], ratings: [2, 9] },
+    { cached: [{ id: ' a ', rating: 2 }, { id: 'a', rating: 4 }], incoming: { id: 'a', rating: 9 },
+      ids: [' a ', 'a'], ratings: [2, 9] },
+    { cached: [{ id: 'a', rating: 2 }], incoming: { id: ' a ', rating: 9 }, ids: [' a '], ratings: [2] },
+    { cached: [{ id: 'A', rating: 2 }], incoming: { id: 'a', rating: 9 }, ids: ['A', 'a'], ratings: [2, 9] }
+  ].forEach(({ cached, incoming, ids, ratings }) => {
+    const merged = mergeSyncedMediaItems([incoming], cached);
+    assert.deepStrictEqual(merged.map(({ id }) => id), ids);
+    assert.deepStrictEqual(merged.map(({ rating }) => rating), ratings);
+  });
+});
+
+assertTest('Google Photos union uses truthiness before native string keys without rewriting incoming rows', () => {
+  const hints = [];
+  const id = Object.freeze({ [Symbol.toPrimitive]: (hint) => { hints.push(hint); return ' key '; } });
+  const selected = Object.freeze({ id, url: null });
+  const latest = Object.freeze({ id: 'key', url: undefined });
+  const symbolRow = Object.freeze({ id: Symbol('key') });
+  const ignored = [null, undefined, {}, ...[false, 0, '', NaN, '   '].map((value) => ({ id: value }))];
+  const merged = mergeSyncedMediaItems([...ignored, selected, symbolRow, latest]);
+  assert.deepStrictEqual(hints, ['string']);
+  assert.deepStrictEqual(merged, [latest, symbolRow]);
+  assert.strictEqual(merged[0], latest);
+  assert.strictEqual(merged[1], symbolRow);
+});
+
+assertTest('Google Photos union clones cached and matched rows but shares new rows and nested metadata', () => {
+  const nested = Object.freeze({ shared: true });
+  const symbol = Symbol('metadata');
+  const kept = Object.freeze({ id: 'kept', nested, [symbol]: nested });
+  const matched = Object.freeze({ id: 'match', rating: nested });
+  const incoming = Object.freeze({ id: 'match', nested });
+  const added = Object.freeze({ id: 'new', nested });
+  const cached = Object.freeze([kept, matched]);
+  const synced = Object.freeze([incoming, added]);
+  const merged = mergeSyncedMediaItems(synced, cached);
+  assert.notStrictEqual(merged, cached);
+  assert.notStrictEqual(merged, synced);
+  assert.notStrictEqual(merged[0], kept);
+  assert.notStrictEqual(merged[1], matched);
+  assert.notStrictEqual(merged[1], incoming);
+  assert.strictEqual(merged[2], added);
+  merged.forEach((row) => assert.strictEqual(row.nested, nested));
+  assert.strictEqual(merged[0][symbol], nested);
+  assert.strictEqual(merged[1].rating, nested);
+  assert.deepStrictEqual(cached, [kept, matched]);
+  assert.deepStrictEqual(synced, [incoming, added]);
+});
+
+assertTest('Google Photos union preserves falsy selection fallbacks and native sparse traversal or dispatch', () => {
+  const row = Object.freeze({ id: 'kept' });
+  [undefined, null, false, 0, '', NaN].forEach((input) => {
+    const merged = mergeSyncedMediaItems(input, Object.freeze([row, row]));
+    assert.deepStrictEqual(merged, [row]);
+    assert.notStrictEqual(merged[0], row);
+  });
+  assert.deepStrictEqual(mergeSyncedMediaItems(), []);
+  [null, false, 0, {}].forEach((cached) => assert.throws(() => mergeSyncedMediaItems([], cached), TypeError));
+  [true, 1, 'text', {}].forEach((synced) => assert.throws(() => mergeSyncedMediaItems(synced), TypeError));
+  const inherited = Object.freeze({ id: 'inherited' });
+  const selected = Object.freeze({ id: 'selected' });
+  const sparse = Object.assign(new Array(3), { 2: selected });
+  Object.setPrototypeOf(sparse, Object.assign(Object.create(Array.prototype), { 1: inherited }));
+  const cached = Object.freeze(Object.assign(new Array(3), { 2: row }));
+  assert.deepStrictEqual(mergeSyncedMediaItems(Object.freeze(sparse), cached), [row, inherited, selected]);
+  const custom = { forEach(callback) {
+    assert.strictEqual(this, custom);
+    callback(selected);
+    return 'ignored';
+  } };
+  assert.strictEqual(mergeSyncedMediaItems(custom)[0], selected);
+});
+
+assertTest('Google Photos union completes gathering and retained clones before per-key lookup and pair merging', () => {
+  const visits = [];
+  const row = (label, id) => Object.freeze({
+    get id() { visits.push(`${label} id`); return id; },
+    get probe() { visits.push(`${label} spread`); return label; }
+  });
+  const cached = [row('keep', 'k'), row('match', 'm')];
+  const incoming = [row('selected', 'm'), row('new', 'n')];
+  mergeSyncedMediaItems(incoming, cached);
+  assert.deepStrictEqual(visits, [
+    'keep id', 'match id', 'selected id', 'new id',
+    'keep id', 'match id', 'keep id', 'keep spread',
+    'keep id', 'match id', 'match id', 'match spread', 'selected id', 'selected spread',
+    'keep id', 'match id'
+  ]);
+});
+
+assertTest('Google Photos union propagates exact native failures with no partial return or later work', () => {
+  const scenarios = [
+    (fail, later) => [[{ get id() { return later(); } }], [{ get id() { return fail(); } }]],
+    (fail) => [{ get forEach() { return fail(); } }, [{ id: 'cached' }]],
+    (fail, later) => [[{ id: { [Symbol.toPrimitive]: fail } }, { get id() { return later(); } }], []],
+    (fail, later) => [[{ id: 'new', get probe() { return later(); } }], [{ id: 'kept', get probe() { return fail(); } }]],
+    (fail, later) => [[{ id: 'a', get probe() { return fail(); } }, { id: 'b', get probe() { return later(); } }],
+      [{ id: 'a' }, { id: 'b' }]]
+  ];
+  scenarios.forEach((scenario) => [undefined, null, false, 0, '', new Error('union')].forEach((failure) => {
+    const visits = [];
+    const fail = () => { visits.push('failure'); throw failure; };
+    const later = () => { visits.push('later'); return 'later'; };
+    const [synced, cached] = scenario(fail, later);
+    let returned = false;
+    let caught;
+    try { mergeSyncedMediaItems(synced, cached); returned = true; } catch (error) { caught = error; }
+    assert.strictEqual(returned, false);
+    assert.strictEqual(caught, failure);
+    assert.deepStrictEqual(visits, ['failure'], 'caller-hook effects survive but later work stops');
+  }));
+});
+
+assertTest('Google Photos canonical union obeys associative idempotent Monoid laws with explicit domain limits', () => {
+  const samples = [[], [{ id: 'a', rating: undefined }], [{ id: 'b', title: 'b' }, { id: 'a', rating: null }],
+    [{ id: 'a', rating: 3, title: undefined }, { id: 'c', loved: false }],
+    [{ id: 'c', loved: true }, { id: 'b', title: 'latest' }]]
+    .map((rows) => Object.freeze(rows.map((row) => Object.freeze(row))));
+  const combine = (cached, synced) => mergeSyncedMediaItems(synced, cached);
+  samples.forEach((left) => {
+    assert.deepStrictEqual(combine([], left), left);
+    assert.deepStrictEqual(combine(left, []), left);
+    assert.deepStrictEqual(combine(left, left), left);
+    samples.forEach((middle) => samples.forEach((right) => assert.deepStrictEqual(
+      combine(combine(left, middle), right), combine(left, combine(middle, right))
+    )));
+  });
+  assert.notDeepStrictEqual(combine(samples[2], samples[3]), combine(samples[3], samples[2]));
+  const duplicates = [{ id: 'a', title: 'first' }, { id: 'a', title: 'last' }];
+  assert.notDeepStrictEqual(combine([], duplicates), duplicates, 'duplicates are outside the identity domain');
+  assert.notDeepStrictEqual(combine([], duplicates), combine(duplicates, []), 'incoming last differs from cached first');
 });
 
 assertTest('Google Photos sync merge removes duplicate incoming and legacy cached rows', () => {

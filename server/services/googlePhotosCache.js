@@ -620,14 +620,40 @@ function mergeSyncedItemWithExistingMetadata(existing, synced) {
 }
 
 /**
- * Accumulate Picker rows in stable order: keep unique cached rows not selected
- * in this session, then append selected rows in session order. Latest duplicate
- * input wins; existing user metadata survives an upsert. Pool retention/capping
- * is deliberately composed by the effectful sync shell after this union.
+ * Accumulate Picker rows without changing ordinary read-only inputs.
+ * Deduplicate cached rows first (first trimmed key wins), then gather synced
+ * rows using String(item?.id || '').trim(): skip empty keys, retain first-key
+ * order, but let the last row for each key win. Keys are case-sensitive and
+ * comparison-only; neither original ids nor other metadata are validated.
+ * Cached removal and lookup use raw ids against synced string keys, not trimmed
+ * cached keys. Padded/numeric cached ids can therefore survive beside a synced
+ * equivalent, and an earlier padded cached duplicate can hide an exact match.
  *
- * @param {GooglePhotoMediaItem[] | null | undefined} syncedItems
- * @param {GooglePhotoMediaItem[]} [cachedItems=[]]
- * @returns {GooglePhotoMediaItem[]}
+ * Return unselected cached rows first as fresh shallow plain objects, then
+ * synced keys in first-seen order. Exact cached matches use the pair merge
+ * (latest fields plus five defined existing user edits); unmatched synced rows
+ * retain their original aliases. Nested metadata remains shared in all cases.
+ * Omitted cached input defaults to []; null does not. Falsy synced input uses
+ * []; truthy inputs dispatch native forEach. Ordinary sparse-array holes are
+ * skipped, inherited indices visited, and traversal lengths captured natively.
+ *
+ * For ordinary own-enumerable records with unique nonempty trimmed string ids,
+ * combine(cached, synced) = mergeSyncedMediaItems(synced, cached) is associative
+ * and value-idempotent with [] as a two-sided identity: a noncommutative Monoid
+ * on values, not references. These laws exclude duplicate/noncanonical ids,
+ * inherited fields, and changing accessors. Keep the existing pure data-first
+ * interface and private scratch collections rather than adding a wrapper.
+ *
+ * Cached deduplication finishes before synced traversal; gathering finishes
+ * before cached filtering/cloning; all retained cached clones precede matched
+ * pair merges. Native method/read/coercion/spread failures propagate unchanged,
+ * stop later work, and return no partial result; prior caller-hook effects are
+ * not rolled back. Retention/capping, cache I/O, and recovery stay in callers.
+ *
+ * @param {ReadonlyArray<Readonly<GooglePhotoMediaItem>> | null | undefined} syncedItems
+ * @param {ReadonlyArray<Readonly<GooglePhotoMediaItem>>} [cachedItems=[]]
+ * @returns {GooglePhotoMediaItem[]} Fresh array with cloned cached/matched rows and unmatched synced aliases.
+ * @throws {unknown} Native collection, property-read, coercion, or spread failure.
  */
 function mergeSyncedMediaItems(syncedItems, cachedItems = []) {
   const uniqueCachedItems = dedupeMediaItemsById(cachedItems);

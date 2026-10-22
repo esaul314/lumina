@@ -6,6 +6,34 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-21: Specify Pure Picker Union Contracts
+
+- **Contract**: refined `mergeSyncedMediaItems(...)` read-only collections,
+  stable ordering, cached-first/incoming-last duplicate precedence, raw cached-id
+  matching, cloned cached/matched rows versus unmatched incoming aliases,
+  sparse/native traversal, ordered phases, and exact native failures.
+- **Functional design**: retained the pure data-first interface and private
+  scratch collections. Canonical unique-id ordinary records form an associative,
+  value-idempotent, noncommutative Monoid with [] identity. Duplicate/noncanonical
+  ids, inherited fields, and changing accessors are outside that value law.
+  No wrapper, dependency, executable production change, or export added; policy
+  and cache I/O remain in callers.
+- **Tests**: eight focused tests compose declarative cases, frozen/sparse inputs,
+  isolated hooks, and generated triples. Failures stop later work without partial
+  results or caller-hook rollback. No new live cache, credential, network, or
+  daemon access.
+- **Backlog**: cached trimmed deduplication and raw upsert matching differ.
+  Padded/numeric cached ids can coexist with equivalent selections; earlier
+  padded duplicates can hide exact matches. Choose canonical-id migration and
+  metadata preservation separately, without silently changing compatibility.
+- **Verification**: `npm test` passed: 696 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, whitespace, and
+  unchanged executable production AST checks passed. Optional socket smoke was
+  sandbox-skipped (`listen EPERM`). No client build or service restart needed.
+- **Next**: refine `buildCachedMediaItem(...)` read-only inputs, fallback
+  precedence, timestamp/clock ordering, retained metadata, and native failures
+  without changing behavior or exports.
+
 ### 2026-10-21: Specify Pure Synced Metadata Merge Contracts
 
 - **Contract**: refined `mergeSyncedItemWithExistingMetadata(...)` read-only
