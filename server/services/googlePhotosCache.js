@@ -132,8 +132,31 @@ function getGooglePhotoMediaItemId(value) {
 /**
  * Read the nested Picker media file shape while tolerating legacy flat rows.
  *
- * @param {GooglePhotoMediaItem | null | undefined} item
- * @returns {PickerMediaFile}
+ * For ordinary records, truthy object-valued mediaFile (including arrays)
+ * wins as a whole; otherwise return the original row. Null and other falsy
+ * nested values, functions, and truthy primitives do not select a nested file.
+ * Falsy rows produce a fresh empty object on every call; truthy out-of-contract
+ * primitive rows pass through verbatim. No coercion, cloning, validation, or
+ * per-field fallback occurs here; field readers own their fallback policies.
+ *
+ * Only mediaFile is read, including inherited/non-enumerable properties,
+ * without enumerating keys. A falsy first read stops selection; a truthy first
+ * read triggers a second for typeof, and an object-valued second read triggers
+ * a third returned verbatim. Changing accessors can therefore return even null,
+ * undefined, or primitives on that third read. Do not cache these reads as a
+ * behavior-preserving cleanup. Native failures propagate unchanged and stop
+ * later reads, without a result or rollback of prior caller-hook effects.
+ *
+ * Ordinary read-only inputs stay unchanged and selected objects retain their
+ * aliases. This pure data-first selector composes directly with field readers;
+ * no clock, I/O, or algebraic wrapper is needed. Selection is reference-
+ * idempotent on stable leaf files without another selectable mediaFile, not
+ * globally idempotent on arbitrarily nested records or changing accessors.
+ * Readonly describes caller access, not a runtime freeze or detached result.
+ *
+ * @param {Readonly<GooglePhotoMediaItem> | null | undefined} item
+ * @returns {Readonly<PickerMediaFile>} Selected alias or fresh empty fallback for ordinary records.
+ * @throws {unknown} Caller-supplied property-access failure, propagated unchanged.
  */
 function getPickerMediaFile(item) {
   return item?.mediaFile && typeof item.mediaFile === 'object' ? item.mediaFile : item || {};

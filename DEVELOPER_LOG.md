@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-22: Specify Picker File-Selection Contracts
+
+- **Contract**: refined `getPickerMediaFile(...)` read-only inputs, whole
+  nested/flat selection, selected aliases, fresh falsy-row fallbacks, native
+  truthiness, hidden/inherited fields, and repeated accessor reads. A changing
+  accessor's third value is returned verbatim; exact failures stop later reads
+  without returning a result or rolling back prior caller-hook effects.
+- **Functional design**: retained the pure data-first selector and direct field
+  reader composition. Stable leaf selection is reference-idempotent, but nested
+  records can select deeper files on reapplication. No wrapper, dependency,
+  executable production change, or export added; per-field fallback policies
+  and cache I/O remain with callers. Readonly is not a runtime freeze or clone.
+- **Tests**: seven focused tests compose declarative tables, frozen inputs,
+  reference checks, guarded accessors, and exact thrown values. Test-only private
+  capture evaluates the real cache module without widening production exports
+  or adding live cache, credential, network, or daemon access.
+- **Verification**: `npm test` passed: 711 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, whitespace, and
+  unchanged executable production AST checks passed. Optional socket smoke was
+  sandbox-skipped (`listen EPERM`). No client build or service restart needed.
+- **Next**: audit command, environment, effect, and selector contract coverage
+  against Step 6 acceptance criteria; identify the first unmet boundary or record
+  evidence for closeout before adding further slices.
+
 ### 2026-10-22: Specify Picker Cache-Row Construction Contracts
 
 - **Contract**: refined `buildCachedMediaItem(...)` read-only inputs, fixed-field

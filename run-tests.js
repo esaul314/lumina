@@ -938,7 +938,9 @@ assertTest('Google Photos cache projections expose checked contracts while servi
 
   assert.match(cacheSource, /^\/\/ @ts-check/);
   assert.match(cacheSource, /@typedef \{Record<string, unknown> & \{/);
-  assert.match(cacheSource, /@param \{GooglePhotoMediaItem \| null \| undefined\} item/);
+  assert.match(cacheSource, /@returns \{Readonly<PickerMediaFile>\} Selected alias or fresh empty fallback/);
+  assert.match(cacheSource, /not\s+\* globally idempotent on arbitrarily nested records/);
+  assert.match(cacheSource, /@throws \{unknown\} Caller-supplied property-access failure, propagated unchanged/);
   assert.match(cacheSource, /@param \{ReadonlyArray<Readonly<GooglePhotoMediaItem>> \| null \| undefined\} syncedItems/);
   assert.match(cacheSource, /@param \{ReadonlyArray<Readonly<GooglePhotoMediaItem>>\} \[cachedItems=\[\]\]/);
   assert.match(cacheSource, /noncommutative Monoid\s+\* on values, not references/);
@@ -5677,14 +5679,117 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
   assert.strictEqual(item.mimeType, 'image/jpeg');
 });
 
-// Evaluate the real cache module with a local clock, never patching global Date.
+// Evaluate the real cache module with a local clock and test-only private capture.
 const createGooglePhotosCacheFixture = (now = () => 0) => {
   const module = { exports: {} };
-  runInNewContext(fs.readFileSync(require.resolve('./server/services/googlePhotosCache.js'), 'utf8'), {
+  const source = fs.readFileSync(require.resolve('./server/services/googlePhotosCache.js'), 'utf8');
+  runInNewContext(`${source}\nmodule.testHelpers = { getPickerMediaFile };`, {
     module, URLSearchParams, Date: class extends Date { static now() { return now(); } }
   }, { filename: 'googlePhotosCache.js' });
-  return module.exports;
+  return { ...module.exports, ...module.testHelpers };
 };
+
+assertTest('Picker file selection retains nested object aliases without field-level fallback', () => {
+  const { getPickerMediaFile: select } = createGooglePhotosCacheFixture();
+  [Object.freeze({}), Object.freeze([]), Object.freeze({ mimeType: '' })].forEach(mediaFile => {
+    const row = Object.freeze({ mediaFile, mimeType: 'image/flat' });
+    assert.strictEqual(select(row), mediaFile);
+    assert.strictEqual(select(row).baseUrl, undefined);
+    assert.notStrictEqual(select(row), row);
+  });
+});
+
+assertTest('Picker file selection preserves flat rows for non-object nested values without coercion', () => {
+  const { getPickerMediaFile: select } = createGooglePhotosCacheFixture();
+  [undefined, null, false, 0, NaN, '', true, 1, 'nested', Symbol('file'), 1n,
+    () => { throw new Error('Unexpected invocation'); }].forEach(mediaFile => {
+    const row = Object.freeze({ mediaFile, mimeType: 'image/flat' });
+    assert.strictEqual(select(row), row);
+  });
+});
+
+assertTest('Picker file selection uses fresh empty fallbacks and passes truthy primitive rows through', () => {
+  const { getPickerMediaFile: select } = createGooglePhotosCacheFixture();
+  [undefined, null, false, 0, -0, NaN, '', 0n].forEach(row => {
+    const result = select(row);
+    assert.deepStrictEqual({ ...result }, {});
+    assert.notStrictEqual(result, select(row));
+    assert.strictEqual(select(result), result);
+  });
+  [true, 1, 'flat', Symbol('row'), 1n, Object.freeze(() => {})].forEach(row => {
+    assert.strictEqual(select(row), row);
+  });
+});
+
+assertTest('Picker file selection reads hidden and inherited fields without enumerating or reading other keys', () => {
+  const { getPickerMediaFile: select } = createGooglePhotosCacheFixture();
+  const mediaFile = Object.freeze({ mimeType: 'image/nested' });
+  const descriptor = { value: mediaFile };
+  [Object.create(null, { mediaFile: descriptor }), Object.create(Object.create(null, { mediaFile: descriptor }))]
+    .map(row => Object.freeze(Object.defineProperty(row, 'mimeType', {
+      get() { throw new Error('Unexpected flat field read'); }
+    })))
+    .forEach(row => assert.strictEqual(select(new Proxy(row, {
+      ownKeys() { throw new Error('Unexpected enumeration'); }
+    })), mediaFile));
+  assert.strictEqual(Object.hasOwn(require('./server/services/googlePhotosCache'), 'getPickerMediaFile'), false);
+});
+
+assertTest('Picker file selection preserves short-circuit and repeated accessor reads', () => {
+  const { getPickerMediaFile: select } = createGooglePhotosCacheFixture();
+  [
+    { values: [false], flat: true },
+    { values: [{}, 'not-object'], flat: true },
+    { values: [true, null, 'third-read'], flat: false },
+    ...[undefined, null, false, 0, '', () => {}, Object.freeze({})]
+      .map(result => ({ values: [true, {}, result], flat: false }))
+  ].forEach(({ values, flat }) => {
+    const reads = [];
+    const row = Object.freeze({ get mediaFile() {
+      const index = reads.length;
+      reads.push(index);
+      assert.ok(index < values.length, 'must not read beyond the selected branch');
+      return values[index];
+    } });
+    assert.strictEqual(select(row), flat ? row : values.at(-1));
+    assert.deepStrictEqual(reads, values.map((_, index) => index));
+  });
+});
+
+assertTest('Picker file selection propagates exact failures at each read without continuing or undoing hooks', () => {
+  const { getPickerMediaFile: select } = createGooglePhotosCacheFixture();
+  [0, 1, 2].forEach(failureIndex => {
+    [undefined, null, false, 0, '', new Error('file getter')].forEach(failure => {
+      const reads = [];
+      const row = Object.freeze({ get mediaFile() {
+        const index = reads.length;
+        reads.push(index);
+        if (index === failureIndex) throw failure;
+        return {};
+      } });
+      let caught = false;
+      try { select(row); assert.fail('Expected getter failure'); }
+      catch (error) { caught = true; assert.strictEqual(error, failure); }
+      assert.strictEqual(caught, true);
+      assert.deepStrictEqual(reads, Array.from({ length: failureIndex + 1 }, (_, index) => index));
+    });
+  });
+});
+
+assertTest('Picker file selection is stable on leaf aliases but not globally idempotent', () => {
+  const { getPickerMediaFile: select } = createGooglePhotosCacheFixture();
+  [Object.freeze({}), Object.freeze([]), Object.freeze({ mediaFile: null })].forEach(leaf => {
+    const row = Object.freeze({ mediaFile: leaf });
+    assert.strictEqual(select(select(row)), select(row));
+    assert.strictEqual(select(row), leaf);
+  });
+  const leaf = Object.freeze({ mimeType: 'image/leaf' });
+  const branch = Object.freeze({ mediaFile: leaf });
+  const root = Object.freeze({ mediaFile: branch });
+  assert.strictEqual(select(root), branch);
+  assert.strictEqual(select(select(root)), leaf);
+  assert.notStrictEqual(select(select(root)), select(root));
+});
 
 assertTest('Picker cache construction projects a fixed fresh shape without spreading inputs', () => {
   const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture(() => { throw new Error('Unexpected clock'); });
