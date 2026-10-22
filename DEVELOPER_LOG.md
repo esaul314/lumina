@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-21: Specify Pure Cache Deduplication Contracts
+
+- **Contract**: refined `dedupeMediaItemsById(...)` read-only generic inputs,
+  first-occurrence ordering, native truthiness/string coercion, sparse-array
+  traversal, and exact failures. Trimmed comparison keys do not rewrite retained
+  ids or merge metadata; original rows and shallow aliases survive.
+- **Functional design**: retained the concise pure data-first filter with its
+  private scratch Set. Stable-record deduplication is value-idempotent; on
+  canonical arrays, first-biased deduplicated union forms an associative Monoid
+  with [] as identity, but is neither commutative nor plain-concatenation
+  preserving. No curried/algebraic wrapper, dependency, executable production
+  change, or export added. Validation and cache effects remain separate.
+- **Tests**: seven focused tests compose declarative cases, frozen rows,
+  inherited/hidden ids, native filter dispatch/species, sparse traversal, and
+  generated union triples. Exact failures stop later work without partial
+  results or caller-hook rollback. No new live cache, credential, network,
+  or daemon access.
+- **Verification**: `npm test` passed: 681 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, whitespace, and
+  unchanged executable production AST checks passed. Optional socket smoke was
+  sandbox-skipped (`listen EPERM`). No client build or service restart needed.
+- **Next**: refine `mergeSyncedItemWithExistingMetadata(...)` read-only inputs,
+  spread precedence, user-edit allowlist, shallow aliases, and failures without
+  changing behavior or exports.
+
 ### 2026-10-21: Specify Pure Cache Eligibility Contracts
 
 - **Contract**: refined `isUsableCachedMediaItem(...)` read-only structural

@@ -414,10 +414,35 @@ function isUsableCachedMediaItem(item) {
 }
 
 /**
- * Keep the first source-local cache row for each stable media item id.
+ * Keep the first row for each nonempty String(item?.id || '').trim() key.
+ * Truthiness precedes native string coercion: falsy ids are discarded, while
+ * truthy numbers, symbols, and custom coercion hooks follow String semantics.
+ * Keys are case-sensitive and trimmed only for comparison; retained ids,
+ * metadata, and nested references are not rewritten, merged, or validated.
+ * Inherited/non-enumerable ids are read once per visited row, even duplicates;
+ * unrelated fields are not read or enumerated. Eligibility is a separate step.
  *
- * @param {GooglePhotoMediaItem[]} [items=[]]
- * @returns {GooglePhotoMediaItem[]}
+ * Omitted/undefined input uses []. Native items.filter dispatch is preserved;
+ * null or a non-callable filter throws rather than returning an empty fallback.
+ * Ordinary arrays produce a fresh dense array of original row references in
+ * first-occurrence order. Native filter skips holes, visits inherited indices,
+ * and snapshots length; custom methods/species retain their native behavior.
+ * Ordinary read-only inputs remain unchanged. The private Set is local scratch
+ * state, not an observable mutation or a reason to wrap this data-first helper.
+ *
+ * For ordinary records with stable keys, deduplication is value-idempotent.
+ * On deduplicated arrays, dedupe([...left, ...right]) forms an associative,
+ * first-biased Monoid on values with [] as identity, not reference identity.
+ * It is not commutative or a homomorphism into plain array concatenation.
+ *
+ * Native filter/property/coercion failures propagate unchanged, stop later
+ * work, and return no partial result; prior caller-hook effects are not undone.
+ * Keep validation, recovery, clocks, and cache I/O outside this pure boundary.
+ *
+ * @template {Readonly<GooglePhotoMediaItem>} T
+ * @param {ReadonlyArray<T>} [items=[]]
+ * @returns {T[]} Original row aliases for ordinary array inputs.
+ * @throws {unknown} Native filter, property-read, or string-coercion failure.
  */
 function dedupeMediaItemsById(items = []) {
   const seenIds = new Set();

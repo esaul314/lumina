@@ -973,6 +973,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /filter idempotence with predicate idempotence/);
   assert.match(cacheSource, /@returns \{boolean\} Structural eligibility only, not successful retrieval/);
   assert.match(cacheSource, /@throws \{unknown\} Native property-read or startsWith method-call failure/);
+  assert.match(cacheSource, /@template \{Readonly<GooglePhotoMediaItem>\} T/);
+  assert.match(cacheSource, /@param \{ReadonlyArray<T>\} \[items=\[\]\]/);
+  assert.match(cacheSource, /first-biased Monoid on values with \[\] as identity/);
+  assert.match(cacheSource, /@throws \{unknown\} Native filter, property-read, or string-coercion failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -7640,6 +7644,149 @@ assertTest('Google Photos media deduplication keeps the first row for each stabl
     duplicateRows[0],
     duplicateRows[2]
   ]);
+});
+
+assertTest('Google Photos deduplication preserves defaults and native filter dispatch', () => {
+  assert.deepStrictEqual(dedupeMediaItemsById(), []);
+  assert.deepStrictEqual(dedupeMediaItemsById(undefined), []);
+  [null, false, 0, '', {}, { filter: true }].forEach((items) => {
+    assert.throws(() => dedupeMediaItemsById(items), TypeError);
+  });
+  const row = Object.freeze({ id: 'native' });
+  const sentinel = Object.freeze({ custom: 'filter result' });
+  const items = Object.freeze({ filter(predicate) {
+    assert.strictEqual(this, items);
+    assert.strictEqual(predicate(row), true);
+    assert.strictEqual(predicate(row), false);
+    return sentinel;
+  } });
+  assert.strictEqual(dedupeMediaItemsById(items), sentinel);
+  assert.deepStrictEqual(dedupeMediaItemsById([row]), [row], 'seen keys are per call');
+  class Rows extends Array {}
+  const subclassResult = dedupeMediaItemsById(Object.freeze(Rows.of(row, row)));
+  assert.ok(subclassResult instanceof Rows, 'native array species is preserved');
+  assert.strictEqual(subclassResult.length, 1);
+  assert.strictEqual(subclassResult[0], row);
+});
+
+assertTest('Google Photos deduplication compares trimmed native string keys without rewriting rows', () => {
+  const symbol = Symbol('photo');
+  const ids = [undefined, null, false, 0, -0, 0n, NaN, '', ' \t\n',
+    ' first ', 'first', 'First', 42, '42', true, 'true', 1n, '1',
+    symbol, 'Symbol(photo)', '%66irst', '/first', 'first?x=1'];
+  const rows = Object.freeze(ids.map((id) => Object.freeze({ id, url: '', isBroken: true })));
+  const expected = [9, 11, 12, 14, 16, 18, 20, 21, 22].map((index) => rows[index]);
+  const result = dedupeMediaItemsById(rows);
+  assert.deepStrictEqual(result, expected);
+  result.forEach((row, index) => assert.strictEqual(row, expected[index]));
+  assert.strictEqual(result[0].id, ' first ');
+  assert.strictEqual(result[2].id, 42);
+  assert.strictEqual(result[5].id, symbol);
+  assert.deepStrictEqual(dedupeMediaItemsById([undefined, null, false, 0, '', 1, symbol]), []);
+});
+
+assertTest('Google Photos deduplication reads hidden inherited ids once and coerces every visited duplicate', () => {
+  const visits = [];
+  const id = Object.freeze({ [Symbol.toPrimitive](hint) {
+    assert.strictEqual(this, id);
+    visits.push(hint);
+    return ' hidden ';
+  } });
+  const prototype = Object.defineProperty({}, 'id', { get() { visits.push('id'); return id; } });
+  const row = new Proxy(Object.freeze(Object.create(prototype)), {
+    ownKeys() { throw new Error('Must not enumerate rows'); },
+    get(target, key, receiver) {
+      assert.strictEqual(key, 'id');
+      return Reflect.get(target, key, receiver);
+    }
+  });
+  const result = dedupeMediaItemsById(Object.freeze([row, row]));
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0], row);
+  assert.deepStrictEqual(visits, ['id', 'string', 'id', 'string']);
+});
+
+assertTest('Google Photos deduplication follows native sparse traversal and length snapshots', () => {
+  const first = Object.freeze({ id: 'first' });
+  const inherited = Object.freeze({ id: 'inherited' });
+  const prototype = Object.create(Array.prototype, { 1: { value: inherited } });
+  const sparse = Object.assign(new Array(5), { 0: first, 3: first });
+  Object.setPrototypeOf(sparse, prototype);
+  Object.freeze(sparse);
+  const result = dedupeMediaItemsById(sparse);
+  assert.deepStrictEqual(result, [first, inherited]);
+  assert.deepStrictEqual(Object.keys(result), ['0', '1']);
+  assert.deepStrictEqual(Object.keys(sparse), ['0', '3']);
+
+  const tail = Object.freeze({ id: 'tail' });
+  const appended = Object.freeze({ id: 'appended' });
+  const rows = Object.assign(new Array(3), { 0: null, 2: tail });
+  rows[0] = Object.freeze({ get id() {
+    rows[1] = inherited;
+    rows.push(appended);
+    return 'first';
+  } });
+  assert.deepStrictEqual(dedupeMediaItemsById(rows), [rows[0], inherited, tail]);
+  assert.strictEqual(rows[3], appended, 'caller getter effects survive, but new tail is not visited');
+});
+
+assertTest('Google Photos deduplication propagates exact failures without visiting later rows', () => {
+  ['filter', 'filter-call', 'id', 'coercion'].forEach((stage) => {
+    [undefined, null, false, 0, '', new Error(stage)].forEach((failure) => {
+      const visits = [];
+      const fail = () => { visits.push(stage); throw failure; };
+      const rows = [{ id: 'first' }, stage === 'id'
+        ? Object.defineProperty({}, 'id', { get: fail })
+        : { id: { [Symbol.toPrimitive]: fail } },
+      Object.defineProperty({}, 'id', { get() { throw new Error('Later row visited'); } })];
+      const items = stage === 'filter' ? Object.defineProperty({}, 'filter', { get: fail })
+        : stage === 'filter-call' ? { filter: fail } : rows;
+      let caught;
+      let returned = false;
+      try { dedupeMediaItemsById(items); returned = true; } catch (error) { caught = error; }
+      assert.strictEqual(returned, false);
+      assert.strictEqual(caught, failure);
+      assert.deepStrictEqual(visits, [stage]);
+    });
+  });
+  assert.throws(() => dedupeMediaItemsById([{ id: { [Symbol.toPrimitive]: () => ({}) } }]), TypeError);
+});
+
+assertTest('Google Photos deduplication is immutable and value-idempotent for stable ordinary records', () => {
+  const nested = Object.freeze({ note: 'shared' });
+  const rows = Object.freeze([' a ', 'a', '', 'b', ' b ', 'c'].map((id, rating) =>
+    Object.freeze({ id, rating, nested })));
+  const before = structuredClone(rows);
+  const once = dedupeMediaItemsById(rows);
+  const twice = dedupeMediaItemsById(once);
+  assert.deepStrictEqual(once, [rows[0], rows[3], rows[5]]);
+  assert.deepStrictEqual(twice, once);
+  assert.notStrictEqual(once, rows);
+  assert.notStrictEqual(twice, once);
+  twice.forEach((row, index) => {
+    assert.strictEqual(row, once[index]);
+    assert.strictEqual(row.nested, nested);
+  });
+  assert.deepStrictEqual(rows, before);
+  assert.deepStrictEqual(dedupeMediaItemsById([]), []);
+});
+
+assertTest('Google Photos first-biased deduplicated union obeys Monoid laws but not plain concatenation', () => {
+  const row = (id, title) => Object.freeze({ id, title });
+  const samples = [[], [row('a', 'first')], [row(' a ', 'other'), row('b', 'b')],
+    [row('b', 'other b'), row('c', 'c')]].map(dedupeMediaItemsById);
+  const combine = (left, right) => dedupeMediaItemsById([...left, ...right]);
+  samples.forEach((left) => {
+    assert.deepStrictEqual(combine([], left), left);
+    assert.deepStrictEqual(combine(left, []), left);
+    samples.forEach((middle) => samples.forEach((right) => {
+      assert.deepStrictEqual(combine(combine(left, middle), right), combine(left, combine(middle, right)));
+    }));
+  });
+  const [left, right] = [samples[1], samples[2]];
+  assert.notDeepStrictEqual(combine(left, right), combine(right, left));
+  assert.notDeepStrictEqual(combine(left, right), [...left, ...right]);
+  assert.strictEqual(combine(left, right)[0], left[0], 'first row owns conflicting metadata');
 });
 
 assertTest('Google Photos sync merge removes duplicate incoming and legacy cached rows', () => {
