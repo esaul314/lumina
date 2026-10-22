@@ -576,10 +576,36 @@ const GOOGLE_PHOTOS_USER_METADATA_FIELDS = [
 
 /**
  * Prefer the latest synced representation while retaining existing user edits.
+ * Spread existing then synced own enumerable string/symbol fields into a fresh
+ * plain object. Synced values win even when undefined, except for rating,
+ * cropPercent, cropPositionY, preventPairing, and loved: each existing value
+ * other than undefined wins, including null, false, zero, NaN, and references.
+ * isBroken, orientation, dimensions, and other metadata are not user-edit
+ * exceptions here. No validation, coercion, deletion, or deep merge occurs.
  *
- * @param {GooglePhotoMediaItem} existing
- * @param {GooglePhotoMediaItem} synced
- * @returns {GooglePhotoMediaItem}
+ * After both spreads, read those five existing fields in allowlist order,
+ * including inherited/non-enumerable fields. Each defined guard triggers a
+ * second read for assignment, without rechecking that result. Accessors may
+ * therefore produce different values; ordinary data remains unchanged. Output
+ * fields are own enumerable writable/configurable data properties, with nested
+ * aliases shared. Native spread ignores nullish inputs and boxes primitives;
+ * callers normally supply records, and this helper does not validate ids.
+ *
+ * For ordinary own-enumerable data records, this pure data-first merge is
+ * associative and value-idempotent, not reference-idempotent or commutative.
+ * Empty metadata is a value identity ({} for records without an attached id);
+ * first-defined user edits and last-present other fields compose independently.
+ * These laws do not extend to inherited fields or changing accessors. Keep the
+ * small existing interface rather than adding a curried/algebraic wrapper.
+ *
+ * Native spread/property-read failures propagate unchanged, stop later work,
+ * and return no partial result. Prior caller-hook effects are not rolled back.
+ * Keep cache I/O, policy, identity matching, and recovery in their callers.
+ *
+ * @param {Readonly<GooglePhotoMediaItem>} existing
+ * @param {Readonly<GooglePhotoMediaItem>} synced
+ * @returns {GooglePhotoMediaItem} Fresh shallow representation with user edits.
+ * @throws {unknown} Native spread or user-metadata property-read failure.
  */
 function mergeSyncedItemWithExistingMetadata(existing, synced) {
   const merged = { ...existing, ...synced };

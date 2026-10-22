@@ -977,6 +977,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /@param \{ReadonlyArray<T>\} \[items=\[\]\]/);
   assert.match(cacheSource, /first-biased Monoid on values with \[\] as identity/);
   assert.match(cacheSource, /@throws \{unknown\} Native filter, property-read, or string-coercion failure/);
+  assert.match(cacheSource, /@param \{Readonly<GooglePhotoMediaItem>\} existing/);
+  assert.match(cacheSource, /@param \{Readonly<GooglePhotoMediaItem>\} synced/);
+  assert.match(cacheSource, /associative and value-idempotent, not reference-idempotent or commutative/);
+  assert.match(cacheSource, /@throws \{unknown\} Native spread or user-metadata property-read failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -7787,6 +7791,129 @@ assertTest('Google Photos first-biased deduplicated union obeys Monoid laws but 
   assert.notDeepStrictEqual(combine(left, right), combine(right, left));
   assert.notDeepStrictEqual(combine(left, right), [...left, ...right]);
   assert.strictEqual(combine(left, right)[0], left[0], 'first row owns conflicting metadata');
+});
+
+// Exercise the private pair projection through the public union using one exact id.
+const mergeSyncedPair = (existing, synced) => mergeSyncedMediaItems([synced], [existing])[0];
+
+assertTest('Google Photos pair merge keeps defined user edits without truthiness or validation', () => {
+  const fields = ['rating', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved'];
+  const reference = Object.freeze({ custom: true });
+  [undefined, null, false, 0, '', NaN, reference].forEach((value) => {
+    const existing = Object.freeze({ id: 'pair', ...Object.fromEntries(fields.map((key) => [key, value])) });
+    const synced = Object.freeze({ id: 'pair', ...Object.fromEntries(fields.map((key) => [key, 'incoming'])) });
+    const merged = mergeSyncedPair(existing, synced);
+    fields.forEach((key) => assert.strictEqual(merged[key], value === undefined ? 'incoming' : value));
+  });
+});
+
+assertTest('Google Photos pair merge spreads latest fields and uses only the five sync user exceptions', () => {
+  const existing = Object.freeze({ id: 'pair', title: 'old', retained: true, rating: 3,
+    isBroken: true, orientation: 'portrait', width: 10, height: 20 });
+  const synced = Object.freeze({ id: 'pair', title: undefined, rating: undefined,
+    isBroken: false, orientation: undefined, width: 30, height: null });
+  assert.deepStrictEqual(mergeSyncedPair(existing, synced), {
+    id: 'pair', title: undefined, retained: true, rating: 3,
+    isBroken: false, orientation: undefined, width: 30, height: null
+  });
+});
+
+assertTest('Google Photos pair merge promotes hidden and inherited user edits but not unrelated fields', () => {
+  const nested = Object.freeze({ shared: true });
+  const existing = Object.freeze(Object.defineProperties(Object.create({
+    rating: null, loved: false, inheritedOther: 'not copied'
+  }), { id: { value: 'pair', enumerable: true }, cropPercent: { value: nested },
+    hiddenOther: { value: 'not copied' } }));
+  const merged = mergeSyncedPair(existing, Object.freeze({ id: 'pair', rating: 8, loved: true }));
+  assert.deepStrictEqual(merged, { id: 'pair', rating: null, loved: false, cropPercent: nested });
+  assert.strictEqual(merged.cropPercent, nested);
+  assert.strictEqual(Object.getPrototypeOf(merged), Object.prototype);
+  ['rating', 'loved', 'cropPercent'].forEach((key) => assert.deepStrictEqual(
+    Object.getOwnPropertyDescriptor(merged, key),
+    { value: merged[key], enumerable: true, writable: true, configurable: true }
+  ));
+});
+
+assertTest('Google Photos pair merge preserves shallow aliases and leaves frozen inputs unchanged', () => {
+  const symbol = Symbol('metadata');
+  const oldNested = Object.freeze({ version: 1 });
+  const newNested = Object.freeze({ version: 2 });
+  const existing = Object.freeze({ id: 'pair', rating: oldNested, nested: oldNested, [symbol]: oldNested });
+  const synced = Object.freeze({ id: 'pair', rating: newNested, nested: newNested, [symbol]: newNested });
+  const merged = mergeSyncedPair(existing, synced);
+  assert.notStrictEqual(merged, existing);
+  assert.notStrictEqual(merged, synced);
+  assert.strictEqual(merged.rating, oldNested);
+  assert.strictEqual(merged.nested, newNested);
+  assert.strictEqual(merged[symbol], newNested);
+  assert.deepStrictEqual(existing, { id: 'pair', rating: oldNested, nested: oldNested, [symbol]: oldNested });
+  assert.deepStrictEqual(synced, { id: 'pair', rating: newNested, nested: newNested, [symbol]: newNested });
+});
+
+assertTest('Google Photos pair merge spreads both rows before ordered repeated user-field reads', () => {
+  const visits = [];
+  const fields = ['rating', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved'];
+  let ratingReads = 0;
+  const existing = Object.freeze(Object.defineProperties({ id: 'pair' }, {
+    probe: { enumerable: true, get: () => { visits.push('existing spread'); return 'old'; } },
+    ...Object.fromEntries(fields.map((field) => [field, { get: () => {
+      visits.push(field);
+      return field === 'rating' ? (++ratingReads === 1 ? 5 : undefined) : undefined;
+    } }]))
+  }));
+  const synced = Object.freeze({ id: 'pair', get probe() { visits.push('synced spread'); return 'new'; }, rating: 9 });
+  const merged = mergeSyncedPair(existing, synced);
+  assert.deepStrictEqual(visits, ['existing spread', 'synced spread', 'rating', ...fields]);
+  assert.strictEqual(merged.rating, undefined, 'assignment uses the second read without rechecking');
+  assert.strictEqual(merged.probe, 'new');
+});
+
+assertTest('Google Photos pair merge propagates exact spread and metadata failures without later reads', () => {
+  ['existing spread', 'synced spread', 'rating guard', 'rating value'].forEach((stage) => {
+    [undefined, null, false, 0, '', new Error(stage)].forEach((failure) => {
+      const visits = [];
+      const read = (label, value) => {
+        visits.push(label);
+        if (label === stage) throw failure;
+        return value;
+      };
+      let ratingReads = 0;
+      const existing = Object.freeze(Object.defineProperties({ id: 'pair' }, {
+        probe: { enumerable: true, get: () => read('existing spread', 'old') },
+        rating: { get: () => read(++ratingReads === 1 ? 'rating guard' : 'rating value', 5) },
+        cropPercent: { get: () => { throw new Error('later field must not be read'); } }
+      }));
+      const synced = Object.freeze({ id: 'pair', get probe() { return read('synced spread', 'new'); } });
+      let caught;
+      let returned = false;
+      try { mergeSyncedPair(existing, synced); returned = true; } catch (error) { caught = error; }
+      assert.strictEqual(returned, false);
+      assert.strictEqual(caught, failure);
+      const order = ['existing spread', 'synced spread', 'rating guard', 'rating value'];
+      assert.deepStrictEqual(visits, order.slice(0, order.indexOf(stage) + 1));
+    });
+  });
+});
+
+assertTest('Google Photos pair merge obeys associative idempotent metadata laws on ordinary records', () => {
+  const samples = [{}, { rating: undefined, title: 'first' }, { rating: null, loved: false },
+    { rating: 8, title: undefined, cropPercent: 0 }, { loved: true, title: 'last' }]
+    .map((metadata) => Object.freeze({ id: 'pair', ...metadata }));
+  const identity = Object.freeze({ id: 'pair' });
+  samples.forEach((left) => {
+    const repeated = mergeSyncedPair(left, left);
+    assert.deepStrictEqual(repeated, left);
+    assert.notStrictEqual(repeated, left);
+    assert.deepStrictEqual(mergeSyncedPair(identity, left), left);
+    assert.deepStrictEqual(mergeSyncedPair(left, identity), left);
+    samples.forEach((middle) => samples.forEach((right) => assert.deepStrictEqual(
+      mergeSyncedPair(mergeSyncedPair(left, middle), right),
+      mergeSyncedPair(left, mergeSyncedPair(middle, right))
+    )));
+  });
+  assert.notDeepStrictEqual(mergeSyncedPair(samples[2], samples[3]), mergeSyncedPair(samples[3], samples[2]));
+  const inherited = Object.freeze(Object.assign(Object.create({ rating: 4 }), { id: 'pair' }));
+  assert.notDeepStrictEqual(mergeSyncedPair(inherited, inherited), inherited, 'law excludes inherited records');
 });
 
 assertTest('Google Photos sync merge removes duplicate incoming and legacy cached rows', () => {

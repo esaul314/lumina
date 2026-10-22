@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-21: Specify Pure Synced Metadata Merge Contracts
+
+- **Contract**: refined `mergeSyncedItemWithExistingMetadata(...)` read-only
+  inputs, existing-then-synced shallow spreads, and five defined user-edit
+  exceptions. Other fields accept synced undefined values; inherited/hidden
+  user edits, repeated reads, symbols, and nested aliases remain compatible.
+- **Functional design**: retained the small pure data-first projection and
+  private result construction. Ordinary own-enumerable records obey
+  associativity, value-idempotence, and empty-metadata identity, but not
+  commutativity; inherited records and changing accessors are outside those
+  laws. No curried/algebraic wrapper, dependency, executable production change,
+  or export added. Cache effects, policy, and identity matching remain separate.
+- **Tests**: seven focused tests compose declarative cases through the existing
+  public union using one exact id. Frozen inputs, shallow aliases, hidden and
+  inherited fields, ordered accessors, generated triples, and exact thrown
+  values are covered. Failures stop later work without partial results or
+  caller-hook rollback. No new live cache, credential, network, or daemon access.
+- **Verification**: `npm test` passed: 688 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, whitespace, and
+  unchanged executable production AST checks passed. Optional socket smoke was
+  sandbox-skipped (`listen EPERM`). No client build or service restart needed.
+- **Next**: refine `mergeSyncedMediaItems(...)` read-only collections, stable
+  union ordering, duplicate precedence, exact-id matching, aliases, and native
+  failures without changing behavior or exports.
+
 ### 2026-10-21: Specify Pure Cache Deduplication Contracts
 
 - **Contract**: refined `dedupeMediaItemsById(...)` read-only generic inputs,
