@@ -279,14 +279,42 @@ function extractLegacyBaseUrl(url) {
 }
 
 /**
- * Build a durable cache row from a Picker item while retaining user-owned
- * metadata and the original acquisition time on refresh.
+ * Build a durable cache row from read-only Picker and existing metadata.
  *
- * @param {GooglePhotoMediaItem & {id: string}} item
+ * Project Picker dimensions first (cached dimensions are ignored), then a
+ * trimmed Picker base, truthy cached base verbatim, or legacy URL head.
+ * Creation time selects a truthy Picker value, cached value, or '' before
+ * String/trim; whitespace therefore suppresses the cached date. Existing
+ * truthy addedAt survives verbatim, even if invalid; otherwise convert addedAt
+ * with new Date(...).toISOString(). Omitted/undefined addedAt reads Date.now()
+ * before the body, even if the existing timestamp wins or later work fails.
+ *
+ * Return a fresh fixed-field row, not a spread of either input. Id is read
+ * separately for the output and proxy encoding; the proxy uses default render
+ * dimensions. Session uses truthy supplied/cached precedence. A truthy resolved
+ * base reads Date.now() again for fetched-at; otherwise retain the cached value.
+ * MIME selects the trimmed Picker hint, truthy cached hint verbatim, or JPEG.
+ * Rating defaults only on undefined; crop, pairing, and loved values come only
+ * from existing metadata, without normalization. Creation time is omitted when
+ * empty; other named fields remain present even when undefined. Unknown fields
+ * and symbols are not copied. Inherited/hidden named fields are still read,
+ * and a defined existing rating is read twice. Nested retained values alias
+ * the original metadata; ordinary read-only inputs stay unchanged.
+ *
+ * Keep the data-first interface and pure helper composition; this builder is
+ * clock-dependent, not a pure endomorphism or an idempotent normalization.
+ * Clock injection/refactoring and validation are separate changes. There is no
+ * cache I/O here. Read/coercion/date/encoding/clock failures propagate unchanged,
+ * stop later work, and return no partial row. Prior caller-hook effects survive.
+ * An invalid new acquisition date throws RangeError, but a truthy cached date
+ * bypasses conversion. No recovery or metadata rollback is attempted.
+ *
+ * @param {Readonly<GooglePhotoMediaItem & {id: string}>} item
  * @param {string} sessionId
- * @param {GooglePhotoMediaItem} [existing={}]
+ * @param {Readonly<GooglePhotoMediaItem>} [existing={}] Undefined alone defaults.
  * @param {Date | string | number} [addedAt=Date.now()]
- * @returns {GooglePhotoMediaItem & {id: string; url: string; source: string}}
+ * @returns {GooglePhotoMediaItem & {id: string; url: string; source: string}} Fresh shallow row.
+ * @throws {unknown} Native read, coercion, date, URI-encoding, or clock failure.
  */
 function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now()) {
   const { width, height } = getPickerItemDimensions(item);

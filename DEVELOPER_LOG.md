@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-22: Specify Picker Cache-Row Construction Contracts
+
+- **Contract**: refined `buildCachedMediaItem(...)` read-only inputs, fixed-field
+  output, distinct base/date/MIME/session fallbacks, acquisition/base clock
+  ordering, retained metadata aliases, repeated reads, and exact native failures.
+  Truthy existing acquisition dates survive verbatim; missing Picker dimensions
+  reset cached dimensions. These compatibility policies were not changed.
+- **Functional design**: retained the data-first interface and pure helper
+  composition. The builder reads the clock, so neither purity nor global
+  idempotence applies. Fixed-clock refresh stability has explicit preconditions.
+  No wrapper, dependency, executable production change, or export added;
+  validation/clock injection remain separate work and cache I/O stays in callers.
+- **Tests**: eight focused tests use declarative tables, frozen records, shallow
+  alias checks, ordered accessors, and exact thrown values. A local VM clock
+  evaluates the real cache module without patching global Date or adding live
+  cache, credential, network, or daemon access. Failures stop later work without
+  returning partial rows or rolling back prior caller-hook effects.
+- **Verification**: `npm test` passed: 704 tests executed, zero failures, and
+  13/13 sensor regressions. Lint, touched JavaScript syntax, whitespace, and
+  unchanged executable production AST checks passed. Optional socket smoke was
+  sandbox-skipped (`listen EPERM`). No client build or service restart needed.
+- **Next**: refine `getPickerMediaFile(...)` read-only inputs, nested/flat
+  selection, aliases, repeated accessor reads, and native failure contracts
+  without changing behavior or exports.
+
 ### 2026-10-21: Specify Pure Picker Union Contracts
 
 - **Contract**: refined `mergeSyncedMediaItems(...)` read-only collections,

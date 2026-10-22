@@ -984,6 +984,10 @@ assertTest('Google Photos cache projections expose checked contracts while servi
   assert.match(cacheSource, /@param \{Readonly<GooglePhotoMediaItem>\} synced/);
   assert.match(cacheSource, /associative and value-idempotent, not reference-idempotent or commutative/);
   assert.match(cacheSource, /@throws \{unknown\} Native spread or user-metadata property-read failure/);
+  assert.match(cacheSource, /@param \{Readonly<GooglePhotoMediaItem & \{id: string\}>\} item/);
+  assert.match(cacheSource, /@param \{Readonly<GooglePhotoMediaItem>\} \[existing=\{\}\]/);
+  assert.match(cacheSource, /clock-dependent, not a pure endomorphism or an idempotent normalization/);
+  assert.match(cacheSource, /@throws \{unknown\} Native read, coercion, date, URI-encoding, or clock failure/);
   assert.match(cacheSource, /@param \{Readonly<CachedGooglePhotoRows> \| null \| undefined\} items/);
   assert.match(cacheSource, /@returns \{CachedGooglePhotoMetadataMerge\}/);
   assert.match(cacheSource, /updatedItem aliases the last matching\s+\* output row/);
@@ -5671,6 +5675,161 @@ assertTest('buildCachedMediaItem extracts nested mediaFile data and emits a loca
   assert.strictEqual(refreshed.createTime, createTime, 'an omitted refresh timestamp should retain the cached creation time');
   assert.strictEqual(normalizeCachedMediaItem(refreshed).createTime, createTime, 'cache normalization should preserve the creation time');
   assert.strictEqual(item.mimeType, 'image/jpeg');
+});
+
+// Evaluate the real cache module with a local clock, never patching global Date.
+const createGooglePhotosCacheFixture = (now = () => 0) => {
+  const module = { exports: {} };
+  runInNewContext(fs.readFileSync(require.resolve('./server/services/googlePhotosCache.js'), 'utf8'), {
+    module, URLSearchParams, Date: class extends Date { static now() { return now(); } }
+  }, { filename: 'googlePhotosCache.js' });
+  return module.exports;
+};
+
+assertTest('Picker cache construction projects a fixed fresh shape without spreading inputs', () => {
+  const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture(() => { throw new Error('Unexpected clock'); });
+  const item = Object.freeze({ id: 'new', title: 'ignored', rating: 1, width: 80,
+    get ignored() { throw new Error('Unexpected enumeration'); }, [Symbol('hidden')]: true });
+  const row = build(item, 'session', Object.freeze({ width: 90, orientation: 'portrait', isBroken: true }), 0);
+  assert.deepStrictEqual({ ...row }, {
+    id: 'new', title: 'Google Photos Picker Cast', author: 'Lumina Google Cast', source: 'google_photos',
+    url: '/api/google-photos/media/new?w=2560&h=1440', googleBaseUrl: '',
+    googlePickerSessionId: 'session', googleBaseUrlFetchedAt: undefined, addedAt: '1970-01-01T00:00:00.000Z',
+    mimeType: 'image/jpeg', width: 2560, height: 1440, rating: 10,
+    cropPercent: undefined, cropPositionY: undefined, preventPairing: undefined, loved: undefined
+  });
+  assert.notStrictEqual(row, item);
+  assert.notStrictEqual(row, build(item, 'session', {}, 0));
+});
+
+assertTest('Picker cache construction preserves distinct date base MIME and session fallback policies', () => {
+  const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture(() => 42);
+  [
+    { input: undefined, base: ' cached ', date: 'cached-date', mime: ' cached/type ', session: 'cached-session' },
+    { input: '', base: ' cached ', date: 'cached-date', mime: ' cached/type ', session: 'cached-session' },
+    { input: '   ', base: ' cached ', date: undefined, mime: ' cached/type ', session: '   ' },
+    { input: ' fresh ', base: 'fresh', date: 'fresh', mime: 'fresh', session: ' fresh ' }
+  ].forEach(({ input, base, date, mime, session }) => {
+    const row = build(Object.freeze({ id: 'fallback', createTime: input,
+      mediaFile: Object.freeze({ baseUrl: input, mimeType: input }) }), input,
+    Object.freeze({ googleBaseUrl: ' cached ', createTime: ' cached-date ', mimeType: ' cached/type ',
+      googlePickerSessionId: 'cached-session' }), 0);
+    assert.deepStrictEqual([row.googleBaseUrl, row.createTime, row.mimeType, row.googlePickerSessionId], [base, date, mime, session]);
+    assert.strictEqual(Object.hasOwn(row, 'createTime'), date !== undefined);
+  });
+  assert.strictEqual(build({ id: 'legacy' }, '', { url: ' legacy =w800', googleBaseUrl: '' }, 0).googleBaseUrl, 'legacy ');
+  const base = Object.freeze({ opaque: true });
+  assert.strictEqual(build({ id: 'opaque' }, '', { googleBaseUrl: base }, 0).googleBaseUrl, base);
+});
+
+assertTest('Picker cache acquisition dates use truthy preservation and native conversion only when needed', () => {
+  const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture();
+  ['invalid-but-retained', ' ', true, 7, Object.freeze({ opaque: true })].forEach(addedAt => {
+    assert.strictEqual(build({ id: 'date' }, '', { addedAt }, 'invalid').addedAt, addedAt);
+  });
+  [undefined, null, false, 0, '', NaN].forEach(addedAt => {
+    assert.strictEqual(build({ id: 'date' }, '', { addedAt }, 0).addedAt, '1970-01-01T00:00:00.000Z');
+  });
+  [0, null, new Date(0), '1970-01-01T00:00:00Z'].forEach(addedAt => {
+    assert.strictEqual(build({ id: 'date' }, '', {}, addedAt).addedAt, '1970-01-01T00:00:00.000Z');
+  });
+  ['invalid', NaN, Infinity].forEach(addedAt => assert.throws(() => build({ id: 'date' }, '', {}, addedAt), RangeError));
+  assert.throws(() => build({ id: 'date' }, '', {}, Symbol('date')), TypeError);
+  [null, undefined].forEach(item => assert.throws(() => build(item, '', {}, 0), error => error.name === 'TypeError'));
+  assert.throws(() => build({ id: 'date' }, '', null, 0), error => error.name === 'TypeError');
+});
+
+assertTest('Picker cache construction keeps acquisition and base clocks separate with undefined-only defaults', () => {
+  [false, true].forEach(hasBase => [false, true].forEach(hasExistingDate => [false, true].forEach(explicit => {
+    const calls = [];
+    const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture(() => { calls.push(calls.length + 1); return calls.length * 1000; });
+    const existing = { addedAt: hasExistingDate ? 'retained' : '', googleBaseUrlFetchedAt: 9 };
+    const row = build({ id: 'clock', baseUrl: hasBase ? 'base' : '' }, '', existing, explicit ? 0 : undefined);
+    assert.strictEqual(calls.length, Number(!explicit) + Number(hasBase));
+    assert.strictEqual(row.addedAt, hasExistingDate ? 'retained' : new Date(explicit ? 0 : 1000).toISOString());
+    assert.strictEqual(row.googleBaseUrlFetchedAt, hasBase ? (explicit ? 1000 : 2000) : 9);
+  })));
+});
+
+assertTest('Picker cache construction retains shallow user metadata without merging arbitrary fields', () => {
+  const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture();
+  [undefined, null, false, 0, '', NaN, Object.freeze({ nested: true })].forEach(value => {
+    const existing = Object.freeze(Object.assign(Object.create({ rating: value }), {
+      cropPercent: value, cropPositionY: value, preventPairing: value, loved: value, addedAt: 'retained'
+    }));
+    const row = build(Object.freeze({ id: 'edits', rating: 7, loved: true }), '', existing, 0);
+    assert.strictEqual(row.rating, value === undefined ? 10 : value);
+    ['cropPercent', 'cropPositionY', 'preventPairing', 'loved'].forEach(field => assert.strictEqual(row[field], value));
+    assert.strictEqual(existing.loved, value);
+  });
+});
+
+assertTest('Picker cache construction preserves named read order and repeated id and rating reads', () => {
+  const visits = [];
+  const read = (name, value) => { visits.push(name); return value; };
+  const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture(() => read('clock', 1000));
+  let ids = 0;
+  let ratings = 0;
+  const item = Object.freeze({ get id() { return read('id', ++ids === 1 ? 'stored' : 'encoded'); },
+    get createTime() { return read('createTime', ' date '); }, mediaFile: Object.freeze({
+      get baseUrl() { return read('base', 'base'); }, get mimeType() { return read('mime', 'image/png'); },
+      mediaFileMetadata: Object.freeze({ get width() { return read('width', '80'); }, get height() { return read('height', '60'); } })
+    }) });
+  const existing = Object.freeze(Object.defineProperties({}, Object.fromEntries([
+    ['addedAt', ''], ['googlePickerSessionId', 'cached-session'], ['rating', 1],
+    ['cropPercent', 2], ['cropPositionY', 3], ['preventPairing', false], ['loved', true]
+  ].map(([key, value]) => [key, { get: () => read(key, key === 'rating' ? ++ratings : value) }]))));
+  const row = build(item, '', existing);
+  assert.deepStrictEqual(visits, ['clock', 'width', 'height', 'base', 'createTime', 'addedAt', 'id', 'id',
+    'googlePickerSessionId', 'clock', 'mime', 'rating', 'rating', 'cropPercent', 'cropPositionY', 'preventPairing', 'loved']);
+  assert.strictEqual(row.id, 'stored');
+  assert.strictEqual(row.url, '/api/google-photos/media/encoded?w=2560&h=1440');
+  assert.strictEqual(row.rating, 2);
+  assert.deepStrictEqual([row.width, row.height], [80, 60]);
+});
+
+assertTest('Picker cache construction propagates exact hook failures without partial rows or later work', () => {
+  const scenarios = [
+    (fail, later) => ({ now: fail, item: later, existing: {}, addedAt: undefined }),
+    (fail, later) => ({ item: { id: 'failure', mediaFile: { mediaFileMetadata: { get width() { return fail(); } } } }, existing: later }),
+    (fail, later) => ({ item: { id: 'failure', get baseUrl() { return fail(); } }, existing: later }),
+    (fail, later) => ({ item: { id: 'failure', createTime: { [Symbol.toPrimitive]: fail } }, existing: later }),
+    (fail, later) => ({ item: { id: 'failure' }, existing: later, addedAt: { [Symbol.toPrimitive]: fail } }),
+    (fail, later) => ({ item: { get id() { return fail(); } }, existing: later }),
+    (fail, later) => ({ now: fail, item: { id: 'failure', baseUrl: 'base' }, existing: later }),
+    (fail, later) => ({ item: { id: 'failure', get mimeType() { return fail(); } }, existing: later }),
+    (fail, later) => ({ item: { id: 'failure' }, existing: { ...later, get rating() { return fail(); },
+      get loved() { throw new Error('Unexpected later read'); } } })
+  ];
+  scenarios.forEach(scenario => [undefined, null, false, 0, '', new Error('hook')].forEach(error => {
+    const visits = [];
+    const fail = () => { visits.push('failed'); throw error; };
+    const later = Object.defineProperty({}, 'loved', { get() { throw new Error('Unexpected later read'); } });
+    const spec = scenario(fail, later);
+    const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture(spec.now);
+    let returned = false;
+    let caught = false;
+    try { build(spec.item, '', spec.existing, Object.hasOwn(spec, 'addedAt') ? spec.addedAt : 0); returned = true; }
+    catch (actual) { caught = true; assert.strictEqual(actual, error); }
+    assert.ok(caught);
+    assert.strictEqual(returned, false);
+    assert.deepStrictEqual(visits, ['failed'], 'prior hook observation survives, later work does not run');
+  }));
+  const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture();
+  ['\uD800', Symbol('id')].forEach(id => assert.throws(() => build({ id }, '', {}, 0), error => ['URIError', 'TypeError'].includes(error.name)));
+});
+
+assertTest('Picker cache construction is stable only under a fixed clock and complete refresh inputs', () => {
+  const { buildCachedMediaItem: build } = createGooglePhotosCacheFixture(() => 42);
+  const item = Object.freeze({ id: 'stable', baseUrl: 'base', mediaFileMetadata: Object.freeze({ width: 80, height: 60 }) });
+  const first = build(item, 'session', Object.freeze({ rating: 3, loved: false }), 0);
+  const second = build(item, 'session', Object.freeze(first), 'invalid-but-bypassed');
+  assert.deepStrictEqual(second, first);
+  assert.notStrictEqual(second, first);
+  let tick = 0;
+  const { buildCachedMediaItem: ticking } = createGooglePhotosCacheFixture(() => ++tick);
+  assert.notDeepStrictEqual(ticking(item, 'session', first, 0), first, 'base timestamp defeats global idempotence');
+  assert.strictEqual(build({ id: 'stable' }, 'session', first, 0).width, 2560, 'missing Picker dimensions reset cached dimensions');
 });
 
 const pickerBaseUrlFromCacheRow = (item, existing = {}) => buildCachedMediaItem(item, 'base-session', existing, 0).googleBaseUrl;
