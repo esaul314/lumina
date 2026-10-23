@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 
 ## Implementation Companion
 
@@ -14,6 +14,7 @@ For the code-shaping program that supports this roadmap, see [FUNCTIONAL_REFACTO
 
 Phase 1 is in progress. The current checkpoint is:
 
+- Playback correction (2026-10-23): rotation restarts when a different primary image mounts, giving it the full configured interval. Metadata, crops, secondary images, and layout updates keep the countdown. Broken-image recovery sends one report and lets the server select the replacement; deterministic fixture-browser regressions cover timing and recovery without using live pools.
 - Done: Step 1. Remote photo-control mutations are REST-first by default.
 - Done: Step 2. Remote durable state/settings mutations are REST-first by default.
 - Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.

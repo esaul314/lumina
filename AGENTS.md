@@ -18,6 +18,7 @@ Welcome, fellow AI agent or human developer! This document is designed to give y
 Lumina utilizes a decoupled client-server architecture. The durable control surface is moving toward REST-first APIs, while Socket.IO remains the live-sync and low-latency event channel.
 
 Current migration checkpoint:
+- Slideshow rotation starts after the first primary image mounts and restarts only when a different primary URL is displayed or the configured interval changes. Metadata, crop, title, secondary-only, and layout updates retain the countdown; loading/retries keep the previous slide's timer until replacement. Report a confirmed broken image once: the server owns recovery selection, so never append a client `next-photo` command. Run `npm run test:slideshow` for deterministic built-client timing/recovery coverage with isolated local images and production command handling. `LUMINA_CHROMIUM_PATH` can override the host Chromium executable.
 - Phase 1 Step 1 complete: remote photo-control mutations are REST-first by default.
 - Phase 1 Step 2 complete: remote durable state/settings mutations are REST-first by default.
 - Phase 1 Step 3 complete: category selection, pool lifecycle, and feed-configuration mutations now use REST by default in operator UIs, with Socket.IO retained as the live sync/event transport.

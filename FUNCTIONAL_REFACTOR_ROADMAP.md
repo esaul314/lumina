@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 
 ## Purpose
 
@@ -18,6 +18,7 @@ The target end state is:
 
 Current checkpoint:
 
+- Playback correction (2026-10-23): the displayed primary URL is a pure projection of bounded slide state and the sole image identity in the rotation effect's dependencies. Timer setup/cleanup remains in React; retry decisions stay in the existing pure data-first media policy. The server owns replacement selection after a broken-image report. No curried or algebraic wrapper is needed for this scalar selector and effect boundary. The Step 6 coverage-audit checkpoint remains unchanged.
 - Manual recrawl and manual vision-analysis now run through shared `trigger-* -> start-*-job` effect paths, with REST owning job submission and Socket.IO reduced to live status pushes plus backward-compatible shims.
 - Step 1 is now complete: `server/sockets.js` is a transport adapter over shared command listeners, shared patch-state decoders, and explicit async/telemetry listener helpers.
 - Optional mixed-version fallback business logic no longer lives inline in `server/sockets.js`; it now sits in `server/socketLegacyCompatibility.js` and is only used when a shared dispatcher is unavailable.

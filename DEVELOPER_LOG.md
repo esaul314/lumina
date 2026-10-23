@@ -6,6 +6,36 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-23: Give Visible Primaries a Full Interval and Recover Once
+
+- **Causes**: the TV's mount-relative interval could replace a newly displayed
+  image just before its next tick. Primary-load failure also sent both
+  `mark-photo-broken` and `next-photo`, although the server already selects a
+  replacement when marking the active photo broken.
+- **Correction**: derive the displayed primary URL from the bounded slide list
+  and use that scalar identity in the rotation effect. Start after the first
+  image mounts; reset for a different displayed primary or interval change.
+  Metadata, crop, title, secondary, and layout changes retain the countdown.
+  Loading and offline holds retain the previous slide's existing timer.
+  Recovery now sends only the broken-image report.
+- **Functional design**: retain pure data-first retry decisions and an inline
+  pure displayed-image projection; timers, native loading, and transport remain
+  explicit effects. A new curried or Fantasy Land wrapper would add no useful
+  law or reuse here. Public events and server selection rules are unchanged.
+- **Coverage**: `npm run test:slideshow` builds the actual client and tests it
+  against local SVGs and an isolated server using production command decoders
+  and dispatcher. A controlled clock covers display deadlines, slow loads,
+  metadata/layout updates, interval changes, unmount cleanup, primary/secondary
+  failure, stale-loader cancellation, offline holds, and single-image pools.
+  Pure reducer tests verify one recovery transition, repeated-report no-ops,
+  input immutability, and healthy-primary preservation.
+- **Verification**: all 743 core assertions (including live endpoint smoke
+  tests), 13 sensor regressions, and 11 browser scenarios pass. Lint, client
+  build, applicable syntax checks, and whitespace checks pass. The served
+  JavaScript matches the rebuilt bundle byte-for-byte. The kiosk had exited
+  normally, so its next launch loads the new client; daemon runtime and the
+  existing selected pools remain unchanged.
+
 ### 2026-10-22: Specify Picker File-Selection Contracts
 
 - **Contract**: refined `getPickerMediaFile(...)` read-only inputs, whole

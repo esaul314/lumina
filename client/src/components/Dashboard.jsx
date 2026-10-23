@@ -84,6 +84,7 @@ function Dashboard({ state, socket, connectionInfo }) {
   const currentFrame = getCurrentFrame(state);
   const primaryPhoto = getFramePhoto(state, 'primary');
   const secondaryPhoto = getFramePhoto(state, 'secondary');
+  const displayedPrimaryUrl = activeSlides.find(slide => slide.active)?.url;
   const clockParts = formatClockParts(currentTime);
 
   useEffect(() => {
@@ -182,18 +183,21 @@ function Dashboard({ state, socket, connectionInfo }) {
     fetchPhotos(state.currentCategory);
   }, [state.currentCategory, primaryPhoto?.url]);
 
-  // Slideshow auto-rotation based on global slideshowInterval (dynamic cycle timing)
+  // Each newly displayed primary gets a full interval, independent of load time.
+  // Scalar dependencies keep metadata and secondary-only updates from resetting it.
   useEffect(() => {
+    if (!displayedPrimaryUrl) return;
+
     const intervalMs = state.slideshowInterval || 120000; // Default 2 minutes
     const rotateInterval = setInterval(() => {
       socket.emit('next-photo');
     }, intervalMs);
     return () => clearInterval(rotateInterval);
-  }, [state.slideshowInterval, socket]);
+  }, [displayedPrimaryUrl, state.slideshowInterval, socket]);
 
   // Memory optimization: Dynamically keep at most TWO slides in the DOM at any given time.
   // One is the currently active slide, and one is the previous slide transitioning out.
-  // This drops Chromium's memory footprint from >1.5GB down to <80MB, preventing GPU out-of-memory locks.
+  // This bounds mounted slide elements; decoded-image and total browser memory need separate measurement.
   useEffect(() => {
     if (!primaryPhoto) return;
 
@@ -417,8 +421,8 @@ function Dashboard({ state, socket, connectionInfo }) {
         }
 
         console.log('Reporting confirmed broken link to server:', primaryPhoto.url);
+        // The server marks the photo and selects its replacement in one command.
         socket.emit('mark-photo-broken', { url: primaryPhoto.url });
-        socket.emit('next-photo');
         consecutiveFailuresRef.current += 1;
         return;
       }

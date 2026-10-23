@@ -998,6 +998,34 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
   });
 
+  assertTest('broken-photo recovery selects once and repeated reports cannot skip the healthy replacement', () => {
+    const original = createState();
+    const command = { type: 'mark-photo-broken', payload: { url: 'port-1' } };
+    const env = { now: new Date('2026-06-27T02:00:00'), rng: () => 0.1 };
+    const recovered = reduceDomainCommand(original, command, env);
+    const repeated = reduceDomainCommand(recovered.nextState, command, env);
+
+    assert.strictEqual(recovered.nextState.playback.activePhotoUrl, 'port-2');
+    assert.strictEqual(recovered.events.filter(event => event.type === 'photo-update').length, 1);
+    assert.strictEqual(repeated.nextState, recovered.nextState);
+    assert.deepStrictEqual(repeated.events, []);
+    assert.deepStrictEqual(repeated.effects, []);
+    assert.strictEqual(original.playback.activePhotoUrl, 'port-1');
+    assert.strictEqual(original.library.collections['Liminal Spaces'][0].isBroken, undefined);
+  });
+
+  assertTest('a broken secondary is removed without advancing the healthy primary', () => {
+    const original = createState();
+    const result = reduceDomainCommand(original, {
+      type: 'mark-photo-broken', payload: { url: 'port-2' }
+    }, { now: new Date('2026-06-27T02:00:00'), rng: () => 0.1 });
+
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-1');
+    assert.strictEqual(result.nextState.library.photosList.some(photo => photo.url === 'port-2'), false);
+    assert.deepStrictEqual(result.events.map(event => event.type), ['state-sync']);
+    assert.strictEqual(original.library.photosList.length, 2);
+  });
+
   assertTest('sequence advance walks the balanced multi-feed order and prev reverses it', () => {
     const state = createState({
       library: {
