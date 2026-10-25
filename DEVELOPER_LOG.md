@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-25: Document Reducer Execution and Dispatch Results
+
+- **Contracts**: named shared `ReducerEnvironment` (`now` is a Date value,
+  `rng` a callable) and documented public reducer results plus shell-owned
+  `EffectResult`/`DispatchResult`. Optional null/falsy fields retain native
+  truthy defaults; no validation, executable production change, or export added.
+- **Functional boundary**: retained the data-first state projection and existing
+  partially applied sequential interpreter. Stable execution inputs enable
+  replay; ambient clock/random defaults are not pure. Result envelopes are not
+  a combining Monoid or atomic transaction, so no algebraic wrapper was added.
+- **Tests**: seven regressions cover time-sensitive replay, unchanged inputs,
+  fresh no-op arrays/state identity, eager independent default reads, exact
+  failures, missing-command short-circuiting, environment forwarding, and
+  pre-effect snapshots with ordered awaited result aliases. VM-local clock/RNG
+  adapters avoid patching process globals; dispatch fixtures stay isolated.
+- **Verification**: `npm test` passed: 730 tests executed, 729 passed assertions,
+  zero failures, and 13/13 sensor regressions. Optional endpoint smoke was
+  sandbox-skipped (`listen EPERM`). Lint, touched JavaScript syntax, whitespace,
+  and unchanged production AST/export checks passed.
+- **Next**: annotate exported domain selector inputs/results, then command/effect
+  payload variants and dispatcher dependencies; repeat the acceptance audit.
+  Step 6 and product Phase 1 remain incomplete. No compiler gate, client build,
+  or runtime restart is claimed for this contract-only slice.
+
 ### 2026-10-25: Audit Step 6 Core Contracts and Repair Effect Vocabulary
 
 - **Audit**: checked command, environment, effect, and selector boundaries

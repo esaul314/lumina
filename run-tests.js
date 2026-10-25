@@ -9998,6 +9998,67 @@ runDomainTests({ logSuite, assertTest });
 
 logSuite('Domain Dispatch');
 
+assertTest('reducer and dispatcher share named execution and result contracts', () => {
+  const source = (file) => fs.readFileSync(path.join(__dirname, 'server/domain', file), 'utf8');
+  const types = source('types.js');
+  const reducer = source('reducer.js');
+  const dispatch = source('dispatch.js');
+  assert.match(types, /@typedef \{object\} ReducerEnvironment/);
+  assert.match(types, /@property \{Date \| null\} \[now\]/);
+  assert.match(types, /@property \{\(\(\) => number\) \| null\} \[rng\]/);
+  [reducer, dispatch].forEach((text) => assert.match(text, /@param \{ReducerEnvironment\} \[env=\{\}\]/));
+  assert.match(reducer, /@returns \{ReducerResult\}/);
+  assert.match(dispatch, /@typedef \{\{ effect: Effect, value: unknown \}\} EffectResult/);
+  assert.match(dispatch, /@returns \{Promise<DispatchResult \| null>\}/);
+});
+
+assertAsyncTest('dispatch missing-command identity skips runtime and environment reads', async () => {
+  const { dispatcher, state, collections, ioEmits } = createDispatcherHarness({
+    getRuntimeContext: () => assert.fail('Unexpected runtime read')
+  });
+  const before = JSON.stringify({ state, collections });
+  const env = {
+    get now() { return assert.fail('Unexpected clock read'); },
+    get rng() { return assert.fail('Unexpected RNG read'); }
+  };
+  assert.strictEqual(await dispatcher.dispatchCommand(null, env), null);
+  assert.strictEqual(await dispatcher.dispatchCommand(undefined, env), null);
+  assert.strictEqual(JSON.stringify({ state, collections }), before);
+  assert.deepStrictEqual(ioEmits, []);
+});
+
+assertAsyncTest('dispatch forwards execution inputs and returns the applied pre-effect snapshot', async () => {
+  const reads = [];
+  const now = new Date('2026-10-25T12:00:00');
+  const rng = () => { reads.push('draw'); return 0; };
+  const env = Object.freeze({
+    get now() { reads.push('now'); return now; },
+    get rng() { reads.push('rng'); return rng; }
+  });
+  const { dispatcher, state, ioEmits } = createDispatcherHarness({
+    refreshActiveFeed: async () => {
+      assert.strictEqual(state.poolPolicies['Scenic Nature'].maxPhotos, 500);
+      assert.deepStrictEqual(ioEmits, []);
+      state.theme = 'effect-only';
+      return 'stored';
+    }
+  });
+  const result = await dispatcher.dispatchCommand({
+    type: 'set-pool-policy', payload: { name: 'Scenic Nature', policy: { maxPhotos: 500 } }
+  }, env);
+  assert.deepStrictEqual(Object.keys(result), ['reducerResult', 'snapshot', 'effectResults']);
+  assert.strictEqual(result.snapshot.config, result.reducerResult.nextState.config);
+  assert.strictEqual(result.snapshot.theme, 'Zen Retreat');
+  assert.strictEqual(state.theme, 'effect-only');
+  assert.deepStrictEqual(reads, ['now', 'rng']);
+  assert.deepStrictEqual(result.effectResults.map(({ value }) => value), [undefined, 'stored']);
+  result.effectResults.forEach(({ effect }, index) => assert.strictEqual(effect, result.reducerResult.effects[index]));
+  assert.deepStrictEqual(ioEmits.map(([event]) => event), result.reducerResult.events.map(({ type }) => type));
+  const selected = await dispatcher.dispatchCommand({ type: 'advance-photo', payload: { strategy: 'smart' } }, env);
+  assert.strictEqual(selected.reducerResult.nextState.playback.activePhotoUrl, 'land-2');
+  assert.deepStrictEqual(reads, ['now', 'rng', 'now', 'rng', 'draw']);
+});
+
 assertAsyncTest('createDomainDispatcher routes photo-update events and state-sync broadcasts through the shared handler table', async () => {
   const { dispatcher, ioEmits, state } = createDispatcherHarness();
   const result = await dispatcher.dispatchCommand({

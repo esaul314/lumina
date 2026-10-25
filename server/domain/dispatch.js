@@ -11,6 +11,22 @@ const { createClosedInterpreter } = require('../utils/fn.js');
 /** @typedef {import('./types').Effect} Effect */
 /** @typedef {import('./types').Event} Event */
 /** @typedef {import('./types').ReducerResult} ReducerResult */
+/** @typedef {import('./types').ReducerEnvironment} ReducerEnvironment */
+/** @typedef {import('./snapshot').Snapshot} Snapshot */
+
+/**
+ * Completed sequential handler result. Effect identity is retained and value is
+ * the awaited, unvalidated adapter result (including undefined for no handler).
+ *
+ * @typedef {{ effect: Effect, value: unknown }} EffectResult
+ */
+
+/**
+ * Snapshot captured before effects; callbacks and state-sync may subsequently
+ * change the live shell. Results stay aligned with reducer effects, not cloned.
+ *
+ * @typedef {{ reducerResult: ReducerResult, snapshot: Snapshot, effectResults: EffectResult[] }} DispatchResult
+ */
 
 const callIfFunction = (handler, ...args) => (
   typeof handler === 'function'
@@ -181,6 +197,11 @@ function createDomainDispatcher({
     io.emit('state-sync', state);
   }
 
+  /**
+   * @param {Command} command
+   * @param {ReducerEnvironment} [env={}]
+   * @returns {ReducerResult}
+   */
   const reduceCommand = (command, env = {}) => reduceDomainCommand(
     buildDomainState(state, collections, getRuntimeContext()),
     command,
@@ -211,8 +232,15 @@ function createDomainDispatcher({
   const emitEvents = createEventEmitter(eventHandlers);
 
   /**
+   * Reduce -> apply snapshot -> await effects in order -> emit events.
+   * A missing command resolves null before reading runtime/environment inputs.
+   * Rejections propagate; applied state and completed effects are not rolled back,
+   * and pending events are not emitted after an effect failure.
+   *
    * @param {Command | null | undefined} command
-   * @param {Record<string, unknown>} [env]
+   * @param {ReducerEnvironment} [env={}]
+   * @returns {Promise<DispatchResult | null>}
+   * @throws {unknown} Reduction, snapshot, effect, or event failures reject the promise.
    */
   async function dispatchCommand(command, env = {}) {
     if (!command) {

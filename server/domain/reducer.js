@@ -6,6 +6,7 @@
  * @typedef {import('./types').Effect} Effect
  * @typedef {import('./types').Event} Event
  * @typedef {import('./types').Photo} Photo
+ * @typedef {import('./types').ReducerEnvironment} ReducerEnvironment
  * @typedef {import('./types').ReducerResult} ReducerResult
  */
 
@@ -1261,6 +1262,19 @@ const createReducerFamilyInterpreter = (families) => {
 
 const interpretCommandFamilies = createReducerFamilyInterpreter(REDUCER_FAMILY_SPECS);
 
+/**
+ * Data-first state projection with ordered event/effect descriptions only.
+ * Reads `now` then `rng` before command lookup, using truthy fallbacks even for
+ * unknown/null commands. No-op state identity is preserved; inputs are not mutated.
+ * Clock/random defaults and injected callback failures remain observable here;
+ * supplying stable execution inputs makes the domain transition replayable.
+ *
+ * @param {DomainState} state
+ * @param {Command | null | undefined} command
+ * @param {ReducerEnvironment} [env={}]
+ * @returns {ReducerResult}
+ * @throws {unknown} Input access or selection failures propagate without interception.
+ */
 function reduceDomainCommand(state, command, env = {}) {
   const now = env.now || new Date();
   const rng = env.rng || Math.random;

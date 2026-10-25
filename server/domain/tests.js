@@ -4,6 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { runInNewContext } = require('vm');
 const {
   SOCKET_ASYNC_JOB_COMMAND_SPECS,
   SOCKET_COMMAND_LISTENER_SPECS,
@@ -438,6 +439,96 @@ function runDomainTests({ logSuite, assertTest }) {
 
     assert.strictEqual(result.nextState.playback.activePhotoUrl, 'port-2');
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
+  });
+
+  assertTest('reducer execution inputs replay time-filtered selection without mutating inputs', () => {
+    const state = Object.freeze(createState({
+      library: {
+        photosList: [
+          { url: 'morning', category: 'Liminal Spaces', timeRanges: [{ start: '06:00', end: '11:59' }] },
+          { url: 'afternoon', category: 'Liminal Spaces', timeRanges: [{ start: '12:00', end: '17:59' }] }
+        ]
+      },
+      playback: { activePhotoUrl: null }
+    }));
+    const command = Object.freeze({ type: 'advance-photo', payload: Object.freeze({ strategy: 'smart' }) });
+    const before = JSON.stringify(state);
+
+    [['09:00', 'morning'], ['15:00', 'afternoon']].forEach(([time, expected]) => {
+      const now = Object.freeze(new Date(`2026-10-25T${time}:00`));
+      const env = Object.freeze({ now, rng: () => 0 });
+      const first = reduceDomainCommand(state, command, env);
+      const second = reduceDomainCommand(state, command, env);
+
+      assert.deepStrictEqual(first, second);
+      assert.notStrictEqual(first.nextState, state);
+      assert.strictEqual(first.nextState.playback.activePhotoUrl, expected);
+      assert.deepStrictEqual(first.events.map(({ type }) => type), ['photo-update', 'state-sync']);
+      assert.deepStrictEqual(first.effects, []);
+      assert.strictEqual(now.getTime(), new Date(`2026-10-25T${time}:00`).getTime());
+    });
+    assert.strictEqual(JSON.stringify(state), before);
+  });
+
+  assertTest('reducer no-ops retain state identity with fresh result arrays and never draw randomness', () => {
+    const state = Object.freeze(createState());
+    const env = Object.freeze({ now: new Date('2026-10-25T12:00:00'), rng: () => assert.fail('Unexpected RNG draw') });
+    const commands = [null, undefined, { type: 'unknown' }, { type: 'toString' }, { type: 'delete-pool', payload: { name: '' } }];
+    const results = commands.map((command) => reduceDomainCommand(state, command, env));
+
+    results.forEach((result) => {
+      assert.deepStrictEqual(result, { nextState: state, events: [], effects: [] });
+      assert.strictEqual(result.nextState, state);
+      assert.notStrictEqual(result.events, result.effects);
+      assert.notStrictEqual(result.events, reduceDomainCommand(state, null, env).events);
+    });
+  });
+
+  assertTest('reducer propagates exact environment failures without changing the input state', () => {
+    const state = createState();
+    const before = JSON.stringify(state);
+    const failure = new Error('Injected execution failure');
+    const command = { type: 'advance-photo', payload: { strategy: 'smart' } };
+    const reject = () => { throw failure; };
+    [
+      { get now() { return reject(); }, get rng() { return assert.fail('Read after failed clock'); } },
+      { now: new Date('2026-10-25T12:00:00'), rng: reject }
+    ].forEach((env) => {
+      assert.throws(() => reduceDomainCommand(state, command, env), (error) => error === failure);
+      assert.strictEqual(JSON.stringify(state), before);
+    });
+  });
+
+  assertTest('reducer resolves truthy clock/random defaults eagerly and independently before lookup', () => {
+    const reads = [];
+    const isolatedModule = { exports: {} };
+    runInNewContext(fs.readFileSync(path.join(__dirname, 'reducer.js'), 'utf8'), {
+      module: isolatedModule,
+      require,
+      Date: class extends Date {
+        constructor() { super('2026-10-25T12:00:00'); reads.push('clock'); }
+      },
+      Math: { get random() { reads.push('random-default'); return () => { reads.push('draw'); return 0; }; } }
+    });
+    const reduce = isolatedModule.exports.reduceDomainCommand;
+    const state = createState();
+    const now = new Date('2026-10-25T12:00:00');
+    const rng = () => 0;
+
+    [undefined, {}, { now: null, rng: null }, { now: false, rng: 0 }, { now: '', rng: '' }].forEach((env) => {
+      reads.length = 0;
+      assert.strictEqual(reduce(state, null, env).nextState, state);
+      assert.deepStrictEqual(reads, ['clock', 'random-default']);
+    });
+    [[{ now }, ['random-default']], [{ rng }, ['clock']], [{ now, rng }, []]].forEach(([env, expected]) => {
+      reads.length = 0;
+      reduce(state, null, env);
+      assert.deepStrictEqual(reads, expected);
+    });
+    reads.length = 0;
+    reduce(state, { type: 'advance-photo', payload: { strategy: 'smart' } });
+    assert.deepStrictEqual(reads, ['clock', 'random-default', 'draw']);
+    assert.throws(() => reduce(state, null, null), { name: 'TypeError' });
   });
 
   assertTest('feed and pool reducer builders resolve declarative options from one command context', () => {

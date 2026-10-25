@@ -179,6 +179,21 @@
  */
 
 /**
+ * Execution inputs, not sensor settings. With a stable date and replayable RNG,
+ * reduction is deterministic; omitted/falsy fields retain the ambient defaults.
+ * Truthy inputs are used verbatim, without validation or RNG range clamping.
+ * `now` is a Date value, not a clock callback; `rng` conventionally returns [0, 1).
+ *
+ * @typedef {object} ReducerEnvironment
+ * @property {Date | null} [now] Defaults to a fresh Date on each reduction.
+ * @property {(() => number) | null} [rng] Defaults to Math.random, called only as needed.
+ */
+
+/**
+ * Ordered descriptions, not executed effects. A no-op retains the input state
+ * identity with fresh empty event/effect arrays; changed states are projections.
+ * This envelope is neither an atomic transaction nor a result-combining Monoid.
+ *
  * @typedef {{
  *   nextState: DomainState,
  *   events: Event[],
