@@ -4279,3 +4279,9 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Implementation**: added local JSDoc contracts for host observations, normalized daemon inputs, current state, transition output, and the closed launch/kill/no-op action vocabulary. Polling, activity suppression, browser operations, interval management, and broadcasts remain in `createIdleDaemonRuntime`.
 - **Regression coverage**: tested the inclusive inactivity threshold, combined audio/session blocking, manual and launch-block flags, immutable inputs/state, and the JSDoc boundary.
 - **Next seam**: type the pure runtime-context projection in `server/runtime/kioskControl.js`, keeping process, CPU-governor, retry-timer, and logging effects in its runtime shell.
+### 2026-10-25: Keep Admin TV Previews From Dismissing the Kiosk
+
+- **Problem**: switching the desktop admin interface into TV View mounts the same dashboard input handlers as the kiosk. Mouse activity in that preview could send a global screensaver deactivation and stop the TV display.
+- **Implementation**: `App` identifies the explicitly launched `?mode=tv` kiosk session and passes a dismissal capability to `Dashboard`. The Dashboard defaults to no dismissal capability, so toggled/embedded previews remain visual-only while the kiosk retains input dismissal.
+- **Regression coverage**: tested preview activity as inert, and verified the explicit kiosk-mode capability wiring and safe Dashboard default.
+- **Verification**: `npm test` passes 717 assertions and all 13 sensor regressions; lint and the client production build pass. The optional Unix-socket smoke check was skipped because the sandbox denies socket creation.

@@ -11801,6 +11801,11 @@ async function runClientRenderingTests() {
       event: { type: 'mousemove' }
     }), true);
     assert.strictEqual(isScreensaverDismissalActivity({
+      screensaverActive: true,
+      allowDismissal: false,
+      event: { type: 'mousedown' }
+    }), false, 'admin TV previews must not dismiss the kiosk screensaver');
+    assert.strictEqual(isScreensaverDismissalActivity({
       screensaverActive: false,
       event: { type: 'keydown', key: 'Escape' }
     }), false);
@@ -11825,13 +11830,23 @@ async function runClientRenderingTests() {
     assert.match(screensaverActivitySource, /@typedef \{\{type\?: string\}\} ActivityEvent/);
     assert.match(
       screensaverActivitySource,
-      /@typedef \{\{screensaverActive: boolean, event\?: ActivityEvent\|null\}\} ScreensaverActivity/
+      /@typedef \{\{screensaverActive: boolean, allowDismissal\?: boolean, event\?: ActivityEvent\|null\}\} ScreensaverActivity/
     );
     assert.match(
       screensaverActivitySource,
       /@param \{KeyboardActivity\|null\|undefined\} event/
     );
     assert.match(screensaverActivitySource, /@param \{ScreensaverActivity\} input/);
+  });
+
+  assertTest('only an explicitly launched TV kiosk can dismiss the shared screensaver from input', () => {
+    const appSource = fs.readFileSync(path.join(__dirname, 'client/src/App.jsx'), 'utf8');
+    const dashboardSource = fs.readFileSync(path.join(__dirname, 'client/src/components/Dashboard.jsx'), 'utf8');
+
+    assert.match(appSource, /get\('mode'\) === 'tv'/);
+    assert.match(appSource, /allowScreensaverDismissal=\{isKioskSession\}/);
+    assert.match(dashboardSource, /allowScreensaverDismissal = false/);
+    assert.match(dashboardSource, /if \(!allowScreensaverDismissal \|\| !state\.screensaverActive/);
   });
 
   assertTest('swipe gesture projection keeps threshold and direction policy pure', () => {

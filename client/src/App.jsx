@@ -21,6 +21,7 @@ function App() {
   const [state, setState] = useState(null);
   const [connectionInfo, setConnectionInfo] = useState({ localIps: [], port: 5000 });
   const [connected, setConnected] = useState(false);
+  const [isKioskSession] = useState(() => new URLSearchParams(window.location.search).get('mode') === 'tv');
 
   useEffect(() => {
     // 1. Determine Device Mode
@@ -160,6 +161,7 @@ function App() {
           state={state} 
           socket={socket} 
           connectionInfo={connectionInfo}
+          allowScreensaverDismissal={isKioskSession}
         />
       )}
       

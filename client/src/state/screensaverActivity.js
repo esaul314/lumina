@@ -9,7 +9,7 @@
  */
 
 /**
- * @typedef {{screensaverActive: boolean, event?: ActivityEvent|null}} ScreensaverActivity
+ * @typedef {{screensaverActive: boolean, allowDismissal?: boolean, event?: ActivityEvent|null}} ScreensaverActivity
  */
 
 const DISMISSAL_EVENT_TYPES = new Set([
@@ -37,8 +37,8 @@ const isEscapeKey = (event) => event?.key === 'Escape' || event?.code === 'Escap
  * @param {ScreensaverActivity} input
  * @returns {boolean}
  */
-const isScreensaverDismissalActivity = ({ screensaverActive, event }) => (
-  Boolean(screensaverActive)
+const isScreensaverDismissalActivity = ({ screensaverActive, allowDismissal = true, event }) => (
+  allowDismissal && Boolean(screensaverActive)
   && DISMISSAL_EVENT_TYPES.has(event?.type)
 );
 

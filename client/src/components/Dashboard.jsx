@@ -63,7 +63,7 @@ const loadImageMeta = (url, timeoutMs = 8000) => new Promise((resolve, reject) =
   img.src = url;
 });
 
-function Dashboard({ state, socket, connectionInfo }) {
+function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = false }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
   const [environment, setEnvironment] = useState(null);
@@ -475,7 +475,7 @@ function Dashboard({ state, socket, connectionInfo }) {
 
   // 4. Inactivity & Screensaver Wake/Dismiss Logic
   const dismissScreensaver = () => {
-    if (!state.screensaverActive || dismissalPendingRef.current) {
+    if (!allowScreensaverDismissal || !state.screensaverActive || dismissalPendingRef.current) {
       return;
     }
 
@@ -516,7 +516,11 @@ function Dashboard({ state, socket, connectionInfo }) {
       }
     }
 
-    if (isScreensaverDismissalActivity({ screensaverActive: state.screensaverActive, event: e })) {
+    if (isScreensaverDismissalActivity({
+      screensaverActive: state.screensaverActive,
+      allowDismissal: allowScreensaverDismissal,
+      event: e
+    })) {
       dismissScreensaver();
     }
 
