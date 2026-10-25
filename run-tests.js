@@ -10428,6 +10428,79 @@ assertAsyncTest('createDomainDispatcher refreshes the active feed after a Google
   });
 });
 
+assertTest('shared Effect vocabulary matches the closed dispatcher handler record', () => {
+  const types = fs.readFileSync(path.join(__dirname, 'server/domain/types.js'), 'utf8');
+  const dispatch = fs.readFileSync(path.join(__dirname, 'server/domain/dispatch.js'), 'utf8');
+  const effectDeclaration = [...types.matchAll(/\/\*\*([^]*?)\*\//g)]
+    .find(([, block]) => /\}\} Effect\b/.test(block));
+  const handlerDeclaration = dispatch.match(/function createEffectHandlers\([^]*?\n {2}return \{([^]*?)\n {2}\};/);
+  assert.ok(effectDeclaration, 'Effect declaration must remain explicit');
+  assert.ok(handlerDeclaration, 'Effect handlers must remain a closed record');
+
+  const declared = [...effectDeclaration[1].matchAll(/\|\s*'([^']+)'/g)].map(([, type]) => type);
+  const handled = [...handlerDeclaration[1].matchAll(/^ {4}(?:'([^']+)'|(\w+)):/gm)]
+    .map(([, quoted, bare]) => quoted ?? bare);
+
+  assert.strictEqual(new Set(declared).size, declared.length, 'Effect names must be unique');
+  assert.ok(handled.includes('refresh-active-feed'));
+  assert.deepStrictEqual([...declared].sort(), [...handled].sort());
+});
+
+assertAsyncTest('pool refresh effects retain payload and result aliases and finish before events', async () => {
+  const returned = Object.freeze({ refreshed: true });
+  const received = [];
+  const command = Object.freeze({
+    type: 'set-pool-policy',
+    payload: Object.freeze({ name: 'Scenic Nature', policy: Object.freeze({ maxPhotos: 500 }) })
+  });
+  const { dispatcher, state, ioEmits } = createDispatcherHarness({
+    refreshActiveFeed: async (payload) => {
+      received.push(payload);
+      assert.strictEqual(state.poolPolicies['Scenic Nature'].maxPhotos, 500);
+      assert.deepStrictEqual(ioEmits, []);
+      await Promise.resolve();
+      assert.deepStrictEqual(ioEmits, []);
+      return returned;
+    }
+  });
+
+  const result = await dispatcher.dispatchCommand(command);
+  assert.deepStrictEqual(result.reducerResult.effects.map(({ type }) => type), ['persist', 'refresh-active-feed']);
+  const refresh = result.effectResults[1];
+  assert.strictEqual(refresh.effect, result.reducerResult.effects[1]);
+  assert.strictEqual(refresh.effect.payload, received[0]);
+  assert.deepStrictEqual(received, [{ categories: ['Scenic Nature'] }]);
+  assert.strictEqual(refresh.value, returned);
+  assert.deepStrictEqual(ioEmits.map(([event]) => event), ['state-sync']);
+  assert.deepStrictEqual(command.payload.policy, { maxPhotos: 500 });
+});
+
+assertAsyncTest('pool refresh effects keep an ordered undefined result when the adapter is absent', async () => {
+  const { dispatcher, ioEmits } = createDispatcherHarness();
+  const result = await dispatcher.dispatchCommand({
+    type: 'set-pool-policy',
+    payload: { name: 'Scenic Nature', policy: { maxPhotos: 500 } }
+  });
+
+  assert.deepStrictEqual(result.effectResults.map(({ effect }) => effect.type), ['persist', 'refresh-active-feed']);
+  assert.strictEqual(result.effectResults[1].value, undefined);
+  assert.deepStrictEqual(ioEmits.map(([event]) => event), ['state-sync']);
+});
+
+assertAsyncTest('pool refresh rejection propagates after state application and suppresses pending events', async () => {
+  const failure = new Error('isolated refresh failure');
+  const { dispatcher, state, ioEmits } = createDispatcherHarness({
+    refreshActiveFeed: async () => { throw failure; }
+  });
+
+  await assert.rejects(dispatcher.dispatchCommand({
+    type: 'set-pool-policy',
+    payload: { name: 'Scenic Nature', policy: { maxPhotos: 500 } }
+  }), (error) => error === failure);
+  assert.strictEqual(state.poolPolicies['Scenic Nature'].maxPhotos, 500);
+  assert.deepStrictEqual(ioEmits, []);
+});
+
 assertAsyncTest('createDomainDispatcher stays silent for no-op pool config commands', async () => {
   const { dispatcher, ioEmits, state } = createDispatcherHarness();
   state.searchKeywords['Scenic Nature'] = ['forest', 'mist'];

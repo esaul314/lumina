@@ -156,10 +156,17 @@
  */
 
 /**
+ * Closed effect vocabulary emitted by the reducer and interpreted by dispatch.
+ * Pool-policy updates emit `refresh-active-feed` with `{ categories: string[] }`;
+ * persistence precedes refresh, and events follow successful effect completion.
+ * Payloads remain compatibility records here; this declaration does not validate
+ * callbacks, make effects atomic, or turn the interpreter into a pure function.
+ *
  * @typedef {{
  *   type:
  *     | 'persist'
  *     | 'persist-external-photo-metadata'
+ *     | 'refresh-active-feed'
  *     | 'launch-kiosk'
  *     | 'kill-kiosk'
  *     | 'run-crawler'

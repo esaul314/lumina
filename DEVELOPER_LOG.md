@@ -6,6 +6,36 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-25: Audit Step 6 Core Contracts and Repair Effect Vocabulary
+
+- **Audit**: checked command, environment, effect, and selector boundaries
+  against the companion acceptance criteria. Step 6 is incomplete: sensor and
+  browser contracts exist, but the reducer execution environment, exported
+  domain selector signatures, command/effect payload variants, and dispatcher
+  dependency/result shapes still need explicit contracts. The companion now
+  records an evidence matrix and bounded completion queue.
+- **Correction**: added the missing `refresh-active-feed` member to `Effect`;
+  the reducer already emitted it and dispatch already handled it. Retained broad
+  compatibility payloads for separately scoped contract work. Executable
+  production AST and exports are unchanged.
+- **Functional design**: preserved the pure data-first domain core and the
+  existing partially applied sequential interpreter. No new wrapper, dependency,
+  or runtime validation is needed for a vocabulary correction. State application,
+  persistence, callbacks, and event emission remain explicit shell effects.
+- **Tests**: four regressions compare the complete declared/handled effect
+  vocabulary and cover curated-pool refresh alias/result identity, asynchronous
+  ordering, absent adapters, and exact rejection after state application but
+  before event emission. Existing Google Photos coverage remains in place;
+  tests use isolated harnesses and test-mode persistence, not live pools.
+- **Verification**: `npm test` passed: 723 tests executed, 722 passed assertions,
+  zero failures, and 13/13 sensor regressions. The optional endpoint smoke was
+  sandbox-skipped (`listen EPERM`). Lint, touched JavaScript syntax, whitespace,
+  and unchanged production AST checks passed. No TypeScript compiler gate,
+  client build, or daemon restart is claimed or required for this contract change.
+- **Next**: document injected reducer `now`/`rng` and public reducer/dispatcher
+  results, then selector signatures and command/effect payloads; re-audit before
+  claiming Step 6 closeout. Phase 1 remains in progress.
+
 ### 2026-10-25: Bound Lumina Memory and Restore Active Feeds After OOM
 
 - **Incident evidence**: the host-wide OOM killer selected a Chromium renderer

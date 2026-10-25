@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-10-23
+Last updated: 2026-10-25
 
 ## Purpose
 
@@ -453,7 +453,8 @@ Progress note:
 - Picker identity hardening follow-up: choose canonical-id normalization and migration separately. Cached deduplication trims keys, while cached removal/upsert lookup uses raw ids; padded/numeric cached ids can coexist with equivalent selections, and earlier padded duplicates can hide exact matches. Preserve user metadata and ordering in any deliberate correction.
 - Step 6 ninety-sixth slice: `buildCachedMediaItem(...)` refines read-only inputs, fixed-field output, distinct base/date/MIME/session fallback policies, timestamp/clock ordering, retained metadata aliases, and exact native failures. Eight focused tests compose declarative cases, frozen records, isolated clocks, ordered accessors, and exact thrown values. The existing data-first interface composes pure projections, but the builder itself reads the clock: no pure endomorphism or global idempotence law applies. Fixed-clock refresh stability requires complete stable Picker input and a retained acquisition date; absent dimensions reset cached dimensions. No curried/algebraic wrapper, dependency, executable production change, or export added. Validation and clock injection remain separate work; cache I/O stays with callers.
 - Step 6 ninety-seventh slice: `getPickerMediaFile(...)` refines read-only inputs, whole nested/flat selection, original aliases versus fresh empty fallbacks, hidden/inherited fields, repeated accessor reads, and exact failures. Seven focused tests compose declarative cases and frozen records through test-only private capture, without widening production exports. Stable leaf selection is reference-idempotent; arbitrarily nested records and changing accessors are outside that law. Keep the pure data-first selector without a curried/algebraic wrapper, coercion, or validation. Executable production code remains unchanged; field fallbacks and cache effects remain with callers.
-- Next Step 6 checkpoint: audit command, environment, effect, and selector contract coverage against the Step 6 acceptance criteria; identify the first unmet boundary or record evidence for closeout before adding further slices.
+- Step 6 acceptance audit (2026-10-25): not ready for closeout; see the evidence matrix under Step 6. Corrected the missing `refresh-active-feed` Effect member without executable production changes. Four tests cover handler-vocabulary parity and pool-refresh dispatch success, absent adapters, and rejection. Keep the pure reducer and sequential effect interpreter; no extra functional wrapper is warranted.
+- Next Step 6 checkpoint: document injected `now`/`rng` and reducer results at the public reducer/dispatcher boundary, preserving defaults, identity, and effect order. Follow with public selector inputs and discriminated command/effect payloads, then repeat the acceptance audit instead of continuing unrelated helper polishing.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -512,6 +513,46 @@ Acceptance criteria:
 
 - Core refactored modules expose stable, documented contracts.
 - TypeScript migration can adopt the modules without redesigning their public shapes.
+
+### Step 6 acceptance audit — 2026-10-25
+
+Result: **incomplete**. Existing `@ts-check` markers and extensive helper
+contracts are useful evidence, but do not establish complete public contracts
+or a successful TypeScript compilation. This audit follows the core domain
+flow rather than adding more unrelated Google Photos helper slices.
+
+| Boundary | Evidence in the current code | Remaining gap |
+| --- | --- | --- |
+| Commands | `commands.js` uses shared pure decoders and transport specs; `domain/tests.js` covers REST/Socket.IO parity. `types.js` closes the command names. | `Command.payload` remains one broad optional record; command-specific required fields and decoder results are not consistently explicit. |
+| Environments | `environmentSettings.js` documents sensor settings; `runtime/environmentRefresh.js` documents weather projections. | The reducer's execution environment is a different concept: `reduceDomainCommand` reads `now`/`rng` without a named input/result contract, and dispatch describes it only as `Record<string, unknown>`. |
+| Effects | Reducer descriptions flow through the dispatcher's sequential interpreter. The shared Effect names now match the ten handler keys, including the previously omitted `refresh-active-feed`. | Payloads remain broad records; metadata, category-job/refresh, and environment-secret variants need explicit documented shapes. Dispatcher dependencies/results also need explicit shell contracts. |
+| Selectors | `types.js` defines `DomainState`, `Photo`, and `CurrentFrame`; browser-owned frame contracts remain separate. Domain tests cover balanced playback and visible-frame behavior. | `domain/selectors.js` imports these types but lacks explicit public parameter/result annotations, including feed, weighted/smart/sequential selection, and frame derivation. |
+
+First correction: add the already-emitted and already-handled
+`refresh-active-feed` member to `Effect`. A source-contract regression compares
+the entire declared vocabulary with the closed handler record. Runtime tests
+cover curated-pool refresh payload/result identity, state-before-effects and
+events-after-effects ordering, optional-adapter behavior, and exact rejection
+without rollback of applied state. The existing Google Photos policy regression
+continues to cover the external-pool path. Test-mode persistence stays isolated;
+no live pool, credential, network, or daemon operation is introduced.
+
+Bounded completion queue:
+
+1. Name the reducer `now`/`rng` environment and public reducer/dispatcher result
+   contracts; preserve clock/random defaults and no-op identity.
+2. Annotate the exported domain selector inputs/results using those shared
+   shapes; keep random/clock injection and existing playback behavior.
+3. Document command/effect payload variants and dispatcher dependencies/results
+   from the actual decoder, reducer, and shell shapes without runtime redesign.
+4. Re-audit these four boundaries and their tests against both acceptance
+   criteria. Report any remaining typing limitation explicitly; do not claim a
+   compiler gate from source assertions, lint, or `@ts-check` alone.
+
+Functional decision: preserve the pure data-first domain core and existing
+partially applied, sequential effect interpreter. Effects are descriptions,
+not pure computations or atomic transactions; a new Monad/Fantasy Land wrapper
+would not close the observed contract gaps.
 
 ## Testing and Verification Strategy
 
