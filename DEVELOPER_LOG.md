@@ -4285,3 +4285,9 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Implementation**: `App` identifies the explicitly launched `?mode=tv` kiosk session and passes a dismissal capability to `Dashboard`. The Dashboard defaults to no dismissal capability, so toggled/embedded previews remain visual-only while the kiosk retains input dismissal.
 - **Regression coverage**: tested preview activity as inert, and verified the explicit kiosk-mode capability wiring and safe Dashboard default.
 - **Verification**: `npm test` passes 717 assertions and all 13 sensor regressions; lint and the client production build pass. The optional Unix-socket smoke check was skipped because the sandbox denies socket creation.
+### 2026-10-25: Hide the Pointer Throughout the Active TV Screensaver
+
+- **Problem**: the cursor timeout was scoped to the Dashboard element and was not re-armed when screensaver state changed, leaving the pointer visible in parts of the TV viewport or over an open settings panel.
+- **Implementation**: re-arm the three-second timeout on screensaver state changes and apply the cursor-hiding class to the page body for an active TV kiosk. Admin previews do not change page-wide cursor state.
+- **Regression coverage**: assert the timeout duration and state dependencies, kiosk-only page-wide class, and CSS cursor suppression.
+- **Verification**: `npm test` passes 718 assertions and all 13 sensor regressions; lint and the client production build pass. Host diagnostics found the service and kiosk inactive, so the live TV presentation could not be confirmed in this session.

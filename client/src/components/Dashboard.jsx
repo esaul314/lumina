@@ -557,7 +557,7 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
       if (cursorTimeoutRef.current) {
         clearTimeout(cursorTimeoutRef.current);
       }
-      if (isSettingsOpen) {
+      if (isSettingsOpen && !(allowScreensaverDismissal && state.screensaverActive)) {
         return;
       }
       cursorTimeoutRef.current = setTimeout(() => {
@@ -574,7 +574,16 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
         clearTimeout(cursorTimeoutRef.current);
       }
     };
-  }, [isSettingsOpen]);
+  }, [allowScreensaverDismissal, isSettingsOpen, state.screensaverActive]);
+
+  useEffect(() => {
+    if (!allowScreensaverDismissal || !state.screensaverActive || showCursor) {
+      return undefined;
+    }
+
+    document.body.classList.add('hide-cursor');
+    return () => document.body.classList.remove('hide-cursor');
+  }, [allowScreensaverDismissal, showCursor, state.screensaverActive]);
 
   // 5. Bokeh HTML5 Canvas Particle Engine
   useEffect(() => {

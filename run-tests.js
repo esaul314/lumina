@@ -11849,6 +11849,17 @@ async function runClientRenderingTests() {
     assert.match(dashboardSource, /if \(!allowScreensaverDismissal \|\| !state\.screensaverActive/);
   });
 
+  assertTest('active TV kiosk hides the cursor across the page after inactivity', () => {
+    const dashboardSource = fs.readFileSync(path.join(__dirname, 'client/src/components/Dashboard.jsx'), 'utf8');
+    const stylesSource = fs.readFileSync(path.join(__dirname, 'client/src/index.css'), 'utf8');
+
+    assert.match(dashboardSource, /\}, \[allowScreensaverDismissal, isSettingsOpen, state\.screensaverActive\]\);/);
+    assert.match(dashboardSource, /\}, 3000\);/);
+    assert.match(dashboardSource, /document\.body\.classList\.add\('hide-cursor'\)/);
+    assert.match(dashboardSource, /if \(!allowScreensaverDismissal \|\| !state\.screensaverActive \|\| showCursor\)/);
+    assert.match(stylesSource, /\.hide-cursor,\s*\.hide-cursor \*\s*\{\s*cursor: none !important;/);
+  });
+
   assertTest('swipe gesture projection keeps threshold and direction policy pure', () => {
     assert.strictEqual(DEFAULT_SWIPE_STATUS, 'Swipe left or right to change photo');
     assert.strictEqual(SWIPE_THRESHOLD_PX, 50);
