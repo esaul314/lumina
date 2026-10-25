@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-25: Bound Lumina Memory and Restore Active Feeds After OOM
+
+- **Incident evidence**: the host-wide OOM killer selected a Chromium renderer
+  in Lumina at about 07:25 EDT. The Lumina service cgroup had peaked near
+  1.4 GiB on an 8 GiB host; the kernel OOM began while Firefox WebExtensions
+  allocated shared memory. This does not establish a Node.js leak.
+- **Safeguards**: the user service now reclaims above 1.5 GiB and has a 2 GiB
+  hard cgroup ceiling. Manual feed selections persist atomically and restore
+  after a service restart, filtered to pools that still exist. Scheduled pool
+  activations remain transient.
+- **Memory policy**: no periodic restart or forced garbage collection was
+  added. Neither would reclaim Chromium/GPU or other host-process memory, and a
+  timer-driven restart would interrupt the display. Use service cgroup metrics
+  to measure future peaks before tightening the ceiling.
+- **Coverage**: focused selection recovery tests cover aliases, removed pools,
+  malformed/missing files, atomic writes, and detached stored values.
 ### 2026-10-23: Give Visible Primaries a Full Interval and Recover Once
 
 - **Causes**: the TV's mount-relative interval could replace a newly displayed

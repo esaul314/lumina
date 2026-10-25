@@ -100,6 +100,12 @@ const {
 } = require('./server/services/sensorPlatform.js');
 const { upsertEnvVarInContent } = require('./server/config/env.js');
 const { mergeLocalConfig } = require('./server/config/localSettings.js');
+const {
+  createActiveCategoryDispatcher,
+  loadActiveCategories,
+  normalizeActiveCategories,
+  saveActiveCategories
+} = require('./server/config/activeCategories.js');
 const { projectConfigOverrides } = require('./server/config/configLoaderProjections.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
 const googlePhotosCache = require('./server/services/googlePhotosCache.js');
@@ -714,6 +720,92 @@ assertTest('mergeLocalConfig preserves Ecowitt units when the patch omits them',
   assert.deepStrictEqual(mergeLocalConfig({}, { ecowitt: { baseUrl: 'http://new.local' } }), {
     ecowitt: { baseUrl: 'http://new.local', units: {} }
   });
+});
+
+assertTest('active category recovery filters deleted pools and falls back when no saved pool remains', () => {
+  assert.deepStrictEqual(
+    normalizeActiveCategories({ categories: ['AI Creation', 'removed pool', 'Google Photos'] }, [
+      'Scenic Nature', 'AI Creations'
+    ], 'Scenic Nature'),
+    ['AI Creations', 'Google Photos']
+  );
+  assert.deepStrictEqual(
+    normalizeActiveCategories(['removed pool'], ['Scenic Nature'], 'Scenic Nature'),
+    ['Scenic Nature']
+  );
+});
+
+assertTest('active category persistence writes atomically and restores a detached selection', () => {
+  const files = new Map();
+  const fakeFs = {
+    existsSync: (filePath) => files.has(filePath),
+    readFileSync: (filePath) => files.get(filePath),
+    writeFileSync: (filePath, contents) => files.set(filePath, contents),
+    renameSync: (fromPath, toPath) => {
+      files.set(toPath, files.get(fromPath));
+      files.delete(fromPath);
+    }
+  };
+  const categories = ['AI Creations', 'Google Photos'];
+
+  saveActiveCategories({ path: '/state/active_categories.json', categories, fsImpl: fakeFs });
+  categories.push('mutated after save');
+
+  assert.deepStrictEqual(
+    loadActiveCategories({
+      path: '/state/active_categories.json',
+      availableCategories: ['Scenic Nature', 'AI Creations'],
+      fallbackCategory: 'Scenic Nature',
+      fsImpl: fakeFs
+    }),
+    ['AI Creations', 'Google Photos']
+  );
+  assert.strictEqual(files.has('/state/active_categories.json.tmp'), false);
+});
+
+assertTest('active category persistence falls back cleanly for a missing or malformed file', () => {
+  const files = new Map([['/state/bad.json', '{']]);
+  const warnings = [];
+  const fakeFs = {
+    existsSync: (filePath) => files.has(filePath),
+    readFileSync: (filePath) => files.get(filePath)
+  };
+  const options = {
+    path: '/state/missing.json',
+    availableCategories: ['Scenic Nature', 'AI Creations'],
+    fallbackCategory: 'Scenic Nature',
+    fsImpl: fakeFs,
+    log: { warn: (...message) => warnings.push(message) }
+  };
+
+  assert.deepStrictEqual(loadActiveCategories(options), ['Scenic Nature']);
+  assert.deepStrictEqual(loadActiveCategories({ ...options, path: '/state/bad.json' }), ['Scenic Nature']);
+  assert.strictEqual(warnings.length, 1);
+});
+
+assertAsyncTest('active category dispatcher persists completed manual selections and skips unrelated commands', async () => {
+  const calls = [];
+  let categories = ['Scenic Nature'];
+  const dispatchCommand = async (command, env) => {
+    calls.push(['dispatch', command, env]);
+    if (command?.type === 'select-categories') categories = ['AI Creations'];
+    return 'result';
+  };
+  const dispatch = createActiveCategoryDispatcher({
+    dispatchCommand,
+    getCategories: () => categories,
+    save: (value) => calls.push(['save', value])
+  });
+  const command = { type: 'select-categories', payload: { categories: ['AI Creations'] } };
+  const env = { source: 'remote' };
+
+  assert.strictEqual(await dispatch(command, env), 'result');
+  assert.strictEqual(await dispatch({ type: 'next-photo' }), 'result');
+  assert.deepStrictEqual(calls, [
+    ['dispatch', command, env],
+    ['save', ['AI Creations']],
+    ['dispatch', { type: 'next-photo' }, undefined]
+  ]);
 });
 
 assertTest('local config merge exposes checked section contracts', () => {

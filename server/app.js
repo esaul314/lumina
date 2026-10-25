@@ -14,6 +14,12 @@ const { sendEmailAlert } = require('./services/notifier.js');
 const { screensaverState, buildFeedConfigsFromKeywords } = require('./config/state.js');
 const { defaultCuratedCollections, saveCuratedCollections } = require('./config/collections.js');
 const { loadCollectionsSnapshot } = require('./config/collectionsCodec.js');
+const {
+  createActiveCategoryDispatcher,
+  loadActiveCategories,
+  normalizeActiveCategories,
+  saveActiveCategories
+} = require('./config/activeCategories.js');
 const { createDomainDispatcher } = require('./domain/dispatch.js');
 const { applyPoolPolicy } = require('./domain/poolRetention.js');
 const {
@@ -242,9 +248,16 @@ Object.entries(curatedCollections).forEach(([category, photos]) => {
 });
 
 const initialCategory = Object.keys(curatedCollections)[0] ?? 'Scenic Nature';
-const initialPhotos = curatedCollections[initialCategory]
-  ?.filter((photo) => photo.rating !== 1 && !photo.isBroken)
-  .map((photo) => ({ ...photo, category: initialCategory })) ?? [];
+const activeCategoriesPath = path.join(rootDir, 'active_categories.json');
+const startupCategories = process.env.NODE_ENV === 'test'
+  ? [initialCategory]
+  : loadActiveCategories({
+      path: activeCategoriesPath,
+      availableCategories: Object.keys(curatedCollections),
+      fallbackCategory: initialCategory
+    });
+screensaverState.currentCategory = startupCategories.join(',');
+const initialPhotos = combineFeedsBalanced(startupCategories, curatedCollections);
 screensaverState.photosList = initialPhotos;
 screensaverState.activePhoto = initialPhotos[0] ?? null;
 screensaverState.hasUseApiToken = Boolean(readEnvVar('USEAPI_TOKEN'));
@@ -587,6 +600,26 @@ const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDis
   triggerWeatherUpdate
 });
 
+const dispatchRemoteCommand = createActiveCategoryDispatcher({
+  dispatchCommand,
+  getCategories: () => normalizeActiveCategories(
+    screensaverState.currentCategory,
+    Object.keys(curatedCollections),
+    initialCategory
+  ),
+  save: (categories) => {
+    if (process.env.NODE_ENV === 'test') return;
+    try {
+      saveActiveCategories({
+        path: activeCategoriesPath,
+        categories
+      });
+    } catch (error) {
+      console.error('[Active Categories] Failed to persist selection:', error.message);
+    }
+  }
+});
+
 const poolScheduleRuntime = createPoolScheduleRuntime({
   state: screensaverState,
   collections: curatedCollections,
@@ -635,7 +668,7 @@ require('./routes.js')({
   getEnvironmentAdapters: sensorPlatform.describe,
   io,
   port: PORT,
-  dispatchCommand,
+  dispatchCommand: dispatchRemoteCommand,
   broadcastStateSync
 });
 require('./sockets.js')({
@@ -650,7 +683,7 @@ require('./sockets.js')({
   getLocalIpAddresses,
   port: PORT,
   triggerWeatherUpdate,
-  dispatchCommand,
+  dispatchCommand: dispatchRemoteCommand,
   broadcastStateSync,
   getLatestJobs: () => [
   recrawlJobService.getLatestJob(),

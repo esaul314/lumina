@@ -11,6 +11,10 @@ Restart=always
 RestartSec=5
 TimeoutStopSec=15
 KillMode=control-group
+# The last observed Lumina cgroup peak was about 1.4 GiB on an 8 GiB host.
+# Reclaim above 1.5 GiB and cap total daemon+kiosk use at 2 GiB.
+MemoryHigh=1536M
+MemoryMax=2G
 Environment=NODE_ENV=production
 Environment=HOME=__HOME_DIR__
 Environment=USER=__USER_NAME__

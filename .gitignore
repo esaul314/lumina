@@ -4,6 +4,7 @@ client/dist/
 server.log
 launch.log
 curated_collections.json
+active_categories.json
 .DS_Store
 .env
 .env.*

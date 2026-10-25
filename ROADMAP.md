@@ -409,3 +409,12 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Blue light filter belongs in Phase 1.
 - Typed frontend API client, public bundle contracts, source/device capability metadata, and background jobs are part of the intended platform foundation rather than optional extras.
 - TypeScript migration happens as a transition bridge between Phase 1 and Phase 2.
+
+## Resource pressure follow-up (2026-10-25)
+
+- Done: the Lumina user service uses `MemoryHigh=1536M` and `MemoryMax=2G`;
+  active manual pools recover from OOM or service restarts. The 2 GiB ceiling
+  leaves headroom above the measured 1.4 GiB peak on the 8 GiB reference host.
+- Next: collect several days of `MemoryCurrent`, `MemoryPeak`, and `memory.events`
+  data under ordinary kiosk use. Revisit the ceiling only from those measurements;
+  investigate host-wide pressure separately from Node.js heap growth.

@@ -79,6 +79,7 @@ Current migration checkpoint:
 - Latest Step 6 slice: `server/services/weather.js` now exposes checked WMO classification contracts; preserve the constant-time mapping and cloudy fallback while keeping geolocation and forecast fetching in the effectful shell.
 - Latest Step 6 slice: `server/runtime/environmentRefresh.js` now exposes checked contracts for weather snapshot projections; preserve provider-field projection and absent-current behavior while keeping refresh effects in the runtime shell.
 - Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing, normalization, and balanced feed projections; preserve source collections and keep `photosList` mutation in the runtime shell.
+- Active feed choices persist in the gitignored `active_categories.json` across daemon restarts; saved names are filtered against current pools at startup. Keep schedule-only category changes out of this manual selection store.
 - Latest Step 6 slice: `server/runtime/idleDaemon.js` now exposes checked contracts for host observations, daemon inputs, and screensaver transitions; preserve the closed action vocabulary and keep polling/browser/timer/broadcast effects in the shell.
 - Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; preserve the exact three-field output and keep process/governor/retry-timer/logging effects in the shell.
 - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes a checked five-field status projection with detached category arrays; preserve runtime-owned scheduling state and keep polling/dispatch effects in the shell.
@@ -222,6 +223,7 @@ If the system idle time exceeds `inactivityTimeout`, the screensaver is triggere
 ### 3. Chromium Fullscreen Kiosk Launcher & Custom CLI Optimizations
 When screensaver activation is triggered, the server spawns Chromium in fullscreen kiosk mode pointing to `http://localhost:5000/?mode=tv`. To ensure it never hangs the PC and has a tiny RAM footprint, it uses highly optimized Chromium CLI flags. It dynamically resolves wayland displays and authorities using the active `uid` and `homedir` to achieve robust startup:
 * `--js-flags="--max-old-space-size=256"`: Strictly limits the V8 JS heap memory footprint to 256MB.
+* The user service reclaims above 1.5 GiB and caps combined daemon and kiosk memory at 2 GiB. This bounds Lumina's host impact; decoded-image and GPU memory remain part of the cgroup total.
 * `--disable-dev-shm-usage`: Avoids exhausting shared memory partitions.
 * `--disk-cache-size=52428800 --media-cache-size=20971520`: Restricts disk and media cache to tiny allocations.
 * `--disable-gpu-shader-disk-cache`: Eliminates heavy disk write activities.
