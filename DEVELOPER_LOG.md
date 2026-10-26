@@ -6,6 +6,31 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-26: Document Exported Domain Selector Contracts
+
+- **Contracts**: annotated all 23 exported selector functions with shared domain
+  shapes and local feed, smart/weighted/sequential selection, and update-result
+  contracts. Documented ordering, null/identity behavior, shallow aliases,
+  local time, conditional random draws, and native failure propagation.
+- **Functional boundary**: kept existing data-first projections, generic array
+  combinators, explicit Date/RNG injection, and the effect shell unchanged.
+  Ordinary stable-record filters/deduplication are value-idempotent, not
+  reference-idempotent; no wrapper or runtime validation was needed. Selector
+  defaults are undefined-only, unlike the reducer's truthy defaults.
+- **Tests**: ten regressions cover signature coverage, normalization and lookups,
+  list composition, external-pool override and first-URL ownership, strict time/
+  weather/night boundaries, equal-turn eligible-pool selection, read-only
+  cursors, update aliases, frame projection, ambient defaults, and exact failures.
+  Fixed a test fixture that incorrectly expected keyword matching on URLs;
+  matching uses title/author/category. VM adapters avoid process-global patches.
+- **Verification**: `npm test` passed: 740 tests executed, 739 passed assertions,
+  zero failures, and 13/13 sensor regressions. Optional endpoint smoke was
+  sandbox-skipped (`listen EPERM`). Lint, touched JavaScript syntax, whitespace,
+  and unchanged production AST/export checks passed.
+- **Next**: command/effect payload variants and dispatcher dependencies, then
+  the acceptance audit. Step 6 and Phase 1 remain incomplete; no TypeScript
+  compilation, client build, daemon restart, or runtime behavior change claimed.
+
 ### 2026-10-25: Document Reducer Execution and Dispatch Results
 
 - **Contracts**: named shared `ReducerEnvironment` (`now` is a Date value,

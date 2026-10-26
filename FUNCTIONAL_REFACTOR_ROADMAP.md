@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 ## Purpose
 
@@ -455,7 +455,8 @@ Progress note:
 - Step 6 ninety-seventh slice: `getPickerMediaFile(...)` refines read-only inputs, whole nested/flat selection, original aliases versus fresh empty fallbacks, hidden/inherited fields, repeated accessor reads, and exact failures. Seven focused tests compose declarative cases and frozen records through test-only private capture, without widening production exports. Stable leaf selection is reference-idempotent; arbitrarily nested records and changing accessors are outside that law. Keep the pure data-first selector without a curried/algebraic wrapper, coercion, or validation. Executable production code remains unchanged; field fallbacks and cache effects remain with callers.
 - Step 6 acceptance audit (2026-10-25): not ready for closeout; see the evidence matrix under Step 6. Corrected the missing `refresh-active-feed` Effect member without executable production changes. Four tests cover handler-vocabulary parity and pool-refresh dispatch success, absent adapters, and rejection. Keep the pure reducer and sequential effect interpreter; no extra functional wrapper is warranted.
 - Step 6 execution-contract slice (2026-10-25): named `ReducerEnvironment` and public reducer/dispatcher results, preserving default clock/random reads, no-op identities, ordered effects, and pre-effect snapshots. Seven regressions cover replay, inputs, defaults, failures, and shell ordering without executable production changes.
-- Next Step 6 checkpoint: annotate exported domain selector inputs/results using shared shapes, preserving clock/random injection and balanced playback. Then cover command/effect payload variants and dispatcher dependencies before repeating the acceptance audit instead of continuing unrelated helper polishing.
+- Step 6 selector-contract slice (2026-10-26): all 23 exported domain selectors now document shared domain shapes and local selection/update contracts. Ten regressions preserve pool balance, time eligibility, conditional randomness, undefined-only defaults, aliases, immutable projections, and exact failures without executable production changes.
+- Next Step 6 checkpoint: document command/effect payload variants and dispatcher dependencies from actual decoder/reducer/shell shapes, then repeat the acceptance audit instead of continuing unrelated helper polishing. Source-contract assertions are not a compiler gate.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -527,7 +528,7 @@ flow rather than adding more unrelated Google Photos helper slices.
 | Commands | `commands.js` uses shared pure decoders and transport specs; `domain/tests.js` covers REST/Socket.IO parity. `types.js` closes the command names. | `Command.payload` remains one broad optional record; command-specific required fields and decoder results are not consistently explicit. |
 | Environments | Sensor/weather contracts already exist. The follow-up execution slice names shared `ReducerEnvironment` inputs and documents public reducer/dispatcher results. | Execution/result contracts are covered; retain truthy clock/random defaults and the distinction from sensor settings. Dispatcher dependency contracts remain in the effect-shell queue. |
 | Effects | Reducer descriptions flow through the sequential interpreter; the ten Effect names match its handlers. The execution follow-up names `EffectResult`/`DispatchResult` and their pre-effect snapshot semantics. | Payloads remain broad records; metadata, category-job/refresh, and environment-secret variants plus dispatcher dependencies need explicit contracts. |
-| Selectors | `types.js` defines `DomainState`, `Photo`, and `CurrentFrame`; browser-owned frame contracts remain separate. Domain tests cover balanced playback and visible-frame behavior. | `domain/selectors.js` imports these types but lacks explicit public parameter/result annotations, including feed, weighted/smart/sequential selection, and frame derivation. |
+| Selectors | All 23 exported `domain/selectors.js` functions now annotate inputs/results using shared `DomainState`, `Photo`, `CollectionsState`, and `CurrentFrame`, with local selection/update contracts. Ten regressions cover ordering, balance, immutable projections, aliases, clocks/randomness, and failures. Browser contracts remain separate. | Public signatures are covered; retain undefined-only selector defaults versus truthy reducer defaults. Compilation remains unverified, not implied by source assertions or lint. |
 
 First correction: add the already-emitted and already-handled
 `refresh-active-feed` member to `Effect`. A source-contract regression compares
@@ -542,8 +543,8 @@ Bounded completion queue:
 
 1. Completed: named the reducer `now`/`rng` environment and public
    reducer/dispatcher results, preserving defaults and no-op identity.
-2. Annotate the exported domain selector inputs/results using those shared
-   shapes; keep random/clock injection and existing playback behavior.
+2. Completed: annotated all exported domain selector inputs/results using shared
+   shapes; preserved random/clock injection and existing playback behavior.
 3. Document command/effect payload variants and dispatcher dependencies
    from the actual decoder, reducer, and shell shapes without runtime redesign.
 4. Re-audit these four boundaries and their tests against both acceptance
@@ -564,7 +565,21 @@ lookup, while missing dispatcher commands resolve null before any such reads.
 of the live shell; awaited effect values retain adapter aliases. Seven tests
 cover these boundaries, immutable/replayed state, exact failures, and existing
 sequential ordering. No runtime abstraction, dependency, compiler gate, or
-production export is added; selector contracts are the next bounded seam.
+production export is added; selector contracts are covered by the follow-up below.
+
+Selector-contract follow-up (2026-10-26): preserved the existing data-first
+projections and explicit Date/RNG injection. Feed construction copies and tags rows,
+while lookup, filtering, selection, and frames retain photo aliases; frame
+categories are detached. Updaters receive shallow copies and retain last-match
+and shallow change semantics, not reference-idempotent no-ops. Visibility and
+first-URL deduplication are value-idempotent on ordinary stable records; no
+result-envelope Monoid or extra curried wrapper is needed. Smart playback rotates
+time-eligible pools before within-pool preferences; sequential selection reads
+but does not advance cursors. Ambient defaults remain effectful and apply only
+to undefined, unlike reducer `||` defaults. Ten focused tests cover these contracts
+using declarative cases, frozen inputs, and VM-local clocks/randomness. Executable
+production AST/exports are unchanged; no compiler, client build, or runtime
+restart is claimed. Payload variants and dispatcher dependencies remain next.
 
 ## Testing and Verification Strategy
 

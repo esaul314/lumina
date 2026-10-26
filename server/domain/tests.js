@@ -49,6 +49,7 @@ const {
   selectSmartPhoto,
   selectWeightedRandomPhoto
 } = require('./selectors.js');
+const selectors = require('./selectors.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const {
   buildPersistedSnapshot,
@@ -179,6 +180,178 @@ function createState(overrides = {}) {
 
 function runDomainTests({ logSuite, assertTest }) {
   logSuite('Functional Core Domain');
+
+  assertTest('all exported domain selector functions document their shared inputs and results', () => {
+    const source = fs.readFileSync(require.resolve('./selectors.js'), 'utf8');
+    Object.entries(selectors).filter(([, value]) => typeof value === 'function').forEach(([name]) => {
+      const prefix = source.slice(0, source.indexOf(`function ${name}(`));
+      const contract = prefix.slice(prefix.lastIndexOf('/**'));
+      assert.match(contract, /@param\s+\{/, name);
+      assert.match(contract, /@returns\s+\{/, name);
+      assert.ok(contract.endsWith('*/\n'), name);
+    });
+    ['CollectionsState', 'CurrentFrame', 'DomainState', 'Photo'].forEach((name) =>
+      assert.ok(source.includes(`import('./types').${name}`), name));
+    assert.match(source, /@typedef \{WeightedPhotoOptions & SmartPreferences\} SmartFeedOptions/);
+  });
+
+  assertTest('selector normalization visibility dedupe and lookups preserve ordered row aliases', () => {
+    const first = Object.freeze({ url: 'same', category: 'Pool', title: 'Keep' });
+    const duplicate = Object.freeze({ url: 'same', title: 'Later' });
+    const rows = Object.freeze([first, duplicate, { url: 'banned', rating: 1 }, { url: 'broken', isBroken: true }]);
+    const visible = selectors.filterVisiblePhotos(rows, []);
+    assert.deepStrictEqual(visible, rows.slice(0, 2));
+    assert.notStrictEqual(visible, rows);
+    assert.strictEqual(selectors.uniqByUrl(visible)[0], first);
+    assert.deepStrictEqual(selectors.filterVisiblePhotos(rows, [' keep ']), rows.slice(1, 2));
+    assert.deepStrictEqual(selectors.filterVisiblePhotos(null, []), []);
+    assert.strictEqual(selectors.matchesExcludedKeywords([''], first), true);
+    assert.strictEqual(selectors.matchesExcludedKeywords('keep', first), false);
+    assert.deepStrictEqual(selectors.normalizeCategorySelection([' Liminal Space ', 'Liminal Spaces', 'Google Photos', 'bad'], ['Liminal Spaces']), ['Liminal Spaces', 'Google Photos']);
+    assert.deepStrictEqual(selectors.normalizeCategorySelection(null, [], ' AI Creation '), ['AI Creations']);
+    assert.strictEqual(selectors.normalizeCategoryName(null), '');
+    assert.strictEqual(selectors.findPhotoInFeed(rows, 'same'), first);
+    assert.strictEqual(selectors.getPhotoByUrl({ Pool: [first] }, 'same', { External: [duplicate] }), first);
+    assert.strictEqual(selectors.findPhotoInFeed(undefined, 'same'), null);
+    assert.strictEqual(selectors.getPhotoByUrl({}, 'missing'), null);
+  });
+
+  assertTest('generic list selectors retain aliases and pure filter composition laws', () => {
+    const rows = Object.freeze([Object.freeze({ url: 'a' }), Object.freeze({ url: 'b', title: 'b' }), Object.freeze({ url: 'a' })]);
+    let draws = 0;
+    const shuffled = selectors.shuffleWithRng(rows, () => { draws += 1; return 0; });
+    assert.deepStrictEqual(shuffled, [rows[1], rows[2], rows[0]]);
+    assert.strictEqual(draws, rows.length - 1);
+    assert.notStrictEqual(shuffled, rows);
+    assert.deepStrictEqual(selectors.interleaveLists([[rows[0]], [rows[1], rows[2]]]), [rows[0], rows[1], rows[0], rows[2]]);
+    assert.deepStrictEqual(selectors.interleaveLists([]), []);
+    assert.deepStrictEqual(selectors.interleaveLists([[], [rows[0]]]), [undefined, rows[0]]);
+    const unique = selectors.uniqByUrl(rows);
+    assert.deepStrictEqual(selectors.uniqByUrl(unique), unique);
+    const visible = selectors.filterVisiblePhotos(rows, []);
+    assert.deepStrictEqual(selectors.filterVisiblePhotos(visible, []), visible);
+    assert.deepStrictEqual(selectors.filterVisiblePhotos([...rows, ...rows], ['b']), [rows[0], rows[2], rows[0], rows[2]]);
+    assert.notStrictEqual(selectors.uniqByUrl(unique), unique); // Value-idempotent, not reference-idempotent.
+  });
+
+  assertTest('balanced feed contracts preserve external override first URL ownership and immutable copies', () => {
+    const shared = Object.freeze({ url: 'shared', title: 'External' });
+    const curated = Object.freeze({ url: 'curated' });
+    const options = Object.freeze({
+      selectedCategories: Object.freeze(['A', 'B', 'C']),
+      collections: Object.freeze({ A: Object.freeze([curated]), B: Object.freeze([{ url: 'shared', title: 'B' }, { url: 'b' }]), C: Object.freeze([curated]) }),
+      externalCollections: Object.freeze({ A: Object.freeze([shared]), C: Object.freeze([]) }),
+      rng: () => 0.99
+    });
+    const before = JSON.stringify(options);
+    const feed = buildBalancedFeed(options);
+    assert.deepStrictEqual(feed.map(({ url, category }) => [url, category]), [['shared', 'A'], ['b', 'B']]);
+    assert.notStrictEqual(feed[0], shared);
+    assert.strictEqual(shared.category, undefined);
+    assert.deepStrictEqual(buildBalancedFeed(options), feed);
+    assert.strictEqual(JSON.stringify(options), before);
+  });
+
+  assertTest('time weather and night selector contracts preserve boundaries identities and conditional draws', () => {
+    [
+      ['08:00', '08:00', '18:00', true], ['18:00', '08:00', '18:00', false],
+      ['00:00', '18:00', '06:00', true], ['06:00', '18:00', '06:00', false],
+      ['08:00', '08:00', '08:00', false], ['bad', '08:00', '18:00', false]
+    ].forEach(([now, start, end, expected]) => assert.strictEqual(selectors.isTimeInSchedule(now, start, end), expected));
+    const rows = Object.freeze([Object.freeze({ url: 'snow', isSnowy: true, isNight: true }), Object.freeze({ url: 'sun', isSunny: true })]);
+    const noDraw = () => assert.fail('identity branch must not draw');
+    assert.strictEqual(filterPhotosForWeather(rows, false, 'Snowy', 'Sunny', noDraw), rows);
+    assert.strictEqual(filterPhotosForWeather(rows, true, 'Rainy', 'Sunny', noDraw), rows);
+    assert.strictEqual(filterPhotosForWeather(rows, true, 'Snowy', 'Sunny', () => 0.8), rows);
+    assert.deepStrictEqual(filterPhotosForWeather(rows, true, 'Snowy', 'Sunny', () => 0.799), [rows[0]]);
+    assert.strictEqual(filterPhotosForNight(rows, true, false, 100, noDraw), rows);
+    assert.strictEqual(filterPhotosForNight(rows, true, true, null, () => 0.5), rows);
+    assert.deepStrictEqual(filterPhotosForNight(rows, true, true, null, () => 0.499), [rows[0]]);
+    const timed = Object.freeze([...rows, Object.freeze({ url: 'timed', timeRanges: [{ start: '08:00', end: '18:00' }] })]);
+    assert.deepStrictEqual(filterPhotosForTime(timed, new Date(2026, 0, 1, 18)), rows);
+  });
+
+  assertTest('smart selectors rotate time-eligible pools before preferences and preserve zero-weight aliases', () => {
+    const photos = Object.freeze([
+      Object.freeze({ url: 'a', category: 'A', rating: 0 }),
+      Object.freeze({ url: 'b', category: 'B', isSunny: true }),
+      Object.freeze({ url: 'b2', category: 'B', isNight: true, isSunny: true }),
+      Object.freeze({ url: 'closed', category: 'C', timeRanges: [{ start: '18:00', end: '06:00' }] })
+    ]);
+    const options = Object.freeze({ photos, now: new Date(2026, 0, 1, 9), rng: () => 0, alignWeather: true, newsMatch: 'Sunny', alignTimeOfDay: true, isNight: true, nightPercentage: 100 });
+    const choose = (previousCategory, direction = 'next') => selectors.selectSmartPhotoFromFeed({ ...options, previousCategory, direction });
+    assert.strictEqual(choose('A'), photos[2]);
+    assert.strictEqual(choose('B'), photos[0]);
+    assert.strictEqual(choose('A', 'prev'), photos[2]);
+    assert.strictEqual(selectWeightedRandomPhoto({ photos: [photos[0]], rng: () => assert.fail('zero weight must not draw') }), photos[0]);
+    assert.strictEqual(selectWeightedRandomPhoto({ photos: [photos[1], photos[2]], currentPhotoUrl: 'b', rng: () => 0 }), photos[2]);
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ ...options, photos: [] }), null);
+    const state = createState({ library: { photosList: photos.slice(1, 3) }, config: { alignTimeOfDay: true, nightPercentage: 100 }, runtime: { weather: { current: { is_day: 0 } } }, playback: { activePhotoUrl: null } });
+    assert.strictEqual(selectSmartPhoto({ state, now: options.now, rng: options.rng }), photos[2]);
+  });
+
+  assertTest('sequential selector reads per-pool cursors without advancing them or applying schedules', () => {
+    const photos = [{ url: 'a', category: 'A' }, { url: 'b', category: 'B' }, { url: 'b2', category: 'B', timeRanges: [{ start: '00:00', end: '00:00' }] }];
+    const state = createState({ library: { photosList: photos }, playback: { activePhotoUrl: 'a', poolSequenceCursors: { B: 1 } } });
+    const before = JSON.stringify(state);
+    assert.strictEqual(selectors.selectSequentialPhoto({ state }), photos[2]);
+    assert.strictEqual(selectors.selectSequentialPhoto({ state, direction: 'prev' }), photos[1]);
+    assert.strictEqual(JSON.stringify(state), before);
+    assert.strictEqual(selectors.selectSequentialPhoto({ state: createState({ library: { photosList: [] } }) }), null);
+  });
+
+  assertTest('library update contracts retain last-match precedence and shallow no-op semantics', () => {
+    const first = Object.freeze({ url: 'same', category: 'A', rating: 4 });
+    const last = Object.freeze({ url: 'same', category: 'B', rating: 5 });
+    const collections = Object.freeze({ A: Object.freeze([first]) });
+    const external = Object.freeze({ B: Object.freeze([last]) });
+    const noOp = selectors.updatePhotoInCollections(collections, 'same', photo => photo);
+    assert.strictEqual(noOp.changed, false);
+    assert.strictEqual(noOp.updatedPhoto, first);
+    assert.notStrictEqual(noOp.collections.A[0], first);
+    const updated = selectors.updatePhotoInLibraries(collections, external, 'same', photo => ({ ...photo, rating: 5 }));
+    assert.strictEqual(updated.changedInCollections, true);
+    assert.strictEqual(updated.changedInExternalCollections, false);
+    assert.strictEqual(updated.updatedPhoto, last);
+    assert.strictEqual(first.rating, 4);
+    assert.strictEqual(selectors.updatePhotoInCollections(collections, 'missing', () => assert.fail('miss must not update')).updatedPhoto, null);
+    const failure = new Error('updater');
+    assert.throws(() => selectors.updatePhotoInLibraries(collections, external, 'same', () => { throw failure; }), error => error === failure);
+  });
+
+  assertTest('frame selectors preserve feed-first aliases detached categories and zero crop values', () => {
+    const primary = { url: 'port-1', category: 'Liminal Spaces', orientation: 'portrait', cropPercent: 0, cropPositionY: 0 };
+    const secondary = { url: 'port-2', category: 'Liminal Spaces', width: 1, height: 2, cropPercent: 0 };
+    const state = createState({ library: { photosList: [primary, secondary] } });
+    const before = JSON.stringify(state);
+    const frame = deriveCurrentFrame(state);
+    assert.strictEqual(selectors.getActivePhoto(state), primary);
+    assert.strictEqual(frame.primary, primary);
+    assert.strictEqual(frame.secondary, secondary);
+    assert.deepStrictEqual(frame.crop, { primaryPercent: 0, primaryPositionY: 0, secondaryPercent: 0, secondaryPositionY: null });
+    assert.notStrictEqual(frame.context.categories, state.playback.selectedCategories);
+    assert.deepStrictEqual(deriveCurrentFrame(state), frame);
+    assert.strictEqual(JSON.stringify(state), before);
+    assert.strictEqual(selectors.inferOrientation({ url: 'square', width: 2, height: 2 }), 'landscape');
+    assert.strictEqual(selectors.inferOrientation(null), 'unknown');
+    assert.strictEqual(selectors.getActivePhoto(createState({ playback: { activePhotoUrl: null } })), null);
+  });
+
+  assertTest('selector ambient defaults are undefined-only and injected failures propagate exactly', () => {
+    const reads = [];
+    const sandbox = { module: { exports: {} }, Date: class extends Date {
+      constructor() { super(2026, 0, 1, 9); reads.push('date'); }
+    }, Math: { get random() { reads.push('random'); return () => { reads.push('draw'); return 0; }; } } };
+    runInNewContext(fs.readFileSync(require.resolve('./selectors.js'), 'utf8'), sandbox);
+    const isolated = sandbox.module.exports;
+    assert.strictEqual(isolated.selectSmartPhotoFromFeed({ photos: [] }), null);
+    assert.deepStrictEqual(reads, ['date', 'random']);
+    reads.length = 0;
+    assert.throws(() => isolated.selectSmartPhotoFromFeed({ photos: [], now: null, rng: null }), error => error.name === 'TypeError');
+    assert.deepStrictEqual(reads, []);
+    const failure = new Error('random');
+    assert.throws(() => selectors.selectSmartPhotoFromFeed({ photos: [{ url: 'one' }], now: new Date(2026, 0, 1, 9), rng: () => { throw failure; } }), error => error === failure);
+  });
 
   assertTest('normalizes category aliases and drops invalid selections', () => {
     const selected = normalizeCategorySelection(

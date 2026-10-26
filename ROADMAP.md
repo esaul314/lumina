@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 - Screensaver cursor correction (2026-10-25): the active TV kiosk restarts its three-second inactivity timer when screensaver state changes and hides the pointer across the page, including over settings panels.
 
@@ -35,9 +35,10 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
 - Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
 - Latest Step 6 slice (97): `getPickerMediaFile(...)` refines read-only inputs, whole nested/flat selection, original aliases versus fresh empty fallbacks, repeated accessor reads, and exact failures. Seven focused tests use declarative cases, frozen records, and test-only private capture. Preserve the pure data-first selector: stable leaf selection is reference-idempotent, but arbitrarily nested records are not. Executable production code and exports remain unchanged.
-- Step 6 acceptance audit (2026-10-25): not ready for closeout. Corrected the missing `refresh-active-feed` Effect member, with vocabulary-parity and ordered dispatch regressions. Public selector inputs, command/effect payload variants, and dispatcher dependencies remain after the execution-contract follow-up below; see the companion audit for bounded exit criteria. Runtime behavior and exports are unchanged.
+- Step 6 acceptance audit (2026-10-25): not ready for closeout. Corrected the missing `refresh-active-feed` Effect member, with vocabulary-parity and ordered dispatch regressions. Command/effect payload variants and dispatcher dependencies remain after the execution/selector follow-ups below; see the companion audit for bounded exit criteria. Runtime behavior and exports are unchanged.
 - Done: Step 6 execution contracts name `ReducerEnvironment`, `ReducerResult`, `EffectResult`, and `DispatchResult` at the reducer/dispatcher boundary. Seven regressions preserve replay, truthy defaults, no-op identities, failure propagation, and pre-effect snapshot/result ordering. Executable production code and exports are unchanged.
-- Next Step 6 checkpoint: annotate exported domain selector inputs/results using shared shapes, preserving clock/random injection and balanced playback; then cover command/effect payload variants and dispatcher dependencies before repeating the closeout audit.
+- Done: Step 6 selector contracts cover all 23 exported functions using shared domain shapes and named selection/update inputs/results. Ten regressions preserve balanced playback, conditional randomness, undefined-only defaults, immutable projections, aliases, and exact failures. Executable production code and exports are unchanged.
+- Next Step 6 checkpoint: document command/effect payload variants and dispatcher dependencies from actual decoder/reducer/shell shapes, then repeat the closeout audit. No TypeScript compiler gate or Step 6 closeout is claimed.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
@@ -250,7 +251,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Media retrieval hardening follow-up: choose bounded network/decoding failure recovery, refreshed-token reuse, consistent empty-byte handling, validated MIME values, and thrown-value normalization explicitly. Current retries retain the original token/hint, and prior cache/byte writes survive later failures; keep policy changes separate from contract-only work.
   - Step 6 acceptance audit (2026-10-25): the shared Effect vocabulary now includes the already-emitted/handled `refresh-active-feed`; four regressions cover vocabulary parity, payload/result aliases, absent adapters, and rejected refresh ordering. Core contracts remain incomplete; this is not a TypeScript compilation claim or Phase 1 closeout.
   - Done: Step 6 reducer/dispatcher execution and result contracts are explicit, with seven regressions and no executable production changes. Defaults, identity, ordered effects, and pre-effect snapshots remain unchanged.
-  - Next Step 6 checkpoint: public selector inputs/results, then command/effect payload variants and dispatcher dependencies; re-audit before closeout. Do not resume unrelated helper polishing.
+  - Done: all exported domain selectors have explicit shared-shape contracts, with ten regressions preserving pool balance, time/random injection, aliases, immutable projections, and existing defaults. No executable production change or export added.
+  - Next Step 6 checkpoint: command/effect payload variants and dispatcher dependencies; re-audit before closeout. Do not resume unrelated helper polishing or infer compilation from source-contract assertions.
 
 ### Shared domain flow
 
