@@ -6,6 +6,33 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-26: Re-audit Step 6 Acceptance and Bound Compiler Readiness Work
+
+- **Outcome**: audited commands, environments, effects, and selectors against
+  both acceptance criteria. Step 6 remains incomplete: documented signatures
+  do not prove state invariants, retained type relationships, or compilation.
+- **Evidence/correction**: repaired an unbalanced `SessionConfig.poolPolicies`
+  declaration. Scalar patches can reach public snapshots outside the declared
+  state types; active-photo decoding validates URL presence, not optional Photo
+  metadata. Unknown property access and type-erasing curried/heterogeneous
+  interpreters still need compiler-led work. Corrected the product roadmap's
+  stale payload-contract next step to match the completed implementation.
+- **Functional boundary/tests**: five declarative regressions preserve raw
+  values, aliases, replay, immutable inputs, inherited/callable property lookup,
+  exact getter failures, and optional direct payload behavior. Corrected a test
+  assumption: the shared writer skips undefined scale mode, retaining state
+  identity; omitted numeric payloads can still produce NaN. Kept the pure
+  data-first core and existing sequential shell; no algebraic wrapper is needed.
+- **Verification**: `npm test` passed: 755 executed, 754 passed assertions,
+  zero failures, plus 13/13 sensor regressions. Optional endpoint smoke was
+  sandbox-skipped (`listen EPERM`). Lint, touched JavaScript syntax, whitespace,
+  and unchanged executable production AST/export checks passed. No compiler,
+  dependency installation, client build, daemon restart, or runtime policy change.
+- **Next**: establish a scoped no-emit TypeScript diagnostic baseline with
+  compile-time fixtures and separately reported transitive errors; then address
+  measured narrowing/inference and compatibility-state gaps. No installed
+  TypeScript dependency, compiler on PATH, or repository typecheck gate was found.
+
 ### 2026-10-26: Document Command Payloads and Dispatcher Dependencies
 
 - **Pressure**: closed command/effect names still shared broad payload records,

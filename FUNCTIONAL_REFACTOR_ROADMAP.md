@@ -457,7 +457,8 @@ Progress note:
 - Step 6 execution-contract slice (2026-10-25): named `ReducerEnvironment` and public reducer/dispatcher results, preserving default clock/random reads, no-op identities, ordered effects, and pre-effect snapshots. Seven regressions cover replay, inputs, defaults, failures, and shell ordering without executable production changes.
 - Step 6 selector-contract slice (2026-10-26): all 23 exported domain selectors now document shared domain shapes and local selection/update contracts. Ten regressions preserve pool balance, time eligibility, conditional randomness, undefined-only defaults, aliases, immutable projections, and exact failures without executable production changes.
 - Step 6 payload-contract slice (2026-10-26): named all 25 command payload variants and nullable decoder results, ten discriminated effect variants, and dispatcher dependencies/public methods. Ten regressions preserve decoder pass-through fields, detached job arrays, metadata patches, aliases, optional adapters, and shell-specific completion/failure rules. Executable production code and exports are unchanged.
-- Next Step 6 checkpoint: repeat the acceptance audit of command, environment, effect, and selector boundaries against both criteria. Identify remaining migration blockers explicitly before closeout; source-contract assertions are not a compiler gate. Do not resume unrelated helper polishing.
+- Step 6 acceptance re-audit (2026-10-26): completed the audit, not Step 6. Corrected an unbalanced `SessionConfig.poolPolicies` declaration and added five compatibility regressions. Remaining gaps and a bounded compiler-first queue appear below; executable production code/exports remain unchanged.
+- Next Step 6 checkpoint: establish a scoped no-emit TypeScript diagnostic baseline and compile-time fixtures for command, environment, effect, and selector boundaries, with transitive errors reported separately. Then resolve measured narrowing/inference gaps and model compatibility state explicitly without changing runtime validation. Do not resume unrelated helper polishing.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -517,19 +518,38 @@ Acceptance criteria:
 - Core refactored modules expose stable, documented contracts.
 - TypeScript migration can adopt the modules without redesigning their public shapes.
 
-### Step 6 acceptance audit — 2026-10-25
+### Step 6 acceptance audit — 2026-10-25; re-audited 2026-10-26
 
-Result: **incomplete**. Existing `@ts-check` markers and extensive helper
-contracts are useful evidence, but do not establish complete public contracts
-or a successful TypeScript compilation. This audit follows the core domain
-flow rather than adding more unrelated Google Photos helper slices.
+Result: **incomplete**. Public command, execution, effect, and selector
+signatures are now documented, but their state invariants and internal type
+relationships are not closed. The re-audit found and corrected an unbalanced
+nested-record declaration in `SessionConfig.poolPolicies`. Existing `@ts-check`
+markers, source assertions, and lint do not establish successful compilation.
+This audit follows the core domain flow, not unrelated helper polishing.
 
 | Boundary | Evidence in the current code | Remaining gap |
 | --- | --- | --- |
-| Commands | `CommandPayloads` correlates 25 names with their field shapes; `Command` preserves legacy payload omission. Exported decoders document `Command \| null`, including pass-through patch/exclusion fields, timed keywords, and unscoped jobs. Existing REST/Socket.IO parity tests remain. | Signatures are documented, not runtime validation or compiler proof. Re-audit internal builder inference and unknown-input narrowing before claiming mechanical migration. |
-| Environments | Shared `ReducerEnvironment` documents execution defaults/results. `DispatcherDependencies` and `DomainDispatcher` now name mutable state, synchronous context/emission/override, optional adapters, and public methods; sensor settings remain separate. | Preserve truthy reducer defaults versus undefined-only context defaults. Verify adoption/inference during the closeout audit; no compiler gate has run. |
-| Effects | Ten discriminated variants separate payload-free work, external metadata, category work, and environment-secret maps. Dependencies document opaque awaited adapter results and partial failures; pre-effect snapshot semantics remain explicit. | Contracts and handler vocabulary are covered; internal heterogeneous handler inference and unsafe compatibility calls still need audit. Do not infer compilation or atomicity from behavioral tests. |
-| Selectors | All 23 exported `domain/selectors.js` functions now annotate inputs/results using shared `DomainState`, `Photo`, `CollectionsState`, and `CurrentFrame`, with local selection/update contracts. Ten regressions cover ordering, balance, immutable projections, aliases, clocks/randomness, and failures. Browser contracts remain separate. | Public signatures are covered; retain undefined-only selector defaults versus truthy reducer defaults. Compilation remains unverified, not implied by source assertions or lint. |
+| Commands | `CommandPayloads` correlates 25 names; decoders document `Command \| null`. Regressions confirm raw scalar patches, URL-only validation of active-photo metadata, and inherited/callable inputs. | `decodeCategorySelectionFromHttp`, `decodeStatePatchCommand`, and `decodeScreensaverActiveCommand` access properties on `unknown` without sufficient narrowing. Boolean `isPlainObject` is not an explicit type predicate. `curry: AnyFunction -> AnyFunction` erases builder relationships. A guard must preserve native lookup/coercion behavior, not silently reject callable/inherited inputs. |
+| Environments | `ReducerEnvironment`, dispatcher dependencies/public methods, and results document defaults, fresh context, aliases, and completion ordering. Replay/order/failure tests remain. | `StatePatchPayload` permits unknown scalars but `SessionConfig` promises string/number/boolean/enums. Tests now trace all ten scalar fields through reduction and public snapshots unchanged. Optional direct payloads can produce NaN; omitted scale mode is an identity no-op. Choose an honest compatibility-state model before asserting normalized state. |
+| Effects | Ten discriminated variants match the closed handler vocabulary. Sequential execution, optional adapters, opaque awaited results, synchronous emission/override, and partial failures are covered. | `createTypedHandlerInvoker` still accepts `(item: any) => any`; private handlers/interpreter and reducer-family builders rely on inference. Public effect variants do not prove payload/handler correlation or `EffectResult[]` inference. Compile before choosing local generic annotations; preserve ordering and existing compatibility fallbacks. |
+| Selectors | All 23 exported signatures share domain shapes; existing tests cover pool balance, time/random defaults, aliases, and immutable updates. | `Photo` optional fields are narrower than metadata accepted by `decodeActivePhotoCommand`; `SmartPhotoOptions` consumes the overpromised `DomainState`. Check predicates, generic collection results, and transitive snapshot types with the compiler; these are review targets, not measured diagnostic counts. Browser contracts remain separate. |
+
+Acceptance decisions:
+
+1. **Stable documented contracts: partially met.** All four public boundaries
+   have named contracts and behavioral coverage. The syntax correction is local,
+   but compatibility values still contradict normalized state/photo claims;
+   documentation coverage alone is not contract soundness.
+2. **Adoption without public-shape redesign: not demonstrated.** The current
+   callable APIs can remain; first distinguish untrusted compatibility data from
+   normalized values and measure inference/narrowing with compile-time fixtures.
+   No need for a new public API or runtime validation has been established.
+
+Tooling evidence: no repository `tsconfig`/typecheck script, installed TypeScript
+dependency (`npm ls typescript --all --offline`), or `tsc` on PATH was found.
+No compiler was installed or run for this audit. The property delimiter test
+is deliberately not a JSDoc parser/compiler. Diagnostic counts and a successful
+strict migration are unmeasured, not inferred from the passing runtime suite.
 
 First correction: add the already-emitted and already-handled
 `refresh-active-feed` member to `Effect`. A source-contract regression compares
@@ -548,9 +568,20 @@ Bounded completion queue:
    shapes; preserved random/clock injection and existing playback behavior.
 3. Completed: documented command/effect payload variants, nullable decoder
    results, and dispatcher dependencies from actual decoder/reducer/shell shapes.
-4. Re-audit these four boundaries and their tests against both acceptance
-   criteria. Report any remaining typing limitation explicitly; do not claim a
-   compiler gate from source assertions, lint, or `@ts-check` alone.
+4. Completed: re-audited both criteria, corrected the malformed policy type,
+   and recorded concrete state/photo counterexamples and inference gaps.
+5. **Next:** establish a reproducible development-only, no-emit compiler baseline
+   for these four boundaries with positive/negative compile-time fixtures.
+   Report transitive-module diagnostics separately; do not hide them with
+   blanket `any`, `@ts-ignore`, or unchecked casts, or claim a clean gate yet.
+6. Use that baseline to narrow unknown decoder inputs and retain command/payload
+   relationships through curried builders and heterogeneous interpreters with
+   small local contracts, preserving the existing public call conventions.
+7. Model compatibility state/photo inputs versus normalized values explicitly;
+   preserve raw patch values, optional direct payload behavior, metadata aliases,
+   and reducer/selector default differences. Runtime validation is separate work.
+8. Re-run the scoped compiler fixtures and runtime suite, then repeat both
+   acceptance decisions. Close Step 6 only from that evidence, not signature count.
 
 Functional decision: preserve the pure data-first domain core and existing
 partially applied, sequential effect interpreter. Effects are descriptions,
@@ -595,7 +626,18 @@ callbacks return undefined when unavailable; manual override/emitter results are
 not awaited, unlike effect adapter results. Weather Error failures are handled,
 but nullish thrown values can escape its logging boundary. Preserve this behavior
 until separately scoped hardening. Production AST/exports are unchanged; the next
-step is the acceptance audit, not a TypeScript compilation claim.
+step was the acceptance re-audit above, not a TypeScript compilation claim.
+
+Re-audit regressions (2026-10-26): five tests cover the corrected property
+delimiter, ten scalar patches reaching public snapshots, URL-only active-photo
+metadata validation, native decoder lookup/failure semantics, and optional direct
+payload behavior. Declarative tables and frozen inputs preserve the pure,
+data-first reducer and explicit execution inputs. The first test expectation
+incorrectly assumed omitted scale mode assigns undefined; `assignFields` skips
+undefined, so the test now verifies the existing state identity. No production
+logic, export, dependency, live state, or persistence policy changed. Existing
+curried composition and the sequential shell remain appropriate; a new
+Functor/Monad wrapper would neither narrow unknowns nor restore erased types.
 
 ## Testing and Verification Strategy
 

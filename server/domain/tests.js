@@ -182,6 +182,81 @@ function createState(overrides = {}) {
 function runDomainTests({ logSuite, assertTest }) {
   logSuite('Functional Core Domain');
 
+  assertTest('session pool policy contract closes nested records before its generic map', () => {
+    const source = fs.readFileSync(require.resolve('./types.js'), 'utf8');
+    const property = source.split('\n').find((line) => line.endsWith(' poolPolicies'));
+    // Delimiter regression only: this is not JSDoc parsing or TypeScript checking.
+    assert.match(property, /priority\?: number \} \}>=\} poolPolicies$/);
+    assert.strictEqual([...property].filter((value) => value === '{').length,
+      [...property].filter((value) => value === '}').length);
+  });
+
+  assertTest('scalar patch compatibility can exceed the declared state shape through public snapshots', () => {
+    const state = createState();
+    const before = JSON.stringify(state);
+    const env = { now: new Date(0), rng: () => 0 };
+    [
+      ['theme', 9], ['inactivityTimeout', 'later'], ['slideshowInterval', 'later'],
+      ['scaleMode', 'stretch'], ['splitPortrait', 'false'], ['splitCropPercent', 'bad'],
+      ['alignTimeOfDay', 'false'], ['alignWeather', 'false'],
+      ['nightPercentage', 'bad'], ['allowOpenAiFallback', 'false']
+    ].forEach(([field, value]) => {
+      const input = Object.freeze({ [field]: value });
+      const command = decodeStatePatchCommand(input);
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(result.nextState.config[field], value, field);
+      assert.strictEqual(snapshot.config[field], value, field);
+      assert.strictEqual(snapshot[field], value, field);
+      assert.deepStrictEqual(reduceDomainCommand(state, command, env), result);
+      assert.strictEqual(JSON.stringify(state), before);
+      assert.strictEqual(input[field], value);
+    });
+  });
+
+  assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
+    const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
+    const command = decodeActivePhotoCommand(photo);
+    assert.strictEqual(command.payload.photo, photo);
+    assert.strictEqual(command.payload.url, 'preview');
+    assert.strictEqual(command.payload.photo.title, 9);
+    assert.strictEqual(command.payload.photo.width, 'wide');
+    assert.strictEqual(selectors.inferOrientation(command.payload.photo), 'unknown');
+  });
+
+  assertTest('unknown decoder inputs preserve inherited and callable property access and exact getter failures', () => {
+    [
+      [decodeCategorySelectionFromHttp, 'category', 'Scenic Nature', 'select-categories', 'categories'],
+      [decodeScreensaverActiveCommand, 'active', true, 'set-screensaver-active', 'active']
+    ].forEach(([decode, field, value, type, outputField]) => {
+      [Object.create({ [field]: value }), Object.assign(() => {}, { [field]: value })].forEach((input) => {
+        assert.deepStrictEqual(decode(input), { type, payload: { [outputField]: value } });
+      });
+      [null, undefined, false, 0, 'plain', Symbol('input')].forEach((input) => {
+        assert.strictEqual(decode(input), null);
+      });
+      const failure = new Error('isolated decoder getter failure');
+      const input = Object.defineProperty({}, field, { get: () => { throw failure; } });
+      assert.throws(() => decode(input), (error) => error === failure);
+    });
+  });
+
+  assertTest('optional direct command payloads retain compatibility rather than guarantee normalized state', () => {
+    [
+      ['set-scale-mode', 'scaleMode', 'cover'],
+      ['change-interval', 'slideshowInterval', NaN],
+      ['set-split-crop', 'splitCropPercent', NaN],
+      ['set-split-portrait', 'splitPortrait', false]
+    ].forEach(([type, field, expected]) => {
+      const state = createState();
+      const before = JSON.stringify(state);
+      const result = reduceDomainCommand(state, Object.freeze({ type }), { now: new Date(0), rng: () => 0 });
+      assert.strictEqual(result.nextState.config[field], expected, type);
+      if (type === 'set-scale-mode') assert.strictEqual(result.nextState, state);
+      assert.strictEqual(JSON.stringify(state), before);
+    });
+  });
+
   assertTest('command payload contracts match every reducer branch and exported decoder result', () => {
     const types = fs.readFileSync(require.resolve('./types.js'), 'utf8');
     const reducer = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
