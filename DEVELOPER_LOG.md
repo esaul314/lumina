@@ -6,6 +6,35 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-27: Establish the Step 6 Compiler Baseline
+
+- **Outcome**: added a pinned development-only TypeScript 5.9.3 and Node type
+  dependency, strict no-emit domain config, compile-time fixtures, and a reporter
+  that separates core, fixture, transitive, and global diagnostics by location.
+  `npm run typecheck:domain -- --details` prints every diagnostic. The command
+  intentionally exits nonzero while any remain; no runtime API changed.
+- **Measured**: 541 core, two fixture, 68 transitive, zero global. The fixture
+  errors demonstrate result-type erasure in the curried patch builder and the
+  heterogeneous invoker; expected-invalid command/effect/environment/selector
+  cases are checked with `@ts-expect-error`. Ten TS18046 errors occur in
+  `decodeStatePatchCommand`; transitive errors include malformed JSDoc in the
+  collection photo projections. Strict implicit-any diagnostics account for
+  much of the core count. No blanket suppression or migration completion claim.
+- **Functional boundary/tests**: the diagnostic classification is a pure,
+  partially applied partition and the compiler invocation is the effect shell.
+  Three tests cover grouping, status, no-emit configuration, fixture correctness,
+  and detection of a deliberately weakened negative assertion. The two known
+  inference assertions may become green without breaking the test. An initial
+  subprocess-based test hit sandbox `EPERM`, so the test now invokes the compiler
+  in-process and does not weaken the real diagnostic command.
+- **Verification**: `npm test` passed (755 executed, zero failures; 13/13 sensor
+  and 3/3 reporter tests); optional endpoint smoke was sandbox-skipped due to
+  `listen EPERM`. Lint, touched JavaScript syntax, and whitespace checks passed.
+  The real compiler command returned 1 with the diagnostic counts above.
+- **Next**: narrow `decodeStatePatchCommand` unknown inputs without changing
+  existing object/array/accessor behavior, then continue the compiler-guided
+  inference and compatibility-state work. Step 6 remains incomplete.
+
 ### 2026-10-26: Re-audit Step 6 Acceptance and Bound Compiler Readiness Work
 
 - **Outcome**: audited commands, environments, effects, and selectors against

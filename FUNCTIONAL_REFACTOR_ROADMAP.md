@@ -458,7 +458,8 @@ Progress note:
 - Step 6 selector-contract slice (2026-10-26): all 23 exported domain selectors now document shared domain shapes and local selection/update contracts. Ten regressions preserve pool balance, time eligibility, conditional randomness, undefined-only defaults, aliases, immutable projections, and exact failures without executable production changes.
 - Step 6 payload-contract slice (2026-10-26): named all 25 command payload variants and nullable decoder results, ten discriminated effect variants, and dispatcher dependencies/public methods. Ten regressions preserve decoder pass-through fields, detached job arrays, metadata patches, aliases, optional adapters, and shell-specific completion/failure rules. Executable production code and exports are unchanged.
 - Step 6 acceptance re-audit (2026-10-26): completed the audit, not Step 6. Corrected an unbalanced `SessionConfig.poolPolicies` declaration and added five compatibility regressions. Remaining gaps and a bounded compiler-first queue appear below; executable production code/exports remain unchanged.
-- Next Step 6 checkpoint: establish a scoped no-emit TypeScript diagnostic baseline and compile-time fixtures for command, environment, effect, and selector boundaries, with transitive errors reported separately. Then resolve measured narrowing/inference gaps and model compatibility state explicitly without changing runtime validation. Do not resume unrelated helper polishing.
+- Step 6 compiler baseline (2026-10-27): pinned development-only TypeScript and Node declarations, a strict no-emit domain configuration, and positive/negative compile fixtures expose 541 core, two intentional fixture, 68 transitive, and zero global diagnostics. `npm run typecheck:domain -- --details` reports every diagnostic; the nonzero result is expected until the gaps are resolved.
+- Next Step 6 checkpoint: address measured `decodeStatePatchCommand` unknown-input diagnostics with a behavior-preserving local narrowing contract, then continue the inference and compatibility-state queue. Do not resume unrelated helper polishing.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -545,11 +546,32 @@ Acceptance decisions:
    normalized values and measure inference/narrowing with compile-time fixtures.
    No need for a new public API or runtime validation has been established.
 
-Tooling evidence: no repository `tsconfig`/typecheck script, installed TypeScript
+Tooling evidence at the re-audit: no repository `tsconfig`/typecheck script, installed TypeScript
 dependency (`npm ls typescript --all --offline`), or `tsc` on PATH was found.
 No compiler was installed or run for this audit. The property delimiter test
 is deliberately not a JSDoc parser/compiler. Diagnostic counts and a successful
-strict migration are unmeasured, not inferred from the passing runtime suite.
+strict migration were unmeasured, not inferred from the passing runtime suite.
+
+Compiler baseline (2026-10-27): TypeScript 5.9.3 and `@types/node` 25.9.1 are
+exact development dependencies in the npm lockfile. `tsconfig.domain.json`
+checks the five domain root files and compile-only fixtures with `strict`,
+`allowJs`, and `noEmit`; imported checked modules remain visible. Run
+`npm run typecheck:domain` for counts and append `-- --details` for every
+diagnostic. The command exits nonzero for any diagnostic; it is not part of the
+green runtime test gate and does not suppress transitive errors. Grouping is by
+diagnostic file location, not ownership or import reachability.
+
+Current results: **541 core, 2 fixtures, 68 transitive, 0 global**. The two
+fixture TS2344 errors explicitly prove the curried patch builder and typed
+handler invoker currently erase results to `any`; other positive/negative
+fixtures compile as expected. There are 10 TS18046 unknown-input diagnostics
+in `decodeStatePatchCommand`; other core counts include numerous implicit-any
+diagnostics under strict mode. Transitive diagnostics include two malformed
+JSDoc declarations in `collectionPhotoProjections.js`. These counts describe
+this pinned configuration and are not a whole-repository migration estimate.
+Three reporter/fixture tests verify partitioning, nonzero/zero status, and
+that a deliberately weakened negative fixture produces TS2578; the test allows
+the two explicitly located red assertions to disappear as contracts improve.
 
 First correction: add the already-emitted and already-handled
 `refresh-active-feed` member to `Effect`. A source-contract regression compares
@@ -570,13 +592,14 @@ Bounded completion queue:
    results, and dispatcher dependencies from actual decoder/reducer/shell shapes.
 4. Completed: re-audited both criteria, corrected the malformed policy type,
    and recorded concrete state/photo counterexamples and inference gaps.
-5. **Next:** establish a reproducible development-only, no-emit compiler baseline
-   for these four boundaries with positive/negative compile-time fixtures.
-   Report transitive-module diagnostics separately; do not hide them with
-   blanket `any`, `@ts-ignore`, or unchecked casts, or claim a clean gate yet.
-6. Use that baseline to narrow unknown decoder inputs and retain command/payload
-   relationships through curried builders and heterogeneous interpreters with
-   small local contracts, preserving the existing public call conventions.
+5. Completed: established the scoped strict no-emit baseline and compile-time
+   fixtures, with transitive diagnostics separately reported and no blanket
+   suppression. The command is intentionally nonzero; it is not a clean gate.
+6. **Next:** address the ten measured unknown-input diagnostics in
+   `decodeStatePatchCommand`, preserving the current object/array and accessor
+   behavior. Then retain command/payload relationships through curried builders
+   and heterogeneous interpreters with small local contracts, preserving the
+   existing public call conventions and tracking both red fixture assertions.
 7. Model compatibility state/photo inputs versus normalized values explicitly;
    preserve raw patch values, optional direct payload behavior, metadata aliases,
    and reducer/selector default differences. Runtime validation is separate work.

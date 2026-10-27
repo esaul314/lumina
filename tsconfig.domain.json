@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2021",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node"]
+  },
+  "files": [
+    "server/domain/types.js",
+    "server/domain/commands.js",
+    "server/domain/reducer.js",
+    "server/domain/dispatch.js",
+    "server/domain/selectors.js",
+    "type-fixtures/domain.ts"
+  ]
+}
