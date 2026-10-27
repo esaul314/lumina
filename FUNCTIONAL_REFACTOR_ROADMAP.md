@@ -456,7 +456,8 @@ Progress note:
 - Step 6 acceptance audit (2026-10-25): not ready for closeout; see the evidence matrix under Step 6. Corrected the missing `refresh-active-feed` Effect member without executable production changes. Four tests cover handler-vocabulary parity and pool-refresh dispatch success, absent adapters, and rejection. Keep the pure reducer and sequential effect interpreter; no extra functional wrapper is warranted.
 - Step 6 execution-contract slice (2026-10-25): named `ReducerEnvironment` and public reducer/dispatcher results, preserving default clock/random reads, no-op identities, ordered effects, and pre-effect snapshots. Seven regressions cover replay, inputs, defaults, failures, and shell ordering without executable production changes.
 - Step 6 selector-contract slice (2026-10-26): all 23 exported domain selectors now document shared domain shapes and local selection/update contracts. Ten regressions preserve pool balance, time eligibility, conditional randomness, undefined-only defaults, aliases, immutable projections, and exact failures without executable production changes.
-- Next Step 6 checkpoint: document command/effect payload variants and dispatcher dependencies from actual decoder/reducer/shell shapes, then repeat the acceptance audit instead of continuing unrelated helper polishing. Source-contract assertions are not a compiler gate.
+- Step 6 payload-contract slice (2026-10-26): named all 25 command payload variants and nullable decoder results, ten discriminated effect variants, and dispatcher dependencies/public methods. Ten regressions preserve decoder pass-through fields, detached job arrays, metadata patches, aliases, optional adapters, and shell-specific completion/failure rules. Executable production code and exports are unchanged.
+- Next Step 6 checkpoint: repeat the acceptance audit of command, environment, effect, and selector boundaries against both criteria. Identify remaining migration blockers explicitly before closeout; source-contract assertions are not a compiler gate. Do not resume unrelated helper polishing.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -525,9 +526,9 @@ flow rather than adding more unrelated Google Photos helper slices.
 
 | Boundary | Evidence in the current code | Remaining gap |
 | --- | --- | --- |
-| Commands | `commands.js` uses shared pure decoders and transport specs; `domain/tests.js` covers REST/Socket.IO parity. `types.js` closes the command names. | `Command.payload` remains one broad optional record; command-specific required fields and decoder results are not consistently explicit. |
-| Environments | Sensor/weather contracts already exist. The follow-up execution slice names shared `ReducerEnvironment` inputs and documents public reducer/dispatcher results. | Execution/result contracts are covered; retain truthy clock/random defaults and the distinction from sensor settings. Dispatcher dependency contracts remain in the effect-shell queue. |
-| Effects | Reducer descriptions flow through the sequential interpreter; the ten Effect names match its handlers. The execution follow-up names `EffectResult`/`DispatchResult` and their pre-effect snapshot semantics. | Payloads remain broad records; metadata, category-job/refresh, and environment-secret variants plus dispatcher dependencies need explicit contracts. |
+| Commands | `CommandPayloads` correlates 25 names with their field shapes; `Command` preserves legacy payload omission. Exported decoders document `Command \| null`, including pass-through patch/exclusion fields, timed keywords, and unscoped jobs. Existing REST/Socket.IO parity tests remain. | Signatures are documented, not runtime validation or compiler proof. Re-audit internal builder inference and unknown-input narrowing before claiming mechanical migration. |
+| Environments | Shared `ReducerEnvironment` documents execution defaults/results. `DispatcherDependencies` and `DomainDispatcher` now name mutable state, synchronous context/emission/override, optional adapters, and public methods; sensor settings remain separate. | Preserve truthy reducer defaults versus undefined-only context defaults. Verify adoption/inference during the closeout audit; no compiler gate has run. |
+| Effects | Ten discriminated variants separate payload-free work, external metadata, category work, and environment-secret maps. Dependencies document opaque awaited adapter results and partial failures; pre-effect snapshot semantics remain explicit. | Contracts and handler vocabulary are covered; internal heterogeneous handler inference and unsafe compatibility calls still need audit. Do not infer compilation or atomicity from behavioral tests. |
 | Selectors | All 23 exported `domain/selectors.js` functions now annotate inputs/results using shared `DomainState`, `Photo`, `CollectionsState`, and `CurrentFrame`, with local selection/update contracts. Ten regressions cover ordering, balance, immutable projections, aliases, clocks/randomness, and failures. Browser contracts remain separate. | Public signatures are covered; retain undefined-only selector defaults versus truthy reducer defaults. Compilation remains unverified, not implied by source assertions or lint. |
 
 First correction: add the already-emitted and already-handled
@@ -545,8 +546,8 @@ Bounded completion queue:
    reducer/dispatcher results, preserving defaults and no-op identity.
 2. Completed: annotated all exported domain selector inputs/results using shared
    shapes; preserved random/clock injection and existing playback behavior.
-3. Document command/effect payload variants and dispatcher dependencies
-   from the actual decoder, reducer, and shell shapes without runtime redesign.
+3. Completed: documented command/effect payload variants, nullable decoder
+   results, and dispatcher dependencies from actual decoder/reducer/shell shapes.
 4. Re-audit these four boundaries and their tests against both acceptance
    criteria. Report any remaining typing limitation explicitly; do not claim a
    compiler gate from source assertions, lint, or `@ts-check` alone.
@@ -579,7 +580,22 @@ but does not advance cursors. Ambient defaults remain effectful and apply only
 to undefined, unlike reducer `||` defaults. Ten focused tests cover these contracts
 using declarative cases, frozen inputs, and VM-local clocks/randomness. Executable
 production AST/exports are unchanged; no compiler, client build, or runtime
-restart is claimed. Payload variants and dispatcher dependencies remain next.
+restart is claimed. Payload/dependency contracts are covered by the follow-up below.
+
+Payload-contract follow-up (2026-10-26): a mapped discriminated command family
+shares field shapes without runtime wrappers; effect variants distinguish absent
+payloads from metadata/category/environment records. Keep raw scalar patches,
+exclusion entries, nonfinite numeric metadata, and omitted legacy payloads explicit
+rather than claiming decoder validation. Jobs copy ordered category arrays without
+deduplicating; metadata omits undefined fields. The existing curried decoders,
+data-first reducer, and partially applied sequential interpreter remain unchanged.
+Ten tests combine declarative cases, frozen inputs, and VM-local effect adapters;
+no process-global mode/console patches or live persistence are introduced. Optional
+callbacks return undefined when unavailable; manual override/emitter results are
+not awaited, unlike effect adapter results. Weather Error failures are handled,
+but nullish thrown values can escape its logging boundary. Preserve this behavior
+until separately scoped hardening. Production AST/exports are unchanged; the next
+step is the acceptance audit, not a TypeScript compilation claim.
 
 ## Testing and Verification Strategy
 

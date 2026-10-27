@@ -50,6 +50,7 @@ const {
   selectWeightedRandomPhoto
 } = require('./selectors.js');
 const selectors = require('./selectors.js');
+const commands = require('./commands.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const {
   buildPersistedSnapshot,
@@ -180,6 +181,107 @@ function createState(overrides = {}) {
 
 function runDomainTests({ logSuite, assertTest }) {
   logSuite('Functional Core Domain');
+
+  assertTest('command payload contracts match every reducer branch and exported decoder result', () => {
+    const types = fs.readFileSync(require.resolve('./types.js'), 'utf8');
+    const reducer = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    const source = fs.readFileSync(require.resolve('./commands.js'), 'utf8');
+    const payloads = types.match(/@typedef \{\{([^]*?)\}\} CommandPayloads/)[1];
+    const declared = [...payloads.matchAll(/^ \* {3}'([^']+)':/gm)].map(([, name]) => name);
+    const handled = [...reducer.matchAll(/^ {2}(?: {4})?'([^']+)':/gm)].map(([, name]) => name);
+    assert.strictEqual(declared.length, 25);
+    assert.deepStrictEqual(declared.sort(), handled.sort());
+    assert.match(types, /payload\?: CommandPayloads\[K\]/);
+    assert.match(types, /keywords: unknown\[\]/);
+    Object.keys(commands).filter((name) => name.startsWith('decode')).forEach((name) => {
+      const position = source.search(new RegExp(`(?:function|const) ${name}\\b`));
+      const prefix = source.slice(0, position);
+      const contract = prefix.slice(prefix.lastIndexOf('/**'));
+      assert.match(contract, /@(?:type \{CommandDecoder\}|returns \{Command \| null\})/, name);
+      assert.ok(contract.endsWith('*/\n'), name);
+    });
+  });
+
+  assertTest('decoder contracts preserve pass-through values and photo aliases without promising validation', () => {
+    const widget = Object.freeze({ arbitrary: 'truthy' });
+    const exclusions = Object.freeze([null, 7, ' phrase ']);
+    const input = Object.freeze({ theme: 9, splitPortrait: 'false', widgets: widget, excludedKeywords: exclusions });
+    const patch = decodeStatePatchCommand(input);
+    assert.strictEqual(patch.payload.theme, 9);
+    assert.strictEqual(patch.payload.splitPortrait, 'false');
+    assert.deepStrictEqual(patch.payload.widgets, widget);
+    assert.notStrictEqual(patch.payload.widgets, widget);
+    assert.strictEqual(patch.payload.excludedKeywords, exclusions);
+    assert.strictEqual(commands.decodeExcludedKeywordsCommand(exclusions).payload.keywords, exclusions);
+    const photo = Object.freeze({ url: ' preview ', title: 'Untrimmed URL' });
+    assert.strictEqual(decodeActivePhotoCommand(photo).payload.photo, photo);
+    assert.strictEqual(decodeActivePhotoCommand(photo).payload.url, ' preview ');
+    const metadata = decodePhotoMetadataCommand({ url: 'p', orientation: 'portrait', width: 'bad', height: Infinity });
+    assert.ok(Number.isNaN(metadata.payload.width));
+    assert.strictEqual(metadata.payload.height, Infinity);
+    assert.strictEqual(decodePhotoMetadataCommand({ url: 'p', orientation: 'unknown' }), null);
+  });
+
+  assertTest('job command payloads become detached ordered category effect arrays', () => {
+    [
+      [decodeRecrawlCommand, 'start-recrawl-job'],
+      [decodeVisionAnalysisCommand, 'start-vision-analysis-job']
+    ].forEach(([decode, effectType]) => {
+      [undefined, null, {}, { categories: ' Pool ' }, { categories: [' Pool ', 'Pool', '', 3] }].forEach((input) => {
+        const command = decode(input);
+        const result = reduceDomainCommand(createState(), command, { now: new Date(0), rng: () => 0 });
+        const categories = command.payload.categories ?? [];
+        assert.deepStrictEqual(result.effects, [{ type: effectType, payload: { categories } }]);
+        assert.notStrictEqual(result.effects[0].payload.categories, categories);
+        assert.deepStrictEqual(result.events, []);
+      });
+      assert.strictEqual(decode({ categories: [] }), null);
+      assert.strictEqual(decode([]), null);
+    });
+    const result = reduceDomainCommand(createState(), {
+      type: 'trigger-recrawl', payload: { categories: 'Pool' }
+    });
+    assert.deepStrictEqual(result.effects[0].payload, { categories: [] });
+  });
+
+  assertTest('photo commands describe exact external metadata patches after curated persistence', () => {
+    const cases = [
+      ['rate-photo', { rating: 7 }, { rating: 7 }],
+      ['mark-photo-broken', {}, { rating: 1, isBroken: true }],
+      ['set-photo-crop', { cropPercent: 0 }, { cropPercent: 0 }],
+      ['set-photo-prevent-pairing', { preventPairing: true }, { preventPairing: true }],
+      ['set-photo-loved', { loved: true }, { loved: true }],
+      ['report-photo-metadata', { orientation: 'landscape', width: 100 }, { orientation: 'landscape', width: 100 }]
+    ];
+    cases.forEach(([type, fields, metadata]) => {
+      const row = Object.freeze({ url: 'shared', category: 'Pool', rating: 5 });
+      const state = createState({ library: { collections: { Pool: [row] }, externalCollections: { External: [row] } } });
+      const before = JSON.stringify(state);
+      const command = Object.freeze({ type, payload: Object.freeze({ url: 'shared', ...fields }) });
+      const result = reduceDomainCommand(state, command, { now: new Date(0), rng: () => 0 });
+      assert.deepStrictEqual(result.effects, [
+        { type: 'persist' }, { type: 'persist-external-photo-metadata', payload: { url: 'shared', metadata } }
+      ], type);
+      assert.strictEqual(JSON.stringify(state), before, type);
+    });
+  });
+
+  assertTest('environment-secret and payload-free effects retain distinct description shapes', () => {
+    const state = createState();
+    const command = Object.freeze({ type: 'save-env-secret', payload: Object.freeze({ envKey: ' TEST_KEY ', runtimeFlag: ' present ', value: ' value ' }) });
+    const result = reduceDomainCommand(state, command);
+    assert.strictEqual(result.nextState, state);
+    assert.deepStrictEqual(result.effects, [{ type: 'persist-env-vars', payload: {
+      entries: { TEST_KEY: ' value ' }, runtimeFlags: { present: true }
+    } }]);
+    assert.deepStrictEqual(reduceDomainCommand(state, { type: 'save-env-secret', payload: { envKey: ' ', runtimeFlag: 'present' } }).effects, []);
+    [true, false].forEach((active) => {
+      const changed = createState({ runtime: { screensaverActive: !active, browserRunning: !active, manualOverride: !active } });
+      const effect = reduceDomainCommand(changed, { type: 'set-screensaver-active', payload: { active } }).effects[0];
+      assert.deepStrictEqual(effect, { type: active ? 'launch-kiosk' : 'kill-kiosk' });
+      assert.strictEqual(Object.hasOwn(effect, 'payload'), false);
+    });
+  });
 
   assertTest('all exported domain selector functions document their shared inputs and results', () => {
     const source = fs.readFileSync(require.resolve('./selectors.js'), 'utf8');

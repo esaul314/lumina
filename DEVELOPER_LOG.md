@@ -6,6 +6,32 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-26: Document Command Payloads and Dispatcher Dependencies
+
+- **Pressure**: closed command/effect names still shared broad payload records,
+  leaving required variant fields and shell dependency expectations implicit.
+- **Contracts**: named 25 command payload variants and nullable decoder results,
+  ten discriminated effects, dispatcher dependencies, and public methods. Legacy
+  payload omission, scalar patch/exclusion pass-through, and nonfinite numeric
+  metadata remain explicit; documentation does not add runtime validation.
+- **Functional boundary**: kept the curried decoders, pure data-first reducer,
+  and partially applied sequential interpreter. Mapped/discriminated shapes
+  describe the existing vocabulary without runtime wrappers or new exports.
+  Context, persistence, mutation, callbacks, and emission remain shell effects.
+- **Tests**: ten regressions cover vocabulary/signature coverage, pass-through
+  aliases, detached job arrays, exact metadata/environment payloads, optional
+  adapters, synchronous override/emission, awaited opaque results, and failures.
+  VM-local effect adapters avoid live I/O and process-global patches. Corrected
+  two test-harness assumptions: parsing defaulted dependencies and observing
+  flag enumeration versus the later result-copy phase.
+- **Verification**: `npm test` passed: 750 tests executed, 749 passed assertions,
+  zero failures, and 13/13 sensor regressions. Optional endpoint smoke was
+  sandbox-skipped (`listen EPERM`). Lint, touched JavaScript syntax, whitespace,
+  and unchanged executable production AST/export checks passed.
+- **Next**: re-audit the four core boundaries against both Step 6 acceptance
+  criteria and identify remaining migration blockers. Step 6/Phase 1 remain
+  incomplete; no compiler gate, client build, or daemon restart is claimed.
+
 ### 2026-10-26: Document Exported Domain Selector Contracts
 
 - **Contracts**: annotated all 23 exported selector functions with shared domain

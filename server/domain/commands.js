@@ -2,7 +2,12 @@
 
 /**
  * @typedef {import('./types').Command} Command
+ * @typedef {import('./types').CommandDecoder} CommandDecoder
  */
+
+// Decoders project unknown transport values to Command | null, not exceptions
+// to Result values. Native access/coercion failures still propagate. Scalar
+// state patches and excluded-keyword entries intentionally remain unvalidated.
 
 const { curry } = require('../utils/fn.js');
 const {
@@ -146,6 +151,7 @@ const createAdvancePhotoTransportSpec = ({
   decodeRest: () => decodeAdvancePhotoCommand(direction, 'sequence')
 });
 
+/** @param {unknown} query @returns {Command | null} */
 function decodeCategorySelectionFromHttp(query) {
   const { category, categories: rawCategories } = query || {};
   const categories = typeof category === 'string'
@@ -166,6 +172,7 @@ function decodeCategorySelectionFromHttp(query) {
   };
 }
 
+/** @param {unknown} category @returns {Command | null} */
 function decodeCategorySelectionFromSocket(category) {
   if (typeof category !== 'string' || !category.trim()) {
     return null;
@@ -176,11 +183,13 @@ function decodeCategorySelectionFromSocket(category) {
   });
 }
 
+/** @type {CommandDecoder} */
 const decodePhotoRatingCommand = createPhotoCommandDecoder('rate-photo', (url, payload) => {
   const rating = validateRating(payload.rating);
   return rating === null ? null : { url, rating };
 });
 
+/** @type {CommandDecoder} */
 const decodePhotoCropCommand = createPhotoCommandDecoder('set-photo-crop', (url, payload) => {
   const fields = mergeDecodedFields([
     decodeOptionalField('cropPercent', validatePhotoCropPercent, payload),
@@ -190,6 +199,7 @@ const decodePhotoCropCommand = createPhotoCommandDecoder('set-photo-crop', (url,
   return fields ? { url, ...fields } : null;
 });
 
+/** @type {CommandDecoder} */
 const decodePhotoPreventPairingCommand = createPhotoCommandDecoder(
   'set-photo-prevent-pairing',
   (url, payload) => ({
@@ -199,6 +209,7 @@ const decodePhotoPreventPairingCommand = createPhotoCommandDecoder(
   })
 );
 
+/** @type {CommandDecoder} */
 const decodePhotoLovedCommand = createPhotoCommandDecoder(
   'set-photo-loved',
   (url, payload) => ({
@@ -207,11 +218,13 @@ const decodePhotoLovedCommand = createPhotoCommandDecoder(
   })
 );
 
+/** @type {CommandDecoder} */
 const decodeBrokenPhotoCommand = createPhotoCommandDecoder(
   'mark-photo-broken',
   (url) => ({ url })
 );
 
+/** @param {unknown} keywords @returns {Command | null} */
 function decodeExcludedKeywordsCommand(keywords) {
   if (!Array.isArray(keywords)) {
     return null;
@@ -225,6 +238,7 @@ function decodeExcludedKeywordsCommand(keywords) {
   };
 }
 
+/** @param {unknown} payload @returns {Command | null} */
 function decodeActivePhotoCommand(payload) {
   return createRequiredValueCommandDecoder(
     'set-active-photo',
@@ -237,6 +251,7 @@ function decodeActivePhotoCommand(payload) {
   );
 }
 
+/** @param {unknown} direction @param {unknown} [strategy='smart'] @returns {Command | null} */
 function decodeAdvancePhotoCommand(direction, strategy = 'smart') {
   if (direction !== 'next' && direction !== 'prev') {
     return null;
@@ -251,6 +266,7 @@ function decodeAdvancePhotoCommand(direction, strategy = 'smart') {
   };
 }
 
+/** @param {unknown} payload @returns {Command | null} */
 function decodeStatePatchCommand(payload) {
   if (!isPlainObject(payload)) {
     return null;
@@ -355,6 +371,7 @@ function buildWidgetPatch(payload) {
   };
 }
 
+/** @param {unknown} payload @returns {Command | null} */
 function decodeScreensaverActiveCommand(payload) {
   if (!payload || typeof payload.active !== 'boolean') {
     return null;
@@ -383,22 +400,26 @@ const SOCKET_STATE_PATCH_SPECS = [
   createSocketStatePatchSpec('update-manual-location', buildObjectFieldPatch('manualLocation'))
 ];
 
+/** @type {CommandDecoder} */
 const decodeAddPoolCommand = createPoolCommandDecoder('add-pool', (name, payload) => {
   const keywords = normalizeKeywordTerms(payload?.keywords ?? payload?.keyword, { splitString: true });
   return keywords.length === 0 ? null : { name, keywords };
 });
 
+/** @param {unknown} payload @returns {Command | null} */
 function decodeDeletePoolCommand(payload) {
   const input = typeof payload === 'string' ? { name: payload } : payload;
 
   return createPoolCommandDecoder('delete-pool', (name) => ({ name }), input);
 }
 
+/** @type {CommandDecoder} */
 const decodePoolKeywordsCommand = createPoolCommandDecoder('set-pool-keywords', (name, payload) => {
   const keywords = normalizeKeywordEntries(payload?.keywords, { splitTopLevelString: true });
   return keywords.length === 0 ? null : { name, keywords };
 });
 
+/** @type {CommandDecoder} */
 const decodePoolFeedConfigCommand = createPoolCommandDecoder('merge-pool-feed-config', (name, payload) => {
   const source = trimString(payload?.source);
   const config = payload?.config;
@@ -414,6 +435,7 @@ const decodePoolFeedConfigCommand = createPoolCommandDecoder('merge-pool-feed-co
   };
 });
 
+/** @type {CommandDecoder} */
 const decodePoolPolicyCommand = createPoolCommandDecoder('set-pool-policy', (name, payload) => (
   isPlainObject(payload?.policy)
     ? { name, policy: normalizePoolPolicy(payload.policy) }
@@ -440,6 +462,7 @@ function decodeScopedJobCommand(payload, type) {
   return createCommand(type, categories.length > 0 ? { categories } : {});
 }
 
+/** @param {unknown} name @returns {Command | null} */
 function decodePoolScopedRecrawlCommand(name) {
   const category = trimString(name);
   return category
@@ -447,6 +470,7 @@ function decodePoolScopedRecrawlCommand(name) {
     : null;
 }
 
+/** @type {CommandDecoder} */
 const decodePhotoMetadataCommand = createPhotoCommandDecoder('report-photo-metadata', (url, payload) => {
   if (payload.orientation !== 'portrait' && payload.orientation !== 'landscape') {
     return null;
@@ -665,7 +689,9 @@ const [
   TUMBLR_API_KEY_SECRET_SPEC
 ] = ENV_SECRET_TRANSPORT_SPECS;
 
+/** @type {CommandDecoder} */
 const decodeUseApiTokenCommand = USE_API_TOKEN_SECRET_SPEC.decode;
+/** @type {CommandDecoder} */
 const decodeTumblrApiKeyCommand = TUMBLR_API_KEY_SECRET_SPEC.decode;
 
 const ASYNC_JOB_TRANSPORT_SPECS = [
@@ -705,7 +731,9 @@ const [
   VISION_ANALYSIS_JOB_TRANSPORT_SPEC
 ] = ASYNC_JOB_TRANSPORT_SPECS;
 
+/** @type {CommandDecoder} */
 const decodeRecrawlCommand = RECRAWL_JOB_TRANSPORT_SPEC.decode;
+/** @type {CommandDecoder} */
 const decodeVisionAnalysisCommand = VISION_ANALYSIS_JOB_TRANSPORT_SPEC.decode;
 
 const ADVANCE_PHOTO_TRANSPORT_SPECS = [

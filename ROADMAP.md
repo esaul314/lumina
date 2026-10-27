@@ -252,7 +252,8 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Step 6 acceptance audit (2026-10-25): the shared Effect vocabulary now includes the already-emitted/handled `refresh-active-feed`; four regressions cover vocabulary parity, payload/result aliases, absent adapters, and rejected refresh ordering. Core contracts remain incomplete; this is not a TypeScript compilation claim or Phase 1 closeout.
   - Done: Step 6 reducer/dispatcher execution and result contracts are explicit, with seven regressions and no executable production changes. Defaults, identity, ordered effects, and pre-effect snapshots remain unchanged.
   - Done: all exported domain selectors have explicit shared-shape contracts, with ten regressions preserving pool balance, time/random injection, aliases, immutable projections, and existing defaults. No executable production change or export added.
-  - Next Step 6 checkpoint: command/effect payload variants and dispatcher dependencies; re-audit before closeout. Do not resume unrelated helper polishing or infer compilation from source-contract assertions.
+  - Done: Step 6 now documents all 25 command payload variants, nullable decoder results, ten discriminated effects, and dispatcher dependencies/public methods. Ten regressions preserve pass-through fields, aliases, ordered effects, optional adapters, and failure boundaries without executable production changes.
+  - Next Step 6 checkpoint: re-audit command, environment, effect, and selector boundaries against both acceptance criteria. Payload contracts are documented, but compilation remains unverified; identify any remaining migration blockers explicitly before closeout. Do not resume unrelated helper polishing.
 
 ### Shared domain flow
 

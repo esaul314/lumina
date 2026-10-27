@@ -117,37 +117,64 @@
  * @property {PlaybackState} playback
  */
 
+/** @typedef {import('../utils/keywordSpecs').KeywordSpec} KeywordSpec */
+/** @typedef {import('./poolRetention').PoolPolicyInput} PoolPolicyInput */
+
 /**
+ * Decoder output, not validated SessionConfig. Scalar patch values are passed
+ * through and interpreted by the reducer; widgets/exclusions retain raw entries.
+ * Location/vision records are normalized by their dedicated projections.
+ *
  * @typedef {{
- *   type:
- *     | 'select-categories'
- *     | 'patch-state'
- *     | 'update-excluded-keywords'
- *     | 'set-active-photo'
- *     | 'advance-photo'
- *     | 'rate-photo'
- *     | 'mark-photo-broken'
- *     | 'set-photo-crop'
- *     | 'set-photo-prevent-pairing'
- *     | 'set-photo-loved'
- *     | 'report-photo-metadata'
- *     | 'set-split-portrait'
- *     | 'set-split-crop'
- *     | 'set-scale-mode'
- *     | 'change-theme'
- *     | 'change-interval'
- *     | 'set-screensaver-active'
- *     | 'add-pool'
- *     | 'set-pool-keywords'
- *     | 'merge-pool-feed-config'
- *     | 'set-pool-policy'
- *     | 'delete-pool'
- *     | 'save-env-secret'
- *     | 'trigger-recrawl'
- *     | 'trigger-vision-analysis'
- *   payload?: Record<string, unknown> & { direction?: 'next' | 'prev', strategy?: AdvanceStrategy }
- * }} Command
+ *   theme?: unknown, inactivityTimeout?: unknown, slideshowInterval?: unknown,
+ *   scaleMode?: unknown, splitPortrait?: unknown, splitCropPercent?: unknown,
+ *   alignTimeOfDay?: unknown, alignWeather?: unknown, nightPercentage?: unknown,
+ *   allowOpenAiFallback?: unknown, excludedKeywords?: unknown[],
+ *   widgets?: Record<string, unknown>, autoLocation?: boolean,
+ *   manualLocation?: {lat: number, lon: number, city: string, regionName: string, country: string},
+ *   visionConfig?: Record<'apiUrl' | 'apiKey' | 'model' | 'fallbackUrl' | 'fallbackApiKey' | 'fallbackModel', string>
+ * }} StatePatchPayload
  */
+
+/**
+ * Discriminated command family. Required fields apply when a payload is present;
+ * omission remains allowed for legacy direct reducer callers. Decoders normally
+ * emit payload objects (including {} for unscoped jobs), or null on rejection.
+ * These shapes do not validate arbitrary direct calls or change their coercions.
+ * Numeric fields are numbers, not a promise of finite/in-range dimensions.
+ * Category selection accepts a comma-separated string or a direct string array.
+ *
+ * @typedef {{
+ *   'select-categories': {categories: string | string[]},
+ *   'patch-state': StatePatchPayload,
+ *   'update-excluded-keywords': {keywords: unknown[]},
+ *   'set-active-photo': {url: string, photo?: Photo},
+ *   'advance-photo': {direction?: 'next' | 'prev', strategy?: AdvanceStrategy},
+ *   'rate-photo': {url: string, rating: number},
+ *   'mark-photo-broken': {url: string},
+ *   'set-photo-crop': {url: string, cropPercent?: number, cropPositionY?: number},
+ *   'set-photo-prevent-pairing': {url: string, preventPairing: boolean, preserveActive?: boolean},
+ *   'set-photo-loved': {url: string, loved: boolean},
+ *   'report-photo-metadata': {url: string, orientation: 'portrait' | 'landscape', width?: number, height?: number},
+ *   'set-split-portrait': {enabled: boolean},
+ *   'set-split-crop': {percent: number},
+ *   'set-scale-mode': {mode: 'cover' | 'contain'},
+ *   'change-theme': {theme: string},
+ *   'change-interval': {intervalMs: number},
+ *   'set-screensaver-active': {active: boolean},
+ *   'add-pool': {name: string, keywords: string[]},
+ *   'set-pool-keywords': {name: string, keywords: KeywordSpec[]},
+ *   'merge-pool-feed-config': {name: string, source: string, config: Record<string, unknown>},
+ *   'set-pool-policy': {name: string, policy: PoolPolicyInput},
+ *   'delete-pool': {name: string},
+ *   'save-env-secret': {envKey: string, runtimeFlag: string, value: string},
+ *   'trigger-recrawl': {categories?: string[]},
+ *   'trigger-vision-analysis': {categories?: string[]}
+ * }} CommandPayloads
+ */
+
+/** @typedef {{[K in keyof CommandPayloads]: {type: K, payload?: CommandPayloads[K]}}[keyof CommandPayloads]} Command */
+/** @typedef {(input: unknown) => Command | null} CommandDecoder */
 
 /**
  * @typedef {{
@@ -157,24 +184,32 @@
 
 /**
  * Closed effect vocabulary emitted by the reducer and interpreted by dispatch.
- * Pool-policy updates emit `refresh-active-feed` with `{ categories: string[] }`;
- * persistence precedes refresh, and events follow successful effect completion.
- * Payloads remain compatibility records here; this declaration does not validate
- * callbacks, make effects atomic, or turn the interpreter into a pure function.
+ * Reducer metadata omits undefined fields. Direct malformed calls remain outside
+ * this normalized description; neither numeric validation nor atomicity is added.
+ *
+ * @typedef {Partial<Pick<Photo, 'rating' | 'isBroken' | 'cropPercent' | 'cropPositionY' | 'preventPairing' | 'loved' | 'orientation' | 'width' | 'height'>>} PhotoMetadataPatch
+ */
+
+/** @typedef {{url: string, metadata: PhotoMetadataPatch}} ExternalPhotoMetadataPayload */
+/** @typedef {{categories: string[]}} CategoryEffectPayload */
+/** @typedef {{entries: Record<string, string>, runtimeFlags: Record<string, boolean>}} EnvVarsEffectPayload */
+
+/**
+ * Closed reducer-emitted effect family. Payload-free effects omit the field;
+ * category jobs always carry a fresh array (empty means unscoped). Curated
+ * persistence precedes external metadata/feed refresh; events follow completion.
+ * Interpreter compatibility with missing/malformed payloads is not validation.
+ * Effects describe ordered work, not pure computations or atomic transactions.
  *
  * @typedef {{
- *   type:
- *     | 'persist'
- *     | 'persist-external-photo-metadata'
- *     | 'refresh-active-feed'
- *     | 'launch-kiosk'
- *     | 'kill-kiosk'
- *     | 'run-crawler'
- *     | 'persist-env-vars'
- *     | 'refresh-weather'
- *     | 'start-recrawl-job'
- *     | 'start-vision-analysis-job'
- *   payload?: Record<string, unknown>
+ *   type: 'persist' | 'launch-kiosk' | 'kill-kiosk' | 'refresh-weather'
+ * } | {
+ *   type: 'persist-external-photo-metadata', payload: ExternalPhotoMetadataPayload
+ * } | {
+ *   type: 'refresh-active-feed' | 'run-crawler' | 'start-recrawl-job' | 'start-vision-analysis-job',
+ *   payload: CategoryEffectPayload
+ * } | {
+ *   type: 'persist-env-vars', payload: EnvVarsEffectPayload
  * }} Effect
  */
 

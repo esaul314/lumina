@@ -13,6 +13,59 @@ const { createClosedInterpreter } = require('../utils/fn.js');
 /** @typedef {import('./types').ReducerResult} ReducerResult */
 /** @typedef {import('./types').ReducerEnvironment} ReducerEnvironment */
 /** @typedef {import('./snapshot').Snapshot} Snapshot */
+/** @typedef {import('./snapshot').LegacyState} LegacyState */
+/** @typedef {import('./snapshot').RuntimeOverrides} RuntimeOverrides */
+/** @typedef {import('./types').CollectionsState} CollectionsState */
+/** @typedef {import('./types').ExternalPhotoMetadataPayload} ExternalPhotoMetadataPayload */
+/** @typedef {import('./types').CategoryEffectPayload} CategoryEffectPayload */
+
+/**
+ * Adapters may complete synchronously or return an awaited value/thenable.
+ * Results remain opaque aliases; an unavailable adapter resolves undefined.
+ * Payloads are forwarded by identity, not copied before adapter execution.
+ *
+ * @template P
+ * @typedef {(payload: P) => unknown} PayloadAdapter
+ */
+
+/**
+ * Mutable shell dependencies. State/collections and io.emit are required.
+ * Runtime context is read afresh for reduction/refresh (not awaited); only an
+ * omitted/undefined reader receives the default. Optional non-functions are
+ * ignored by effect handlers. No adapter validation or rollback is performed.
+ * Manual override runs synchronously before launch/kill; its result is ignored,
+ * not awaited. Weather completion is discarded and ordinary Error failures are
+ * warned/swallowed; nullish failures or warning failures can still reject.
+ * runCrawler is suppressed only when NODE_ENV is exactly 'test'. Persistence is
+ * module-owned, not an injected dependency; it precedes runtime-flag assignment.
+ *
+ * @typedef {object} DispatcherDependencies
+ * @property {LegacyState} state
+ * @property {CollectionsState} collections
+ * @property {{emit: (event: 'photo-update' | 'state-sync', payload: import('./types').Photo | LegacyState) => unknown}} io
+ * @property {(() => RuntimeOverrides)} [getRuntimeContext]
+ * @property {(() => unknown)} [launchKioskBrowser]
+ * @property {(() => unknown)} [killKioskBrowser]
+ * @property {((active: boolean) => unknown)} [setManualOverride]
+ * @property {PayloadAdapter<ExternalPhotoMetadataPayload>} [persistExternalPhotoMetadata]
+ * @property {PayloadAdapter<CategoryEffectPayload>} [refreshActiveFeed]
+ * @property {PayloadAdapter<CategoryEffectPayload>} [runCrawler]
+ * @property {PayloadAdapter<CategoryEffectPayload>} [startRecrawlJob]
+ * @property {PayloadAdapter<CategoryEffectPayload>} [startVisionAnalysisJob]
+ * @property {(() => unknown)} [triggerWeatherUpdate]
+ */
+
+/**
+ * Public methods retain shell effects: refresh mutates legacy state and returns
+ * its snapshot; broadcast refreshes before emitting and returns undefined.
+ * Event emission is synchronous; returned emitter promises are not awaited.
+ *
+ * @typedef {{
+ *   refreshSnapshot: () => Snapshot,
+ *   broadcastStateSync: () => void,
+ *   dispatchCommand: (command: Command | null | undefined, env?: ReducerEnvironment) => Promise<DispatchResult | null>
+ * }} DomainDispatcher
+ */
 
 /**
  * Completed sequential handler result. Effect identity is retained and value is
@@ -173,6 +226,11 @@ function createEventHandlers({ state, io, broadcastStateSync }) {
   };
 }
 
+/**
+ * Capture adapters once; keep state/context reads and ordered effects in the shell.
+ * @param {DispatcherDependencies} dependencies
+ * @returns {DomainDispatcher}
+ */
 function createDomainDispatcher({
   state,
   collections,

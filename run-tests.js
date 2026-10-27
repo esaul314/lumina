@@ -10498,13 +10498,151 @@ assertTest('shared Effect vocabulary matches the closed dispatcher handler recor
   assert.ok(effectDeclaration, 'Effect declaration must remain explicit');
   assert.ok(handlerDeclaration, 'Effect handlers must remain a closed record');
 
-  const declared = [...effectDeclaration[1].matchAll(/\|\s*'([^']+)'/g)].map(([, type]) => type);
+  const declared = [...effectDeclaration[1].matchAll(/type: ([^\n,]+)/g)]
+    .flatMap(([, names]) => [...names.matchAll(/'([^']+)'/g)].map(([, type]) => type));
   const handled = [...handlerDeclaration[1].matchAll(/^ {4}(?:'([^']+)'|(\w+)):/gm)]
     .map(([, quoted, bare]) => quoted ?? bare);
 
   assert.strictEqual(new Set(declared).size, declared.length, 'Effect names must be unique');
   assert.ok(handled.includes('refresh-active-feed'));
   assert.deepStrictEqual([...declared].sort(), [...handled].sort());
+});
+
+// Capture private shell handlers only in an isolated VM; never touch live files,
+// process mode, console methods, or the production export vocabulary.
+function createEffectContractHarness(dependencies = {}, mode = 'test', persistEnv = () => {}) {
+  const calls = [];
+  const filename = path.join(__dirname, 'server/domain/dispatch.js');
+  const module = { exports: {} };
+  runInNewContext(`${fs.readFileSync(filename, 'utf8')}\nmodule.exports.capture = createEffectHandlers;`, {
+    module,
+    require: (name) => name === '../config/env.js'
+      ? { persistEnvVars: (entries) => { persistEnv(entries); calls.push(['persist-env', entries]); } }
+      : name === '../config/collections.js'
+        ? { saveCuratedCollections: () => { calls.push(['persist']); } }
+        : require(require.resolve(name, { paths: [path.dirname(filename)] })),
+    process: { env: { NODE_ENV: mode } },
+    console: { warn: (...args) => { calls.push(['warn', ...args]); } }
+  });
+  const state = {};
+  return { state, calls, handlers: module.exports.capture({ state, collections: {}, ...dependencies }) };
+}
+
+assertTest('dispatcher dependency contracts name every captured adapter and public method', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'server/domain/dispatch.js'), 'utf8');
+  const contract = source.match(/@typedef \{object\} DispatcherDependencies([^]*?)\*\//)[1];
+  const documented = [...contract.matchAll(/@property \{[^\n]+\} \[?(\w+)/g)].map(([, name]) => name);
+  const captured = source.match(/function createDomainDispatcher\(\{([^]*?)\n\}\) \{/)[1]
+    .split(',').map((field) => field.trim().split(' = ')[0]);
+  assert.deepStrictEqual(documented.sort(), captured.sort());
+  assert.match(source, /@param \{DispatcherDependencies\} dependencies/);
+  assert.match(source, /@returns \{DomainDispatcher\}/);
+  ['refreshSnapshot', 'broadcastStateSync', 'dispatchCommand'].forEach((name) =>
+    assert.ok(source.includes(`*   ${name}:`), name));
+});
+
+assertAsyncTest('payload adapters retain input aliases and await synchronous or thenable results', async () => {
+  const returned = Object.freeze({ result: 'opaque' });
+  const names = [
+    ['persistExternalPhotoMetadata', 'persist-external-photo-metadata'],
+    ['refreshActiveFeed', 'refresh-active-feed'], ['runCrawler', 'run-crawler'],
+    ['startRecrawlJob', 'start-recrawl-job'], ['startVisionAnalysisJob', 'start-vision-analysis-job']
+  ];
+  await Promise.all(names.map(async ([adapter, type]) => {
+    const payload = Object.freeze(type === 'persist-external-photo-metadata'
+      ? { url: 'external', metadata: Object.freeze({ loved: true }) }
+      : { categories: Object.freeze(['Pool', 'Pool']) });
+    const received = [];
+    const { handlers } = createEffectContractHarness({ [adapter]: (input) => {
+      received.push(input);
+      return received.length === 1 ? { then: (resolve) => resolve(returned) } : returned;
+    } }, 'production');
+    assert.strictEqual(await handlers[type]({ type, payload }), returned);
+    assert.strictEqual(received[0], payload);
+    const fallback = await handlers[type]({ type });
+    assert.strictEqual(fallback, returned);
+    assert.deepStrictEqual(Object.keys(received[1]), []);
+    const absent = createEffectContractHarness({ [adapter]: true }, 'production');
+    assert.strictEqual(await absent.handlers[type]({ payload }), undefined);
+  }));
+  const skipped = createEffectContractHarness({ runCrawler: () => { throw Error('must skip'); } });
+  assert.strictEqual(skipped.handlers['run-crawler']({ payload: { categories: [] } }), undefined);
+});
+
+assertAsyncTest('environment effects persist before boolean flags and return detached uncoerced records', async () => {
+  const entries = Object.freeze({ TEST_KEY: 'sample' });
+  const runtimeFlags = Object.freeze({ enabled: 'yes', disabled: 0 });
+  const { handlers, calls, state } = createEffectContractHarness();
+  // Flag enumeration happens after persistence, including the result copy.
+  const observed = new Proxy(runtimeFlags, { ownKeys: (target) => {
+    assert.strictEqual(calls[0][0], 'persist-env');
+    return Reflect.ownKeys(target);
+  } });
+  const result = await handlers['persist-env-vars']({ payload: { entries, runtimeFlags: observed } });
+  assert.strictEqual(calls[0][0], 'persist-env');
+  assert.strictEqual(calls[0][1], entries);
+  assert.strictEqual(state.enabled, true);
+  assert.strictEqual(state.disabled, false);
+  assert.notStrictEqual(result.entries, entries);
+  assert.notStrictEqual(result.runtimeFlags, runtimeFlags);
+  assert.strictEqual(result.runtimeFlags.enabled, 'yes');
+  assert.strictEqual(result.entries.TEST_KEY, 'sample');
+  const empty = await handlers['persist-env-vars']({ payload: { entries: [], runtimeFlags: false } });
+  assert.deepStrictEqual(Object.keys(empty.entries), []);
+  assert.deepStrictEqual(Object.keys(empty.runtimeFlags), []);
+  const failure = new Error('isolated persistence failure');
+  const failed = createEffectContractHarness({}, 'test', () => { throw failure; });
+  await assert.rejects(failed.handlers['persist-env-vars']({ payload: { entries, runtimeFlags } }), (error) => error === failure);
+  assert.deepStrictEqual(Object.keys(failed.state), []);
+  assert.deepStrictEqual(failed.calls, []);
+});
+
+assertAsyncTest('manual override is synchronous while weather has its own handled failure boundary', async () => {
+  const order = [];
+  const failure = new Error('isolated adapter failure');
+  const { handlers, calls } = createEffectContractHarness({
+    setManualOverride: (active) => {
+      order.push(active);
+      return { then: () => { throw Error('override must not be awaited'); } };
+    },
+    launchKioskBrowser: () => { order.push('launch'); return 7; },
+    killKioskBrowser: () => { order.push('kill'); throw failure; },
+    triggerWeatherUpdate: () => { throw failure; }
+  });
+  assert.strictEqual(await handlers['launch-kiosk'](), 7);
+  await assert.rejects(handlers['kill-kiosk'](), (error) => error === failure);
+  assert.deepStrictEqual(order, [true, 'launch', false, 'kill']);
+  assert.strictEqual(await handlers['refresh-weather'](), undefined);
+  assert.strictEqual(calls[0][0], 'warn');
+  assert.strictEqual(calls[0][2], failure.message);
+  const nullish = createEffectContractHarness({ triggerWeatherUpdate: () => { throw null; } });
+  await assert.rejects(nullish.handlers['refresh-weather'](), (error) => error.name === 'TypeError');
+  const absent = createEffectContractHarness();
+  assert.strictEqual(await absent.handlers['launch-kiosk'](), undefined);
+  assert.strictEqual(await absent.handlers['refresh-weather'](), undefined);
+});
+
+assertAsyncTest('dispatcher reads fresh synchronous context and does not await emitter results', async () => {
+  let reads = 0;
+  const emissions = [];
+  const context = { browserRunning: true, manualOverride: true };
+  const { dispatcher, state } = createDispatcherHarness({
+    getRuntimeContext: () => { reads += 1; return context; },
+    io: { emit: (...args) => {
+      emissions.push(args);
+      return { then: () => { throw Error('emit must not be awaited'); } };
+    } }
+  });
+  assert.strictEqual(dispatcher.refreshSnapshot().runtime.browserRunning, true);
+  context.browserRunning = false;
+  assert.strictEqual(dispatcher.broadcastStateSync(), undefined);
+  assert.strictEqual(reads, 2);
+  assert.strictEqual(emissions[0][1], state);
+  await dispatcher.dispatchCommand({ type: 'change-theme', payload: { theme: 'Updated' } });
+  assert.strictEqual(reads, 4); // reduction, then the state-sync refresh
+  assert.strictEqual(emissions[1][1], state);
+  const defaulted = createDispatcherHarness({ getRuntimeContext: undefined });
+  assert.strictEqual(defaulted.dispatcher.refreshSnapshot().runtime.browserRunning, false);
 });
 
 assertAsyncTest('pool refresh effects retain payload and result aliases and finish before events', async () => {
