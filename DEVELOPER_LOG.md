@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Isolate Native Numeric Coercion
+
+- **Outcome**: rating and night selection share a private data-first division
+  boundary with unknown input and a numeric successful result. Its single local
+  dynamic assertion permits the native operator; it does not validate input or
+  erase the possibility of coercion failures. Public selector shapes are intact.
+- **Tests**: numeric primitives and objects, coercion hints and RNG order, exact
+  native Symbol/BigInt errors, custom error identity and raw-rating compile-time
+  narrowing. Existing short-circuit, nullish-default and alias tests remain.
+- **Verification**: 793 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax and whitespace checks pass. The optional live
+  endpoint smoke was skipped because the sandbox denied listening. Strict domain
+  typecheck remains nonzero at 524 core, zero fixture, 69 transitive and zero
+  global diagnostics.
+- **Next**: address raw cursor key indexing and malformed pairing URL sorting
+  without hiding native failures, then continue the bounded acceptance queue.
+
 ### 2026-10-30: Model Raw Smart-Selection Rows
 
 - **Outcome**: the existing data-first smart and weighted selectors and their

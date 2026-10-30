@@ -1113,6 +1113,51 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(selectors.selectSmartPhotoFromFeed({ photos: [coerced], now, rng: () => assert.fail('zero weight must not draw') }), coerced);
   });
 
+  assertTest('night and rating division retain native numeric coercion and evaluation order', () => {
+    const events = [];
+    const numeric = (value) => Object.freeze({
+      [Symbol.toPrimitive]: (hint) => { events.push(`coerce:${hint}`); return value; }
+    });
+    const rows = Object.freeze([Object.freeze({ url: 'day' }), Object.freeze({ url: 'night', isNight: true })]);
+    const percentage = numeric('75');
+    assert.deepStrictEqual(filterPhotosForNight(rows, true, true, percentage, () => { events.push('rng'); return 0.5; }), [rows[1]]);
+    assert.deepStrictEqual(events, ['rng', 'coerce:number']);
+
+    events.length = 0;
+    const weighted = Object.freeze([
+      Object.freeze({ url: 'first', rating: numeric('5') }),
+      Object.freeze({ url: 'second', rating: numeric('10') })
+    ]);
+    assert.strictEqual(selectWeightedRandomPhoto({ photos: weighted, rng: () => { events.push('rng'); return 0.5; } }), weighted[1]);
+    assert.deepStrictEqual(events, ['coerce:number', 'coerce:number', 'rng']);
+
+    [false, '', '75', 'invalid', Infinity, -0].forEach((value) => {
+      const selected = filterPhotosForNight(rows, true, true, value, () => 0.4);
+      assert.strictEqual(selected === rows, !(0.4 < (value / 100)));
+    });
+  });
+
+  assertTest('night and rating division preserve native and user coercion failures', () => {
+    const rows = Object.freeze([Object.freeze({ url: 'night', isNight: true })]);
+    const failure = new Error('coercion failed');
+    const invalidValues = [Symbol('rating'), 1n, Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } })];
+    const capture = (operation) => {
+      try { operation(); }
+      catch (error) { return error; }
+      assert.fail('expected native division to throw');
+    };
+    invalidValues.forEach((value) => {
+      const nativeError = capture(() => value / 100);
+      const nightError = capture(() => filterPhotosForNight(rows, true, true, value, () => 0));
+      const ratingError = capture(() => selectWeightedRandomPhoto({ photos: [{ url: 'weighted', rating: value }], rng: () => 0 }));
+      [nightError, ratingError].forEach((error) => {
+        assert.strictEqual(error.constructor, nativeError.constructor);
+        assert.strictEqual(error.message, nativeError.message);
+        if (value === invalidValues[2]) assert.strictEqual(error, failure);
+      });
+    });
+  });
+
   assertTest('sequential selector reads per-pool cursors without advancing them or applying schedules', () => {
     const photos = [{ url: 'a', category: 'A' }, { url: 'b', category: 'B' }, { url: 'b2', category: 'B', timeRanges: [{ start: '00:00', end: '00:00' }] }];
     const state = createState({ library: { photosList: photos }, playback: { activePhotoUrl: 'a', poolSequenceCursors: { B: 1 } } });

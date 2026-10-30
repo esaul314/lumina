@@ -97,6 +97,10 @@ const rawSequential: FeedPhoto | null = selectSequentialPhoto({ state: rawFeedSt
 const rawSmart: FeedPhoto | null = selectSmartPhoto({ state: rawFeedState });
 const rawSmartFeed: typeof preview | null = selectSmartPhotoFromFeed({ photos: [preview], previousCategory: { legacy: true } });
 const rawWeighted: typeof preview | null = selectWeightedRandomPhoto({ photos: [preview], currentPhotoUrl: { legacy: true } });
+const rawRatingRows = [{ url: 'rated', rating: { legacy: true } }];
+const rawRatingSelection: typeof rawRatingRows[number] | null = selectWeightedRandomPhoto({ photos: rawRatingRows });
+// @ts-expect-error successful selection does not validate or normalize rating metadata
+const numericRating: number | undefined = rawRatingSelection?.rating;
 const rawTimed: typeof preview[] = filterPhotosForTime([preview], new Date());
 const rawWeather: ReadonlyArray<typeof preview> = filterPhotosForWeather([preview], true, 'Snowy', 'Cloudy');
 const rawNight: ReadonlyArray<typeof preview> = filterPhotosForNight([preview], true, true, 50);

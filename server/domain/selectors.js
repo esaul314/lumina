@@ -388,6 +388,19 @@ function formatTime(now) {
 }
 
 /**
+ * Native division by a number: successful results are numbers, but unvalidated
+ * operands can invoke user coercion or throw (including Symbol and BigInt).
+ * The local dynamic assertion models the operator, not input validation;
+ * TypeScript cannot otherwise express JavaScript's coercive arithmetic on unknown.
+ * @param {unknown} value
+ * @param {number} divisor
+ * @returns {number}
+ */
+function divideByNumber(value, divisor) {
+  return /** @type {any} */ (value) / divisor;
+}
+
+/**
  * Explicit portrait/landscape, else numeric dimensions (square is landscape).
  * Unvalidated values are neither coerced nor normalized; accessors can throw.
  * @param {FeedPhoto | null | undefined} photo
@@ -472,7 +485,7 @@ function filterPhotosForNight(photos, alignTimeOfDay, isNight, nightPercentage, 
   }
 
   const nightPhotos = photos.filter((photo) => photo.isNight);
-  return nightPhotos.length > 0 && rng() < ((nightPercentage ?? 50) / 100)
+  return nightPhotos.length > 0 && rng() < divideByNumber(nightPercentage ?? 50, 100)
     ? nightPhotos
     : photos;
 }
@@ -504,7 +517,7 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
   const weightedCandidates = withoutCurrent.length > 0 ? withoutCurrent : poolCandidates;
 
   const thresholdMap = weightedCandidates.reduce((accumulator, photo) => {
-    const weight = (photo.rating ?? 10) / 10;
+    const weight = divideByNumber(photo.rating ?? 10, 10);
     const threshold = accumulator.total + weight;
     return {
       total: threshold,
