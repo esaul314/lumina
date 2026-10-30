@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Raw Smart-Selection Rows
+
+- **Outcome**: the existing data-first smart and weighted selectors and their
+  pure preference filters preserve generic raw row types; state-backed smart
+  selection returns an unvalidated row or null. Pool grouping preserves Map key
+  identity. No executable production code or playback policy changed.
+- **Tests**: staged preview aliases, object category identity, rating coercion,
+  malformed schedules, empty selections and compiler narrowing are covered.
+- **Acceptance review**: Step 6 remains incomplete. Strict typecheck reports 526
+  core, zero fixture, 69 transitive and zero global diagnostics; native rating
+  and night division, cursor keys and malformed pairing URL sorting remain
+  visible alongside command/effect inference work.
+- **Verification**: 791 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional endpoint smoke was skipped because the sandbox denied listening.
+- **Next**: address those exposed coercion and key contracts without silently
+  changing native behavior, then continue the bounded acceptance queue.
+
 ### 2026-10-30: Model Raw Current-Frame Photos
 
 - **Outcome**: the pure current-frame projection and legacy/public snapshot

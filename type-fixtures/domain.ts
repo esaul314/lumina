@@ -5,7 +5,7 @@ import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domai
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
-import { deriveCurrentFrame, filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, getActivePhoto, inferOrientation, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
+import { deriveCurrentFrame, filterPhotosForNight, filterPhotosForTime, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, getActivePhoto, inferOrientation, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, selectWeightedRandomPhoto, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
@@ -94,6 +94,18 @@ const rebuiltRawFeed: FeedPhoto[] = buildDomainState(rawLegacyState, state.libra
 const rawFeed: FeedPhoto[] = rawFeedState.library.photosList;
 const rawSnapshotFeed: FeedPhoto[] = buildSnapshot(rawFeedState).photosList;
 const rawSequential: FeedPhoto | null = selectSequentialPhoto({ state: rawFeedState });
+const rawSmart: FeedPhoto | null = selectSmartPhoto({ state: rawFeedState });
+const rawSmartFeed: typeof preview | null = selectSmartPhotoFromFeed({ photos: [preview], previousCategory: { legacy: true } });
+const rawWeighted: typeof preview | null = selectWeightedRandomPhoto({ photos: [preview], currentPhotoUrl: { legacy: true } });
+const rawTimed: typeof preview[] = filterPhotosForTime([preview], new Date());
+const rawWeather: ReadonlyArray<typeof preview> = filterPhotosForWeather([preview], true, 'Snowy', 'Cloudy');
+const rawNight: ReadonlyArray<typeof preview> = filterPhotosForNight([preview], true, true, 50);
+// @ts-expect-error state-backed smart selection does not normalize preview metadata
+const normalizedSmart: Photo | null = selectSmartPhoto({ state: rawFeedState });
+// @ts-expect-error generic smart selection preserves raw row metadata
+const normalizedSmartFeed: Photo | null = selectSmartPhotoFromFeed({ photos: [preview] });
+// @ts-expect-error smart selection may have no eligible rows
+const guaranteedSmart: FeedPhoto = selectSmartPhoto({ state: rawFeedState });
 const rawActive: FeedPhoto | null = getActivePhoto(rawFeedState);
 const activeOrientation = inferOrientation(rawActive);
 const rawFrame = deriveCurrentFrame(rawFeedState);
@@ -165,7 +177,8 @@ declare const untrustedPatch: unknown;
 const decodedUnknown: Command | null = decodeStatePatchCommand(untrustedPatch);
 const result = reduceDomainCommand(state, command, environment);
 const visible: Photo[] = filterVisiblePhotos(photos);
-const selected: Photo | null = selectSmartPhoto({ state, rng: () => 0.5 });
+const selected: FeedPhoto | null = selectSmartPhoto({ state, rng: () => 0.5 });
+const normalizedFeedSelection: Photo | null = selectSmartPhotoFromFeed({ photos, rng: () => 0.5 });
 const unique: Array<{ url: string; marker: number }> = uniqByUrl([{ url: 'a', marker: 1 }]);
 const pending = dispatcher.dispatchCommand(command, environment);
 const directBooleanPatch: boolean | undefined = buildBooleanFieldPatch('enabled', 1).enabled;

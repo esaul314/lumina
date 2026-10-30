@@ -28,15 +28,20 @@
  * @property {Readonly<CollectionsState>} [externalCollections={}]
  * @property {unknown} [excludedKeywords]
  * @property {RandomSource} [rng=Math.random]
- *
+ */
+
+/**
+ * @template {FeedPhoto} T
  * @typedef {object} WeightedPhotoOptions
- * @property {ReadonlyArray<Photo> | null | undefined} photos
- * @property {string | null} [currentPhotoUrl=null]
+ * @property {ReadonlyArray<T> | null | undefined} photos
+ * @property {unknown} [currentPhotoUrl=null] Compared by strict equality after a truthiness check.
  * @property {unknown} [excludedKeywords=[]]
  * @property {RandomSource} [rng=Math.random]
- *
+ */
+
+/**
  * @typedef {object} SmartPreferences
- * @property {string | null} [previousCategory=null]
+ * @property {unknown} [previousCategory=null] Compared to pool keys by strict equality.
  * @property {Direction} [direction='next']
  * @property {unknown} [alignWeather=false] Truthiness enables weather preference.
  * @property {string} [physicalMatch='Cloudy']
@@ -45,7 +50,14 @@
  * @property {boolean} [isNight=false]
  * @property {unknown} [nightPercentage=50] Nullish values use 50; otherwise native division coerces or throws.
  * @property {Date} [now] Fresh Date by default; local hours/minutes, not a clock callback.
- * @typedef {WeightedPhotoOptions & SmartPreferences} SmartFeedOptions
+ */
+
+/**
+ * @template {FeedPhoto} T
+ * @typedef {WeightedPhotoOptions<T> & SmartPreferences} SmartFeedOptions
+ */
+
+/**
  * @typedef {{ state: DomainState, direction?: Direction }} SequentialPhotoOptions
  * @typedef {SequentialPhotoOptions & { now?: Date, rng?: RandomSource }} SmartPhotoOptions
  */
@@ -159,7 +171,14 @@ function uniqByUrl(photos) {
   });
 }
 
+/**
+ * Group original aliases by nullish-defaulted category using Map identity.
+ * @template {FeedPhoto} T
+ * @param {ReadonlyArray<T>} photos
+ * @returns {Array<{category: unknown, photos: T[]}>}
+ */
 function groupPhotosByCategory(photos) {
+  /** @type {Map<unknown, T[]>} */
   const pools = new Map();
 
   photos.forEach((photo) => {
@@ -389,9 +408,10 @@ function inferOrientation(photo) {
 /**
  * Fresh array of original rows. Missing/empty ranges allow a row; any matching
  * range permits it. Reads local time even for empty input; non-Date inputs may throw.
- * @param {ReadonlyArray<Photo>} photos
+ * @template {FeedPhoto} T
+ * @param {ReadonlyArray<T>} photos
  * @param {Date} now
- * @returns {Photo[]}
+ * @returns {T[]}
  */
 function filterPhotosForTime(photos, now) {
   const currentTime = formatTime(now);
@@ -405,12 +425,13 @@ function filterPhotosForTime(photos, now) {
 /**
  * Snow/rain physical priority, then news sunny/rain/cloudy. Strict <0.8 preference
  * only when matching rows exist; disabled/miss/rejected preference retains array.
- * @param {ReadonlyArray<Photo>} photos
+ * @template {FeedPhoto} T
+ * @param {ReadonlyArray<T>} photos
  * @param {unknown} alignWeather Truthiness enables weather preference.
  * @param {string} physicalMatch
  * @param {string} newsMatch
  * @param {RandomSource} [rng=Math.random]
- * @returns {ReadonlyArray<Photo>}
+ * @returns {ReadonlyArray<T>}
  */
 function filterPhotosForWeather(photos, alignWeather, physicalMatch, newsMatch, rng = Math.random) {
   if (!alignWeather) {
@@ -437,12 +458,13 @@ function filterPhotosForWeather(photos, alignWeather, physicalMatch, newsMatch, 
 /**
  * Strict percentage threshold, nullish 50 fallback, no clamping. Disabled,
  * daytime, no match or rejected preference retains the original array identity.
- * @param {ReadonlyArray<Photo>} photos
+ * @template {FeedPhoto} T
+ * @param {ReadonlyArray<T>} photos
  * @param {unknown} alignTimeOfDay Truthiness enables night preference.
  * @param {boolean} isNight
  * @param {unknown} nightPercentage Nullish values use 50; native division may coerce or throw.
  * @param {RandomSource} [rng=Math.random]
- * @returns {ReadonlyArray<Photo>}
+ * @returns {ReadonlyArray<T>}
  */
 function filterPhotosForNight(photos, alignTimeOfDay, isNight, nightPercentage, rng = Math.random) {
   if (!alignTimeOfDay || !isNight) {
@@ -459,8 +481,10 @@ function filterPhotosForNight(photos, alignTimeOfDay, isNight, nightPercentage, 
  * Choose a visible pool uniformly first, then rate-weight within it, avoiding
  * current URL when alternatives exist. Zero total selects first without a draw;
  * cumulative thresholds use >=. No time filter or cursor mutation here.
- * @param {WeightedPhotoOptions} options
- * @returns {Photo | null} Original row alias; null when no visible candidates.
+ * Ratings use native division and may coerce or throw; no metadata is normalized.
+ * @template {FeedPhoto} T
+ * @param {WeightedPhotoOptions<T>} options
+ * @returns {T | null} Original row alias; null when no visible candidates.
  */
 function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKeywords = [], rng = Math.random }) {
   const candidates = filterVisiblePhotos(photos, excludedKeywords);
@@ -486,7 +510,7 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
       total: threshold,
       items: [...accumulator.items, { photo, threshold }]
     };
-  }, { total: 0, items: /** @type {{ photo: Photo, threshold: number }[]} */ ([]) });
+  }, { total: 0, items: /** @type {{ photo: T, threshold: number }[]} */ ([]) });
 
   if (thresholdMap.total === 0) {
     return weightedCandidates[0];
@@ -499,8 +523,10 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
 /**
  * Visibility/time eligibility precede pool rotation (or initial random pool).
  * Weather/night preferences and rating weights apply only within that pool.
- * @param {SmartFeedOptions} options
- * @returns {Photo | null} Original row alias; null when no eligible pool remains.
+ * Category keys retain native Map identity; malformed time ranges and ratings may throw.
+ * @template {FeedPhoto} T
+ * @param {SmartFeedOptions<T>} options
+ * @returns {T | null} Original row alias; null when no eligible pool remains.
  */
 function selectSmartPhotoFromFeed({
   photos,
@@ -601,7 +627,7 @@ function selectSequentialPhoto({ state, direction = 'next' }) {
  * State adapter for smart selection; prev allows reselecting current URL.
  * Weather is_day takes precedence over local-hour night classification.
  * @param {SmartPhotoOptions} options
- * @returns {Photo | null}
+ * @returns {FeedPhoto | null} Original unvalidated feed row alias, or null.
  */
 function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = Math.random }) {
   const currentPhoto = state.library.photosList.find((photo) =>

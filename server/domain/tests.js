@@ -898,7 +898,7 @@ function runDomainTests({ logSuite, assertTest }) {
     });
     ['CollectionsState', 'CurrentFrame', 'DomainState', 'Photo'].forEach((name) =>
       assert.ok(source.includes(`import('./types').${name}`), name));
-    assert.match(source, /@typedef \{WeightedPhotoOptions & SmartPreferences\} SmartFeedOptions/);
+    assert.match(source, /@typedef \{WeightedPhotoOptions<T> & SmartPreferences\} SmartFeedOptions/);
   });
 
   assertTest('selector normalization visibility dedupe and lookups preserve ordered row aliases', () => {
@@ -1081,6 +1081,36 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(selectors.selectSmartPhotoFromFeed({ ...options, photos: [] }), null);
     const state = createState({ library: { photosList: photos.slice(1, 3) }, config: { alignTimeOfDay: true, nightPercentage: 100 }, runtime: { weather: { current: { is_day: 0 } } }, playback: { activePhotoUrl: null } });
     assert.strictEqual(selectSmartPhoto({ state, now: options.now, rng: options.rng }), photos[2]);
+  });
+
+  assertTest('smart selection preserves raw staged rows and pool-key identity', () => {
+    const category = Object.freeze({ pool: 'raw' });
+    const metadata = Object.freeze({ marker: true });
+    const preview = { url: 'smart-preview', category, title: 9, rating: '5', metadata };
+    const staged = reduceDomainCommand(createState(), { type: 'set-active-photo', payload: { url: preview.url, photo: preview } }).nextState;
+    const row = staged.library.photosList.find((photo) => photo.url === preview.url);
+    const other = Object.freeze({ url: 'other', category: 'other', rating: 0 });
+    const photos = Object.freeze([row, other]);
+    const state = { ...staged, library: { ...staged.library, photosList: photos } };
+    const options = { photos, now: new Date(2026, 0, 1, 9), rng: () => 0 };
+    assert.strictEqual(selectSmartPhoto({ state, ...options }), other);
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ ...options, previousCategory: 'other' }), row);
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ ...options, previousCategory: category }), other);
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ ...options, previousCategory: { pool: 'raw' } }), row);
+    assert.strictEqual(row.metadata, metadata);
+    assert.strictEqual(row.title, 9);
+    assert.strictEqual(state.library.photosList, photos);
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ ...options, photos: [{ url: 'hidden', isBroken: true }] }), null);
+  });
+
+  assertTest('smart selection retains native rating and schedule coercion failures', () => {
+    const now = new Date(2026, 0, 1, 9);
+    const failure = new Error('rating coercion');
+    const rating = { valueOf: () => { throw failure; } };
+    assert.throws(() => selectWeightedRandomPhoto({ photos: [{ url: 'raw', rating }], rng: () => 0 }), error => error === failure);
+    assert.throws(() => selectors.selectSmartPhotoFromFeed({ photos: [{ url: 'raw', timeRanges: [null] }], now, rng: () => 0 }), TypeError);
+    const coerced = { url: 'raw', rating: '0', timeRanges: 'ignored' };
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ photos: [coerced], now, rng: () => assert.fail('zero weight must not draw') }), coerced);
   });
 
   assertTest('sequential selector reads per-pool cursors without advancing them or applying schedules', () => {
