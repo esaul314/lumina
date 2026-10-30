@@ -316,6 +316,16 @@ const createSocketStatePatchSpec = curry((event, buildPatch) => ({
   decode: createStatePatchCommandDecoder(buildPatch)
 }));
 
+/**
+ * A completed patch has one own boolean property, but its key may be a symbol
+ * or be produced by native property-key coercion. Arbitrary lookups can miss.
+ * Empty calls keep waiting; arguments after the value are ignored. Coercion
+ * may invoke user code and throw.
+ * @typedef {Partial<Record<PropertyKey, boolean>>} BooleanFieldPatch
+ * @typedef {{ (): BooleanPatchValue, (value: unknown, ...ignored: unknown[]): BooleanFieldPatch }} BooleanPatchValue
+ * @typedef {{ (): BooleanPatchBuilder, (field: unknown): BooleanPatchValue, (field: unknown, value: unknown, ...ignored: unknown[]): BooleanFieldPatch }} BooleanPatchBuilder
+ */
+/** @type {BooleanPatchBuilder} */
 const buildBooleanFieldPatch = curry((field, value) => ({
   [field]: Boolean(value)
 }));

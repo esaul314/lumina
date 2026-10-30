@@ -297,6 +297,34 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(decodePhotoMetadataCommand({ url: 'p', orientation: 'unknown' }), null);
   });
 
+  assertTest('boolean field patches preserve direct and partial curry behavior', () => {
+    const build = commands.buildBooleanFieldPatch;
+    const values = [undefined, null, false, 0, '', true, 1, 'false', Object.freeze({})];
+    values.forEach((value) => {
+      const expected = { enabled: Boolean(value) };
+      assert.deepStrictEqual(build('enabled', value), expected);
+      assert.deepStrictEqual(build()('enabled')()(value, 'ignored'), expected);
+      assert.notStrictEqual(build('enabled', value), build('enabled', value));
+    });
+    assert.deepStrictEqual(build(undefined, true), { undefined: true });
+    assert.deepStrictEqual(build(7, false, 'ignored'), { 7: false });
+    const key = Symbol('field');
+    assert.deepStrictEqual(build(key)(true), { [key]: true });
+  });
+
+  assertTest('boolean field patches retain native property-key coercion and errors', () => {
+    const build = commands.buildBooleanFieldPatch;
+    const calls = [];
+    const key = { [Symbol.toPrimitive]: (hint) => { calls.push(hint); return 'enabled'; } };
+    const partial = build(key);
+    assert.deepStrictEqual(calls, []);
+    assert.deepStrictEqual(partial(true), { enabled: true });
+    assert.deepStrictEqual(calls, ['string']);
+    const failure = new Error('key coercion');
+    assert.throws(() => build({ [Symbol.toPrimitive]: () => { throw failure; } }, true), (error) => error === failure);
+    assert.throws(() => build({ [Symbol.toPrimitive]: () => ({}) }, true), TypeError);
+  });
+
   assertTest('state patch decoder accepts non-array objects without requiring a plain prototype', () => {
     const inherited = Object.create({ theme: 'inherited', autoLocation: 1 });
     const hidden = Object.defineProperty(Object.create(null), 'theme', { value: 'hidden' });

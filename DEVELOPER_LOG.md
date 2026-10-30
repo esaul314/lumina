@@ -6,6 +6,30 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-29: Type the Curried Boolean Patch Boundary
+
+- **Outcome**: gave the existing data-first builder a local call contract for
+  direct and partial application, including empty calls, unknown values/keys,
+  ignored extra arguments, and possibly absent property lookups. Native key
+  coercion may invoke user code or throw. No executable code or exports changed;
+  the shared `curry` remains broadly typed, so this local annotation does not
+  establish its generic type safety.
+- **Evidence**: the targeted `CurriedPatchIsNotAny` fixture now passes. The
+  strict no-emit baseline is 530 core, one fixture, 68 transitive, zero global;
+  the remaining fixture is the heterogeneous invoker. The compiler remains
+  nonzero and Step 6 remains incomplete.
+- **Tests**: runtime regressions cover direct/partial equivalence, truthiness,
+  fresh patches, empty applications, extra arguments, symbols, coerced keys,
+  and exact failures. Compile fixtures cover both invocation forms and reject
+  treating potentially absent keys as guaranteed, non-boolean values, and
+  incomplete results.
+- **Verification**: `npm test` passed (759 executed, zero failures; 13/13 sensor
+  and 3/3 reporter tests); the optional live endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`. Lint, JavaScript syntax, whitespace,
+  and comment-stripped executable-output comparison passed.
+- **Next**: address the heterogeneous handler-invoker inference fixture, then
+  continue compatibility-state modeling before re-auditing acceptance.
+
 ### 2026-10-29: Narrow the State-Patch Object Boundary
 
 - **Outcome**: documented the existing non-null, non-array object predicate as
