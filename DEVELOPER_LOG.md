@@ -6,6 +6,26 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-29: Type the Heterogeneous Handler Invoker
+
+- **Outcome**: the existing data-last invoker now retains its handler-result
+  union and undefined fallback in a local generic contract. It does not promise
+  that an item payload matches the selected handler. Executable code and exports
+  are unchanged; invocation and sequencing remain in the effect shell.
+- **Evidence**: both inference fixtures now pass. The strict no-emit baseline is
+  530 core, zero fixture, 68 transitive, zero global; the compiler still exits
+  nonzero and Step 6 remains incomplete.
+- **Tests**: regressions cover captured own enumerable entries, silent unknown,
+  inherited, hidden, late-added and non-callable entries, original item/result
+  identity, unawaited promises, and capture/invocation failures. Compile fixtures
+  check heterogeneous return union, optional fallback, and invalid assumptions.
+- **Verification**: `npm test` passed (761 executed, zero failures; 13/13 sensor
+  and 3/3 reporter tests); the optional live endpoint smoke was skipped after
+  sandbox socket creation returned `EPERM`. Lint, JavaScript syntax, whitespace,
+  and comment-stripped executable-output comparison passed.
+- **Next**: model compatibility state/photo inputs versus normalized values;
+  preserve raw patches, optional payloads, metadata aliases, and selector defaults.
+
 ### 2026-10-29: Type the Curried Boolean Patch Boundary
 
 - **Outcome**: gave the existing data-first builder a local call contract for

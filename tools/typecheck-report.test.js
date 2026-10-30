@@ -50,8 +50,7 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     item.start >= decoder.getStart(commands) && item.start < decoder.end), []);
   const fixtureDiagnostics = diagnostics
     .filter((item) => item.file && path.resolve(item.file.fileName) === fixturePath);
-  // Only the intentionally weakened check and the known interpreter inference
-  // assertion may fail. The latter can disappear as contracts improve.
+  // Only the intentionally weakened check may fail.
   const lines = mutated.split('\n');
   const located = fixtureDiagnostics.map((item) => ({
     code: item.code,
@@ -59,7 +58,6 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   }));
   assert.equal(located.filter(({ code }) => code === 2578).length, 1);
   assert.ok(located.every(({ code, line }) => (
-    (code === 2578 && line.includes('@ts-expect-error unrecognized commands')) ||
-    (code === 2344 && /^type HandlerResultIsNotAny =/.test(line))
+    code === 2578 && line.includes('@ts-expect-error unrecognized commands')
   )));
 });

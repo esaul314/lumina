@@ -84,7 +84,7 @@ const {
   buildDomainState,
   buildSnapshot
 } = require('./snapshot.js');
-const { createEventEmitter } = require('./dispatch.js');
+const { createEventEmitter, createTypedHandlerInvoker } = require('./dispatch.js');
 
 const findSocketStatePatchDecode = (event) => SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === event)?.decode ?? null;
 const findSocketCommandSpec = (event) => SOCKET_DURABLE_COMMAND_SPECS.find((spec) => spec.event === event) ?? null;
@@ -1015,6 +1015,39 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(interpret('increment', 1), 2);
     assert.strictEqual(interpret('toString', 1), 'fallback');
     assert.strictEqual(interpret('__proto__', 1), 'fallback');
+  });
+
+  assertTest('handler invokers capture a closed table and forward original items and results', () => {
+    const shared = { marker: true };
+    const promise = Promise.resolve(shared);
+    const seen = [];
+    const handlers = Object.assign(Object.create({ inherited: () => 'inherited' }), {
+      sync: (item) => { seen.push(item); return shared; },
+      async: () => promise,
+      nonFunction: 42
+    });
+    Object.defineProperty(handlers, 'hidden', { value: () => 'hidden' });
+    const invoke = createTypedHandlerInvoker(handlers);
+    const item = { type: 'sync', payload: shared };
+    handlers.sync = () => 'replaced';
+    handlers.later = () => 'later';
+
+    assert.strictEqual(invoke(item), shared);
+    assert.strictEqual(seen[0], item);
+    assert.strictEqual(invoke({ type: 'async' }), promise);
+    [null, undefined, {}, { type: 'inherited' }, { type: 'hidden' },
+      { type: 'toString' }, { type: 'later' }, { type: 'nonFunction' }]
+      .forEach((input) => assert.strictEqual(invoke(input), undefined));
+  });
+
+  assertTest('handler invokers preserve capture and invocation failure boundaries', () => {
+    const failure = new Error('handler failure');
+    const captureFailure = new Error('capture failure');
+    assert.throws(() => createTypedHandlerInvoker({ get broken() { throw captureFailure; } }),
+      (error) => error === captureFailure);
+    const invoke = createTypedHandlerInvoker({ broken: () => { throw failure; } });
+    assert.throws(() => invoke({ type: 'broken' }), (error) => error === failure);
+    assert.throws(() => invoke({ get type() { throw failure; } }), (error) => error === failure);
   });
 
   assertTest('event emission keeps the declared vocabulary closed', () => {

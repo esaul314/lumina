@@ -461,7 +461,8 @@ Progress note:
 - Step 6 compiler baseline (2026-10-27): pinned development-only TypeScript and Node declarations, a strict no-emit domain configuration, and positive/negative compile fixtures expose 541 core, two intentional fixture, 68 transitive, and zero global diagnostics. `npm run typecheck:domain -- --details` reports every diagnostic; the nonzero result is expected until the gaps are resolved.
 - Step 6 object-narrowing slice (2026-10-29): the existing `isPlainObject` predicate now documents unknown inputs and a record type guard; all ten state-patch TS18046 diagnostics and the predicate's implicit-any diagnostic disappear, with no executable change. Compatibility tests preserve prototype acceptance, array/function rejection, repeated reads, and exact accessor failures. That checkpoint reported 530 core, two fixture, 68 transitive, zero global.
 - Step 6 curried-patch slice (2026-10-29): `buildBooleanFieldPatch` now has a local direct/partial call contract, unknown-safe key/value inputs, and potentially absent indexed results. Runtime behavior is unchanged. Direct/partial equivalence, empty applications, extra arguments, native key coercion, and failures have regression coverage. The scoped result is 530 core, one fixture, 68 transitive, zero global.
-- Next Step 6 checkpoint: address the heterogeneous handler-invoker inference fixture, then continue the compatibility-state queue. Do not resume unrelated helper polishing.
+- Step 6 handler-invoker slice (2026-10-29): `createTypedHandlerInvoker` retains the union of heterogeneous handler results plus undefined; its input remains deliberately uncorrelated with handler payloads. Runtime tests cover captured own enumerable handlers, silent fallbacks, identity, unawaited promises, and thrown failures. The scoped result is 530 core, zero fixture, 68 transitive, zero global; executable production code is unchanged.
+- Next Step 6 checkpoint: start the compatibility-state/photo input versus normalized-value queue. Do not resume unrelated helper polishing.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -534,7 +535,7 @@ This audit follows the core domain flow, not unrelated helper polishing.
 | --- | --- | --- |
 | Commands | `CommandPayloads` correlates 25 names; decoders document `Command \| null`. Regressions confirm raw scalar patches, URL-only validation of active-photo metadata, and inherited/callable inputs. `isPlainObject` now narrows the state-patch input without changing runtime checks. | `decodeCategorySelectionFromHttp` and `decodeScreensaverActiveCommand` still access properties on `unknown` without sufficient narrowing. `curry: AnyFunction -> AnyFunction` erases builder relationships. A guard must preserve native lookup/coercion behavior, not silently reject callable/inherited inputs. |
 | Environments | `ReducerEnvironment`, dispatcher dependencies/public methods, and results document defaults, fresh context, aliases, and completion ordering. Replay/order/failure tests remain. | `StatePatchPayload` permits unknown scalars but `SessionConfig` promises string/number/boolean/enums. Tests now trace all ten scalar fields through reduction and public snapshots unchanged. Optional direct payloads can produce NaN; omitted scale mode is an identity no-op. Choose an honest compatibility-state model before asserting normalized state. |
-| Effects | Ten discriminated variants match the closed handler vocabulary. Sequential execution, optional adapters, opaque awaited results, synchronous emission/override, and partial failures are covered. | `createTypedHandlerInvoker` still accepts `(item: any) => any`; private handlers/interpreter and reducer-family builders rely on inference. Public effect variants do not prove payload/handler correlation or `EffectResult[]` inference. Compile before choosing local generic annotations; preserve ordering and existing compatibility fallbacks. |
+| Effects | Ten discriminated variants match the closed handler vocabulary. Sequential execution, optional adapters, opaque awaited results, synchronous emission/override, and partial failures are covered. `createTypedHandlerInvoker` retains the heterogeneous return union and undefined fallback. | The invoker does not establish payload/handler correlation; private handlers/interpreter and reducer-family builders rely on inference. Public effect variants do not prove `EffectResult[]` inference. Preserve ordering and existing compatibility fallbacks. |
 | Selectors | All 23 exported signatures share domain shapes; existing tests cover pool balance, time/random defaults, aliases, and immutable updates. | `Photo` optional fields are narrower than metadata accepted by `decodeActivePhotoCommand`; `SmartPhotoOptions` consumes the overpromised `DomainState`. Check predicates, generic collection results, and transitive snapshot types with the compiler; these are review targets, not measured diagnostic counts. Browser contracts remain separate. |
 
 Acceptance decisions:
@@ -563,10 +564,11 @@ diagnostic. The command exits nonzero for any diagnostic; it is not part of the
 green runtime test gate and does not suppress transitive errors. Grouping is by
 diagnostic file location, not ownership or import reachability.
 
-Current results: **530 core, 1 fixture, 68 transitive, 0 global**. The remaining
-fixture TS2344 error shows that the typed handler invoker erases its result to
-`any`; the curried patch builder and other positive/negative fixtures now compile
-as expected. Its local annotation describes the existing curry result, rather
+Current results: **530 core, 0 fixture, 68 transitive, 0 global**. The curried
+patch builder, heterogeneous invoker, and other positive/negative fixtures now
+compile as expected. The invoker's result union does not prove payload/key
+correlation, and its handler-map contract deliberately excludes non-functions
+that the runtime silently ignores. The patch builder's local annotation describes the existing curry result, rather
 than proving the shared `curry` implementation's generic type safety. The ten TS18046 unknown-input diagnostics
 in `decodeStatePatchCommand` and the predicate's implicit-any diagnostic were
 removed by the object-narrowing contract; other core counts include numerous implicit-any
@@ -574,8 +576,8 @@ diagnostics under strict mode. Transitive diagnostics include two malformed
 JSDoc declarations in `collectionPhotoProjections.js`. These counts describe
 this pinned configuration and are not a whole-repository migration estimate.
 Three reporter/fixture tests verify partitioning, nonzero/zero status, and
-that a deliberately weakened negative fixture produces TS2578; the test allows
-the explicitly located invoker assertion to disappear as contracts improve.
+that a deliberately weakened negative fixture produces TS2578; no fixture
+diagnostic is otherwise permitted by that test.
 
 First correction: add the already-emitted and already-handled
 `refresh-active-feed` member to `Effect`. A source-contract regression compares
@@ -603,8 +605,9 @@ Bounded completion queue:
    `decodeStatePatchCommand`, preserving object/array and accessor behavior.
    Completed: address the `buildBooleanFieldPatch` curried-result inference
    fixture with a local call contract and preserved public call conventions.
-   **Next:** address the heterogeneous interpreter's red fixture.
-7. Model compatibility state/photo inputs versus normalized values explicitly;
+   Completed: address the heterogeneous interpreter's result-inference fixture
+   without asserting handler/payload correlation or changing runtime behavior.
+7. **Next:** model compatibility state/photo inputs versus normalized values explicitly;
    preserve raw patch values, optional direct payload behavior, metadata aliases,
    and reducer/selector default differences. Runtime validation is separate work.
 8. Re-run the scoped compiler fixtures and runtime suite, then repeat both

@@ -137,13 +137,18 @@ const createWeatherRefreshEffect = (triggerWeatherUpdate) => async () => {
 };
 
 /**
- * Resolve only the declared handler vocabulary for a typed domain item.
+ * Capture own enumerable string-keyed handlers once and resolve by item type.
  *
  * The returned interpreter is data-last at the item boundary: callers keep
  * their own sequencing/result algebra while sharing closed type dispatch.
+ * Unknown types and non-callable captured entries return undefined. Selected
+ * handlers receive the original item and their result is returned unawaited;
+ * accessor/handler failures propagate. This contract retains the union of
+ * handler results, but does not validate or correlate item payloads with keys.
  *
- * @param {Record<string, (item: any) => any>} handlers
- * @returns {(item: { type?: string } | null | undefined) => any}
+ * @template {Record<string, (...args: any[]) => unknown>} H
+ * @param {H} handlers
+ * @returns {(item: { type?: string } | null | undefined) => ReturnType<H[keyof H]> | undefined}
  */
 const createTypedHandlerInvoker = (handlers) => {
   const resolveHandler = createClosedInterpreter(handlers);

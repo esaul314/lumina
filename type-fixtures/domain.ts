@@ -25,6 +25,17 @@ const directBooleanPatch: boolean | undefined = buildBooleanFieldPatch('enabled'
 const partialBooleanPatch: boolean | undefined = buildBooleanFieldPatch()('enabled')()(false).enabled;
 const symbolBooleanPatch: boolean | undefined = buildBooleanFieldPatch(Symbol('field'), null)[Symbol('other')];
 const coercedBooleanPatch = buildBooleanFieldPatch({ toString: () => 'enabled' }, true, 'ignored');
+const invoke = createTypedHandlerInvoker({
+  count: (item: { type: 'count'; count: number }) => item.count,
+  label: (item: { type: 'label'; label: string }) => item.label,
+  later: () => Promise.resolve(true)
+});
+const handlerResult: number | string | Promise<boolean> | undefined = invoke({ type: 'count' });
+const unknownHandlerResult: number | string | Promise<boolean> | undefined = invoke(null);
+// @ts-expect-error unknown keys and heterogeneous results prevent a guaranteed number
+const certainHandlerResult: number = invoke({ type: 'count' });
+// @ts-expect-error handler table entries must be callable in the documented contract
+createTypedHandlerInvoker({ count: 1 });
 // @ts-expect-error arbitrary keys may be absent
 const guaranteedBoolean: boolean = buildBooleanFieldPatch('enabled', true).missing;
 // @ts-expect-error patch values are booleans, not strings
@@ -49,8 +60,7 @@ const alwaysPhoto: Photo = selected;
 // @ts-expect-error decoded command may be null
 const alwaysCommand: Command = decoded;
 
-// The builder result must remain typed. The interpreter assertion remains
-// deliberately red until its local contract preserves the result relationship.
+// Both higher-order boundaries must retain a non-any result.
 type IsAny<T> = 0 extends (1 & T) ? true : false;
 type AssertFalse<T extends false> = T;
 type CurriedPatchIsNotAny = AssertFalse<IsAny<ReturnType<typeof buildBooleanFieldPatch>>>;
@@ -58,4 +68,5 @@ type HandlerResultIsNotAny = AssertFalse<IsAny<ReturnType<ReturnType<typeof crea
 
 void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wrongCommand,
   missingEffectPayload, wrongEnvironment, alwaysPhoto, alwaysCommand, directBooleanPatch,
-  partialBooleanPatch, symbolBooleanPatch, coercedBooleanPatch, guaranteedBoolean, stringBoolean, incompleteBoolean];
+  partialBooleanPatch, symbolBooleanPatch, coercedBooleanPatch, guaranteedBoolean, stringBoolean, incompleteBoolean,
+  handlerResult, unknownHandlerResult, certainHandlerResult];
