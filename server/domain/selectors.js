@@ -136,13 +136,15 @@ function getCategoryPhotos(category, collections, externalCollections = {}) {
 }
 
 /**
- * First truthy exact URL wins; fresh ordered array, unchanged row aliases.
- * @template {Photo} T
+ * First truthy URL wins using Set's SameValueZero equality (object URLs by
+ * identity); fresh ordered array, unchanged row aliases and unvalidated metadata.
+ * URL accessors retain their native repeated reads and failures.
+ * @template {{url?: unknown}} T
  * @param {ReadonlyArray<T | null | undefined>} photos
  * @returns {T[]}
  */
 function uniqByUrl(photos) {
-  /** @type {Set<string>} */
+  /** @type {Set<unknown>} */
   const seen = new Set();
   return photos.filter((photo) => {
     if (!photo?.url || seen.has(photo.url)) {

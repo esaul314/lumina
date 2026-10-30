@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Preserve Compatibility URL Deduplication Types
+
+- **Outcome**: the pure data-first `uniqByUrl` retains raw row types and accepts
+  unknown URL values. First truthy URL ownership, Set equality, row aliases,
+  repeated property reads and exceptions remain unchanged; no runtime wrapper
+  or new abstraction is needed.
+- **Tests**: frozen rows cover URL and metadata identity, duplicate and falsy
+  URLs, ordered output, idempotence and getter behavior. Compile fixtures retain
+  raw metadata and require normalization and possible absence checks.
+- **Verification**: strict no-emit typecheck remains nonzero at 531 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint, syntax
+  and whitespace checks passed; optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model the remaining unnormalized feed state, snapshots and selector
+  contracts, then address honest coercion typing and re-audit Step 6.
+
 ### 2026-10-30: Preserve Compatibility Feed Lookup Types
 
 - **Outcome**: the pure, data-first `findPhotoInFeed` retains each input row's

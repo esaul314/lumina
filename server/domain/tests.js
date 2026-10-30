@@ -919,6 +919,28 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(first.nested, rows[0].nested);
   });
 
+  assertTest('URL deduplication preserves raw rows and native Set equality', () => {
+    const url = Object.freeze({ id: 42 });
+    const first = Object.freeze({ url, title: 9, nested: Object.freeze({ marker: true }) });
+    const other = Object.freeze({ url: Object.freeze({ id: 42 }), title: false });
+    const number = Object.freeze({ url: 42 });
+    const rows = Object.freeze([null, first, Object.freeze({ url }), other, number,
+      Object.freeze({ url: 42 }), Object.freeze({ url: 0 }), Object.freeze({ url: NaN }), undefined]);
+    const unique = selectors.uniqByUrl(rows);
+    assert.deepStrictEqual(unique, [first, other, number]);
+    assert.strictEqual(unique[0], first);
+    assert.strictEqual(unique[0].nested, first.nested);
+    assert.notStrictEqual(unique, rows);
+    assert.deepStrictEqual(selectors.uniqByUrl(unique), unique);
+    assert.deepStrictEqual(selectors.uniqByUrl([]), []);
+    let reads = 0;
+    const accessor = { get url() { reads += 1; return 'accessor'; } };
+    assert.strictEqual(selectors.uniqByUrl([accessor])[0], accessor);
+    assert.strictEqual(reads, 3);
+    const failure = new Error('dedupe URL getter');
+    assert.throws(() => selectors.uniqByUrl([{ get url() { throw failure; } }]), (error) => error === failure);
+  });
+
   assertTest('balanced feed contracts preserve external override first URL ownership and immutable copies', () => {
     const shared = Object.freeze({ url: 'shared', title: 'External' });
     const curated = Object.freeze({ url: 'curated' });

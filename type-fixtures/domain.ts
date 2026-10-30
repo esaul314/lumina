@@ -102,6 +102,13 @@ const unknownUrl: unknown = rawLookup?.url;
 const normalizedLookup: Photo | null = findPhotoInFeed(rawRows, 42);
 // @ts-expect-error lookup can miss even when its input array is nonempty
 const guaranteedLookup: typeof rawRows[number] = findPhotoInFeed(rawRows, 42);
+const rawUnique: typeof rawRows[number][] = uniqByUrl(rawRows);
+const rawUniqueTitle: number = rawUnique[0].title;
+const rawUniqueUrl: unknown = rawUnique[0].url;
+// @ts-expect-error deduplication does not normalize row metadata or URL values
+const normalizedUnique: Photo[] = uniqByUrl(rawRows);
+// @ts-expect-error a missing URL can be filtered out
+const alwaysUniqueRow: typeof rawRows[number] = uniqByUrl(rawRows).find(() => true);
 const effect: Effect = { type: 'refresh-active-feed', payload: { categories: ['Google Photos'] } };
 const environment: ReducerEnvironment = { now: new Date(0), rng: () => 0.5 };
 const decoded: Command | null = decodeStatePatchCommand({ theme: 17 });
