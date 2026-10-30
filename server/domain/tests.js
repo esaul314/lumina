@@ -1093,6 +1093,38 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(selectors.selectSequentialPhoto({ state: createState({ library: { photosList: [] } }) }), null);
   });
 
+  assertTest('sequential selection retains raw feed aliases and rotates pools without normalizing metadata', () => {
+    const category = Object.freeze({ toString: () => 'raw-pool' });
+    const metadata = Object.freeze({ marker: true });
+    const photos = Object.freeze([
+      Object.freeze({ url: 'first', category: 'A', title: 12 }),
+      Object.freeze({ url: 'second', category, title: 42, width: 'wide', metadata }),
+      Object.freeze({ url: 'third', category, title: false, metadata }),
+      Object.freeze({ url: 'hidden', category, isBroken: 'yes' })
+    ]);
+    const cursors = Object.freeze({ 'raw-pool': 1 });
+    const state = createState({ library: { photosList: photos }, playback: { activePhotoUrl: 'first', poolSequenceCursors: cursors } });
+    const selected = selectors.selectSequentialPhoto({ state });
+    assert.strictEqual(selected, photos[2]);
+    assert.strictEqual(selected.metadata, metadata);
+    assert.strictEqual(selected.title, false);
+    assert.strictEqual(selectors.selectSequentialPhoto({ state, direction: 'prev' }), photos[1]);
+    assert.strictEqual(state.playback.poolSequenceCursors, cursors);
+    assert.strictEqual(state.library.photosList, photos);
+  });
+
+  assertTest('sequential selection preserves staged preview rows and null when all rows are hidden', () => {
+    const preview = { url: 'preview-raw', title: 9, width: 'wide', metadata: { shared: true } };
+    const staged = reduceDomainCommand(createState(), { type: 'set-active-photo', payload: { url: preview.url, photo: preview } }).nextState;
+    const row = staged.library.photosList.find((photo) => photo.url === preview.url);
+    const selected = selectors.selectSequentialPhoto({ state: { ...staged, library: { ...staged.library, photosList: [row] }, playback: { ...staged.playback, activePhotoUrl: null } } });
+    assert.strictEqual(selected, row);
+    assert.strictEqual(selected.title, 9);
+    assert.strictEqual(selected.metadata, preview.metadata);
+    const hidden = createState({ library: { photosList: [{ url: 'excluded', rating: 1 }, { title: 'missing URL' }] } });
+    assert.strictEqual(selectors.selectSequentialPhoto({ state: hidden }), null);
+  });
+
   assertTest('library update contracts retain last-match precedence and shallow no-op semantics', () => {
     const first = Object.freeze({ url: 'same', category: 'A', rating: 4 });
     const last = Object.freeze({ url: 'same', category: 'B', rating: 5 });

@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Raw Sequential Selection
+
+- **Outcome**: the pure data-first sequential selector returns `FeedPhoto | null`
+  rather than promising normalized metadata. Selected rows retain their original
+  aliases; no executable production code changes.
+- **Tests**: staged preview metadata, shared nested aliases, pool rotation,
+  native cursor-key coercion, untouched inputs and hidden rows are covered.
+  Compiler fixtures require narrowing and allow an empty selection.
+- **Verification**: strict no-emit typecheck remains nonzero at 534 core, zero
+  fixture, 68 transitive and zero global diagnostics, one fewer core error.
+  Runtime suite and lint passed; the optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model raw smart-selection and current-frame outputs, then address
+  honest coercion typing before the Step 6 acceptance re-audit.
+
 ### 2026-10-30: Model Unvalidated Feed State
 
 - **Outcome**: `FeedPhoto` describes unknown known fields in domain, legacy and

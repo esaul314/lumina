@@ -4,6 +4,7 @@
  * @typedef {import('./types').CollectionsState} CollectionsState
  * @typedef {import('./types').CurrentFrame} CurrentFrame
  * @typedef {import('./types').DomainState} DomainState
+ * @typedef {import('./types').FeedPhoto} FeedPhoto
  * @typedef {import('./types').Photo} Photo
  * @typedef {import('./types').PhotoOrientation} PhotoOrientation
  * @typedef {{ url?: unknown, rating?: unknown, isBroken?: unknown, title?: unknown, author?: unknown, category?: unknown }} VisibilityPhoto Unvalidated fields inspected by visibility filtering.
@@ -562,7 +563,7 @@ function getSequenceFallbackIndex(direction, photos) {
  * Visible pools round-robin using per-pool cursors; one pool walks feed order.
  * Does not apply schedules/weather, draw randomness, or advance stored cursors.
  * @param {SequentialPhotoOptions} options
- * @returns {Photo | null} Original row alias, or null for an empty visible feed.
+ * @returns {FeedPhoto | null} Original unnormalized row alias, or null for an empty visible feed.
  */
 function selectSequentialPhoto({ state, direction = 'next' }) {
   const photos = filterVisiblePhotos(state.library.photosList, state.config.excludedKeywords);

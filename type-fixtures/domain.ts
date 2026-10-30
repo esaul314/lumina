@@ -5,7 +5,7 @@ import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domai
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
-import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
+import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
@@ -93,6 +93,12 @@ const rawLegacyState: Parameters<typeof buildDomainState>[0] = { ...legacyState,
 const rebuiltRawFeed: FeedPhoto[] = buildDomainState(rawLegacyState, state.library.collections).library.photosList;
 const rawFeed: FeedPhoto[] = rawFeedState.library.photosList;
 const rawSnapshotFeed: FeedPhoto[] = buildSnapshot(rawFeedState).photosList;
+const rawSequential: FeedPhoto | null = selectSequentialPhoto({ state: rawFeedState });
+const sequentialTitle: unknown = rawSequential?.title;
+// @ts-expect-error sequential selection does not normalize feed metadata
+const normalizedSequential: Photo | null = selectSequentialPhoto({ state: rawFeedState });
+// @ts-expect-error selection may find no visible row
+const guaranteedSequential: FeedPhoto = selectSequentialPhoto({ state: rawFeedState });
 // @ts-expect-error state feed metadata is not guaranteed to be normalized
 const normalizedFeed: Photo[] = rawFeedState.library.photosList;
 // @ts-expect-error snapshots preserve raw metadata rather than normalizing it
