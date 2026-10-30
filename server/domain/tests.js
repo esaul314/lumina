@@ -1162,6 +1162,41 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(selectors.getActivePhoto(createState({ playback: { activePhotoUrl: null } })), null);
   });
 
+  assertTest('active photo lookup preserves unvalidated preview aliases and library fallback precedence', () => {
+    const metadata = Object.freeze({ shared: true });
+    const preview = { url: 'raw-active', title: 7, orientation: 'sideways', width: '1', height: 2, metadata };
+    const staged = reduceDomainCommand(createState(), { type: 'set-active-photo', payload: { url: preview.url, photo: preview } }).nextState;
+    const stagedRow = staged.library.photosList.find((photo) => photo.url === preview.url);
+    const curated = Object.freeze({ url: preview.url, title: 'curated' });
+    const external = Object.freeze({ url: preview.url, title: 'external' });
+    const library = { ...staged.library, collections: { A: [curated] }, externalCollections: { B: [external] } };
+    const state = { ...staged, library };
+    assert.strictEqual(selectors.getActivePhoto(state), stagedRow);
+    assert.strictEqual(selectors.getActivePhoto(state).metadata, metadata);
+    assert.strictEqual(selectors.inferOrientation(stagedRow), 'unknown');
+    const noFeed = { ...state, library: { ...library, photosList: [] } };
+    assert.strictEqual(selectors.getActivePhoto(noFeed), curated);
+    assert.strictEqual(selectors.getActivePhoto({ ...noFeed, library: { ...noFeed.library, collections: {} } }), external);
+    assert.strictEqual(selectors.getActivePhoto({ ...noFeed, playback: { ...noFeed.playback, activePhotoUrl: 'missing' } }), null);
+    assert.strictEqual(selectors.getActivePhoto({ ...noFeed, playback: { ...noFeed.playback, activePhotoUrl: '' } }), null);
+    assert.strictEqual(state.library.photosList, staged.library.photosList);
+  });
+
+  assertTest('orientation projection ignores malformed metadata without coercion and propagates accessors', () => {
+    const noCoercion = Object.freeze({ valueOf: () => assert.fail('dimensions must not be coerced') });
+    const rows = [
+      [{ orientation: 'portrait', width: 9, height: 1 }, 'portrait'],
+      [{ orientation: false, width: 1, height: 2 }, 'portrait'],
+      [{ orientation: 'sideways', width: 2, height: 2 }, 'landscape'],
+      [{ width: noCoercion, height: 2 }, 'unknown'],
+      [{ width: NaN, height: 2 }, 'landscape'],
+      [undefined, 'unknown']
+    ];
+    rows.forEach(([row, expected]) => assert.strictEqual(selectors.inferOrientation(row), expected));
+    const failure = new Error('orientation access');
+    assert.throws(() => selectors.inferOrientation({ get orientation() { throw failure; } }), error => error === failure);
+  });
+
   assertTest('selector ambient defaults are undefined-only and injected failures propagate exactly', () => {
     const reads = [];
     const sandbox = { module: { exports: {} }, Date: class extends Date {

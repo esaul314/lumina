@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Raw Active-Photo Lookup
+
+- **Outcome**: the pure data-first active lookup returns `FeedPhoto | null`, and
+  orientation accepts unvalidated metadata. Feed-first and curated/external
+  fallback precedence, row aliases and numeric-only orientation remain intact;
+  no executable production code changes.
+- **Tests**: staged preview aliases, fallback/miss behavior, malformed dimensions,
+  accessor failures and compile-time narrowing are covered.
+- **Verification**: strict no-emit typecheck remains nonzero at 536 core, zero
+  fixture, 68 transitive and zero global diagnostics. Four frame-field errors are
+  now exposed, replacing two lookup/orientation mismatches. Runtime suite and
+  lint passed; the optional endpoint smoke was skipped due to sandbox `EPERM`.
+- **Next**: model current-frame and smart-selection outputs, then address honest
+  coercion typing before the Step 6 acceptance re-audit.
+
 ### 2026-10-30: Model Raw Sequential Selection
 
 - **Outcome**: the pure data-first sequential selector returns `FeedPhoto | null`

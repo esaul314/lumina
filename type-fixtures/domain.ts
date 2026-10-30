@@ -5,7 +5,7 @@ import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domai
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
-import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
+import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, getActivePhoto, inferOrientation, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
@@ -94,6 +94,14 @@ const rebuiltRawFeed: FeedPhoto[] = buildDomainState(rawLegacyState, state.libra
 const rawFeed: FeedPhoto[] = rawFeedState.library.photosList;
 const rawSnapshotFeed: FeedPhoto[] = buildSnapshot(rawFeedState).photosList;
 const rawSequential: FeedPhoto | null = selectSequentialPhoto({ state: rawFeedState });
+const rawActive: FeedPhoto | null = getActivePhoto(rawFeedState);
+const activeOrientation = inferOrientation(rawActive);
+// @ts-expect-error active feed lookup does not normalize metadata
+const normalizedActive: Photo | null = getActivePhoto(rawFeedState);
+// @ts-expect-error lookup may miss even with a nonempty feed
+const guaranteedActive: FeedPhoto = getActivePhoto(rawFeedState);
+// @ts-expect-error active metadata must be narrowed before string use
+const activeTitle: string = rawActive?.title;
 const sequentialTitle: unknown = rawSequential?.title;
 // @ts-expect-error sequential selection does not normalize feed metadata
 const normalizedSequential: Photo | null = selectSequentialPhoto({ state: rawFeedState });

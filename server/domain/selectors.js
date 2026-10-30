@@ -370,7 +370,8 @@ function formatTime(now) {
 
 /**
  * Explicit portrait/landscape, else numeric dimensions (square is landscape).
- * @param {Photo | null | undefined} photo
+ * Unvalidated values are neither coerced nor normalized; accessors can throw.
+ * @param {FeedPhoto | null | undefined} photo
  * @returns {PhotoOrientation}
  */
 function inferOrientation(photo) {
@@ -642,7 +643,7 @@ function pickStablePhoto(candidates, seed) {
 /**
  * Feed-first lookup, then curated/external libraries; no visibility filtering.
  * @param {DomainState} state
- * @returns {Photo | null} Original alias; falsy/missing active URL yields null.
+ * @returns {FeedPhoto | null} Original unvalidated row alias; falsy/missing active URL yields null.
  */
 function getActivePhoto(state) {
   return state.playback.activePhotoUrl
