@@ -256,6 +256,47 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => reduceDomainCommand(throwing, { type: 'change-theme' }, env), (error) => error === failure);
   });
 
+  assertTest('timing compatibility preserves raw values through patches and legacy snapshots', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ value: 'later' });
+    ['inactivityTimeout', 'slideshowInterval'].forEach((field) => {
+      [shared, null, 0, false, ''].forEach((value) => {
+        const command = decodeStatePatchCommand(Object.freeze({ [field]: value }));
+        const result = reduceDomainCommand(state, command, env);
+        const snapshot = buildSnapshot(result.nextState);
+        assert.strictEqual(command.payload[field], value);
+        assert.strictEqual(result.nextState.config[field], value);
+        assert.strictEqual(snapshot[field], value);
+        assert.strictEqual(snapshot.config[field], value);
+        const legacy = { ...state.config, ...state.runtime, [field]: value, currentCategory: 'Scenic Nature', photosList: [] };
+        const rebuilt = buildDomainState(legacy, state.library.collections);
+        assert.strictEqual(rebuilt.config[field], value);
+        assert.strictEqual(buildSnapshot(rebuilt)[field], value);
+        assert.strictEqual(legacy[field], value);
+      });
+      const omitted = decodeStatePatchCommand({ [field]: undefined });
+      assert.deepStrictEqual(omitted.payload, {});
+      assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+      const legacy = { ...state.config, ...state.runtime, [field]: undefined, currentCategory: 'Scenic Nature', photosList: [] };
+      assert.strictEqual(buildDomainState(legacy, state.library.collections).config[field], undefined);
+    });
+    assert.strictEqual(state.config.inactivityTimeout, 600000);
+    assert.strictEqual(state.config.slideshowInterval, 120000);
+  });
+
+  assertTest('direct change-interval retains numeric coercion and omitted-payload NaN', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const value = Object.freeze({ valueOf: () => 45000 });
+    assert.strictEqual(reduceDomainCommand(state, { type: 'change-interval', payload: { intervalMs: value } }, env).nextState.config.slideshowInterval, 45000);
+    assert.ok(Number.isNaN(reduceDomainCommand(state, { type: 'change-interval' }, env).nextState.config.slideshowInterval));
+    const failure = new Error('interval coercion');
+    const throwing = { valueOf: () => { throw failure; } };
+    assert.throws(() => reduceDomainCommand(state, { type: 'change-interval', payload: { intervalMs: throwing } }, env), (error) => error === failure);
+    assert.strictEqual(state.config.slideshowInterval, 120000);
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

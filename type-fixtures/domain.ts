@@ -17,6 +17,15 @@ const configWithRawTheme: DomainState['config'] = { ...state.config, theme: { le
 const normalizedTheme: string = state.config.theme;
 // @ts-expect-error public snapshots preserve the same unvalidated theme
 const normalizedSnapshotTheme: string = buildSnapshot(state).theme;
+const configWithRawTiming: DomainState['config'] = {
+  ...state.config, inactivityTimeout: { legacy: true }, slideshowInterval: 'later'
+};
+const compatibilityTimeout: unknown = state.config.inactivityTimeout;
+const snapshotInterval: unknown = buildSnapshot(state).slideshowInterval;
+// @ts-expect-error timeout must be narrowed before numeric use
+const normalizedTimeout: number = state.config.inactivityTimeout;
+// @ts-expect-error snapshots preserve unvalidated interval values
+const normalizedSnapshotInterval: number = buildSnapshot(state).slideshowInterval;
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };

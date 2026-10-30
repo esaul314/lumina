@@ -49,16 +49,16 @@
  */
 
 /**
- * Compatibility state, not a fully normalized configuration. Theme can pass
- * through state patches and snapshots without validation or copying.
+ * Compatibility state, not a fully normalized configuration. Theme and timing
+ * values can pass through patches and snapshots without validation or copying.
  * @typedef {object} SessionConfig
  * @property {unknown} theme
  * @property {'cover' | 'contain'} scaleMode
  * @property {boolean} splitPortrait
  * @property {number} splitCropPercent
  * @property {Record<string, boolean>} widgets
- * @property {number} inactivityTimeout
- * @property {number} slideshowInterval
+ * @property {unknown} inactivityTimeout
+ * @property {unknown} slideshowInterval
  * @property {boolean} alignTimeOfDay
  * @property {boolean} alignWeather
  * @property {boolean} allowOpenAiFallback

@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Timing Values
+
+- **Outcome**: legacy, domain and public snapshot contracts now describe
+  `inactivityTimeout` and `slideshowInterval` as unknown. Raw patches and legacy
+  rebuilds retain values and aliases; the direct interval command separately
+  applies native numeric coercion. No executable production code changed.
+- **Tests**: runtime cases cover raw/falsy values, aliases, undefined no-ops,
+  legacy rebuilds, numeric coercion, omitted-payload NaN and thrown coercion.
+  Compile fixtures require narrowing before numeric use.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint,
+  syntax and whitespace checks passed; optional endpoint smoke was skipped
+  because sandbox socket creation returned `EPERM`.
+- **Next**: model the remaining seven raw state fields and unnormalized
+  photo/feed values; no Step 6 closeout is claimed.
+
 ### 2026-10-30: Model Compatibility Theme Values
 
 - **Outcome**: the existing pure state and snapshot projections now document
