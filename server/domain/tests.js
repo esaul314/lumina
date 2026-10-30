@@ -699,6 +699,49 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('HTTP category decoder reads inherited callable properties eagerly and in order', () => {
+    const reads = [];
+    const prototype = {
+      get category() { reads.push(['category', this]); return ' Primary '; },
+      get categories() { reads.push(['categories', this]); return ['Ignored']; }
+    };
+    const input = () => {};
+    Object.setPrototypeOf(input, prototype);
+    assert.deepStrictEqual(decodeCategorySelectionFromHttp(input), {
+      type: 'select-categories', payload: { categories: ' Primary ' }
+    });
+    assert.deepStrictEqual(reads, [['category', input], ['categories', input]]);
+    assert.strictEqual(decodeCategorySelectionFromHttp({ category: '', categories: 'fallback' }), null);
+    assert.deepStrictEqual(decodeCategorySelectionFromHttp({ categories: ['one', 'two'] }), {
+      type: 'select-categories', payload: { categories: 'one,two' }
+    });
+    const failure = new Error('second lookup');
+    const proxyReads = [];
+    const proxy = new Proxy({}, { get: (_, key) => {
+      proxyReads.push(key);
+      if (key === 'category') return 'valid';
+      throw failure;
+    } });
+    assert.throws(() => decodeCategorySelectionFromHttp(proxy), (error) => error === failure);
+    assert.deepStrictEqual(proxyReads, ['category', 'categories']);
+  });
+
+  assertTest('HTTP category decoder preserves custom array join results and failures', () => {
+    const result = Object.freeze({ raw: true });
+    const calls = [];
+    const categories = [];
+    categories.join = function (separator) { calls.push([this, separator]); return result; };
+    const input = Object.freeze({ categories });
+    const decoded = decodeCategorySelectionFromHttp(input);
+    assert.strictEqual(decoded.payload.categories, result);
+    assert.deepStrictEqual(calls, [[categories, ',']]);
+    categories.join = () => 0;
+    assert.strictEqual(decodeCategorySelectionFromHttp(input), null);
+    const failure = new Error('join failed');
+    categories.join = () => { throw failure; };
+    assert.throws(() => decodeCategorySelectionFromHttp(input), (error) => error === failure);
+  });
+
   assertTest('screensaver decoder validates the first read and preserves the raw second read', () => {
     const raw = Object.freeze({ marker: 'second read' });
     const reads = [];
@@ -771,7 +814,7 @@ function runDomainTests({ logSuite, assertTest }) {
       const position = source.search(new RegExp(`(?:function|const) ${name}\\b`));
       const prefix = source.slice(0, position);
       const contract = prefix.slice(prefix.lastIndexOf('/**'));
-      assert.match(contract, /@(?:type \{CommandDecoder\}|returns \{(?:Command|ScreensaverActiveCommand) \| null\})/, name);
+      assert.match(contract, /@(?:type \{CommandDecoder\}|returns \{(?:Command|ScreensaverActiveCommand|CategorySelectionCommand) \| null\})/, name);
       assert.ok(contract.endsWith('*/\n'), name);
     });
   });

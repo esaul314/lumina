@@ -169,10 +169,11 @@
  * emit payload objects (including {} for unscoped jobs), or null on rejection.
  * These shapes do not validate arbitrary direct calls or change their coercions.
  * Numeric fields are numbers, not a promise of finite/in-range dimensions.
- * Category selection accepts a comma-separated string or a direct string array.
+ * Category selection normally accepts a comma-separated string or direct array;
+ * HTTP decoding can also pass through an overridden array join's raw result.
  *
  * @typedef {{
- *   'select-categories': {categories: string | string[]},
+ *   'select-categories': {categories: unknown},
  *   'patch-state': StatePatchPayload,
  *   'update-excluded-keywords': {keywords: unknown[]},
  *   'set-active-photo': {url: string, photo?: ActivePhotoPreview},

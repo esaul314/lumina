@@ -1,7 +1,7 @@
 // Compile-only examples of the currently documented boundary contracts.
 // Expected errors are assertions: an unused directive is itself a diagnostic.
 import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, FeedPhoto, Photo } from '../server/domain/types';
-import { buildBooleanFieldPatch, decodeScreensaverActiveCommand, decodeStatePatchCommand } from '../server/domain/commands';
+import { buildBooleanFieldPatch, decodeCategorySelectionFromHttp, decodeScreensaverActiveCommand, decodeStatePatchCommand } from '../server/domain/commands';
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
@@ -190,6 +190,11 @@ const rawScreensaverActive: unknown = screensaverCommand?.payload.active;
 const rawScreensaverInput: Command = { type: 'set-screensaver-active', payload: { active: { legacy: true } } };
 // @ts-expect-error the second property read is not guaranteed to remain boolean
 const normalizedScreensaverActive: boolean | undefined = screensaverCommand?.payload.active;
+const categoryCommand = decodeCategorySelectionFromHttp(untrustedPatch);
+const rawCategories: unknown = categoryCommand?.payload.categories;
+const rawCategoryInput: Command = { type: 'select-categories', payload: { categories: { legacy: true } } };
+// @ts-expect-error a custom array join can return a non-string value
+const normalizedCategories: string | undefined = categoryCommand?.payload.categories;
 const result = reduceDomainCommand(state, command, environment);
 const visible: Photo[] = filterVisiblePhotos(photos);
 const selected: FeedPhoto | null = selectSmartPhoto({ state, rng: () => 0.5 });

@@ -4,6 +4,7 @@
  * @typedef {import('./types').Command} Command
  * @typedef {import('./types').CommandDecoder} CommandDecoder
  * @typedef {{type: 'set-screensaver-active', payload: {active: unknown}}} ScreensaverActiveCommand
+ * @typedef {{type: 'select-categories', payload: {categories: unknown}}} CategorySelectionCommand
  */
 
 // Decoders project unknown transport values to Command | null, not exceptions
@@ -158,14 +159,20 @@ const createAdvancePhotoTransportSpec = ({
   decodeRest: () => decodeAdvancePhotoCommand(direction, 'sequence')
 });
 
-/** @param {unknown} query @returns {Command | null} */
+/**
+ * Decode native property reads from an unknown HTTP query/body. Both properties
+ * are read in order, and an array's own join method can return any value.
+ * Truthy results are passed through; access and join failures propagate.
+ * @param {unknown} query
+ * @returns {CategorySelectionCommand | null}
+ */
 function decodeCategorySelectionFromHttp(query) {
-  const { category, categories: rawCategories } = query || {};
+  const { category, categories: rawCategories } = /** @type {{category?: unknown, categories?: unknown}} */ (query || {});
   const categories = typeof category === 'string'
     ? category
     : (typeof rawCategories === 'string'
       ? rawCategories
-      : (Array.isArray(rawCategories) ? rawCategories.join(',') : ''));
+      : (Array.isArray(rawCategories) ? /** @type {unknown} */ (rawCategories.join(',')) : ''));
 
   if (!categories) {
     return null;

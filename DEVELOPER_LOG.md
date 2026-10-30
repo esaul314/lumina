@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Preserve HTTP Category Decoder Semantics
+
+- **Outcome**: local assertions document native eager lookup without rejecting
+  inherited, callable or boxed inputs. Category commands admit unknown results
+  because an array's overridden `join` may return any truthy value.
+- **Tests**: property order, priority, empty input, original aliases, custom
+  join receiver/results, exact errors and compile-time narrowing. Production
+  executable syntax and exports are unchanged.
+- **Verification**: 801 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke is skipped on sandbox `EPERM`. Strict
+  typecheck remains nonzero at 518 core, zero fixture, 69 transitive and zero
+  global diagnostics.
+- **Next**: document `readRequiredString` without changing trimming or failures.
+
 ### 2026-10-30: Preserve Screensaver Decoder Lookup Semantics
 
 - **Outcome**: the decoder uses local unknown-valued property assertions without
