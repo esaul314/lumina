@@ -39,7 +39,7 @@
  * @property {unknown} [alignWeather=false] Truthiness enables weather preference.
  * @property {string} [physicalMatch='Cloudy']
  * @property {string} [newsMatch='Cloudy']
- * @property {boolean} [alignTimeOfDay=false]
+ * @property {unknown} [alignTimeOfDay=false] Truthiness enables night preference.
  * @property {boolean} [isNight=false]
  * @property {number | null} [nightPercentage=50]
  * @property {Date} [now] Fresh Date by default; local hours/minutes, not a clock callback.
@@ -428,7 +428,7 @@ function filterPhotosForWeather(photos, alignWeather, physicalMatch, newsMatch, 
  * Strict percentage threshold, nullish 50 fallback, no clamping. Disabled,
  * daytime, no match or rejected preference retains the original array identity.
  * @param {ReadonlyArray<Photo>} photos
- * @param {boolean} alignTimeOfDay
+ * @param {unknown} alignTimeOfDay Truthiness enables night preference.
  * @param {boolean} isNight
  * @param {number | null | undefined} nightPercentage
  * @param {RandomSource} [rng=Math.random]

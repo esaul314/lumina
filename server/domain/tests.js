@@ -506,6 +506,44 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.config.alignWeather, false);
   });
 
+  assertTest('time alignment preserves raw patches and uses truthiness at compatibility boundaries', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ [Symbol.toPrimitive]: () => { throw new Error('unexpected coercion'); } });
+    const rows = Object.freeze([Object.freeze({ url: 'day', rating: 0 }), Object.freeze({ url: 'night', rating: 0, isNight: true })]);
+    const decodeToggle = findSocketStatePatchDecode('toggle-align-time');
+    [shared, null, 0, false, '', 'false'].forEach((alignTimeOfDay) => {
+      const input = Object.freeze({ alignTimeOfDay });
+      const command = decodeStatePatchCommand(input);
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.alignTimeOfDay, alignTimeOfDay);
+      assert.strictEqual(result.nextState.config.alignTimeOfDay, alignTimeOfDay);
+      assert.strictEqual(snapshot.alignTimeOfDay, alignTimeOfDay);
+      assert.strictEqual(snapshot.config.alignTimeOfDay, alignTimeOfDay);
+      const legacy = { ...state.config, ...state.runtime, alignTimeOfDay, currentCategory: 'Scenic Nature', photosList: [] };
+      assert.strictEqual(buildDomainState(legacy, state.library.collections).config.alignTimeOfDay, Boolean(alignTimeOfDay));
+      const target = { ...legacy };
+      applyDomainState(target, {}, result.nextState);
+      assert.strictEqual(target.alignTimeOfDay, alignTimeOfDay);
+      const selected = filterPhotosForNight(rows, alignTimeOfDay, true, 100, () => 0);
+      if (alignTimeOfDay) assert.deepStrictEqual(selected, [rows[1]]);
+      else assert.strictEqual(selected, rows);
+      assert.strictEqual(selectors.selectSmartPhotoFromFeed({ photos: rows, alignTimeOfDay, isNight: true, nightPercentage: 100, ...env }), rows[alignTimeOfDay ? 1 : 0]);
+      assert.deepStrictEqual(decodeToggle(alignTimeOfDay), { type: 'patch-state', payload: { alignTimeOfDay: Boolean(alignTimeOfDay) } });
+      assert.strictEqual(input.alignTimeOfDay, alignTimeOfDay);
+    });
+    const omitted = decodeStatePatchCommand({ alignTimeOfDay: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    assert.deepStrictEqual(decodeToggle(undefined), { type: 'patch-state', payload: { alignTimeOfDay: false } });
+    const noDraw = () => assert.fail('disabled or daytime preference must not draw');
+    assert.strictEqual(filterPhotosForNight(rows, undefined, true, 100, noDraw), rows);
+    assert.strictEqual(filterPhotosForNight(rows, shared, false, 100, noDraw), rows);
+    assert.strictEqual(filterPhotosForNight(rows, shared, true, 100, () => 1), rows);
+    assert.strictEqual(state.config.alignTimeOfDay, false);
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

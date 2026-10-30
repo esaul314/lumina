@@ -5,7 +5,7 @@ import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domai
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
-import { filterPhotosForWeather, filterVisiblePhotos, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
+import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
@@ -66,6 +66,15 @@ const normalizedWeather: boolean = state.config.alignWeather;
 const normalizedSnapshotWeather: boolean = buildSnapshot(state).alignWeather;
 filterPhotosForWeather(photos, compatibilityWeather, 'Snowy', 'Cloudy');
 selectSmartPhotoFromFeed({ photos, alignWeather: compatibilityWeather });
+const configWithRawTime: DomainState['config'] = { ...state.config, alignTimeOfDay: { legacy: true } };
+const compatibilityTime: unknown = state.config.alignTimeOfDay;
+const snapshotTime: unknown = buildSnapshot(state).alignTimeOfDay;
+// @ts-expect-error raw patches do not guarantee a boolean time setting
+const normalizedTime: boolean = state.config.alignTimeOfDay;
+// @ts-expect-error public snapshots preserve the unvalidated time value
+const normalizedSnapshotTime: boolean = buildSnapshot(state).alignTimeOfDay;
+filterPhotosForNight(photos, compatibilityTime, true, 100);
+selectSmartPhotoFromFeed({ photos, alignTimeOfDay: compatibilityTime });
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };

@@ -21,7 +21,7 @@
  *   widgets: Record<string, boolean>,
  *   inactivityTimeout: unknown,
  *   slideshowInterval: unknown,
- *   alignTimeOfDay: boolean,
+ *   alignTimeOfDay: unknown,
  *   alignWeather: unknown,
  *   allowOpenAiFallback: unknown,
  *   nightPercentage: number,

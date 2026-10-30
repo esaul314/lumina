@@ -60,7 +60,7 @@
  * @property {Record<string, boolean>} widgets
  * @property {unknown} inactivityTimeout
  * @property {unknown} slideshowInterval
- * @property {boolean} alignTimeOfDay
+ * @property {unknown} alignTimeOfDay
  * @property {unknown} alignWeather
  * @property {unknown} allowOpenAiFallback
  * @property {number} nightPercentage

@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Time Alignment
+
+- **Outcome**: legacy input, domain state, snapshots and night selector inputs
+  admit unknown values. Patches and the legacy shell retain aliases; rebuilding,
+  socket toggles and night preference use truthiness. The existing pure,
+  data-first selector and its injected random source need no new abstraction;
+  state mutation remains in the compatibility shell. Executable code is unchanged.
+- **Tests**: cover raw/falsy values, aliasing, a throwing coercion hook, truthy
+  `"false"`, no-op patches, disabled/daytime identity, conditional draws, smart
+  selection and compile-time narrowing.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint, syntax
+  and whitespace checks passed; the optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model `nightPercentage` and unnormalized photo/feed values, including
+  native numeric coercion and selector defaults; Step 6 remains open.
+
 ### 2026-10-30: Model Compatibility Weather Alignment
 
 - **Outcome**: legacy input, domain state, snapshots and weather selector inputs
