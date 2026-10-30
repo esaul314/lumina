@@ -75,6 +75,15 @@ const normalizedTime: boolean = state.config.alignTimeOfDay;
 const normalizedSnapshotTime: boolean = buildSnapshot(state).alignTimeOfDay;
 filterPhotosForNight(photos, compatibilityTime, true, 100);
 selectSmartPhotoFromFeed({ photos, alignTimeOfDay: compatibilityTime });
+const configWithRawNightPercentage: DomainState['config'] = { ...state.config, nightPercentage: { legacy: true } };
+const compatibilityNightPercentage: unknown = state.config.nightPercentage;
+const snapshotNightPercentage: unknown = buildSnapshot(state).nightPercentage;
+// @ts-expect-error raw patches do not guarantee a numeric night percentage
+const normalizedNightPercentage: number = state.config.nightPercentage;
+// @ts-expect-error public snapshots preserve the unvalidated percentage
+const normalizedSnapshotNightPercentage: number = buildSnapshot(state).nightPercentage;
+filterPhotosForNight(photos, true, true, compatibilityNightPercentage);
+selectSmartPhotoFromFeed({ photos, nightPercentage: compatibilityNightPercentage });
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };

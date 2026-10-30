@@ -24,7 +24,7 @@
  *   alignTimeOfDay: unknown,
  *   alignWeather: unknown,
  *   allowOpenAiFallback: unknown,
- *   nightPercentage: number,
+ *   nightPercentage: unknown,
  *   searchKeywords: Record<string, unknown>,
  *   feedConfigs: Record<string, unknown>,
  *   poolPolicies: Record<string, unknown>,

@@ -471,7 +471,8 @@ Progress note:
 - Step 6 fallback-consent compatibility slice (2026-10-30): `allowOpenAiFallback` is unknown in legacy input and domain/snapshot state. Raw patches and the mutable legacy shell preserve aliases, but rebuilds and the legacy socket toggle use truthiness; the vision gate also uses truthiness. Compile fixtures require narrowing; executable behavior and 530/0/68/0 counts are unchanged. Explicit boolean consent enforcement is separate hardening work: even the string `"false"` currently enables the gate.
 - Step 6 weather-alignment compatibility slice (2026-10-30): `alignWeather` is unknown in legacy input, domain/snapshot state and weather selector contracts. Raw patches and the legacy shell retain aliases; rebuilding, the socket toggle and preference filtering use truthiness. Tests cover falsy inputs, a truthy `"false"`, an object with a throwing coercion hook, no-op patches and selector identity; compile fixtures require narrowing. Executable behavior and 530/0/68/0 counts are unchanged.
 - Step 6 time-alignment compatibility slice (2026-10-30): `alignTimeOfDay` is unknown in legacy input, domain/snapshot state and night selector contracts. Raw patches and the legacy shell retain aliases; rebuilding, the socket toggle and preference filtering use truthiness. Tests cover falsy inputs, truthy `"false"`, a throwing coercion hook, no-op patches, conditional draws and smart selection; compiler fixtures require narrowing. Executable behavior is unchanged.
-- Next Step 6 checkpoint: model `nightPercentage` and unnormalized compatibility photo/feed inputs, including preview staging. Preserve selector defaults and native numeric coercion; re-audit acceptance rather than resume unrelated helper polishing.
+- Step 6 night-percentage compatibility slice (2026-10-30): legacy input, domain/snapshot state and night selector contracts admit unknown values. Tests cover raw aliases, nullish defaults, socket validation, native coercion, conditional draws and exact failures; compiler fixtures require narrowing. Runtime code is unchanged; the native division now exposes one TS2362 diagnostic rather than asserting an unsafe numeric input.
+- Next Step 6 checkpoint: model unnormalized compatibility photo/feed inputs, including preview staging. Preserve selector defaults and aliases, then address honest coercion typing and re-audit acceptance rather than resume unrelated helper polishing.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -573,7 +574,10 @@ diagnostic. The command exits nonzero for any diagnostic; it is not part of the
 green runtime test gate and does not suppress transitive errors. Grouping is by
 diagnostic file location, not ownership or import reachability.
 
-Current results: **530 core, 0 fixture, 68 transitive, 0 global**. The curried
+Current results: **531 core, 0 fixture, 68 transitive, 0 global**. The additional
+core TS2362 diagnostic is native division of an unknown `nightPercentage`; it
+is intentionally visible until compatibility typing or validation is resolved.
+The curried
 patch builder, heterogeneous invoker, and other positive/negative fixtures now
 compile as expected. The invoker's result union does not prove payload/key
 correlation, and its handler-map contract deliberately excludes non-functions

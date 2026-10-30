@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Night Percentage
+
+- **Outcome**: legacy input, domain state, snapshots and night selector inputs
+  admit unknown values. Raw patches and the legacy shell retain aliases; rebuilds
+  use a nullish default, socket input is validated separately, and selection
+  retains native division. The existing data-first selector and injected RNG
+  remain the appropriate small functional boundary; executable code is unchanged.
+- **Tests**: cover falsy, nullish, string, object and NaN values; immutable inputs,
+  no-op patches, socket parsing, selector identity, smart selection, conditional
+  draws, coercion failures and compile-time narrowing.
+- **Verification**: strict no-emit typecheck remains nonzero at 531 core, zero
+  fixture, 68 transitive and zero global diagnostics. The added TS2362 exposes
+  native division of an unknown operand; no cast or suppression hides it. Runtime
+  suite, lint, syntax and whitespace checks passed; the optional endpoint smoke
+  was skipped because sandbox socket creation returned `EPERM`.
+- **Next**: model unnormalized photo/feed values, then resolve coercion typing
+  honestly and re-audit Step 6 acceptance.
+
 ### 2026-10-30: Model Compatibility Time Alignment
 
 - **Outcome**: legacy input, domain state, snapshots and night selector inputs

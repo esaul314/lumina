@@ -544,6 +544,56 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.config.alignTimeOfDay, false);
   });
 
+  assertTest('night percentage preserves raw state and native selector coercion', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ valueOf: () => 75 });
+    const rows = Object.freeze([Object.freeze({ url: 'day', rating: 0 }), Object.freeze({ url: 'night', rating: 0, isNight: true })]);
+    const cases = [[shared, true], [null, true], [false, false], [0, false], ['', false], ['75', true], ['bad', false], [NaN, false]];
+    cases.forEach(([nightPercentage, selectsNight]) => {
+      const input = Object.freeze({ nightPercentage });
+      const command = decodeStatePatchCommand(input);
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.nightPercentage, nightPercentage);
+      assert.strictEqual(result.nextState.config.nightPercentage, nightPercentage);
+      assert.strictEqual(snapshot.nightPercentage, nightPercentage);
+      assert.strictEqual(snapshot.config.nightPercentage, nightPercentage);
+      const legacy = { ...state.config, ...state.runtime, nightPercentage, currentCategory: 'Scenic Nature', photosList: [] };
+      assert.strictEqual(buildDomainState(legacy, state.library.collections).config.nightPercentage, nightPercentage ?? 50);
+      const target = { ...legacy };
+      applyDomainState(target, {}, result.nextState);
+      assert.strictEqual(target.nightPercentage, nightPercentage);
+      const selected = filterPhotosForNight(rows, true, true, nightPercentage, () => 0.4);
+      if (selectsNight) assert.deepStrictEqual(selected, [rows[1]]);
+      else assert.strictEqual(selected, rows);
+      assert.strictEqual(input.nightPercentage, nightPercentage);
+    });
+    const omitted = decodeStatePatchCommand({ nightPercentage: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    assert.deepStrictEqual(filterPhotosForNight(rows, true, true, undefined, () => 0.49), [rows[1]]);
+    assert.strictEqual(filterPhotosForNight(rows, true, true, null, () => 0.5), rows);
+    const decodePercent = findSocketStatePatchDecode('change-night-percentage');
+    assert.deepStrictEqual(decodePercent('75.9'), { type: 'patch-state', payload: { nightPercentage: 75 } });
+    assert.strictEqual(decodePercent(null), null);
+    assert.strictEqual(decodePercent('bad'), null);
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ photos: rows, alignTimeOfDay: true, isNight: true, nightPercentage: '100', ...env }), rows[1]);
+    assert.strictEqual(selectors.selectSmartPhotoFromFeed({ photos: rows, alignTimeOfDay: true, isNight: true, nightPercentage: 0, ...env }), rows[0]);
+    const failure = new Error('numeric coercion');
+    const throwing = Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } });
+    const noDraw = () => assert.fail('inactive or empty night preference must not draw');
+    assert.strictEqual(filterPhotosForNight(rows, false, true, throwing, noDraw), rows);
+    assert.strictEqual(filterPhotosForNight(rows, true, false, throwing, noDraw), rows);
+    const dayOnly = Object.freeze([rows[0]]);
+    assert.strictEqual(filterPhotosForNight(dayOnly, true, true, throwing, noDraw), dayOnly);
+    const calls = [];
+    assert.throws(() => filterPhotosForNight(rows, true, true, throwing, () => { calls.push('rng'); return 0; }), (error) => error === failure);
+    assert.deepStrictEqual(calls, ['rng']);
+    assert.throws(() => filterPhotosForNight(rows, true, true, 1n, () => 0), TypeError);
+    assert.strictEqual(state.config.nightPercentage, 50);
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

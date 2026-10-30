@@ -63,7 +63,7 @@
  * @property {unknown} alignTimeOfDay
  * @property {unknown} alignWeather
  * @property {unknown} allowOpenAiFallback
- * @property {number} nightPercentage
+ * @property {unknown} nightPercentage Raw compatibility patches are not validated.
  * @property {Record<string, unknown>} searchKeywords
  * @property {Record<string, unknown>} feedConfigs
  * @property {Record<string, { retentionDays?: number, maxPhotos?: number, schedule?: { enabled?: boolean, start?: string, end?: string, priority?: number } }>=} poolPolicies

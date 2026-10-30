@@ -41,7 +41,7 @@
  * @property {string} [newsMatch='Cloudy']
  * @property {unknown} [alignTimeOfDay=false] Truthiness enables night preference.
  * @property {boolean} [isNight=false]
- * @property {number | null} [nightPercentage=50]
+ * @property {unknown} [nightPercentage=50] Nullish values use 50; otherwise native division coerces or throws.
  * @property {Date} [now] Fresh Date by default; local hours/minutes, not a clock callback.
  * @typedef {WeightedPhotoOptions & SmartPreferences} SmartFeedOptions
  * @typedef {{ state: DomainState, direction?: Direction }} SequentialPhotoOptions
@@ -430,7 +430,7 @@ function filterPhotosForWeather(photos, alignWeather, physicalMatch, newsMatch, 
  * @param {ReadonlyArray<Photo>} photos
  * @param {unknown} alignTimeOfDay Truthiness enables night preference.
  * @param {boolean} isNight
- * @param {number | null | undefined} nightPercentage
+ * @param {unknown} nightPercentage Nullish values use 50; native division may coerce or throw.
  * @param {RandomSource} [rng=Math.random]
  * @returns {ReadonlyArray<Photo>}
  */
