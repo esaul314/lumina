@@ -1331,6 +1331,41 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(deriveCurrentFrame(noPrimary).layout, 'single');
   });
 
+  assertTest('pairing sort preserves dynamic URL method receiver, argument and result coercion', () => {
+    const events = [];
+    const firstUrl = Object.freeze({ id: 'first' });
+    const secondUrl = {
+      get localeCompare() {
+        events.push('method');
+        return function (other) {
+          events.push(this === secondUrl && other === firstUrl ? 'call' : 'wrong call');
+          return { valueOf: () => { events.push('result coercion'); return -1; } };
+        };
+      }
+    };
+    const primary = { url: 'primary', orientation: 'portrait' };
+    const first = { get url() { events.push('first url'); return firstUrl; }, orientation: 'portrait' };
+    const second = { get url() { events.push('second url'); return secondUrl; }, orientation: 'portrait' };
+    const photos = Object.freeze([primary, first, second]);
+    const state = createState({ library: { photosList: photos }, playback: { activePhotoUrl: 'primary' } });
+    const frame = deriveCurrentFrame(state);
+    assert.deepStrictEqual(events.slice(-5), ['second url', 'method', 'first url', 'call', 'result coercion']);
+    assert.ok(frame.secondary === first || frame.secondary === second);
+    assert.deepStrictEqual(photos, [primary, first, second]);
+  });
+
+  assertTest('pairing sort retains single-candidate short circuit and native failures', () => {
+    const failure = new Error('comparison failed');
+    const primary = { url: 'primary', orientation: 'portrait' };
+    const malformed = { url: 7, orientation: 'portrait' };
+    const state = createState({ library: { photosList: [primary, malformed] }, playback: { activePhotoUrl: 'primary' } });
+    assert.strictEqual(deriveCurrentFrame(state).secondary, malformed);
+    const withSecond = (url) => ({ ...state, library: { ...state.library, photosList: [primary, malformed, { url, orientation: 'portrait' }] } });
+    assert.throws(() => deriveCurrentFrame(withSecond({ localeCompare: 42 })), TypeError);
+    assert.throws(() => deriveCurrentFrame(withSecond({ get localeCompare() { throw failure; } })), (error) => error === failure);
+    assert.throws(() => deriveCurrentFrame(withSecond({ localeCompare: () => ({ valueOf: () => { throw failure; } }) })), (error) => error === failure);
+  });
+
   assertTest('orientation projection ignores malformed metadata without coercion and propagates accessors', () => {
     const noCoercion = Object.freeze({ valueOf: () => assert.fail('dimensions must not be coerced') });
     const rows = [

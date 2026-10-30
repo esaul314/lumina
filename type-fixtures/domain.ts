@@ -118,6 +118,9 @@ const activeOrientation = inferOrientation(rawActive);
 const rawFrame = deriveCurrentFrame(rawFeedState);
 const rawFramePrimary: FeedPhoto | null = rawFrame.primary;
 const rawFrameSecondary: FeedPhoto | null = buildSnapshot(rawFeedState).activeSecondPhoto;
+const rawPairedUrl: unknown = rawFrame.secondary?.url;
+// @ts-expect-error pairing does not validate or normalize candidate URLs
+const normalizedPairedUrl: string | undefined = rawFrame.secondary?.url;
 const rawFrameCategory: unknown = rawFrame.context.category;
 const rawFramePosition: unknown = rawFrame.crop.secondaryPositionY;
 // @ts-expect-error frame photos may retain unvalidated preview metadata

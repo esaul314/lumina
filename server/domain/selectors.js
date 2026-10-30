@@ -673,7 +673,9 @@ function hashString(value) {
 }
 
 /**
- * Select an original alias from a URL-sorted copy; malformed URLs may throw.
+ * Select an original alias from a URL-sorted copy. The comparator dynamically
+ * calls the left URL's localeCompare with the raw right URL; native sort coerces
+ * its result. Missing/non-callable methods, accessors and coercion may throw.
  * @param {ReadonlyArray<FeedPhoto>} candidates
  * @param {unknown} seed Native string coercion can throw.
  * @returns {FeedPhoto | null}
@@ -683,7 +685,8 @@ function pickStablePhoto(candidates, seed) {
     return null;
   }
 
-  const sortedCandidates = [...candidates].sort((left, right) => left.url.localeCompare(right.url));
+  // Dynamic assertion permits the native method call; it does not validate URLs.
+  const sortedCandidates = [...candidates].sort((left, right) => /** @type {any} */ (left.url).localeCompare(right.url));
   return sortedCandidates[hashString(seed) % sortedCandidates.length];
 }
 

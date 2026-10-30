@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Preserve Native Pairing URL Comparison
+
+- **Outcome**: the pure pairing selector retains native dynamic method lookup
+  and sort coercion through a local type assertion. URLs remain unvalidated;
+  malformed values can still throw and executable production syntax is unchanged.
+- **Tests**: method receiver, raw argument, accessor ordering, comparator-result
+  coercion, single-candidate behavior, native failures and raw URL narrowing.
+- **Verification**: 797 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke was skipped because the sandbox denied
+  listening. Strict typecheck remains nonzero at 522 core, zero fixture, 69
+  transitive and zero global diagnostics.
+- **Next**: address unknown-input narrowing in `decodeScreensaverActiveCommand`
+  while preserving callable/inherited inputs, repeated reads and native failures.
+
 ### 2026-10-30: Preserve Native Sequential Cursor Keys
 
 - **Outcome**: the existing pure sequential selector uses a local dynamic key
