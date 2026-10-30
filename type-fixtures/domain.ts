@@ -94,6 +94,9 @@ const rebuiltRawFeed: FeedPhoto[] = buildDomainState(rawLegacyState, state.libra
 const rawFeed: FeedPhoto[] = rawFeedState.library.photosList;
 const rawSnapshotFeed: FeedPhoto[] = buildSnapshot(rawFeedState).photosList;
 const rawSequential: FeedPhoto | null = selectSequentialPhoto({ state: rawFeedState });
+const rawSequentialCategory: unknown = rawSequential?.category;
+// @ts-expect-error cursor lookup does not normalize the selected category
+const normalizedSequentialCategory: string | undefined = rawSequential?.category;
 const rawSmart: FeedPhoto | null = selectSmartPhoto({ state: rawFeedState });
 const rawSmartFeed: typeof preview | null = selectSmartPhotoFromFeed({ photos: [preview], previousCategory: { legacy: true } });
 const rawWeighted: typeof preview | null = selectWeightedRandomPhoto({ photos: [preview], currentPhotoUrl: { legacy: true } });

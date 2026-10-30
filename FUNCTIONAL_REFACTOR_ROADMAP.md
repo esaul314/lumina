@@ -482,7 +482,8 @@ Progress note:
 - Step 6 current-frame slice (2026-10-30): `CurrentFrame` and public/legacy snapshot active photos admit unvalidated `FeedPhoto` aliases, and frame crop/category outputs admit raw values. Regressions preserve staged-preview pairing, detached category arrays, snapshot aliases, nullish defaults and malformed URL sorting failures; compiler fixtures require narrowing. Executable code is unchanged. Four frame errors and two private-helper implicit-any errors disappear, while raw URL sorting exposes one core error; the baseline is 531 core, zero fixture, 69 transitive and zero global.
 - Step 6 smart-selection slice (2026-10-30): generic time/weather/night filters and feed/weighted selectors retain raw input row types and aliases; the state adapter returns `FeedPhoto | null`. Tests cover staged previews, Map-key identity, rating coercion and malformed schedules. No executable behavior changed. Honest contracts expose rating division and sequential cursor-key diagnostics alongside the existing night division and malformed pairing URL sort; the strict baseline is 526 core, zero fixture, 69 transitive and zero global.
 - Step 6 numeric-coercion slice (2026-10-30): the private data-first `divideByNumber` boundary captures native division of unknown inputs by a number. A single local `any` assertion is limited to the operator because TypeScript cannot model coercive arithmetic on `unknown`; it is not input validation or a claim that operands are numbers. Successful results are numeric; Symbol, BigInt, user coercion and their errors remain observable. Two regressions cover both selectors, native error messages and RNG/coercion order; a fixture preserves raw rating metadata. No public exports change. The nonzero baseline is 524 core, zero fixture, 69 transitive and zero global diagnostics.
-- Next Step 6 checkpoint: resolve the exposed raw cursor-key indexing contract without changing native key coercion, and address malformed URL sorting without hiding its failures; then continue the bounded acceptance queue. Step 6 remains incomplete.
+- Step 6 cursor-key slice (2026-10-30): sequential selection uses one local dynamic assertion for its unknown category at native property access, not a conversion or validation. Symbol keys, string-hint coercion, optional-chain short-circuiting, proxy lookup and thrown failures remain observable; the selected category remains unknown in the public contract. Two regressions and a compiler fixture cover these boundaries; the executable production AST is unchanged. The strict baseline is 523 core, zero fixture, 69 transitive and zero global diagnostics.
+- Next Step 6 checkpoint: address malformed pairing URL sort contracts without hiding native failures; then continue the bounded acceptance queue. Step 6 remains incomplete.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -556,7 +557,7 @@ This audit follows the core domain flow, not unrelated helper polishing.
 | Commands | `CommandPayloads` correlates 25 names; decoders document `Command \| null`. Regressions confirm raw scalar patches, URL-only validation of active-photo metadata, and inherited/callable inputs. `isPlainObject` now narrows the state-patch input without changing runtime checks. | `decodeCategorySelectionFromHttp` and `decodeScreensaverActiveCommand` still access properties on `unknown` without sufficient narrowing. `curry: AnyFunction -> AnyFunction` erases builder relationships. A guard must preserve native lookup/coercion behavior, not silently reject callable/inherited inputs. |
 | Environments | `ReducerEnvironment`, dispatcher dependencies/public methods, and results document defaults, fresh context, aliases, and completion ordering. Replay/order/failure tests remain. All ten raw scalar patch fields admit unknown compatibility values in state and snapshots. | Tests trace raw fields through reduction and public snapshots; optional direct payloads can produce NaN, and omitted scale mode is an identity no-op. Night division uses the local native-coercion boundary; invalid operands still throw. |
 | Effects | Ten discriminated variants match the closed handler vocabulary. Sequential execution, optional adapters, opaque awaited results, synchronous emission/override, and partial failures are covered. `createTypedHandlerInvoker` retains the heterogeneous return union and undefined fallback. | The invoker does not establish payload/handler correlation; private handlers/interpreter and reducer-family builders rely on inference. Public effect variants do not prove `EffectResult[]` inference. Preserve ordering and existing compatibility fallbacks. |
-| Selectors | All 23 exported signatures document domain inputs; tests cover pool balance, time/random defaults, aliases, immutable updates and unnormalized preview staging. Feed lookup, filters and feed-based smart selection preserve generic row types; state-backed selectors and frames admit raw fields. | Rating/night native division is isolated behind a local dynamic operator assertion, not validation; sequential cursor indexing with raw pool keys and malformed pairing URL sorting remain compiler-visible. Other selector contracts and malformed legacy inputs remain review targets. Browser contracts remain separate. |
+| Selectors | All 23 exported signatures document domain inputs; tests cover pool balance, time/random defaults, aliases, immutable updates and unnormalized preview staging. Feed lookup, filters and feed-based smart selection preserve generic row types; state-backed selectors and frames admit raw fields. | Rating/night division and raw cursor-key indexing use local dynamic operator assertions, not validation; malformed pairing URL sorting remains compiler-visible. Other selector contracts and malformed legacy inputs remain review targets. Browser contracts remain separate. |
 
 Acceptance decisions:
 
@@ -576,9 +577,9 @@ is deliberately not a JSDoc parser/compiler. Diagnostic counts and a successful
 strict migration were unmeasured, not inferred from the passing runtime suite.
 
 Follow-up acceptance review (2026-10-30): the subsequently installed, pinned
-strict compiler now reports 524 core, zero fixture, 69 transitive and zero
+strict compiler now reports 523 core, zero fixture, 69 transitive and zero
 global diagnostics. The selector contracts above are more faithful, but both
-acceptance decisions remain unchanged: raw key and URL handling,
+acceptance decisions remain unchanged: malformed URL handling,
 and the command/effect inference gaps are unresolved. Passing behavioral tests
 do not establish a clean migration gate.
 
@@ -591,7 +592,7 @@ diagnostic. The command exits nonzero for any diagnostic; it is not part of the
 green runtime test gate and does not suppress transitive errors. Grouping is by
 diagnostic file location, not ownership or import reachability.
 
-Current results: **524 core, 0 fixture, 69 transitive, 0 global**. Native
+Current results: **523 core, 0 fixture, 69 transitive, 0 global**. Native
 rating/night division is isolated in an explicitly dynamic local operator;
 unknown inputs and native failures remain part of the public contracts.
 The curried

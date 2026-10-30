@@ -620,7 +620,9 @@ function selectSequentialPhoto({ state, direction = 'next' }) {
       ? (direction === 'prev' ? pools.length - 1 : 0)
       : wrapIndex(pools.length, currentPoolIndex + step);
     const targetPool = pools[targetPoolIndex];
-    const cursor = state.playback.poolSequenceCursors?.[targetPool.category] ?? 0;
+    // Only this operator needs a dynamic key: native access performs ToPropertyKey,
+    // including symbols, and may throw; the category itself remains unknown.
+    const cursor = state.playback.poolSequenceCursors?.[/** @type {any} */ (targetPool.category)] ?? 0;
     const targetPhotoIndex = direction === 'prev'
       ? wrapIndex(targetPool.photos.length, cursor - 1)
       : wrapIndex(targetPool.photos.length, cursor);

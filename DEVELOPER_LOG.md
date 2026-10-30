@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Preserve Native Sequential Cursor Keys
+
+- **Outcome**: the existing pure sequential selector uses a local dynamic key
+  assertion at property access, without converting or validating raw categories.
+  The selected row and its category remain unnormalized; executable production
+  syntax and playback behavior are unchanged.
+- **Tests**: symbol keys, object-to-symbol coercion and its string hint, proxy
+  lookup order, nullish cursor short-circuiting, exact thrown-error identity and
+  compile-time raw-category narrowing.
+- **Verification**: 795 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke was skipped because the sandbox denied
+  listening. Strict typecheck remains nonzero at 523 core, zero fixture, 69
+  transitive and zero global diagnostics.
+- **Next**: address malformed pairing URL sort contracts without hiding native
+  failures, then continue the bounded acceptance queue.
+
 ### 2026-10-30: Isolate Native Numeric Coercion
 
 - **Outcome**: rating and night selection share a private data-first division

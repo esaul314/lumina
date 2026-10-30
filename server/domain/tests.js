@@ -1188,6 +1188,40 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.library.photosList, photos);
   });
 
+  assertTest('sequential cursor lookup preserves native symbol keys and coercion order', () => {
+    const key = Symbol('pool');
+    const events = [];
+    const category = { [Symbol.toPrimitive]: (hint) => { events.push(`coerce:${hint}`); return key; } };
+    const photos = [{ url: 'first', category: 'A' }, { url: 'second', category }, { url: 'third', category }];
+    const cursors = new Proxy({ [key]: 1, [String(key)]: 0 }, {
+      get: (target, property) => { events.push(property); return Reflect.get(target, property); }
+    });
+    const state = createState({ library: { photosList: photos }, playback: { activePhotoUrl: 'first', poolSequenceCursors: cursors } });
+    assert.strictEqual(selectors.selectSequentialPhoto({ state }), photos[2]);
+    assert.deepStrictEqual(events, ['coerce:string', key]);
+    assert.strictEqual(state.playback.poolSequenceCursors, cursors);
+
+    const directPhotos = [{ url: 'first', category: 'A' }, { url: 'second', category: key }, { url: 'third', category: key }];
+    const directState = createState({ library: { photosList: directPhotos }, playback: { activePhotoUrl: 'first', poolSequenceCursors: cursors } });
+    events.length = 0;
+    assert.strictEqual(selectors.selectSequentialPhoto({ state: directState }), directPhotos[2]);
+    assert.deepStrictEqual(events, [key]);
+  });
+
+  assertTest('sequential cursor lookup short-circuits nullish cursors and propagates key failures', () => {
+    const failure = new Error('key coercion failed');
+    let calls = 0;
+    const category = { [Symbol.toPrimitive]: () => { calls += 1; throw failure; } };
+    const photos = [{ url: 'first', category: 'A' }, { url: 'second', category }, { url: 'third', category }];
+    const makeState = (poolSequenceCursors) => createState({ library: { photosList: photos }, playback: { activePhotoUrl: 'first', poolSequenceCursors } });
+    [null, undefined].forEach((cursors) => {
+      assert.strictEqual(selectors.selectSequentialPhoto({ state: makeState(cursors) }), photos[1]);
+      assert.strictEqual(calls, 0);
+    });
+    assert.throws(() => selectors.selectSequentialPhoto({ state: makeState({}) }), (error) => error === failure);
+    assert.strictEqual(calls, 1);
+  });
+
   assertTest('sequential selection preserves staged preview rows and null when all rows are hidden', () => {
     const preview = { url: 'preview-raw', title: 9, width: 'wide', metadata: { shared: true } };
     const staged = reduceDomainCommand(createState(), { type: 'set-active-photo', payload: { url: preview.url, photo: preview } }).nextState;
