@@ -13,6 +13,8 @@
  */
 
 /**
+ * Normalized selector-facing photo shape; not a guarantee about a preview
+ * accepted by the active-photo decoder or arbitrary compatibility state.
  * @typedef {object} Photo
  * @property {string} url
  * @property {string=} title
@@ -121,6 +123,14 @@
 /** @typedef {import('./poolRetention').PoolPolicyInput} PoolPolicyInput */
 
 /**
+ * Original object passed through by the active-photo decoder, including arrays
+ * and inherited/accessor properties. Only the separate command URL is checked;
+ * metadata and even later reads of the object's URL are not validated. The
+ * reducer may shallow-copy this object into its feed without normalization.
+ * @typedef {object} ActivePhotoPreview
+ */
+
+/**
  * Decoder output, not validated SessionConfig. Scalar patch values are passed
  * through and interpreted by the reducer; widgets/exclusions retain raw entries.
  * Location/vision records are normalized by their dedicated projections.
@@ -148,7 +158,7 @@
  *   'select-categories': {categories: string | string[]},
  *   'patch-state': StatePatchPayload,
  *   'update-excluded-keywords': {keywords: unknown[]},
- *   'set-active-photo': {url: string, photo?: Photo},
+ *   'set-active-photo': {url: string, photo?: ActivePhotoPreview},
  *   'advance-photo': {direction?: 'next' | 'prev', strategy?: AdvanceStrategy},
  *   'rate-photo': {url: string, rating: number},
  *   'mark-photo-broken': {url: string},

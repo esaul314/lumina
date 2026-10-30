@@ -6,6 +6,26 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Distinguish Active Photo Preview Inputs
+
+- **Outcome**: `ActivePhotoPreview` models the object passed through an
+  active-photo command separately from selector-facing `Photo`. URL validation
+  applies to the captured command URL, not later reads or optional metadata.
+  Objects, arrays, accessors and inherited values keep existing behavior; no
+  executable code, export, runtime validation, or functional wrapper was added.
+- **Tests**: runtime coverage checks aliases, native URL reads and failures,
+  callable and string inputs, and shallow feed staging with unnormalized values
+  and nested aliases. Positive and negative compile fixtures distinguish preview
+  objects from normalized photos and reject primitive preview fields.
+- **Verification**: `npm test` passed (763 executed, zero failures; 13/13 sensor
+  and 3/3 reporter tests); the optional live endpoint smoke was skipped because
+  the sandbox denied socket creation. Lint and whitespace checks passed. The
+  strict no-emit typecheck remains nonzero at 530 core, zero fixture, 68
+  transitive and zero global diagnostics.
+- **Next**: model compatibility state and feed values honestly; the reducer can
+  still stage unvalidated preview metadata, so this slice does not establish
+  the selector-facing `Photo` invariant or complete Step 6.
+
 ### 2026-10-29: Type the Heterogeneous Handler Invoker
 
 - **Outcome**: the existing data-last invoker now retains its handler-result

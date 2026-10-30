@@ -1,6 +1,6 @@
 // Compile-only examples of the currently documented boundary contracts.
 // Expected errors are assertions: an unused directive is itself a diagnostic.
-import type { Command, Effect, ReducerEnvironment, DomainState, Photo } from '../server/domain/types';
+import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, Photo } from '../server/domain/types';
 import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domain/commands';
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
@@ -11,6 +11,14 @@ declare const photos: Photo[];
 declare const dispatcher: ReturnType<typeof createDomainDispatcher>;
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
+const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };
+const previewCommand: Command = { type: 'set-active-photo', payload: { url: preview.url, photo: preview } };
+const arrayPreview: ActivePhotoPreview = Object.assign([], { url: 'array-preview' });
+const arrayPreviewCommand: Command = { type: 'set-active-photo', payload: { url: 'array-preview', photo: arrayPreview } };
+// @ts-expect-error unvalidated metadata cannot be assumed to be a normalized photo
+const normalizedPreview: Photo = previewCommand.payload!.photo!;
+// @ts-expect-error preview objects are not primitive strings
+const primitivePreview: ActivePhotoPreview = 'preview';
 const effect: Effect = { type: 'refresh-active-feed', payload: { categories: ['Google Photos'] } };
 const environment: ReducerEnvironment = { now: new Date(0), rng: () => 0.5 };
 const decoded: Command | null = decodeStatePatchCommand({ theme: 17 });
@@ -69,4 +77,4 @@ type HandlerResultIsNotAny = AssertFalse<IsAny<ReturnType<ReturnType<typeof crea
 void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wrongCommand,
   missingEffectPayload, wrongEnvironment, alwaysPhoto, alwaysCommand, directBooleanPatch,
   partialBooleanPatch, symbolBooleanPatch, coercedBooleanPatch, guaranteedBoolean, stringBoolean, incompleteBoolean,
-  handlerResult, unknownHandlerResult, certainHandlerResult];
+  handlerResult, unknownHandlerResult, certainHandlerResult, arrayPreviewCommand, normalizedPreview, primitivePreview];

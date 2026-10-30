@@ -224,6 +224,46 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(selectors.inferOrientation(command.payload.photo), 'unknown');
   });
 
+  assertTest('active photo preview compatibility preserves object aliases and native URL reads', () => {
+    const inherited = Object.create({ url: 'inherited' });
+    const array = Object.assign([], { url: 'array' });
+    [inherited, array].forEach((photo) => {
+      const command = decodeActivePhotoCommand(photo);
+      assert.strictEqual(command.payload.url, photo.url);
+      assert.strictEqual(command.payload.photo, photo);
+    });
+    const callable = Object.assign(() => {}, { url: 'callable' });
+    assert.deepStrictEqual(decodeActivePhotoCommand(callable), {
+      type: 'set-active-photo', payload: { url: 'callable' }
+    });
+    assert.deepStrictEqual(decodeActivePhotoCommand(' string-url '), {
+      type: 'set-active-photo', payload: { url: ' string-url ' }
+    });
+    let reads = 0;
+    const changing = { get url() { return reads++ === 0 ? 'first' : 17; } };
+    const command = decodeActivePhotoCommand(changing);
+    assert.strictEqual(command.payload.url, 'first');
+    assert.strictEqual(command.payload.photo, changing);
+    assert.strictEqual(command.payload.photo.url, 17);
+    const failure = new Error('preview URL getter');
+    assert.throws(() => decodeActivePhotoCommand({ get url() { throw failure; } }), (error) => error === failure);
+  });
+
+  assertTest('active photo previews are shallow-copied into the feed without metadata normalization', () => {
+    const nested = Object.freeze({ source: 'alias' });
+    const preview = Object.freeze({ url: 'unlisted-preview', title: 9, width: 'wide', nested });
+    const state = createState();
+    const command = decodeActivePhotoCommand(preview);
+    const result = reduceDomainCommand(state, command, { now: new Date(0), rng: () => 0 });
+    const staged = result.nextState.library.photosList.find(({ url }) => url === preview.url);
+    assert.notStrictEqual(staged, preview);
+    assert.strictEqual(staged.title, 9);
+    assert.strictEqual(staged.width, 'wide');
+    assert.strictEqual(staged.nested, nested);
+    assert.strictEqual(command.payload.photo, preview);
+    assert.ok(!state.library.photosList.some(({ url }) => url === preview.url));
+  });
+
   assertTest('unknown decoder inputs preserve inherited and callable property access and exact getter failures', () => {
     [
       [decodeCategorySelectionFromHttp, 'category', 'Scenic Nature', 'select-categories', 'categories'],
