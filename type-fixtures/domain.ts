@@ -5,7 +5,7 @@ import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domai
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
-import { filterVisiblePhotos, selectSmartPhoto, uniqByUrl } from '../server/domain/selectors';
+import { filterPhotosForWeather, filterVisiblePhotos, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
@@ -57,6 +57,15 @@ const snapshotFallback: unknown = buildSnapshot(state).allowOpenAiFallback;
 const normalizedFallback: boolean = state.config.allowOpenAiFallback;
 // @ts-expect-error snapshots preserve the same unvalidated fallback value
 const normalizedSnapshotFallback: boolean = buildSnapshot(state).allowOpenAiFallback;
+const configWithRawWeather: DomainState['config'] = { ...state.config, alignWeather: { legacy: true } };
+const compatibilityWeather: unknown = state.config.alignWeather;
+const snapshotWeather: unknown = buildSnapshot(state).alignWeather;
+// @ts-expect-error raw patches do not guarantee a boolean weather setting
+const normalizedWeather: boolean = state.config.alignWeather;
+// @ts-expect-error public snapshots preserve the unvalidated weather value
+const normalizedSnapshotWeather: boolean = buildSnapshot(state).alignWeather;
+filterPhotosForWeather(photos, compatibilityWeather, 'Snowy', 'Cloudy');
+selectSmartPhotoFromFeed({ photos, alignWeather: compatibilityWeather });
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };

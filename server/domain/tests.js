@@ -472,6 +472,40 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('weather alignment preserves raw patches and uses truthiness at compatibility boundaries', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ [Symbol.toPrimitive]: () => { throw new Error('unexpected coercion'); } });
+    const rows = Object.freeze([Object.freeze({ url: 'snow', isSnowy: true }), Object.freeze({ url: 'sun', isSunny: true })]);
+    const decodeToggle = findSocketStatePatchDecode('toggle-align-weather');
+    [shared, null, 0, false, '', 'false'].forEach((alignWeather) => {
+      const input = Object.freeze({ alignWeather });
+      const command = decodeStatePatchCommand(input);
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.alignWeather, alignWeather);
+      assert.strictEqual(result.nextState.config.alignWeather, alignWeather);
+      assert.strictEqual(snapshot.alignWeather, alignWeather);
+      assert.strictEqual(snapshot.config.alignWeather, alignWeather);
+      const legacy = { ...state.config, ...state.runtime, alignWeather, currentCategory: 'Scenic Nature', photosList: [] };
+      assert.strictEqual(buildDomainState(legacy, state.library.collections).config.alignWeather, Boolean(alignWeather));
+      const target = { ...legacy };
+      applyDomainState(target, {}, result.nextState);
+      assert.strictEqual(target.alignWeather, alignWeather);
+      const selected = filterPhotosForWeather(rows, alignWeather, 'Snowy', 'Sunny', () => 0);
+      if (alignWeather) assert.deepStrictEqual(selected, [rows[0]]);
+      else assert.strictEqual(selected, rows);
+      assert.deepStrictEqual(decodeToggle(alignWeather), { type: 'patch-state', payload: { alignWeather: Boolean(alignWeather) } });
+      assert.strictEqual(input.alignWeather, alignWeather);
+    });
+    const omitted = decodeStatePatchCommand({ alignWeather: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    assert.deepStrictEqual(decodeToggle(undefined), { type: 'patch-state', payload: { alignWeather: false } });
+    assert.strictEqual(filterPhotosForWeather(rows, undefined, 'Snowy', 'Sunny', () => assert.fail('disabled weather must not draw')), rows);
+    assert.strictEqual(state.config.alignWeather, false);
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

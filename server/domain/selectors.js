@@ -36,7 +36,7 @@
  * @typedef {object} SmartPreferences
  * @property {string | null} [previousCategory=null]
  * @property {Direction} [direction='next']
- * @property {boolean} [alignWeather=false]
+ * @property {unknown} [alignWeather=false] Truthiness enables weather preference.
  * @property {string} [physicalMatch='Cloudy']
  * @property {string} [newsMatch='Cloudy']
  * @property {boolean} [alignTimeOfDay=false]
@@ -396,7 +396,7 @@ function filterPhotosForTime(photos, now) {
  * Snow/rain physical priority, then news sunny/rain/cloudy. Strict <0.8 preference
  * only when matching rows exist; disabled/miss/rejected preference retains array.
  * @param {ReadonlyArray<Photo>} photos
- * @param {boolean} alignWeather
+ * @param {unknown} alignWeather Truthiness enables weather preference.
  * @param {string} physicalMatch
  * @param {string} newsMatch
  * @param {RandomSource} [rng=Math.random]

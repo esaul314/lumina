@@ -22,7 +22,7 @@
  *   inactivityTimeout: unknown,
  *   slideshowInterval: unknown,
  *   alignTimeOfDay: boolean,
- *   alignWeather: boolean,
+ *   alignWeather: unknown,
  *   allowOpenAiFallback: unknown,
  *   nightPercentage: number,
  *   searchKeywords: Record<string, unknown>,

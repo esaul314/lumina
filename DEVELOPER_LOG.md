@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Weather Alignment
+
+- **Outcome**: legacy input, domain state, snapshots and weather selector inputs
+  admit unknown values. Raw patches and the legacy shell retain aliases; legacy
+  rebuilding, the socket toggle and preference filtering use truthiness. The
+  existing data-first pure selector needs no additional abstraction or runtime
+  changes; state mutation remains in the compatibility shell.
+- **Tests**: cover raw/falsy values, aliasing, a throwing coercion hook, truthy
+  `"false"`, no-op patches, selector identity and compile-time narrowing.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint, syntax
+  and whitespace checks passed; the optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model `alignTimeOfDay`, `nightPercentage` and unnormalized photo/feed
+  values; Step 6 remains open.
+
 ### 2026-10-30: Model Compatibility OpenAI Fallback Consent
 
 - **Outcome**: legacy input, domain state and snapshots admit unknown fallback

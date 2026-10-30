@@ -50,7 +50,7 @@
 
 /**
  * Compatibility state, not a fully normalized configuration. Theme, scale mode,
- * timing values, split portrait, split crop, and the OpenAI fallback flag can
+ * timing values, split portrait, split crop, weather alignment, and the OpenAI fallback flag can
  * pass through patches and snapshots without validation or copying.
  * @typedef {object} SessionConfig
  * @property {unknown} theme
@@ -61,7 +61,7 @@
  * @property {unknown} inactivityTimeout
  * @property {unknown} slideshowInterval
  * @property {boolean} alignTimeOfDay
- * @property {boolean} alignWeather
+ * @property {unknown} alignWeather
  * @property {unknown} allowOpenAiFallback
  * @property {number} nightPercentage
  * @property {Record<string, unknown>} searchKeywords
