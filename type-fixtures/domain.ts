@@ -33,6 +33,16 @@ const snapshotScale: unknown = buildSnapshot(state).scaleMode;
 const normalizedScale: 'cover' | 'contain' = state.config.scaleMode;
 // @ts-expect-error snapshots preserve the same unvalidated scale mode
 const normalizedSnapshotScale: 'cover' | 'contain' = buildSnapshot(state).scaleMode;
+const configWithRawCrop: DomainState['config'] = { ...state.config, splitCropPercent: { legacy: true } };
+const compatibilityCrop: unknown = state.config.splitCropPercent;
+const snapshotCrop: unknown = buildSnapshot(state).splitCropPercent;
+const frameCrop: unknown = buildSnapshot(state).currentFrame.crop.secondaryPercent;
+// @ts-expect-error crop must be narrowed before numeric use
+const normalizedCrop: number = state.config.splitCropPercent;
+// @ts-expect-error snapshots preserve unvalidated crop values
+const normalizedSnapshotCrop: number = buildSnapshot(state).splitCropPercent;
+// @ts-expect-error the secondary frame may inherit an unvalidated crop value
+const normalizedFrameCrop: number = buildSnapshot(state).currentFrame.crop.secondaryPercent;
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };
@@ -102,4 +112,5 @@ void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wr
   missingEffectPayload, wrongEnvironment, alwaysPhoto, alwaysCommand, directBooleanPatch,
   partialBooleanPatch, symbolBooleanPatch, coercedBooleanPatch, guaranteedBoolean, stringBoolean, incompleteBoolean,
   handlerResult, unknownHandlerResult, certainHandlerResult, arrayPreviewCommand, normalizedPreview, primitivePreview,
-  compatibilityTheme, snapshotTheme, configWithRawTheme, normalizedTheme, normalizedSnapshotTheme];
+  compatibilityTheme, snapshotTheme, configWithRawTheme, normalizedTheme, normalizedSnapshotTheme,
+  configWithRawCrop, compatibilityCrop, snapshotCrop, frameCrop, normalizedCrop, normalizedSnapshotCrop, normalizedFrameCrop];

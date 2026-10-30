@@ -340,6 +340,49 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.config.scaleMode, 'cover');
   });
 
+  assertTest('split crop compatibility preserves raw patches and nullish legacy and frame defaults', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ crop: 'custom' });
+    [shared, null, 0, false, '', 'wide'].forEach((splitCropPercent) => {
+      const input = Object.freeze({ splitCropPercent });
+      const command = decodeStatePatchCommand(input);
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.splitCropPercent, splitCropPercent);
+      assert.strictEqual(snapshot.splitCropPercent, splitCropPercent);
+      assert.strictEqual(snapshot.config.splitCropPercent, splitCropPercent);
+      assert.strictEqual(snapshot.currentFrame.crop.secondaryPercent, splitCropPercent ?? selectors.DEFAULT_SPLIT_CROP);
+      const legacy = { ...state.config, ...state.runtime, splitCropPercent, currentCategory: 'Scenic Nature', photosList: [] };
+      const rebuilt = buildDomainState(legacy, state.library.collections);
+      assert.strictEqual(rebuilt.config.splitCropPercent, splitCropPercent ?? 50);
+      assert.strictEqual(input.splitCropPercent, splitCropPercent);
+    });
+    const omitted = decodeStatePatchCommand({ splitCropPercent: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    const legacy = { ...state.config, ...state.runtime, splitCropPercent: undefined, currentCategory: 'Scenic Nature', photosList: [] };
+    assert.strictEqual(buildDomainState(legacy, state.library.collections).config.splitCropPercent, 50);
+    const secondary = { ...state.library.photosList[1], cropPercent: 0 };
+    const withPhotoCrop = createState({ config: { splitCropPercent: shared }, library: { photosList: [state.library.photosList[0], secondary] } });
+    assert.strictEqual(deriveCurrentFrame(withPhotoCrop).crop.secondaryPercent, 0);
+    assert.strictEqual(deriveCurrentFrame(createState({ config: { splitCropPercent: undefined } })).crop.secondaryPercent, selectors.DEFAULT_SPLIT_CROP);
+    assert.strictEqual(state.config.splitCropPercent, 50);
+  });
+
+  assertTest('direct split crop command uses numeric coercion and preserves failures', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const value = Object.freeze({ valueOf: () => 35 });
+    const result = reduceDomainCommand(state, { type: 'set-split-crop', payload: { percent: value } }, env);
+    assert.strictEqual(result.nextState.config.splitCropPercent, 35);
+    assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist']);
+    assert.ok(Number.isNaN(reduceDomainCommand(state, { type: 'set-split-crop' }, env).nextState.config.splitCropPercent));
+    const failure = new Error('crop coercion');
+    assert.throws(() => reduceDomainCommand(state, { type: 'set-split-crop', payload: { percent: { valueOf: () => { throw failure; } } } }, env), (error) => error === failure);
+    assert.strictEqual(state.config.splitCropPercent, 50);
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

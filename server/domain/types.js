@@ -50,13 +50,13 @@
 
 /**
  * Compatibility state, not a fully normalized configuration. Theme, scale mode,
- * and timing values can pass through patches and snapshots without validation
- * or copying.
+ * timing values, and split crop can pass through patches and snapshots without
+ * validation or copying.
  * @typedef {object} SessionConfig
  * @property {unknown} theme
  * @property {unknown} scaleMode
  * @property {boolean} splitPortrait
- * @property {number} splitCropPercent
+ * @property {unknown} splitCropPercent
  * @property {Record<string, boolean>} widgets
  * @property {unknown} inactivityTimeout
  * @property {unknown} slideshowInterval
@@ -102,7 +102,7 @@
  * @property {{
  *   primaryPercent: number | null,
  *   primaryPositionY: number | null,
- *   secondaryPercent: number | null,
+ *   secondaryPercent: unknown,
  *   secondaryPositionY: number | null
  * }} crop
  * @property {{

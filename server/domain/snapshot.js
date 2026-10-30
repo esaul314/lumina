@@ -17,7 +17,7 @@
  *   theme: unknown,
  *   scaleMode: unknown,
  *   splitPortrait: boolean,
- *   splitCropPercent: number,
+ *   splitCropPercent: unknown,
  *   widgets: Record<string, boolean>,
  *   inactivityTimeout: unknown,
  *   slideshowInterval: unknown,

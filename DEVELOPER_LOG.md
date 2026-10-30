@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Split Crop Values
+
+- **Outcome**: legacy, domain, snapshot and derived secondary-frame crop
+  contracts admit unknown values. The pure projections preserve raw patch
+  aliases, nullish fallback and photo-crop precedence; the direct command
+  separately coerces numbers. No executable production code changed.
+- **Tests**: cover falsy values, aliases, nullish defaults, photo precedence,
+  omitted patches, direct coercion, persistence and coercion failures. Compile
+  fixtures require narrowing for state, snapshots and frames.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint,
+  syntax and whitespace checks passed; the optional endpoint smoke was skipped
+  because sandbox socket creation returned `EPERM`.
+- **Next**: model the remaining five raw state fields and unnormalized
+  photo/feed values; Step 6 remains open.
+
 ### 2026-10-30: Model Compatibility Scale Values
 
 - **Outcome**: legacy, domain and public snapshot contracts describe
