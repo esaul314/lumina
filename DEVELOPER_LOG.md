@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Unvalidated Feed State
+
+- **Outcome**: `FeedPhoto` describes unknown known fields in domain, legacy and
+  public snapshot feeds without weakening normalized collection `Photo` types.
+  Preview staging, shallow snapshot copies and shared nested metadata retain
+  their existing behavior; no executable production code changes.
+- **Tests**: two regressions follow raw preview and legacy rows across state and
+  snapshots, including array/row identities and nested aliases. Compiler fixtures
+  require narrowing and accept raw legacy and preview metadata.
+- **Verification**: strict no-emit typecheck remains nonzero at 535 core, zero
+  fixture, 68 transitive and zero global diagnostics. Five newly exposed selector
+  errors identify unresolved raw-feed consumers. Runtime suite, lint, syntax and
+  whitespace checks passed; the optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model selection and current-frame results for unvalidated feed rows,
+  then address honest coercion typing before the Step 6 acceptance re-audit.
+
 ### 2026-10-30: Narrow Generic Photo Filter Results
 
 - **Outcome**: the visibility and URL-deduplication filters now express their

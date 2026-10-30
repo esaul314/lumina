@@ -644,6 +644,44 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.ok(!state.library.photosList.some(({ url }) => url === preview.url));
   });
 
+  assertTest('staged preview metadata survives both public feed projections without normalization', () => {
+    const nested = Object.freeze({ marker: 'shared' });
+    const preview = Object.freeze({ url: 'raw-preview', title: 9, width: 'wide', nested });
+    const state = createState();
+    const result = reduceDomainCommand(state, decodeActivePhotoCommand(preview), { now: new Date(0), rng: () => 0 });
+    const feed = result.nextState.library.photosList;
+    const staged = feed.find((photo) => photo.url === preview.url);
+    const snapshot = buildSnapshot(result.nextState);
+    const copied = snapshot.photosList.find((photo) => photo.url === preview.url);
+    assert.strictEqual(snapshot.library, result.nextState.library);
+    assert.strictEqual(snapshot.library.photosList, feed);
+    assert.notStrictEqual(snapshot.photosList, feed);
+    assert.notStrictEqual(copied, staged);
+    assert.strictEqual(copied.title, 9);
+    assert.strictEqual(copied.width, 'wide');
+    assert.strictEqual(copied.nested, nested);
+    assert.strictEqual(staged.nested, nested);
+    assert.ok(!state.library.photosList.some((photo) => photo.url === preview.url));
+  });
+
+  assertTest('legacy feed rebuilding shallow-copies raw rows and preserves metadata aliases', () => {
+    const state = createState();
+    const nested = Object.freeze({ marker: 'shared' });
+    const row = Object.freeze({ url: 'legacy-raw', title: 9, width: 'wide', nested });
+    const legacy = { ...state.config, ...state.runtime, currentCategory: 'Scenic Nature', photosList: [row] };
+    const rebuilt = buildDomainState(legacy, state.library.collections);
+    const snapshot = buildSnapshot(rebuilt);
+    assert.notStrictEqual(rebuilt.library.photosList, legacy.photosList);
+    assert.notStrictEqual(rebuilt.library.photosList[0], row);
+    assert.notStrictEqual(snapshot.photosList[0], rebuilt.library.photosList[0]);
+    [rebuilt.library.photosList[0], snapshot.photosList[0]].forEach((photo) => {
+      assert.strictEqual(photo.title, 9);
+      assert.strictEqual(photo.width, 'wide');
+      assert.strictEqual(photo.nested, nested);
+    });
+    assert.strictEqual(legacy.photosList[0], row);
+  });
+
   assertTest('unknown decoder inputs preserve inherited and callable property access and exact getter failures', () => {
     [
       [decodeCategorySelectionFromHttp, 'category', 'Scenic Nature', 'select-categories', 'categories'],

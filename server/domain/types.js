@@ -40,6 +40,20 @@
  */
 
 /**
+ * Compatibility feed row. Preview staging and legacy snapshot copies preserve
+ * unvalidated values, so each known field requires narrowing before use. Extra
+ * source-specific properties can also survive the shallow copies.
+ * @typedef {{
+ *   url?: unknown, title?: unknown, author?: unknown, source?: unknown,
+ *   category?: unknown, addedAt?: unknown, rating?: unknown, isBroken?: unknown,
+ *   preventPairing?: unknown, loved?: unknown, cropPercent?: unknown,
+ *   cropPositionY?: unknown, orientation?: unknown, width?: unknown, height?: unknown,
+ *   isNight?: unknown, isRain?: unknown, isSunny?: unknown, isCloudy?: unknown,
+ *   isSnowy?: unknown, timeRanges?: unknown
+ * }} FeedPhoto
+ */
+
+/**
  * @typedef {Record<string, Photo[]>} CollectionsState
  */
 
@@ -118,7 +132,7 @@
  * @typedef {object} DomainState
  * @property {SessionConfig} config
  * @property {RuntimeState} runtime
- * @property {{ collections: CollectionsState, externalCollections?: CollectionsState, photosList: Photo[] }} library
+ * @property {{ collections: CollectionsState, externalCollections?: CollectionsState, photosList: FeedPhoto[] }} library
  * @property {PlaybackState} playback
  */
 

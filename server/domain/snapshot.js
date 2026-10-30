@@ -5,6 +5,7 @@
  * @typedef {import('./types').DomainState} DomainState
  * @typedef {import('./types').CurrentFrame} CurrentFrame
  * @typedef {import('./types').Photo} Photo
+ * @typedef {import('./types').FeedPhoto} FeedPhoto
  */
 
 /**
@@ -35,7 +36,7 @@
  *   screensaverActive: boolean,
  *   hasUseApiToken: boolean,
  *   hasTumblrApiKey?: boolean,
- *   photosList: Photo[],
+ *   photosList: FeedPhoto[],
  *   activePhoto?: Photo | null,
  *   activeSecondPhoto?: Photo | null,
  *   splitSeed?: number,
@@ -59,7 +60,7 @@
  *
  * @typedef {DomainState['config'] & DomainState['runtime'] & {
  *   currentCategory: string,
- *   photosList: Photo[],
+ *   photosList: FeedPhoto[],
  *   activePhoto: Photo | null,
  *   activeSecondPhoto: Photo | null,
  *   currentFrame: CurrentFrame,

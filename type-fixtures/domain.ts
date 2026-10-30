@@ -1,9 +1,9 @@
 // Compile-only examples of the currently documented boundary contracts.
 // Expected errors are assertions: an unused directive is itself a diagnostic.
-import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, Photo } from '../server/domain/types';
+import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, FeedPhoto, Photo } from '../server/domain/types';
 import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domain/commands';
 import { reduceDomainCommand } from '../server/domain/reducer';
-import { buildSnapshot } from '../server/domain/snapshot';
+import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
 import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
 
@@ -87,6 +87,18 @@ selectSmartPhotoFromFeed({ photos, nightPercentage: compatibilityNightPercentage
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };
+const rawFeedState: DomainState = { ...state, library: { ...state.library, photosList: [preview] } };
+declare const legacyState: Parameters<typeof buildDomainState>[0];
+const rawLegacyState: Parameters<typeof buildDomainState>[0] = { ...legacyState, photosList: [preview] };
+const rebuiltRawFeed: FeedPhoto[] = buildDomainState(rawLegacyState, state.library.collections).library.photosList;
+const rawFeed: FeedPhoto[] = rawFeedState.library.photosList;
+const rawSnapshotFeed: FeedPhoto[] = buildSnapshot(rawFeedState).photosList;
+// @ts-expect-error state feed metadata is not guaranteed to be normalized
+const normalizedFeed: Photo[] = rawFeedState.library.photosList;
+// @ts-expect-error snapshots preserve raw metadata rather than normalizing it
+const normalizedSnapshotFeed: Photo[] = buildSnapshot(rawFeedState).photosList;
+// @ts-expect-error preview titles require narrowing before string use
+const rawFeedTitle: string = rawFeedState.library.photosList[0].title;
 const previewCommand: Command = { type: 'set-active-photo', payload: { url: preview.url, photo: preview } };
 const arrayPreview: ActivePhotoPreview = Object.assign([], { url: 'array-preview' });
 const arrayPreviewCommand: Command = { type: 'set-active-photo', payload: { url: 'array-preview', photo: arrayPreview } };
