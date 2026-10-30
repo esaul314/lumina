@@ -48,6 +48,12 @@ const createCommand = curry((type, payload) => ({
   payload
 }));
 
+/**
+ * Return the original primitive string when its trim call is truthy, or null.
+ * Native method lookup, invocation, and failures are intentionally preserved.
+ * @param {unknown} value
+ * @returns {string | null}
+ */
 const readRequiredString = (value) => (
   typeof value === 'string' && value.trim()
     ? value

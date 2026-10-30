@@ -682,6 +682,56 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(legacy.photosList[0], row);
   });
 
+  assertTest('required string decoding preserves primitive values and rejects non-strings without coercion', () => {
+    const nonString = Object.defineProperty({}, 'trim', { get: () => assert.fail('non-strings must not be inspected') });
+    const accepted = [' raw url ', '\u200b', 'x'];
+    const rejected = ['', ' \t\n', null, undefined, 0, false, Symbol('url'), new String('url'), nonString];
+    accepted.forEach((url) => {
+      assert.strictEqual(decodeActivePhotoCommand(url).payload.url, url);
+      assert.strictEqual(decodeBrokenPhotoCommand({ url }).payload.url, url);
+    });
+    rejected.forEach((url) => {
+      assert.strictEqual(decodeActivePhotoCommand({ url }), null);
+      assert.strictEqual(decodeBrokenPhotoCommand({ url }), null);
+    });
+    assert.deepStrictEqual(decodeDeletePoolCommand(' pool '), {
+      type: 'delete-pool', payload: { name: 'pool' }
+    });
+  });
+
+  assertTest('required string projection preserves native trim lookup, truthiness and failures', () => {
+    const calls = [];
+    const failure = new Error('trim failed');
+    const sandbox = { module: { exports: {} }, require, calls, failure, result: null };
+    const source = fs.readFileSync(require.resolve('./commands.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.readRequiredStringForTest = readRequiredString;`, sandbox);
+    const read = sandbox.readRequiredStringForTest;
+    [' x ', 'x', '', ' \t'].forEach((value) => assert.strictEqual(read(read(value)), read(value)));
+    runInNewContext(`
+      Object.defineProperty(String.prototype, 'trim', {
+        configurable: true,
+        get() {
+          calls.push(['lookup', String(this)]);
+          return function () { 'use strict'; calls.push(['call', this]); return result; };
+        }
+      });
+    `, sandbox);
+    sandbox.result = Object.freeze({ truthy: true });
+    assert.strictEqual(read(' original '), ' original ');
+    assert.deepStrictEqual(calls.map((call) => Array.from(call)), [['lookup', ' original '], ['call', ' original ']]);
+    calls.length = 0;
+    sandbox.result = 0;
+    assert.strictEqual(read(' original '), null);
+    assert.deepStrictEqual(calls.map((call) => Array.from(call)), [['lookup', ' original '], ['call', ' original ']]);
+    calls.length = 0;
+    assert.strictEqual(read({ trim: () => assert.fail('not a primitive string') }), null);
+    assert.deepStrictEqual(calls, []);
+    runInNewContext("Object.defineProperty(String.prototype, 'trim', { get() { throw failure; } });", sandbox);
+    assert.throws(() => read('x'), (error) => error === failure);
+    runInNewContext("Object.defineProperty(String.prototype, 'trim', { value() { throw failure; } });", sandbox);
+    assert.throws(() => read('x'), (error) => error === failure);
+  });
+
   assertTest('unknown decoder inputs preserve inherited and callable property access and exact getter failures', () => {
     [
       [decodeCategorySelectionFromHttp, 'category', 'Scenic Nature', 'select-categories', 'categories'],

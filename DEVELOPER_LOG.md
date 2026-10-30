@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Document Required String Projection
+
+- **Outcome**: the pure data-first decoder accepts unknown inputs and returns
+  the original primitive string or null. Native trim lookup, receiver,
+  truthiness and failures remain observable; no new abstraction or export was
+  needed, and executable production syntax is unchanged.
+- **Tests**: primitive and whitespace cases, decoder composition, native-trim
+  idempotence, isolated custom trim results and exact lookup/call failures.
+- **Verification**: 803 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke is skipped on sandbox `EPERM`. Strict
+  typecheck remains nonzero at 517 core, zero fixture, 69 transitive and zero
+  global diagnostics.
+- **Next**: document `trimString` while preserving raw native trim results.
+
 ### 2026-10-30: Preserve HTTP Category Decoder Semantics
 
 - **Outcome**: local assertions document native eager lookup without rejecting
