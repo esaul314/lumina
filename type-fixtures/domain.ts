@@ -3,12 +3,20 @@
 import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, Photo } from '../server/domain/types';
 import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domain/commands';
 import { reduceDomainCommand } from '../server/domain/reducer';
+import { buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
 import { filterVisiblePhotos, selectSmartPhoto, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
 declare const dispatcher: ReturnType<typeof createDomainDispatcher>;
+const compatibilityTheme: unknown = state.config.theme;
+const snapshotTheme: unknown = buildSnapshot(state).theme;
+const configWithRawTheme: DomainState['config'] = { ...state.config, theme: { legacy: true } };
+// @ts-expect-error theme must be narrowed before use as a string
+const normalizedTheme: string = state.config.theme;
+// @ts-expect-error public snapshots preserve the same unvalidated theme
+const normalizedSnapshotTheme: string = buildSnapshot(state).theme;
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };
@@ -77,4 +85,5 @@ type HandlerResultIsNotAny = AssertFalse<IsAny<ReturnType<ReturnType<typeof crea
 void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wrongCommand,
   missingEffectPayload, wrongEnvironment, alwaysPhoto, alwaysCommand, directBooleanPatch,
   partialBooleanPatch, symbolBooleanPatch, coercedBooleanPatch, guaranteedBoolean, stringBoolean, incompleteBoolean,
-  handlerResult, unknownHandlerResult, certainHandlerResult, arrayPreviewCommand, normalizedPreview, primitivePreview];
+  handlerResult, unknownHandlerResult, certainHandlerResult, arrayPreviewCommand, normalizedPreview, primitivePreview,
+  compatibilityTheme, snapshotTheme, configWithRawTheme, normalizedTheme, normalizedSnapshotTheme];

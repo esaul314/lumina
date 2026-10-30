@@ -214,6 +214,48 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('theme compatibility preserves raw values and aliases across state and snapshots', () => {
+    const state = createState();
+    const nested = Object.freeze({ marker: 'shared' });
+    const value = Object.freeze({ nested });
+    const env = { now: new Date(0), rng: () => 0 };
+    [value, null, 0, false, ''].forEach((theme) => {
+      const command = decodeStatePatchCommand(Object.freeze({ theme }));
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.theme, theme);
+      assert.strictEqual(result.nextState.config.theme, theme);
+      assert.strictEqual(snapshot.theme, theme);
+      assert.strictEqual(snapshot.config.theme, theme);
+      const legacy = { ...state.config, ...state.runtime, theme, currentCategory: 'Scenic Nature', photosList: [] };
+      const rebuilt = buildDomainState(legacy, state.library.collections);
+      assert.strictEqual(rebuilt.config.theme, theme);
+      assert.strictEqual(buildSnapshot(rebuilt).theme, theme);
+      assert.strictEqual(legacy.theme, theme);
+    });
+    const omitted = decodeStatePatchCommand({ theme: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    const legacy = { ...state.config, ...state.runtime, theme: undefined, currentCategory: 'Scenic Nature', photosList: [] };
+    assert.strictEqual(buildDomainState(legacy, state.library.collections).config.theme, undefined);
+    assert.strictEqual(state.config.theme, 'Zen Retreat');
+    assert.strictEqual(value.nested, nested);
+  });
+
+  assertTest('direct change-theme retains its separate truthy fallback and string coercion', () => {
+    const theme = Object.freeze({ toString: () => 'legacy theme' });
+    const state = createState({ config: { theme } });
+    const env = { now: new Date(0), rng: () => 0 };
+    const fallback = reduceDomainCommand(state, { type: 'change-theme' }, env);
+    const explicit = reduceDomainCommand(state, { type: 'change-theme', payload: { theme: 'new theme' } }, env);
+    assert.strictEqual(fallback.nextState.config.theme, 'legacy theme');
+    assert.strictEqual(explicit.nextState.config.theme, 'new theme');
+    assert.strictEqual(state.config.theme, theme);
+    const failure = new Error('theme coercion');
+    const throwing = createState({ config: { theme: { toString: () => { throw failure; } } } });
+    assert.throws(() => reduceDomainCommand(throwing, { type: 'change-theme' }, env), (error) => error === failure);
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

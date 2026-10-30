@@ -49,8 +49,10 @@
  */
 
 /**
+ * Compatibility state, not a fully normalized configuration. Theme can pass
+ * through state patches and snapshots without validation or copying.
  * @typedef {object} SessionConfig
- * @property {string} theme
+ * @property {unknown} theme
  * @property {'cover' | 'contain'} scaleMode
  * @property {boolean} splitPortrait
  * @property {number} splitCropPercent

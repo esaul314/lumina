@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Theme Values
+
+- **Outcome**: the existing pure state and snapshot projections now document
+  `theme` as unknown in legacy and domain contracts. Patches and snapshots can
+  retain raw objects and aliases; direct `change-theme` separately applies its
+  existing truthy fallback and string coercion. No executable code changed.
+- **Tests**: runtime cases cover falsy values, shared references, legacy rebuilds,
+  undefined patch no-ops, direct coercion and failures. Compile fixtures accept
+  raw theme values but require narrowing before treating state or snapshot as a
+  string.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint, syntax
+  and whitespace checks passed; optional endpoint smoke was skipped (`EPERM`).
+- **Next**: model the other nine raw state fields and unnormalized photo/feed
+  values; this single field does not make the whole compatibility state sound.
+
 ### 2026-10-30: Distinguish Active Photo Preview Inputs
 
 - **Outcome**: `ActivePhotoPreview` models the object passed through an

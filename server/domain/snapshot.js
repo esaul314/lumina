@@ -14,7 +14,7 @@
  *
  * @typedef {Record<string, unknown> & {
  *   currentCategory: string | string[],
- *   theme: string,
+ *   theme: unknown,
  *   scaleMode: 'cover' | 'contain',
  *   splitPortrait: boolean,
  *   splitCropPercent: number,
