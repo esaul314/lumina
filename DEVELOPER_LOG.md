@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Raw Current-Frame Photos
+
+- **Outcome**: the pure current-frame projection and legacy/public snapshot
+  active-photo fields admit raw feed aliases; crop and category metadata remain
+  unknown. Pairing, nullish defaults, and snapshot copies are unchanged, as is
+  executable production code. Malformed candidate URLs may throw during sorting.
+- **Tests**: staged-preview and paired aliases, detached categories, snapshot
+  copies, falsy/nullish defaults, sort failures and compiler narrowing.
+- **Verification**: strict no-emit typecheck remains nonzero at 531 core, zero
+  fixture, 69 transitive and zero global diagnostics. Runtime suite and lint
+  passed; the optional endpoint smoke was skipped due to sandbox `EPERM`.
+- **Next**: model raw smart-selection outputs and native coercion, then re-audit
+  the Step 6 acceptance criteria.
+
 ### 2026-10-30: Model Raw Active-Photo Lookup
 
 - **Outcome**: the pure data-first active lookup returns `FeedPhoto | null`, and

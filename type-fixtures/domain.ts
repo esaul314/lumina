@@ -5,7 +5,7 @@ import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domai
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
-import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, getActivePhoto, inferOrientation, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
+import { deriveCurrentFrame, filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, getActivePhoto, inferOrientation, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
@@ -96,6 +96,21 @@ const rawSnapshotFeed: FeedPhoto[] = buildSnapshot(rawFeedState).photosList;
 const rawSequential: FeedPhoto | null = selectSequentialPhoto({ state: rawFeedState });
 const rawActive: FeedPhoto | null = getActivePhoto(rawFeedState);
 const activeOrientation = inferOrientation(rawActive);
+const rawFrame = deriveCurrentFrame(rawFeedState);
+const rawFramePrimary: FeedPhoto | null = rawFrame.primary;
+const rawFrameSecondary: FeedPhoto | null = buildSnapshot(rawFeedState).activeSecondPhoto;
+const rawFrameCategory: unknown = rawFrame.context.category;
+const rawFramePosition: unknown = rawFrame.crop.secondaryPositionY;
+// @ts-expect-error frame photos may retain unvalidated preview metadata
+const normalizedFramePrimary: Photo | null = rawFrame.primary;
+// @ts-expect-error the snapshot secondary photo is also unvalidated
+const normalizedSnapshotSecondary: Photo | null = buildSnapshot(rawFeedState).activeSecondPhoto;
+// @ts-expect-error category can be arbitrary preview metadata
+const normalizedFrameCategory: string | null = rawFrame.context.category;
+// @ts-expect-error crop metadata requires narrowing before numeric use
+const normalizedFramePosition: number | null = rawFrame.crop.secondaryPositionY;
+// @ts-expect-error primary crop metadata is not normalized either
+const normalizedPrimaryCrop: number | null = buildSnapshot(rawFeedState).currentFrame.crop.primaryPercent;
 // @ts-expect-error active feed lookup does not normalize metadata
 const normalizedActive: Photo | null = getActivePhoto(rawFeedState);
 // @ts-expect-error lookup may miss even with a nonempty feed

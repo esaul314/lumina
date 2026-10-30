@@ -631,6 +631,12 @@ function hashString(value) {
   return Array.from(String(value)).reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) >>> 0, 7);
 }
 
+/**
+ * Select an original alias from a URL-sorted copy; malformed URLs may throw.
+ * @param {ReadonlyArray<FeedPhoto>} candidates
+ * @param {unknown} seed Native string coercion can throw.
+ * @returns {FeedPhoto | null}
+ */
 function pickStablePhoto(candidates, seed) {
   if (candidates.length === 0) {
     return null;
@@ -656,6 +662,7 @@ function getActivePhoto(state) {
  * Fresh frame/crop/context and detached category array; photo aliases retained.
  * Pairing is stable by URL/seed and same-category portrait eligibility, without
  * RNG/time/visibility filtering. Crop defaults use ?? (explicit zero survives).
+ * Photo metadata remains unvalidated; URL sorting and seed coercion may throw.
  * @param {DomainState} state
  * @returns {CurrentFrame}
  */

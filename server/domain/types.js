@@ -110,17 +110,17 @@
 
 /**
  * @typedef {object} CurrentFrame
- * @property {Photo | null} primary
- * @property {Photo | null} secondary
+ * @property {FeedPhoto | null} primary Original unvalidated row alias.
+ * @property {FeedPhoto | null} secondary Original unvalidated row alias.
  * @property {'single' | 'split'} layout
  * @property {{
- *   primaryPercent: number | null,
- *   primaryPositionY: number | null,
+ *   primaryPercent: unknown,
+ *   primaryPositionY: unknown,
  *   secondaryPercent: unknown,
- *   secondaryPositionY: number | null
+ *   secondaryPositionY: unknown
  * }} crop
  * @property {{
- *   category: string | null,
+ *   category: unknown,
  *   categories: string[],
  *   photoCount: number,
  *   orientation: PhotoOrientation,

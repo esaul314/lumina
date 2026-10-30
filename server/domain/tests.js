@@ -1182,6 +1182,46 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.library.photosList, staged.library.photosList);
   });
 
+  assertTest('current frame and snapshot retain raw staged and paired photo aliases', () => {
+    const category = Object.freeze({ legacy: 'pool' });
+    const crop = Object.freeze({ legacy: 'crop' });
+    const preview = { url: 'raw-preview', orientation: 'portrait', category, cropPercent: crop, cropPositionY: false };
+    const staged = reduceDomainCommand(createState(), { type: 'set-active-photo', payload: { url: preview.url, photo: preview } }).nextState;
+    const primary = staged.library.photosList.find((photo) => photo.url === preview.url);
+    const secondary = Object.freeze({ url: 'raw-pair', orientation: 'portrait', category, cropPercent: 0, cropPositionY: crop });
+    const state = { ...staged, library: { ...staged.library, photosList: [primary, secondary] } };
+    const frame = deriveCurrentFrame(state);
+    const snapshot = buildSnapshot(state);
+    assert.strictEqual(frame.primary, primary);
+    assert.strictEqual(frame.secondary, secondary);
+    assert.strictEqual(frame.layout, 'split');
+    assert.deepStrictEqual(frame.crop, { primaryPercent: crop, primaryPositionY: false, secondaryPercent: 0, secondaryPositionY: crop });
+    assert.strictEqual(frame.context.category, category);
+    assert.notStrictEqual(frame.context.categories, state.playback.selectedCategories);
+    assert.strictEqual(snapshot.activePhoto, primary);
+    assert.strictEqual(snapshot.activeSecondPhoto, secondary);
+    assert.strictEqual(snapshot.currentFrame.primary, primary);
+    assert.strictEqual(snapshot.currentFrame.secondary, secondary);
+    assert.notStrictEqual(snapshot.photosList[0], primary);
+    assert.strictEqual(snapshot.photosList[0].cropPercent, crop);
+    assert.strictEqual(state.library.photosList[1], secondary);
+  });
+
+  assertTest('current frame preserves nullish defaults and native malformed URL failures', () => {
+    const primary = { url: 'primary', orientation: 'portrait', category: 0, cropPercent: null };
+    const secondary = { url: 7, orientation: 'portrait', category: 'other', cropPositionY: null };
+    const state = createState({ config: { splitCropPercent: false }, library: { photosList: [primary, secondary] }, playback: { activePhotoUrl: 'primary' } });
+    const frame = deriveCurrentFrame(state);
+    assert.strictEqual(frame.secondary, secondary);
+    assert.strictEqual(frame.context.category, 0);
+    assert.deepStrictEqual(frame.crop, { primaryPercent: null, primaryPositionY: null, secondaryPercent: false, secondaryPositionY: null });
+    const invalidPair = { ...state, library: { ...state.library, photosList: [primary, secondary, { url: 8, orientation: 'portrait' }] } };
+    assert.throws(() => deriveCurrentFrame(invalidPair), TypeError);
+    const noPrimary = { ...state, playback: { ...state.playback, activePhotoUrl: null } };
+    assert.strictEqual(deriveCurrentFrame(noPrimary).primary, null);
+    assert.strictEqual(deriveCurrentFrame(noPrimary).layout, 'single');
+  });
+
   assertTest('orientation projection ignores malformed metadata without coercion and propagates accessors', () => {
     const noCoercion = Object.freeze({ valueOf: () => assert.fail('dimensions must not be coerced') });
     const rows = [
