@@ -459,7 +459,8 @@ Progress note:
 - Step 6 payload-contract slice (2026-10-26): named all 25 command payload variants and nullable decoder results, ten discriminated effect variants, and dispatcher dependencies/public methods. Ten regressions preserve decoder pass-through fields, detached job arrays, metadata patches, aliases, optional adapters, and shell-specific completion/failure rules. Executable production code and exports are unchanged.
 - Step 6 acceptance re-audit (2026-10-26): completed the audit, not Step 6. Corrected an unbalanced `SessionConfig.poolPolicies` declaration and added five compatibility regressions. Remaining gaps and a bounded compiler-first queue appear below; executable production code/exports remain unchanged.
 - Step 6 compiler baseline (2026-10-27): pinned development-only TypeScript and Node declarations, a strict no-emit domain configuration, and positive/negative compile fixtures expose 541 core, two intentional fixture, 68 transitive, and zero global diagnostics. `npm run typecheck:domain -- --details` reports every diagnostic; the nonzero result is expected until the gaps are resolved.
-- Next Step 6 checkpoint: address measured `decodeStatePatchCommand` unknown-input diagnostics with a behavior-preserving local narrowing contract, then continue the inference and compatibility-state queue. Do not resume unrelated helper polishing.
+- Step 6 object-narrowing slice (2026-10-29): the existing `isPlainObject` predicate now documents unknown inputs and a record type guard; all ten state-patch TS18046 diagnostics and the predicate's implicit-any diagnostic disappear, with no executable change. Compatibility tests preserve prototype acceptance, array/function rejection, repeated reads, and exact accessor failures. Current scoped diagnostics: 530 core, two fixture, 68 transitive, zero global.
+- Next Step 6 checkpoint: address the `buildBooleanFieldPatch` curried-result fixture with an honest call contract, then continue the heterogeneous-invoker and compatibility-state queue. Do not resume unrelated helper polishing.
 - The latest Step 4 slice replaced the dispatcher effect loop with a named sequential interpreter built from `reduce` and promise chaining, preserving ordered side effects and effect-result order while keeping the imperative shell boundary unchanged.
 - The latest Step 4 slice extracted that ordered promise-reduce boundary into `server/utils/asyncReduce.js`, so reducer effects and REST command batches now share one small partially applied sequential interpreter while route-specific accumulation and validation remain explicit.
 - The latest Step 4 slice indexed declarative reducer-family entries once through a small pure interpreter builder, preserving explicit per-family environment adapters while keeping unsupported and inherited command keys as no-ops.
@@ -530,7 +531,7 @@ This audit follows the core domain flow, not unrelated helper polishing.
 
 | Boundary | Evidence in the current code | Remaining gap |
 | --- | --- | --- |
-| Commands | `CommandPayloads` correlates 25 names; decoders document `Command \| null`. Regressions confirm raw scalar patches, URL-only validation of active-photo metadata, and inherited/callable inputs. | `decodeCategorySelectionFromHttp`, `decodeStatePatchCommand`, and `decodeScreensaverActiveCommand` access properties on `unknown` without sufficient narrowing. Boolean `isPlainObject` is not an explicit type predicate. `curry: AnyFunction -> AnyFunction` erases builder relationships. A guard must preserve native lookup/coercion behavior, not silently reject callable/inherited inputs. |
+| Commands | `CommandPayloads` correlates 25 names; decoders document `Command \| null`. Regressions confirm raw scalar patches, URL-only validation of active-photo metadata, and inherited/callable inputs. `isPlainObject` now narrows the state-patch input without changing runtime checks. | `decodeCategorySelectionFromHttp` and `decodeScreensaverActiveCommand` still access properties on `unknown` without sufficient narrowing. `curry: AnyFunction -> AnyFunction` erases builder relationships. A guard must preserve native lookup/coercion behavior, not silently reject callable/inherited inputs. |
 | Environments | `ReducerEnvironment`, dispatcher dependencies/public methods, and results document defaults, fresh context, aliases, and completion ordering. Replay/order/failure tests remain. | `StatePatchPayload` permits unknown scalars but `SessionConfig` promises string/number/boolean/enums. Tests now trace all ten scalar fields through reduction and public snapshots unchanged. Optional direct payloads can produce NaN; omitted scale mode is an identity no-op. Choose an honest compatibility-state model before asserting normalized state. |
 | Effects | Ten discriminated variants match the closed handler vocabulary. Sequential execution, optional adapters, opaque awaited results, synchronous emission/override, and partial failures are covered. | `createTypedHandlerInvoker` still accepts `(item: any) => any`; private handlers/interpreter and reducer-family builders rely on inference. Public effect variants do not prove payload/handler correlation or `EffectResult[]` inference. Compile before choosing local generic annotations; preserve ordering and existing compatibility fallbacks. |
 | Selectors | All 23 exported signatures share domain shapes; existing tests cover pool balance, time/random defaults, aliases, and immutable updates. | `Photo` optional fields are narrower than metadata accepted by `decodeActivePhotoCommand`; `SmartPhotoOptions` consumes the overpromised `DomainState`. Check predicates, generic collection results, and transitive snapshot types with the compiler; these are review targets, not measured diagnostic counts. Browser contracts remain separate. |
@@ -561,11 +562,12 @@ diagnostic. The command exits nonzero for any diagnostic; it is not part of the
 green runtime test gate and does not suppress transitive errors. Grouping is by
 diagnostic file location, not ownership or import reachability.
 
-Current results: **541 core, 2 fixtures, 68 transitive, 0 global**. The two
+Current results: **530 core, 2 fixtures, 68 transitive, 0 global**. The two
 fixture TS2344 errors explicitly prove the curried patch builder and typed
 handler invoker currently erase results to `any`; other positive/negative
-fixtures compile as expected. There are 10 TS18046 unknown-input diagnostics
-in `decodeStatePatchCommand`; other core counts include numerous implicit-any
+fixtures compile as expected. The ten TS18046 unknown-input diagnostics
+in `decodeStatePatchCommand` and the predicate's implicit-any diagnostic were
+removed by the object-narrowing contract; other core counts include numerous implicit-any
 diagnostics under strict mode. Transitive diagnostics include two malformed
 JSDoc declarations in `collectionPhotoProjections.js`. These counts describe
 this pinned configuration and are not a whole-repository migration estimate.
@@ -595,11 +597,11 @@ Bounded completion queue:
 5. Completed: established the scoped strict no-emit baseline and compile-time
    fixtures, with transitive diagnostics separately reported and no blanket
    suppression. The command is intentionally nonzero; it is not a clean gate.
-6. **Next:** address the ten measured unknown-input diagnostics in
-   `decodeStatePatchCommand`, preserving the current object/array and accessor
-   behavior. Then retain command/payload relationships through curried builders
-   and heterogeneous interpreters with small local contracts, preserving the
-   existing public call conventions and tracking both red fixture assertions.
+6. Completed: address the ten measured unknown-input diagnostics in
+   `decodeStatePatchCommand`, preserving object/array and accessor behavior.
+   **Next:** address the `buildBooleanFieldPatch` curried-result inference
+   fixture with a small honest contract and preserved public call conventions;
+   then address the heterogeneous interpreter's red fixture.
 7. Model compatibility state/photo inputs versus normalized values explicitly;
    preserve raw patch values, optional direct payload behavior, metadata aliases,
    and reducer/selector default differences. Runtime validation is separate work.

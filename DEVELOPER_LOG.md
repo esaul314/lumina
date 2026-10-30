@@ -6,6 +6,28 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-29: Narrow the State-Patch Object Boundary
+
+- **Outcome**: documented the existing non-null, non-array object predicate as
+  an unknown-to-record type guard; it does not add runtime validation or change
+  executable behavior. Objects with arbitrary prototypes and accessors remain
+  accepted, while arrays, functions, and primitives retain their old handling.
+- **Evidence**: strict no-emit diagnostics are now 530 core, two fixture, 68
+  transitive, and zero global: all ten decoder TS18046 diagnostics and the
+  predicate's implicit-any diagnostic disappeared from the 541-core baseline.
+  The compiler command remains intentionally nonzero; Step 6 is not complete.
+- **Tests**: two domain regressions cover inherited and hidden fields, unusual
+  object prototypes, invalid inputs, repeated reads, changed getter results,
+  exact thrown errors, and revoked proxies. The compiler regression checks the
+  decoder for TS18046 and the fixture accepts an unknown transport value.
+- **Verification**: `npm test` passed (757 executed, zero failures; 13/13
+  sensor and 3/3 reporter tests); the optional live endpoint smoke was skipped
+  because sandbox socket creation returned `EPERM`. Lint, touched JavaScript
+  syntax, and whitespace checks passed.
+- **Next**: address the curried `buildBooleanFieldPatch` inference fixture
+  without changing its call conventions; keep the heterogeneous-invoker and
+  compatibility-state gaps visible for later slices.
+
 ### 2026-10-27: Establish the Step 6 Compiler Baseline
 
 - **Outcome**: added a pinned development-only TypeScript 5.9.3 and Node type

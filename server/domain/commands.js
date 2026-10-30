@@ -31,6 +31,12 @@ function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * Recognize non-null, non-array objects; prototypes and accessor behavior are
+ * intentionally unrestricted. Values remain unknown until their callers check them.
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

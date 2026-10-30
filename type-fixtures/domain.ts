@@ -14,6 +14,8 @@ const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const effect: Effect = { type: 'refresh-active-feed', payload: { categories: ['Google Photos'] } };
 const environment: ReducerEnvironment = { now: new Date(0), rng: () => 0.5 };
 const decoded: Command | null = decodeStatePatchCommand({ theme: 17 });
+declare const untrustedPatch: unknown;
+const decodedUnknown: Command | null = decodeStatePatchCommand(untrustedPatch);
 const result = reduceDomainCommand(state, command, environment);
 const visible: Photo[] = filterVisiblePhotos(photos);
 const selected: Photo | null = selectSmartPhoto({ state, rng: () => 0.5 });
@@ -45,5 +47,5 @@ type AssertFalse<T extends false> = T;
 type CurriedPatchIsNotAny = AssertFalse<IsAny<ReturnType<typeof buildBooleanFieldPatch>>>;
 type HandlerResultIsNotAny = AssertFalse<IsAny<ReturnType<ReturnType<typeof createTypedHandlerInvoker>>>>;
 
-void [effect, result, visible, unique, pending, wrongPayload, wrongCommand,
+void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wrongCommand,
   missingEffectPayload, wrongEnvironment, alwaysPhoto, alwaysCommand];

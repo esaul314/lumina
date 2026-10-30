@@ -297,6 +297,49 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(decodePhotoMetadataCommand({ url: 'p', orientation: 'unknown' }), null);
   });
 
+  assertTest('state patch decoder accepts non-array objects without requiring a plain prototype', () => {
+    const inherited = Object.create({ theme: 'inherited', autoLocation: 1 });
+    const hidden = Object.defineProperty(Object.create(null), 'theme', { value: 'hidden' });
+    [inherited, hidden, new Date(0), new Map(), new Number(1), Object.freeze({})].forEach((input) => {
+      const command = decodeStatePatchCommand(input);
+      assert.strictEqual(command.type, 'patch-state');
+      assert.notStrictEqual(command.payload, input);
+    });
+    assert.deepStrictEqual(decodeStatePatchCommand(inherited).payload, { theme: 'inherited', autoLocation: true });
+    assert.deepStrictEqual(decodeStatePatchCommand(hidden).payload, { theme: 'hidden' });
+    [null, undefined, false, 1, 'object', Symbol('input'), [], () => {}].forEach((input) => {
+      assert.strictEqual(decodeStatePatchCommand(input), null);
+    });
+  });
+
+  assertTest('state patch decoder retains ordered repeated property reads and accessor failures', () => {
+    const reads = [];
+    const keywords = Object.freeze(['late']);
+    const input = Object.defineProperties({}, {
+      theme: { get: () => { reads.push('theme'); return 'visible'; } },
+      excludedKeywords: { get: () => { reads.push('excludedKeywords'); return keywords; } },
+      autoLocation: { get: () => { reads.push('autoLocation'); return 1; } },
+      widgets: { get: () => { reads.push('widgets'); return reads.filter((item) => item === 'widgets').length === 1 ? {} : ['late']; } }
+    });
+    const command = decodeStatePatchCommand(input);
+    assert.deepStrictEqual(reads, ['theme', 'theme', 'excludedKeywords', 'excludedKeywords',
+      'autoLocation', 'autoLocation', 'widgets', 'widgets']);
+    assert.deepStrictEqual(command.payload, { theme: 'visible', excludedKeywords: keywords,
+      autoLocation: true, widgets: { 0: 'late' } });
+    assert.strictEqual(command.payload.excludedKeywords, keywords);
+
+    const failure = new Error('second widget read');
+    let count = 0;
+    const failing = Object.defineProperty({}, 'widgets', {
+      get: () => { if (++count === 2) throw failure; return {}; }
+    });
+    assert.throws(() => decodeStatePatchCommand(failing), (error) => error === failure);
+    assert.strictEqual(count, 2);
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    assert.throws(() => decodeStatePatchCommand(revoked.proxy), TypeError);
+  });
+
   assertTest('job command payloads become detached ordered category effect arrays', () => {
     [
       [decodeRecrawlCommand, 'start-recrawl-job'],

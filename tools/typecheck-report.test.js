@@ -41,7 +41,14 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   const readFile = host.readFile.bind(host);
   host.readFile = (fileName) => path.resolve(fileName) === fixturePath ? mutated : readFile(fileName);
   const program = ts.createProgram(parsed.fileNames, parsed.options, host);
-  const fixtureDiagnostics = ts.getPreEmitDiagnostics(program)
+  const diagnostics = ts.getPreEmitDiagnostics(program);
+  const commandsPath = path.join(root, 'server/domain/commands.js');
+  const commands = program.getSourceFile(commandsPath);
+  const decoder = commands.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === 'decodeStatePatchCommand');
+  assert.ok(decoder);
+  assert.deepEqual(diagnostics.filter((item) => item.file === commands && item.code === 18046 &&
+    item.start >= decoder.getStart(commands) && item.start < decoder.end), []);
+  const fixtureDiagnostics = diagnostics
     .filter((item) => item.file && path.resolve(item.file.fileName) === fixturePath);
   // Only the intentionally weakened check and the two known inference
   // assertions may fail. The latter can disappear as contracts improve.
