@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Scale Values
+
+- **Outcome**: legacy, domain and public snapshot contracts describe
+  `scaleMode` as unknown. Patches and legacy rebuilds preserve raw values and
+  aliases; the direct command also preserves supplied values and skips undefined.
+  No executable production code changed.
+- **Tests**: runtime cases cover raw/falsy values, aliases, legacy rebuilds,
+  undefined no-ops, and direct-command persistence. Compile fixtures require
+  narrowing before treating a scale mode as `cover` or `contain`.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint,
+  syntax and whitespace checks passed; optional endpoint smoke was skipped
+  because sandbox socket creation returned `EPERM`.
+- **Next**: model the remaining six raw state fields and unnormalized photo/feed
+  values; no Step 6 closeout is claimed.
+
 ### 2026-10-30: Model Compatibility Timing Values
 
 - **Outcome**: legacy, domain and public snapshot contracts now describe

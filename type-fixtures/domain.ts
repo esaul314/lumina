@@ -26,6 +26,13 @@ const snapshotInterval: unknown = buildSnapshot(state).slideshowInterval;
 const normalizedTimeout: number = state.config.inactivityTimeout;
 // @ts-expect-error snapshots preserve unvalidated interval values
 const normalizedSnapshotInterval: number = buildSnapshot(state).slideshowInterval;
+const configWithRawScale: DomainState['config'] = { ...state.config, scaleMode: { legacy: true } };
+const compatibilityScale: unknown = state.config.scaleMode;
+const snapshotScale: unknown = buildSnapshot(state).scaleMode;
+// @ts-expect-error scale mode must be narrowed before use as a supported mode
+const normalizedScale: 'cover' | 'contain' = state.config.scaleMode;
+// @ts-expect-error snapshots preserve the same unvalidated scale mode
+const normalizedSnapshotScale: 'cover' | 'contain' = buildSnapshot(state).scaleMode;
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };

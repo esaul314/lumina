@@ -297,6 +297,49 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.config.slideshowInterval, 120000);
   });
 
+  assertTest('scale mode compatibility preserves raw values through patches and legacy snapshots', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ mode: 'custom' });
+    [shared, null, 0, false, '', 'stretch'].forEach((scaleMode) => {
+      const command = decodeStatePatchCommand(Object.freeze({ scaleMode }));
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.scaleMode, scaleMode);
+      assert.strictEqual(result.nextState.config.scaleMode, scaleMode);
+      assert.strictEqual(snapshot.scaleMode, scaleMode);
+      assert.strictEqual(snapshot.config.scaleMode, scaleMode);
+      const legacy = { ...state.config, ...state.runtime, scaleMode, currentCategory: 'Scenic Nature', photosList: [] };
+      const rebuilt = buildDomainState(legacy, state.library.collections);
+      assert.strictEqual(rebuilt.config.scaleMode, scaleMode);
+      assert.strictEqual(buildSnapshot(rebuilt).scaleMode, scaleMode);
+      assert.strictEqual(legacy.scaleMode, scaleMode);
+    });
+    const omitted = decodeStatePatchCommand({ scaleMode: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    const legacy = { ...state.config, ...state.runtime, scaleMode: undefined, currentCategory: 'Scenic Nature', photosList: [] };
+    assert.strictEqual(buildDomainState(legacy, state.library.collections).config.scaleMode, undefined);
+    assert.strictEqual(state.config.scaleMode, 'cover');
+  });
+
+  assertTest('direct scale command preserves values and skips omitted or undefined modes', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ mode: 'custom' });
+    [shared, null, false, 'stretch'].forEach((mode) => {
+      const result = reduceDomainCommand(state, { type: 'set-scale-mode', payload: { mode } }, env);
+      assert.strictEqual(result.nextState.config.scaleMode, mode);
+      assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist']);
+    });
+    [{ type: 'set-scale-mode' }, { type: 'set-scale-mode', payload: { mode: undefined } }].forEach((command) => {
+      const result = reduceDomainCommand(state, command, env);
+      assert.strictEqual(result.nextState, state);
+      assert.deepStrictEqual(result.effects, []);
+    });
+    assert.strictEqual(state.config.scaleMode, 'cover');
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);
