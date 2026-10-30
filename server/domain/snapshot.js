@@ -16,7 +16,7 @@
  *   currentCategory: string | string[],
  *   theme: unknown,
  *   scaleMode: unknown,
- *   splitPortrait: boolean,
+ *   splitPortrait: unknown,
  *   splitCropPercent: unknown,
  *   widgets: Record<string, boolean>,
  *   inactivityTimeout: unknown,

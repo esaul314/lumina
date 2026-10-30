@@ -383,6 +383,54 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.config.splitCropPercent, 50);
   });
 
+  assertTest('split portrait patches retain raw values while legacy rebuilds and frame selection use truthiness', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ [Symbol.toPrimitive]: () => { throw new Error('unexpected coercion'); } });
+    [shared, null, 0, false, '', 'false'].forEach((splitPortrait) => {
+      const input = Object.freeze({ splitPortrait });
+      const command = decodeStatePatchCommand(input);
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.splitPortrait, splitPortrait);
+      assert.strictEqual(result.nextState.config.splitPortrait, splitPortrait);
+      assert.strictEqual(snapshot.splitPortrait, splitPortrait);
+      assert.strictEqual(snapshot.config.splitPortrait, splitPortrait);
+      assert.strictEqual(snapshot.currentFrame.context.splitEligible, Boolean(splitPortrait));
+      assert.strictEqual(snapshot.currentFrame.layout, splitPortrait ? 'split' : 'single');
+      const legacy = { ...state.config, ...state.runtime, splitPortrait, currentCategory: 'Scenic Nature', photosList: [] };
+      const rebuilt = buildDomainState(legacy, state.library.collections);
+      assert.strictEqual(rebuilt.config.splitPortrait, Boolean(splitPortrait));
+      assert.strictEqual(legacy.splitPortrait, splitPortrait);
+      assert.strictEqual(input.splitPortrait, splitPortrait);
+    });
+    const omitted = decodeStatePatchCommand({ splitPortrait: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    const legacy = { ...state.config, ...state.runtime, splitPortrait: undefined, currentCategory: 'Scenic Nature', photosList: [] };
+    assert.strictEqual(buildDomainState(legacy, state.library.collections).config.splitPortrait, false);
+    assert.strictEqual(state.config.splitPortrait, true);
+  });
+
+  assertTest('direct split portrait commands use boolean truthiness and persist only changes', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    [null, 0, false, ''].forEach((enabled) => {
+      const result = reduceDomainCommand(state, { type: 'set-split-portrait', payload: { enabled } }, env);
+      assert.strictEqual(result.nextState.config.splitPortrait, false);
+      assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist']);
+    });
+    [{}, 'false', 1].forEach((enabled) => {
+      const result = reduceDomainCommand(state, { type: 'set-split-portrait', payload: { enabled } }, env);
+      assert.strictEqual(result.nextState, state);
+      assert.deepStrictEqual(result.effects, []);
+    });
+    const omitted = reduceDomainCommand(state, { type: 'set-split-portrait' }, env);
+    assert.strictEqual(omitted.nextState.config.splitPortrait, false);
+    assert.deepStrictEqual(omitted.effects.map(({ type }) => type), ['persist']);
+    assert.strictEqual(state.config.splitPortrait, true);
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

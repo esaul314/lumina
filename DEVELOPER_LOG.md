@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility Split Portrait Values
+
+- **Outcome**: legacy input, domain state and public snapshots admit unknown
+  `splitPortrait` values. Patches preserve raw values and aliases, while legacy
+  rebuilding, direct commands and frame eligibility use truthiness. No executable
+  production code changed.
+- **Tests**: cover raw and falsy values, aliases, truthy strings and objects,
+  frame layout, omitted patches, direct-command coercion and persistence. Compile
+  fixtures require narrowing before treating state or snapshot values as booleans.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint, syntax
+  and whitespace checks passed; optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model the remaining four raw state fields and unnormalized photo/feed
+  values; Step 6 remains open.
+
 ### 2026-10-30: Model Compatibility Split Crop Values
 
 - **Outcome**: legacy, domain, snapshot and derived secondary-frame crop

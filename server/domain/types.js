@@ -50,12 +50,12 @@
 
 /**
  * Compatibility state, not a fully normalized configuration. Theme, scale mode,
- * timing values, and split crop can pass through patches and snapshots without
- * validation or copying.
+ * timing values, split portrait, and split crop can pass through patches and
+ * snapshots without validation or copying.
  * @typedef {object} SessionConfig
  * @property {unknown} theme
  * @property {unknown} scaleMode
- * @property {boolean} splitPortrait
+ * @property {unknown} splitPortrait
  * @property {unknown} splitCropPercent
  * @property {Record<string, boolean>} widgets
  * @property {unknown} inactivityTimeout

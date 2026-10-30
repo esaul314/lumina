@@ -43,6 +43,13 @@ const normalizedCrop: number = state.config.splitCropPercent;
 const normalizedSnapshotCrop: number = buildSnapshot(state).splitCropPercent;
 // @ts-expect-error the secondary frame may inherit an unvalidated crop value
 const normalizedFrameCrop: number = buildSnapshot(state).currentFrame.crop.secondaryPercent;
+const configWithRawSplit: DomainState['config'] = { ...state.config, splitPortrait: { legacy: true } };
+const compatibilitySplit: unknown = state.config.splitPortrait;
+const snapshotSplit: unknown = buildSnapshot(state).splitPortrait;
+// @ts-expect-error raw patches do not guarantee a boolean split setting
+const normalizedSplit: boolean = state.config.splitPortrait;
+// @ts-expect-error snapshots preserve the same unvalidated split setting
+const normalizedSnapshotSplit: boolean = buildSnapshot(state).splitPortrait;
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };
