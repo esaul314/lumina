@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Preserve Compatibility Visibility Filter Types
+
+- **Outcome**: the pure, data-first `filterVisiblePhotos` retains raw input row
+  types and admits unknown visibility metadata. Filtering preserves aliases,
+  truthiness, exact rating comparison and native keyword coercion; executable
+  production behavior is unchanged.
+- **Tests**: frozen rows cover unnormalized values, aliasing, idempotence,
+  concatenation, getter failures and Symbol coercion. Compiler fixtures retain
+  metadata and require normalization and possible-absence checks.
+- **Verification**: strict no-emit typecheck remains nonzero at 532 core, zero
+  fixture, 68 transitive and zero global diagnostics. One newly exposed TS2322
+  reflects the compiler's inability to narrow nullish rows through the current
+  filter. Runtime suite, lint, syntax and whitespace checks passed; optional
+  endpoint smoke was skipped because sandbox socket creation returned `EPERM`.
+- **Next**: model remaining feed, snapshot and selector contracts, then address
+  generic filter narrowing and honest coercion typing before re-auditing Step 6.
+
 ### 2026-10-30: Preserve Compatibility URL Deduplication Types
 
 - **Outcome**: the pure data-first `uniqByUrl` retains raw row types and accepts

@@ -6,6 +6,7 @@
  * @typedef {import('./types').DomainState} DomainState
  * @typedef {import('./types').Photo} Photo
  * @typedef {import('./types').PhotoOrientation} PhotoOrientation
+ * @typedef {{ url?: unknown, rating?: unknown, isBroken?: unknown, title?: unknown, author?: unknown, category?: unknown }} VisibilityPhoto Unvalidated fields inspected by visibility filtering.
  * @typedef {() => number} RandomSource Conventionally [0, 1); no input validation.
  * @typedef {'next' | 'prev'} Direction Only exact 'prev' reverses traversal.
  * @typedef {(photo: Photo) => Photo} PhotoUpdater Receives a shallow copy; caller owns callback purity.
@@ -90,7 +91,7 @@ function normalizeCategorySelection(input, availableCategories, fallbackCategory
 /**
  * Native case-insensitive substring matching; a blank term matches any text.
  * @param {unknown} excludedKeywords Only arrays enable matching; terms are string-coerced.
- * @param {Photo | null | undefined} photo
+ * @param {VisibilityPhoto | null | undefined} photo Unvalidated metadata is joined using native coercion.
  * @returns {boolean}
  */
 function matchesExcludedKeywords(excludedKeywords, photo) {
@@ -112,10 +113,12 @@ function matchesExcludedKeywords(excludedKeywords, photo) {
 
 /**
  * Fresh array, original row aliases; excludes missing URLs, exact rating 1,
- * truthy broken flags and keyword matches. Does not deduplicate or apply time.
- * @param {ReadonlyArray<Photo | null | undefined> | null | undefined} photos
+ * truthy broken flags and keyword matches. Does not normalize, deduplicate or
+ * apply time; native property access and keyword coercion can throw.
+ * @template {VisibilityPhoto} T
+ * @param {ReadonlyArray<T | null | undefined> | null | undefined} photos
  * @param {unknown} [excludedKeywords]
- * @returns {Photo[]}
+ * @returns {T[]}
  */
 function filterVisiblePhotos(photos, excludedKeywords) {
   return (photos ?? []).filter((photo) =>

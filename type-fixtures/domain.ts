@@ -109,6 +109,13 @@ const rawUniqueUrl: unknown = rawUnique[0].url;
 const normalizedUnique: Photo[] = uniqByUrl(rawRows);
 // @ts-expect-error a missing URL can be filtered out
 const alwaysUniqueRow: typeof rawRows[number] = uniqByUrl(rawRows).find(() => true);
+const rawVisible: typeof rawRows[number][] = filterVisiblePhotos([null, ...rawRows, undefined]);
+const rawVisibleTitle: number = rawVisible[0].title;
+const rawVisibleUrl: unknown = rawVisible[0].url;
+// @ts-expect-error visibility filtering does not normalize metadata or URLs
+const normalizedVisible: Photo[] = filterVisiblePhotos(rawRows);
+// @ts-expect-error a row may be filtered out even when the input is nonempty
+const alwaysVisibleRow: typeof rawRows[number] = filterVisiblePhotos(rawRows).find(() => true);
 const effect: Effect = { type: 'refresh-active-feed', payload: { categories: ['Google Photos'] } };
 const environment: ReducerEnvironment = { now: new Date(0), rng: () => 0.5 };
 const decoded: Command | null = decodeStatePatchCommand({ theme: 17 });
@@ -151,8 +158,6 @@ const missingEffectPayload: Effect = { type: 'refresh-active-feed' };
 const wrongEnvironment: ReducerEnvironment = { rng: () => 'random' };
 // @ts-expect-error selector direction is closed
 selectSmartPhoto({ state, direction: 'sideways' });
-// @ts-expect-error photo URL must be a string in the documented model
-filterVisiblePhotos([{ url: 7 }]);
 // @ts-expect-error output remains nullable
 const alwaysPhoto: Photo = selected;
 // @ts-expect-error decoded command may be null

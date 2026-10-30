@@ -902,6 +902,27 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.notStrictEqual(selectors.uniqByUrl(unique), unique); // Value-idempotent, not reference-idempotent.
   });
 
+  assertTest('visibility filtering preserves raw row aliases and native predicate behavior', () => {
+    const url = Object.freeze({ id: 42 });
+    const first = Object.freeze({ url, title: 9, author: false, category: 'Pool', rating: '1', nested: Object.freeze({ marker: true }) });
+    const second = Object.freeze({ url: 7, title: 'other', isBroken: 0 });
+    const rows = Object.freeze([null, first, second, { url: 'rated', rating: 1 }, { url: 'broken', isBroken: 'false' }, { url: 0 }, undefined]);
+    const visible = selectors.filterVisiblePhotos(rows);
+    assert.deepStrictEqual(visible, [first, second]);
+    assert.notStrictEqual(visible, rows);
+    assert.strictEqual(visible[0], first);
+    assert.strictEqual(visible[0].url, url);
+    assert.strictEqual(visible[0].nested, first.nested);
+    assert.deepStrictEqual(selectors.filterVisiblePhotos(rows, [' 9 ']), [second]);
+    assert.deepStrictEqual(selectors.filterVisiblePhotos([...rows, ...rows], ['other']), [first, first]);
+    assert.deepStrictEqual(selectors.filterVisiblePhotos(visible), visible);
+    const failure = new Error('visibility title getter');
+    const accessor = { url: 'accessor', get title() { throw failure; } };
+    assert.strictEqual(selectors.filterVisiblePhotos([accessor])[0], accessor);
+    assert.throws(() => selectors.filterVisiblePhotos([accessor], ['x']), (error) => error === failure);
+    assert.throws(() => selectors.filterVisiblePhotos([{ url: 'symbol', title: Symbol('title') }], ['x']), TypeError);
+  });
+
   assertTest('feed lookup preserves unnormalized rows and native strict matching', () => {
     const url = Object.freeze({ id: 42 });
     const first = Object.freeze({ url, title: 9, nested: Object.freeze({ value: true }) });
