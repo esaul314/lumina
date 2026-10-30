@@ -431,6 +431,47 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(state.config.splitPortrait, true);
   });
 
+  assertTest('fallback consent patches preserve raw values while legacy rebuilds use truthiness', () => {
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    const shared = Object.freeze({ [Symbol.toPrimitive]: () => { throw new Error('unexpected coercion'); } });
+    [shared, null, 0, false, '', 'false'].forEach((allowOpenAiFallback) => {
+      const input = Object.freeze({ allowOpenAiFallback });
+      const command = decodeStatePatchCommand(input);
+      const result = reduceDomainCommand(state, command, env);
+      const snapshot = buildSnapshot(result.nextState);
+      assert.strictEqual(command.payload.allowOpenAiFallback, allowOpenAiFallback);
+      assert.strictEqual(result.nextState.config.allowOpenAiFallback, allowOpenAiFallback);
+      assert.strictEqual(snapshot.allowOpenAiFallback, allowOpenAiFallback);
+      assert.strictEqual(snapshot.config.allowOpenAiFallback, allowOpenAiFallback);
+      const legacy = { ...state.config, ...state.runtime, allowOpenAiFallback, currentCategory: 'Scenic Nature', photosList: [] };
+      assert.strictEqual(buildDomainState(legacy, state.library.collections).config.allowOpenAiFallback, Boolean(allowOpenAiFallback));
+      const target = { ...legacy };
+      applyDomainState(target, {}, result.nextState);
+      assert.strictEqual(target.allowOpenAiFallback, allowOpenAiFallback);
+      assert.strictEqual(input.allowOpenAiFallback, allowOpenAiFallback);
+    });
+    const omitted = decodeStatePatchCommand({ allowOpenAiFallback: undefined });
+    assert.deepStrictEqual(omitted.payload, {});
+    assert.strictEqual(reduceDomainCommand(state, omitted, env).nextState, state);
+    const legacy = { ...state.config, ...state.runtime, allowOpenAiFallback: undefined, currentCategory: 'Scenic Nature', photosList: [] };
+    assert.strictEqual(buildDomainState(legacy, state.library.collections).config.allowOpenAiFallback, false);
+    assert.strictEqual(state.config.allowOpenAiFallback, false);
+  });
+
+  assertTest('legacy fallback consent toggle coerces inputs before patching', () => {
+    const decode = findSocketStatePatchDecode('toggle-allow-openai-fallback');
+    const state = createState();
+    const env = { now: new Date(0), rng: () => 0 };
+    [null, 0, false, '', undefined, 'false', {}].forEach((value) => {
+      const command = decode(value);
+      assert.deepStrictEqual(command, { type: 'patch-state', payload: { allowOpenAiFallback: Boolean(value) } });
+      const result = reduceDomainCommand(state, command, env);
+      assert.strictEqual(result.nextState.config.allowOpenAiFallback, Boolean(value));
+      assert.strictEqual(result.nextState === state, !value);
+    });
+  });
+
   assertTest('active photo decoding checks the URL but does not validate optional Photo metadata', () => {
     const photo = Object.freeze({ url: 'preview', title: 9, width: 'wide', orientation: 'sideways' });
     const command = decodeActivePhotoCommand(photo);

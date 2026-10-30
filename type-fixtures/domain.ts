@@ -50,6 +50,13 @@ const snapshotSplit: unknown = buildSnapshot(state).splitPortrait;
 const normalizedSplit: boolean = state.config.splitPortrait;
 // @ts-expect-error snapshots preserve the same unvalidated split setting
 const normalizedSnapshotSplit: boolean = buildSnapshot(state).splitPortrait;
+const configWithRawFallback: DomainState['config'] = { ...state.config, allowOpenAiFallback: { legacy: true } };
+const compatibilityFallback: unknown = state.config.allowOpenAiFallback;
+const snapshotFallback: unknown = buildSnapshot(state).allowOpenAiFallback;
+// @ts-expect-error raw patches do not guarantee boolean fallback consent
+const normalizedFallback: boolean = state.config.allowOpenAiFallback;
+// @ts-expect-error snapshots preserve the same unvalidated fallback value
+const normalizedSnapshotFallback: boolean = buildSnapshot(state).allowOpenAiFallback;
 
 const command: Command = { type: 'set-scale-mode', payload: { mode: 'cover' } };
 const preview = { url: 'preview', title: 9, width: 'wide', orientation: 'sideways' };

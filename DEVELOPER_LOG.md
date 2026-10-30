@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Model Compatibility OpenAI Fallback Consent
+
+- **Outcome**: legacy input, domain state and snapshots admit unknown fallback
+  values. Pure patches preserve raw values and aliases into the mutable legacy
+  shell; rebuilds and the legacy toggle separately apply truthiness. No runtime
+  production behavior changed and no additional abstraction was needed.
+- **Tests**: cover raw/falsy values, aliasing, omitted patches, legacy rebuilds,
+  legacy-shell application, toggle coercion, and compile-time narrowing.
+- **Consent follow-up**: the vision gate also uses truthiness, so a raw string
+  `"false"` enables fallback. Explicit boolean validation and compatibility policy
+  require a separate behavioral hardening change, not a type-only correction.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint, syntax
+  and whitespace checks passed; the optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model the other three raw state fields and unnormalized photo/feed
+  values; Step 6 remains open.
+
 ### 2026-10-30: Model Compatibility Split Portrait Values
 
 - **Outcome**: legacy input, domain state and public snapshots admit unknown

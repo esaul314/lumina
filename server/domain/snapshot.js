@@ -23,7 +23,7 @@
  *   slideshowInterval: unknown,
  *   alignTimeOfDay: boolean,
  *   alignWeather: boolean,
- *   allowOpenAiFallback: boolean,
+ *   allowOpenAiFallback: unknown,
  *   nightPercentage: number,
  *   searchKeywords: Record<string, unknown>,
  *   feedConfigs: Record<string, unknown>,
