@@ -103,6 +103,7 @@ const normalizedLookup: Photo | null = findPhotoInFeed(rawRows, 42);
 // @ts-expect-error lookup can miss even when its input array is nonempty
 const guaranteedLookup: typeof rawRows[number] = findPhotoInFeed(rawRows, 42);
 const rawUnique: typeof rawRows[number][] = uniqByUrl(rawRows);
+const nullableUnique: typeof rawRows[number][] = uniqByUrl([null, ...rawRows, undefined]);
 const rawUniqueTitle: number = rawUnique[0].title;
 const rawUniqueUrl: unknown = rawUnique[0].url;
 // @ts-expect-error deduplication does not normalize row metadata or URL values

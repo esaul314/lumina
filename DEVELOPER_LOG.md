@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Narrow Generic Photo Filter Results
+
+- **Outcome**: the visibility and URL-deduplication filters now express their
+  existing retained-row guarantee as generic type predicates. Visibility uses
+  boolean conversion of its existing short-circuit expression; deduplication
+  already returned booleans. Neither validates or normalizes photo metadata.
+- **Tests**: nullable rows, truthy object URLs, accessor order, short circuits,
+  exceptions, aliases and compile-time preservation of raw rows are covered.
+- **Verification**: strict no-emit typecheck remains nonzero at 530 core, zero
+  fixture, 68 transitive and zero global diagnostics, two fewer core errors.
+  Runtime suite, lint, syntax and whitespace checks passed; optional endpoint
+  smoke was skipped because sandbox socket creation returned `EPERM`.
+- **Next**: model remaining unnormalized feed, snapshot and selector contracts
+  and honest coercion typing before the Step 6 acceptance re-audit.
+
 ### 2026-10-30: Preserve Compatibility Visibility Filter Types
 
 - **Outcome**: the pure, data-first `filterVisiblePhotos` retains raw input row

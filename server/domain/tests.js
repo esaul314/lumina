@@ -923,6 +923,33 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => selectors.filterVisiblePhotos([{ url: 'symbol', title: Symbol('title') }], ['x']), TypeError);
   });
 
+  assertTest('visibility and deduplication predicates preserve access order and short circuits', () => {
+    const reads = [];
+    const url = { [Symbol.toPrimitive]() { throw new Error('unexpected URL coercion'); } };
+    const row = {
+      get url() { reads.push('url'); return url; },
+      get rating() { reads.push('rating'); return 0; },
+      get isBroken() { reads.push('broken'); return false; },
+      get title() { reads.push('title'); return 'keep'; },
+      get author() { reads.push('author'); return ''; },
+      get category() { reads.push('category'); return ''; }
+    };
+    assert.strictEqual(selectors.filterVisiblePhotos([null, row, undefined], ['exclude'])[0], row);
+    assert.deepStrictEqual(reads, ['url', 'rating', 'broken', 'title', 'author', 'category']);
+    reads.length = 0;
+    assert.strictEqual(selectors.uniqByUrl([null, row, row, undefined])[0], row);
+    assert.deepStrictEqual(reads, ['url', 'url', 'url', 'url', 'url']);
+    const failure = new Error('unexpected later read');
+    const noUrl = { url: 0, get rating() { throw failure; } };
+    const rated = { url: 'rated', rating: 1, get isBroken() { throw failure; } };
+    const broken = { url: 'broken', isBroken: true, get title() { throw failure; } };
+    assert.deepStrictEqual(selectors.filterVisiblePhotos([noUrl, rated, broken], ['exclude']), []);
+    const urlFailure = new Error('URL getter');
+    const throwing = { get url() { throw urlFailure; } };
+    assert.throws(() => selectors.filterVisiblePhotos([throwing]), (error) => error === urlFailure);
+    assert.throws(() => selectors.uniqByUrl([throwing]), (error) => error === urlFailure);
+  });
+
   assertTest('feed lookup preserves unnormalized rows and native strict matching', () => {
     const url = Object.freeze({ id: 42 });
     const first = Object.freeze({ url, title: 9, nested: Object.freeze({ value: true }) });

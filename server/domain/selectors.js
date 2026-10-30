@@ -121,13 +121,13 @@ function matchesExcludedKeywords(excludedKeywords, photo) {
  * @returns {T[]}
  */
 function filterVisiblePhotos(photos, excludedKeywords) {
-  return (photos ?? []).filter((photo) =>
+  return (photos ?? []).filter(/** @returns {photo is T} */ (photo) => !!(
     photo &&
     photo.url &&
     photo.rating !== 1 &&
     !photo.isBroken &&
     !matchesExcludedKeywords(excludedKeywords, photo)
-  );
+  ));
 }
 
 function attachCategory(category, photo) {
@@ -149,7 +149,7 @@ function getCategoryPhotos(category, collections, externalCollections = {}) {
 function uniqByUrl(photos) {
   /** @type {Set<unknown>} */
   const seen = new Set();
-  return photos.filter((photo) => {
+  return photos.filter(/** @returns {photo is T} */ (photo) => {
     if (!photo?.url || seen.has(photo.url)) {
       return false;
     }
