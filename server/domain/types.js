@@ -188,7 +188,7 @@
  *   'set-scale-mode': {mode: 'cover' | 'contain'},
  *   'change-theme': {theme: string},
  *   'change-interval': {intervalMs: number},
- *   'set-screensaver-active': {active: boolean},
+ *   'set-screensaver-active': {active: unknown},
  *   'add-pool': {name: string, keywords: string[]},
  *   'set-pool-keywords': {name: string, keywords: KeywordSpec[]},
  *   'merge-pool-feed-config': {name: string, source: string, config: Record<string, unknown>},

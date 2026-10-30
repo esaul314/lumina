@@ -3,6 +3,7 @@
 /**
  * @typedef {import('./types').Command} Command
  * @typedef {import('./types').CommandDecoder} CommandDecoder
+ * @typedef {{type: 'set-screensaver-active', payload: {active: unknown}}} ScreensaverActiveCommand
  */
 
 // Decoders project unknown transport values to Command | null, not exceptions
@@ -387,14 +388,20 @@ function buildWidgetPatch(payload) {
   };
 }
 
-/** @param {unknown} payload @returns {Command | null} */
+/**
+ * Project a boolean first read into a command containing the unvalidated second
+ * read. Property assertions describe native lookup, not input validation:
+ * callable, inherited and boxed primitive properties retain their behavior.
+ * @param {unknown} payload
+ * @returns {ScreensaverActiveCommand | null}
+ */
 function decodeScreensaverActiveCommand(payload) {
-  if (!payload || typeof payload.active !== 'boolean') {
+  if (!payload || typeof /** @type {{active: unknown}} */ (payload).active !== 'boolean') {
     return null;
   }
 
   return createCommand('set-screensaver-active', {
-    active: payload.active
+    active: /** @type {{active: unknown}} */ (payload).active
   });
 }
 

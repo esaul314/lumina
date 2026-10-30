@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Preserve Screensaver Decoder Lookup Semantics
+
+- **Outcome**: the decoder uses local unknown-valued property assertions without
+  runtime validation. A boolean first read permits a command, but the second
+  read is unvalidated and its command payload is typed unknown. Callable,
+  inherited and boxed property lookup and errors remain native.
+- **Tests**: changing inherited callable getters, exact proxy failures,
+  short-circuiting, reducer truthiness and compile-time narrowing; production
+  executable syntax remains unchanged.
+- **Verification**: runtime suite, lint, syntax, whitespace and production AST
+  checks pass; the optional live endpoint smoke is skipped on sandbox `EPERM`.
+  Strict typecheck remains nonzero at 520 core, zero fixture, 69 transitive and
+  zero global diagnostics.
+- **Next**: narrow `decodeCategorySelectionFromHttp` without changing native
+  destructuring and property access behavior.
+
 ### 2026-10-30: Preserve Native Pairing URL Comparison
 
 - **Outcome**: the pure pairing selector retains native dynamic method lookup

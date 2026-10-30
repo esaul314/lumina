@@ -699,6 +699,47 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('screensaver decoder validates the first read and preserves the raw second read', () => {
+    const raw = Object.freeze({ marker: 'second read' });
+    const reads = [];
+    const prototype = Object.defineProperty({}, 'active', {
+      get() {
+        reads.push(this);
+        return reads.length === 1 ? false : raw;
+      }
+    });
+    const input = Object.assign(() => {}, { marker: 'callable' });
+    Object.setPrototypeOf(input, prototype);
+    const decoded = decodeScreensaverActiveCommand(input);
+    assert.deepStrictEqual(reads, [input, input]);
+    assert.strictEqual(decoded.type, 'set-screensaver-active');
+    assert.strictEqual(decoded.payload.active, raw);
+    const result = reduceDomainCommand(createState(), decoded);
+    assert.strictEqual(result.nextState.runtime.screensaverActive, true);
+
+    let rejectedReads = 0;
+    assert.strictEqual(decodeScreensaverActiveCommand({
+      get active() { rejectedReads += 1; return 'true'; }
+    }), null);
+    assert.strictEqual(rejectedReads, 1);
+  });
+
+  assertTest('screensaver decoder preserves proxy lookups and second-read failures', () => {
+    const reads = [];
+    const failure = new Error('second active lookup failed');
+    const input = new Proxy({}, {
+      get(target, key, receiver) {
+        reads.push([target, key, receiver]);
+        if (reads.length === 1) return true;
+        throw failure;
+      }
+    });
+    assert.throws(() => decodeScreensaverActiveCommand(input), (error) => error === failure);
+    assert.deepStrictEqual(reads.map(([, key, receiver]) => [key, receiver]), [
+      ['active', input], ['active', input]
+    ]);
+  });
+
   assertTest('optional direct command payloads retain compatibility rather than guarantee normalized state', () => {
     [
       ['set-scale-mode', 'scaleMode', 'cover'],
@@ -730,7 +771,7 @@ function runDomainTests({ logSuite, assertTest }) {
       const position = source.search(new RegExp(`(?:function|const) ${name}\\b`));
       const prefix = source.slice(0, position);
       const contract = prefix.slice(prefix.lastIndexOf('/**'));
-      assert.match(contract, /@(?:type \{CommandDecoder\}|returns \{Command \| null\})/, name);
+      assert.match(contract, /@(?:type \{CommandDecoder\}|returns \{(?:Command|ScreensaverActiveCommand) \| null\})/, name);
       assert.ok(contract.endsWith('*/\n'), name);
     });
   });

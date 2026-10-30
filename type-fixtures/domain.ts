@@ -1,7 +1,7 @@
 // Compile-only examples of the currently documented boundary contracts.
 // Expected errors are assertions: an unused directive is itself a diagnostic.
 import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, FeedPhoto, Photo } from '../server/domain/types';
-import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domain/commands';
+import { buildBooleanFieldPatch, decodeScreensaverActiveCommand, decodeStatePatchCommand } from '../server/domain/commands';
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
@@ -185,6 +185,11 @@ const environment: ReducerEnvironment = { now: new Date(0), rng: () => 0.5 };
 const decoded: Command | null = decodeStatePatchCommand({ theme: 17 });
 declare const untrustedPatch: unknown;
 const decodedUnknown: Command | null = decodeStatePatchCommand(untrustedPatch);
+const screensaverCommand = decodeScreensaverActiveCommand(untrustedPatch);
+const rawScreensaverActive: unknown = screensaverCommand?.payload.active;
+const rawScreensaverInput: Command = { type: 'set-screensaver-active', payload: { active: { legacy: true } } };
+// @ts-expect-error the second property read is not guaranteed to remain boolean
+const normalizedScreensaverActive: boolean | undefined = screensaverCommand?.payload.active;
 const result = reduceDomainCommand(state, command, environment);
 const visible: Photo[] = filterVisiblePhotos(photos);
 const selected: FeedPhoto | null = selectSmartPhoto({ state, rng: () => 0.5 });
@@ -235,6 +240,7 @@ type CurriedPatchIsNotAny = AssertFalse<IsAny<ReturnType<typeof buildBooleanFiel
 type HandlerResultIsNotAny = AssertFalse<IsAny<ReturnType<ReturnType<typeof createTypedHandlerInvoker>>>>;
 
 void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wrongCommand,
+  screensaverCommand, rawScreensaverActive, rawScreensaverInput, normalizedScreensaverActive,
   missingEffectPayload, wrongEnvironment, alwaysPhoto, alwaysCommand, directBooleanPatch,
   partialBooleanPatch, symbolBooleanPatch, coercedBooleanPatch, guaranteedBoolean, stringBoolean, incompleteBoolean,
   handlerResult, unknownHandlerResult, certainHandlerResult, arrayPreviewCommand, normalizedPreview, primitivePreview,
