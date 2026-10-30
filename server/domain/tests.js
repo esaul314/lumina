@@ -902,6 +902,23 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.notStrictEqual(selectors.uniqByUrl(unique), unique); // Value-idempotent, not reference-idempotent.
   });
 
+  assertTest('feed lookup preserves unnormalized rows and native strict matching', () => {
+    const url = Object.freeze({ id: 42 });
+    const first = Object.freeze({ url, title: 9, nested: Object.freeze({ value: true }) });
+    const duplicate = Object.freeze({ url, title: 'later' });
+    const rows = Object.freeze([first, duplicate, Object.freeze({ url: 42 }), Object.freeze({})]);
+    assert.strictEqual(selectors.findPhotoInFeed(rows, url), first);
+    assert.strictEqual(selectors.findPhotoInFeed(rows, { id: 42 }), null);
+    assert.strictEqual(selectors.findPhotoInFeed(rows, '42'), null);
+    assert.strictEqual(selectors.findPhotoInFeed(rows, 42), rows[2]);
+    assert.strictEqual(selectors.findPhotoInFeed(rows, undefined), rows[3]);
+    assert.strictEqual(selectors.findPhotoInFeed([null, rows[3]], undefined), null);
+    assert.strictEqual(selectors.findPhotoInFeed(null, url), null);
+    const failure = new Error('lookup URL getter');
+    assert.throws(() => selectors.findPhotoInFeed([{ get url() { throw failure; } }], url), (error) => error === failure);
+    assert.strictEqual(first.nested, rows[0].nested);
+  });
+
   assertTest('balanced feed contracts preserve external override first URL ownership and immutable copies', () => {
     const shared = Object.freeze({ url: 'shared', title: 'External' });
     const curated = Object.freeze({ url: 'curated' });

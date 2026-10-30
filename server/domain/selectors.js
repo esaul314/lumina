@@ -231,9 +231,12 @@ function buildBalancedFeed({ selectedCategories, collections, externalCollection
 }
 
 /**
- * @param {ReadonlyArray<Photo | null | undefined> | null | undefined} photosList
- * @param {string | null | undefined} url Strict equality; no visibility filtering.
- * @returns {Photo | null} First row alias or null.
+ * Lookup does not normalize metadata or URL values. Nullish rows can match an
+ * undefined URL before later rows, in which case the result is null.
+ * @template {{url?: unknown}} T
+ * @param {ReadonlyArray<T | null | undefined> | null | undefined} photosList
+ * @param {unknown} url Strict equality; no visibility filtering or coercion.
+ * @returns {T | null} First row alias or null.
  */
 function findPhotoInFeed(photosList, url) {
   return (photosList ?? []).find((photo) => photo?.url === url) ?? null;

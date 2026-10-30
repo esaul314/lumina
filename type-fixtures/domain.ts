@@ -5,7 +5,7 @@ import { buildBooleanFieldPatch, decodeStatePatchCommand } from '../server/domai
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
-import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
+import { filterPhotosForNight, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, selectSmartPhoto, selectSmartPhotoFromFeed, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
 declare const photos: Photo[];
@@ -94,6 +94,14 @@ const arrayPreviewCommand: Command = { type: 'set-active-photo', payload: { url:
 const normalizedPreview: Photo = previewCommand.payload!.photo!;
 // @ts-expect-error preview objects are not primitive strings
 const primitivePreview: ActivePhotoPreview = 'preview';
+const rawRows = [{ url: 42 as unknown, title: 9, nested: { marker: true } }];
+const rawLookup: typeof rawRows[number] | null = findPhotoInFeed(rawRows, 42);
+const rawTitle: number | undefined = rawLookup?.title;
+const unknownUrl: unknown = rawLookup?.url;
+// @ts-expect-error lookup preserves raw metadata, not a normalized photo
+const normalizedLookup: Photo | null = findPhotoInFeed(rawRows, 42);
+// @ts-expect-error lookup can miss even when its input array is nonempty
+const guaranteedLookup: typeof rawRows[number] = findPhotoInFeed(rawRows, 42);
 const effect: Effect = { type: 'refresh-active-feed', payload: { categories: ['Google Photos'] } };
 const environment: ReducerEnvironment = { now: new Date(0), rng: () => 0.5 };
 const decoded: Command | null = decodeStatePatchCommand({ theme: 17 });

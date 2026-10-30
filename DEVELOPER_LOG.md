@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Preserve Compatibility Feed Lookup Types
+
+- **Outcome**: the pure, data-first `findPhotoInFeed` retains each input row's
+  type instead of asserting normalized metadata and accepts unknown lookup keys.
+  Its strict comparison, first alias, nullish matching and getter behavior remain
+  unchanged. Generic typing adds no runtime wrapper or production code change.
+- **Tests**: frozen raw rows cover object identity, strict matching, nullish
+  entries and getter failures; compiler fixtures retain metadata and require
+  null and normalization checks.
+- **Verification**: strict no-emit typecheck remains nonzero at 531 core, zero
+  fixture, 68 transitive and zero global diagnostics. Runtime suite, lint, syntax
+  and whitespace checks passed; the optional endpoint smoke was skipped because
+  sandbox socket creation returned `EPERM`.
+- **Next**: model unnormalized feed state, snapshot and remaining selector
+  contracts; then address honest coercion typing and re-audit Step 6.
+
 ### 2026-10-30: Model Compatibility Night Percentage
 
 - **Outcome**: legacy input, domain state, snapshots and night selector inputs
