@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-10-30: Document Trim String Projection
+
+- **Outcome**: the pure data-first helper accepts unknown and preserves the
+  native trim result as unknown; non-strings yield an empty string. No new
+  abstraction, export or executable production change was needed.
+- **Tests**: native-trim idempotence, decoder composition, uninspected inputs,
+  isolated lookup and receiver, raw aliases and falsy results, exact failures.
+- **Verification**: 805 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke is skipped on sandbox `EPERM`. Strict
+  typecheck remains nonzero at 517 core, zero fixture, 69 transitive and zero
+  global diagnostics: one implicit-input error was replaced by a real unknown
+  computed-key diagnostic in the widget patch.
+- **Next**: model widget computed-key coercion without changing native behavior.
+
 ### 2026-10-30: Document Required String Projection
 
 - **Outcome**: the pure data-first decoder accepts unknown inputs and returns

@@ -682,6 +682,57 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.strictEqual(legacy.photosList[0], row);
   });
 
+  assertTest('trim string projection preserves input boundaries and native idempotence', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./commands.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.trimStringForTest = trimString;`, sandbox);
+    const trim = sandbox.trimStringForTest;
+    const uninspected = Object.defineProperty({}, 'trim', { get: () => assert.fail('non-string inspected') });
+    [null, undefined, false, 0, Symbol('input'), new String('x'), uninspected].forEach((value) => {
+      assert.strictEqual(trim(value), '');
+    });
+    [[' x ', 'x'], ['\t  ', ''], ['\u200b', '\u200b']].forEach(([value, expected]) => {
+      assert.strictEqual(trim(value), expected);
+      assert.strictEqual(trim(trim(value)), trim(value));
+    });
+    assert.deepStrictEqual(decodeDeletePoolCommand(' pool '), { type: 'delete-pool', payload: { name: 'pool' } });
+    assert.deepStrictEqual(decodePoolScopedRecrawlCommand(' pool '), {
+      type: 'trigger-recrawl', payload: { categories: ['pool'] }
+    });
+  });
+
+  assertTest('trim string projection preserves native lookup, raw results and failures', () => {
+    const calls = [];
+    const failure = new Error('trim failed');
+    const sandbox = { module: { exports: {} }, require, calls, failure, result: null };
+    const source = fs.readFileSync(require.resolve('./commands.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.trimStringForTest = trimString;`, sandbox);
+    const trim = sandbox.trimStringForTest;
+    runInNewContext(`
+      Object.defineProperty(String.prototype, 'trim', {
+        configurable: true,
+        get() {
+          calls.push(['lookup', String(this)]);
+          return function () { 'use strict'; calls.push(['call', this]); return result; };
+        }
+      });
+    `, sandbox);
+    [Object.freeze({ marker: 'alias' }), 0, false, null, undefined].forEach((result) => {
+      sandbox.result = result;
+      assert.strictEqual(trim(' original '), result);
+      assert.deepStrictEqual(calls.map((call) => Array.from(call)), [['lookup', ' original '], ['call', ' original ']]);
+      calls.length = 0;
+    });
+    assert.strictEqual(trim({ trim: () => assert.fail('non-string inspected') }), '');
+    assert.deepStrictEqual(calls, []);
+    runInNewContext("Object.defineProperty(String.prototype, 'trim', { get() { throw failure; } });", sandbox);
+    assert.throws(() => trim('x'), (error) => error === failure);
+    runInNewContext("Object.defineProperty(String.prototype, 'trim', { value() { throw failure; } });", sandbox);
+    assert.throws(() => trim('x'), (error) => error === failure);
+    runInNewContext("Object.defineProperty(String.prototype, 'trim', { value: 1 });", sandbox);
+    assert.throws(() => trim('x'), (error) => error.name === 'TypeError');
+  });
+
   assertTest('required string decoding preserves primitive values and rejects non-strings without coercion', () => {
     const nonString = Object.defineProperty({}, 'trim', { get: () => assert.fail('non-strings must not be inspected') });
     const accepted = [' raw url ', '\u200b', 'x'];

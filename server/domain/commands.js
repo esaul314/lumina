@@ -29,6 +29,12 @@ const {
 } = require('../utils/validation.js');
 const { normalizePoolPolicy } = require('./poolRetention.js');
 
+/**
+ * Trim primitive strings; return an empty string for every other input.
+ * Native trim lookup and invocation may return any value or throw.
+ * @param {unknown} value
+ * @returns {unknown}
+ */
 function trimString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
