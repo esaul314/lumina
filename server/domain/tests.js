@@ -733,6 +733,72 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => trim('x'), (error) => error.name === 'TypeError');
   });
 
+  assertTest('widget patch preserves ordinary decoding and truthy-name short circuit', () => {
+    const decode = findSocketStatePatchDecode('toggle-widget');
+    assert.deepStrictEqual(decode({ widgetName: ' clock ', visible: 0 }), {
+      type: 'patch-state', payload: { widgets: { clock: 0 } }
+    });
+    const visible = () => assert.fail('visible must not be read for empty names');
+    ['', '  ', null, false, 1, new String('clock')].forEach((widgetName) => {
+      assert.strictEqual(decode({ widgetName, get visible() { return visible(); } }), null);
+    });
+  });
+
+  assertTest('widget patch preserves native computed-key coercion, ordering and errors', () => {
+    const calls = [];
+    const failure = new Error('key conversion failed');
+    const sandbox = { module: { exports: {} }, require, calls, result: null };
+    const source = fs.readFileSync(require.resolve('./commands.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildWidgetPatchForTest = buildWidgetPatch;\nglobalThis.decodeWidgetForTest = SOCKET_STATE_PATCH_SPECS.find((spec) => spec.event === 'toggle-widget').decode;`, sandbox);
+    const build = sandbox.buildWidgetPatchForTest;
+    runInNewContext(`
+      Object.defineProperty(String.prototype, 'trim', {
+        configurable: true,
+        get() {
+          calls.push('trim lookup');
+          return function () { 'use strict'; calls.push(['trim call', this]); return result; };
+        }
+      });
+    `, sandbox);
+    const symbol = Symbol('widget');
+    const key = { [Symbol.toPrimitive](hint) { calls.push(['key conversion', hint, this]); return symbol; } };
+    const visible = Object.freeze({ raw: true });
+    const input = { get widgetName() { calls.push('name'); return ' raw '; }, get visible() { calls.push('visible'); return visible; } };
+    sandbox.result = key;
+    const patch = build(input);
+    assert.strictEqual(patch.widgets[symbol], visible);
+    assert.deepStrictEqual(Reflect.ownKeys(patch.widgets), [symbol]);
+    assert.strictEqual(calls[0], 'name');
+    assert.strictEqual(calls[1], 'trim lookup');
+    assert.deepStrictEqual(Array.from(calls[2]), ['trim call', ' raw ']);
+    assert.deepStrictEqual(calls[3], ['key conversion', 'string', key]);
+    assert.strictEqual(calls[4], 'visible');
+    calls.length = 0;
+    const command = sandbox.decodeWidgetForTest(input);
+    assert.strictEqual(command.type, 'patch-state');
+    assert.strictEqual(command.payload.widgets[symbol], visible);
+    assert.deepStrictEqual(Reflect.ownKeys(command.payload.widgets), [symbol]);
+    calls.length = 0;
+    sandbox.result = '__proto__';
+    const special = build(input).widgets;
+    assert.strictEqual(Object.hasOwn(special, '__proto__'), true);
+    assert.strictEqual(special.__proto__, visible);
+    calls.length = 0;
+    sandbox.result = 0;
+    assert.strictEqual(build(input), null);
+    assert.deepStrictEqual(calls.slice(0, 2), ['name', 'trim lookup']);
+    assert.strictEqual(calls.length, 3);
+    calls.length = 0;
+    sandbox.result = { [Symbol.toPrimitive]() { calls.push('throwing key'); throw failure; } };
+    assert.throws(() => build(input), (error) => error === failure);
+    assert.strictEqual(calls.at(-1), 'throwing key');
+    assert.ok(!calls.includes('visible'));
+    calls.length = 0;
+    sandbox.result = { [Symbol.toPrimitive]() { return {}; } };
+    assert.throws(() => build(input), (error) => error.name === 'TypeError');
+    assert.ok(!calls.includes('visible'));
+  });
+
   assertTest('required string decoding preserves primitive values and rejects non-strings without coercion', () => {
     const nonString = Object.defineProperty({}, 'trim', { get: () => assert.fail('non-strings must not be inspected') });
     const accepted = [' raw url ', '\u200b', 'x'];

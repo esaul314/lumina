@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-04: Preserve Widget Computed-Key Coercion
+
+- **Outcome**: a local dynamic assertion permits native property-key coercion
+  on an unknown trim result without validation or executable syntax changes.
+  The widget patch remains a small data-first projection.
+- **Tests**: decoder composition, symbol and special keys, native evaluation
+  order, falsy short circuits, malformed key conversion and exact failures.
+- **Verification**: 807 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke is skipped on sandbox `EPERM`. Strict
+  typecheck remains nonzero at 516 core, zero fixture, 69 transitive and zero
+  global diagnostics.
+- **Next**: document widget patch input and result compatibility.
+
 ### 2026-10-30: Document Trim String Projection
 
 - **Outcome**: the pure data-first helper accepts unknown and preserves the

@@ -402,7 +402,8 @@ function buildWidgetPatch(payload) {
 
   return {
     widgets: {
-      [widgetName]: payload?.visible
+      // TypeScript cannot express ToPropertyKey on an unknown trim result.
+      [/** @type {any} */ (widgetName)]: payload?.visible
     }
   };
 }
