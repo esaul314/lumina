@@ -2993,6 +2993,64 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('partially applied patch reader keeps missing and identity cases distinct', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.readPatchForTest = readPatchField;\nglobalThis.patchSkipForTest = PATCH_SKIP;`, sandbox);
+    const read = sandbox.readPatchForTest;
+    const state = createState();
+    const value = Object.freeze({ marker: 'alias' });
+    const symbol = Symbol('field');
+    const identity = read(symbol);
+    assert.strictEqual(identity({ [symbol]: value }, state), value);
+    assert.strictEqual(identity({ [symbol]: null }, state), null);
+    assert.strictEqual(identity({}, state), sandbox.patchSkipForTest);
+    assert.strictEqual(identity(null, state), sandbox.patchSkipForTest);
+    assert.strictEqual(read('length')('abc', state), 3);
+    assert.strictEqual(read('clock', undefined)({ clock: value }, state), value);
+    let reads = 0;
+    const changing = { get clock() { return ++reads === 1 ? value : undefined; } };
+    assert.strictEqual(read('clock')(changing, state), undefined);
+    assert.strictEqual(reads, 2);
+  });
+
+  assertTest('patch reader preserves callback arguments, skip, and native key conversion order', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.readPatchForTest = readPatchField;\nglobalThis.patchSkipForTest = PATCH_SKIP;`, sandbox);
+    const calls = [];
+    const state = createState();
+    const patch = { get clock() { calls.push('get'); return calls.length; } };
+    const key = { [Symbol.toPrimitive](hint) { calls.push(`key:${hint}`); return 'clock'; } };
+    const read = sandbox.readPatchForTest(key, (value, actualState, actualPatch) => {
+      calls.push('normalize');
+      assert.strictEqual(actualState, state);
+      assert.strictEqual(actualPatch, patch);
+      return value;
+    });
+    assert.strictEqual(read(patch, state), 4);
+    assert.deepStrictEqual(calls, ['key:string', 'get', 'key:string', 'get', 'normalize']);
+    assert.strictEqual(sandbox.readPatchForTest('x', () => undefined)({ x: 1 }, state), undefined);
+    assert.strictEqual(sandbox.readPatchForTest('x', () => sandbox.patchSkipForTest)({ x: 1 }, state), sandbox.patchSkipForTest);
+    assert.strictEqual(sandbox.readPatchForTest(key, () => assert.fail('missing field normalized'))(null, state), sandbox.patchSkipForTest);
+    assert.strictEqual(calls.length, 5);
+  });
+
+  assertTest('patch reader propagates native lookup, key, and normalizer failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.readPatchForTest = readPatchField;`, sandbox);
+    const read = sandbox.readPatchForTest;
+    const failure = new Error('patch reader failure');
+    const state = createState();
+    let reads = 0;
+    const patch = { get x() { if (++reads === 2) throw failure; return 1; } };
+    assert.throws(() => read('x')(patch, state), (error) => error === failure);
+    assert.strictEqual(reads, 2);
+    assert.throws(() => read({ [Symbol.toPrimitive]() { throw failure; } })({ x: 1 }, state), (error) => error === failure);
+    assert.throws(() => read('x', () => { throw failure; })({ x: 1 }, state), (error) => error === failure);
+  });
+
   assertTest('widget patch reader normalizes only known own enumerable string keys', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

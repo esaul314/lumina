@@ -812,11 +812,39 @@ const markPatchChange = (context, flags = {}) => ({
   refreshWeather: context.refreshWeather || Boolean(flags.refreshWeather)
 });
 
-const hasPatchField = (patch, field) => patch?.[field] !== undefined;
+/**
+ * Native optional lookup, including ToPropertyKey and its possible failures.
+ * @param {unknown} patch
+ * @param {unknown} field
+ * @returns {boolean}
+ */
+const hasPatchField = (patch, field) => /** @type {any} */ (patch)?.[/** @type {any} */ (field)] !== undefined;
 
+/**
+ * Partially apply a field and optional normalizer to a patch reader. A present
+ * field is read a second time and passed with the original state and patch;
+ * missing fields yield PATCH_SKIP. Native lookups and callback failures escape.
+ * Omitted normalizers preserve the raw second-read value, including undefined.
+ */
+/** @overload
+ * @param {unknown} field
+ * @param {undefined} [normalize]
+ * @returns {(patch: unknown, nextState: DomainState) => unknown}
+ */
+/** @template T
+ * @overload
+ * @param {unknown} field
+ * @param {(value: unknown, nextState: DomainState, patch: unknown) => T} normalize
+ * @returns {(patch: unknown, nextState: DomainState) => T | typeof PATCH_SKIP}
+ */
+/**
+ * @param {unknown} field
+ * @param {(value: unknown, nextState: DomainState, patch: unknown) => unknown} [normalize]
+ * @returns {(patch: unknown, nextState: DomainState) => unknown}
+ */
 const readPatchField = (field, normalize = (value) => value) => (patch, nextState) => (
   hasPatchField(patch, field)
-    ? normalize(patch[field], nextState, patch)
+    ? normalize(/** @type {any} */ (patch)[/** @type {any} */ (field)], nextState, patch)
     : PATCH_SKIP
 );
 

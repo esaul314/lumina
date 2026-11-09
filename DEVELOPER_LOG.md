@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-09: Document Partially Applied Patch Reader
+
+- **Outcome**: separate identity and generic callback overloads retain the
+  skip sentinel, raw second read, original state and patch aliases. Local
+  dynamic assertions model native property-key coercion, not validation; the
+  existing declarative reader and executable production syntax are unchanged.
+- **Tests**: missing versus undefined values, partially applied identity,
+  symbol/custom keys, lookup and callback ordering, exact failures, and private
+  compile-time fixtures for unknown values, skip and generic results.
+- **Verification**: 815 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke is skipped on sandbox `EPERM`. Strict domain
+  typechecking remains nonzero at 508 core, zero fixture, 69 transitive and
+  zero global diagnostics; vision/location guard narrowing remains unresolved.
+- **Next**: audit the reducer's object guard and vision/location consumers.
+
 ### 2026-11-09: Audit Reducer Widget Patch Reader
 
 - **Outcome**: documented the private data-first reader's unknown patch input,

@@ -37,9 +37,37 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   const original = fs.readFileSync(fixturePath, 'utf8');
   const mutated = original.replace("type: 'not-a-command'", "type: 'set-scale-mode'");
   assert.notEqual(mutated, original);
+  const reducerPath = path.join(root, 'server/domain/reducer.js');
+  const reducerSource = fs.readFileSync(reducerPath, 'utf8');
+  // Check the private factory in its own lexical scope without adding exports.
+  const readerFixture = `
+    /** @type {DomainState} */ const fixtureState = /** @type {DomainState} */ ({});
+    const fixtureReader = readPatchField('x', (value, state, patch) => {
+      /** @type {unknown} */ const raw = value;
+      /** @type {DomainState} */ const sameState = state;
+      /** @type {unknown} */ const samePatch = patch;
+      return 7;
+    });
+    /** @type {number | typeof PATCH_SKIP} */ const fixtureResult = fixtureReader({}, fixtureState);
+    const fixtureIdentity = readPatchField('x');
+    /** @type {unknown} */ const fixtureRaw = fixtureIdentity({}, fixtureState);
+    /** @type {number} */
+    // @ts-expect-error an omitted normalizer does not guarantee a number
+    const fixtureUnsafeIdentity = fixtureIdentity({}, fixtureState);
+    /** @type {number} */
+    // @ts-expect-error missing fields may return the skip sentinel
+    const fixtureUnsafeResult = fixtureReader({}, fixtureState);
+    // @ts-expect-error a normalizer must accept an unknown raw value
+    readPatchField('x', (/** @type {string} */ value) => value);
+  `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);
-  host.readFile = (fileName) => path.resolve(fileName) === fixturePath ? mutated : readFile(fileName);
+  host.readFile = (fileName) => {
+    const resolved = path.resolve(fileName);
+    if (resolved === fixturePath) return mutated;
+    if (resolved === reducerPath) return reducerSource + readerFixture;
+    return readFile(fileName);
+  };
   const program = ts.createProgram(parsed.fileNames, parsed.options, host);
   const diagnostics = ts.getPreEmitDiagnostics(program);
   const commandsPath = path.join(root, 'server/domain/commands.js');
@@ -48,6 +76,9 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   assert.ok(decoder);
   assert.deepEqual(diagnostics.filter((item) => item.file === commands && item.code === 18046 &&
     item.start >= decoder.getStart(commands) && item.start < decoder.end), []);
+  const readerDiagnostics = diagnostics.filter((item) => item.file &&
+    path.resolve(item.file.fileName) === reducerPath && item.start >= reducerSource.length);
+  assert.deepEqual(readerDiagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
   const fixtureDiagnostics = diagnostics
     .filter((item) => item.file && path.resolve(item.file.fileName) === fixturePath);
   // Only the intentionally weakened check may fail.
