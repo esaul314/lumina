@@ -744,6 +744,51 @@ function runDomainTests({ logSuite, assertTest }) {
     });
   });
 
+  assertTest('widget patch accepts native property access and retains raw visibility aliases', () => {
+    const build = commands.buildWidgetPatch;
+    [null, undefined, false, 0, 'clock', Symbol('input')].forEach((input) => {
+      assert.strictEqual(build(input), null);
+    });
+    const value = Object.freeze({ raw: 'visible' });
+    const prototype = { widgetName: ' clock ', visible: value };
+    const inherited = Object.create(prototype);
+    const callable = Object.assign(() => {}, { widgetName: ' clock ', visible: value });
+    [inherited, callable].forEach((input) => {
+      const first = build(input);
+      const second = build(input);
+      assert.strictEqual(first.widgets.clock, value);
+      assert.notStrictEqual(first, second);
+      assert.notStrictEqual(first.widgets, second.widgets);
+      assert.strictEqual(input.widgetName, ' clock ');
+    });
+    const missing = build({ widgetName: 'clock' });
+    assert.ok(Object.hasOwn(missing.widgets, 'clock'));
+    assert.strictEqual(missing.widgets.clock, undefined);
+  });
+
+  assertTest('widget patch preserves proxy lookup order and exact accessor failures', () => {
+    const build = commands.buildWidgetPatch;
+    const failure = new Error('lookup failed');
+    const reads = [];
+    const input = new Proxy({ widgetName: ' clock ', visible: false }, {
+      get(target, key, receiver) {
+        reads.push(key);
+        return Reflect.get(target, key, receiver);
+      }
+    });
+    assert.deepStrictEqual(build(input), { widgets: { clock: false } });
+    assert.deepStrictEqual(reads, ['widgetName', 'visible']);
+    ['widgetName', 'visible'].forEach((key) => {
+      const throwing = new Proxy({ widgetName: 'clock' }, {
+        get(target, property, receiver) {
+          if (property === key) throw failure;
+          return Reflect.get(target, property, receiver);
+        }
+      });
+      assert.throws(() => build(throwing), (error) => error === failure);
+    });
+  });
+
   assertTest('widget patch preserves native computed-key coercion, ordering and errors', () => {
     const calls = [];
     const failure = new Error('key conversion failed');

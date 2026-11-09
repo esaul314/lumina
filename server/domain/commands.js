@@ -394,8 +394,16 @@ const createEnvSecretCommandDecoder = curry((envKey, runtimeFlag, payload) => {
   };
 });
 
+/**
+ * Project a native optional-property lookup into a widget patch, or null for a
+ * falsy trimmed name. The computed key uses native coercion and the visible
+ * value is retained verbatim; either lookup or key conversion may throw.
+ * Assertions describe property access, not validation of the input.
+ * @param {unknown} payload
+ * @returns {{widgets: Partial<Record<PropertyKey, unknown>>} | null}
+ */
 function buildWidgetPatch(payload) {
-  const widgetName = trimString(payload?.widgetName);
+  const widgetName = trimString(/** @type {{widgetName?: unknown} | null | undefined} */ (payload)?.widgetName);
   if (!widgetName) {
     return null;
   }
@@ -403,7 +411,7 @@ function buildWidgetPatch(payload) {
   return {
     widgets: {
       // TypeScript cannot express ToPropertyKey on an unknown trim result.
-      [/** @type {any} */ (widgetName)]: payload?.visible
+      [/** @type {any} */ (widgetName)]: /** @type {{visible?: unknown} | null | undefined} */ (payload)?.visible
     }
   };
 }

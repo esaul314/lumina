@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-09: Document Widget Patch Inputs and Results
+
+- **Outcome**: the pure data-first builder accepts unknown input and returns a
+  nullable patch containing raw values and possibly symbol keys. Local type
+  assertions retain native property access and key coercion without validation;
+  no executable production syntax or export changed.
+- **Tests**: inherited and callable inputs, nullish and primitive values, fresh
+  patch containers, raw aliases, proxy lookup order, exact accessor failures,
+  and compile-time narrowing join existing coercion and decoder tests.
+- **Verification**: 809 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke is skipped on sandbox `EPERM`. Strict domain
+  typecheck remains nonzero at 515 core, zero fixture, 69 transitive and zero
+  global diagnostics.
+- **Next**: audit `readWidgetPatch` input/result contracts and normalization.
+
 ### 2026-11-04: Preserve Widget Computed-Key Coercion
 
 - **Outcome**: a local dynamic assertion permits native property-key coercion

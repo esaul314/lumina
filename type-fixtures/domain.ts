@@ -1,7 +1,7 @@
 // Compile-only examples of the currently documented boundary contracts.
 // Expected errors are assertions: an unused directive is itself a diagnostic.
 import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, FeedPhoto, Photo } from '../server/domain/types';
-import { buildBooleanFieldPatch, decodeCategorySelectionFromHttp, decodeScreensaverActiveCommand, decodeStatePatchCommand } from '../server/domain/commands';
+import { buildBooleanFieldPatch, buildWidgetPatch, decodeCategorySelectionFromHttp, decodeScreensaverActiveCommand, decodeStatePatchCommand } from '../server/domain/commands';
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
@@ -185,6 +185,13 @@ const environment: ReducerEnvironment = { now: new Date(0), rng: () => 0.5 };
 const decoded: Command | null = decodeStatePatchCommand({ theme: 17 });
 declare const untrustedPatch: unknown;
 const decodedUnknown: Command | null = decodeStatePatchCommand(untrustedPatch);
+const widgetPatch = buildWidgetPatch(untrustedPatch);
+const rawWidgetVisibility: unknown = widgetPatch?.widgets.clock;
+const rawSymbolVisibility: unknown = widgetPatch?.widgets[Symbol('widget')];
+// @ts-expect-error a widget value is not normalized to boolean
+const normalizedWidgetVisibility: boolean | undefined = widgetPatch?.widgets.clock;
+// @ts-expect-error invalid or missing names may produce no patch
+const requiredWidgetPatch: { widgets: object } = widgetPatch;
 const screensaverCommand = decodeScreensaverActiveCommand(untrustedPatch);
 const rawScreensaverActive: unknown = screensaverCommand?.payload.active;
 const rawScreensaverInput: Command = { type: 'set-screensaver-active', payload: { active: { legacy: true } } };
@@ -242,6 +249,7 @@ const alwaysCommand: Command = decoded;
 type IsAny<T> = 0 extends (1 & T) ? true : false;
 type AssertFalse<T extends false> = T;
 type CurriedPatchIsNotAny = AssertFalse<IsAny<ReturnType<typeof buildBooleanFieldPatch>>>;
+type WidgetPatchIsNotAny = AssertFalse<IsAny<ReturnType<typeof buildWidgetPatch>>>;
 type HandlerResultIsNotAny = AssertFalse<IsAny<ReturnType<ReturnType<typeof createTypedHandlerInvoker>>>>;
 
 void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wrongCommand,
