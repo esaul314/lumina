@@ -2993,6 +2993,76 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('widget patch reader normalizes only known own enumerable string keys', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.widgetReaderForTest = readWidgetPatch;\nglobalThis.widgetSkipForTest = PATCH_SKIP;`, sandbox);
+    const read = sandbox.widgetReaderForTest;
+    const state = createState();
+    const widgetValues = Object.create({ qrcode: false });
+    Object.defineProperties(widgetValues, {
+      clock: { enumerable: true, value: Object.freeze({ raw: true }) },
+      unknown: { enumerable: true, get: () => assert.fail('unknown value read') },
+      qrcode: { enumerable: false, value: false },
+      [Symbol('widget')]: { enumerable: true, get: () => assert.fail('symbol value read') }
+    });
+    const input = { widgets: widgetValues };
+    const first = read(input, state);
+    const second = read(input, state);
+    assert.deepStrictEqual(Array.from(Object.entries(first), (entry) => Array.from(entry)), [['clock', true]]);
+    assert.notStrictEqual(first, second);
+    assert.strictEqual(Object.hasOwn(first, 'qrcode'), false);
+    assert.strictEqual(Object.hasOwn(widgetValues, 'clock'), true);
+    [null, undefined, false, 0, [], () => {}].forEach((widgets) => {
+      assert.strictEqual(read({ widgets }, state), sandbox.widgetSkipForTest);
+    });
+    assert.strictEqual(read(null, state), sandbox.widgetSkipForTest);
+    assert.strictEqual(read({ widgets: { unknown: true } }, state), sandbox.widgetSkipForTest);
+  });
+
+  assertTest('widget patch reader preserves repeated reads, filter order and exact failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.widgetReaderForTest = readWidgetPatch;\nglobalThis.widgetSkipForTest = PATCH_SKIP;`, sandbox);
+    const read = sandbox.widgetReaderForTest;
+    const calls = [];
+    const failure = new Error('widget access failed');
+    const values = new Proxy({ clock: 0, unknown: 1 }, {
+      ownKeys(target) { calls.push('keys'); return Reflect.ownKeys(target); },
+      getOwnPropertyDescriptor(target, key) { calls.push(`enumerate:${key}`); return Reflect.getOwnPropertyDescriptor(target, key); },
+      get(target, key, receiver) { calls.push(`value:${key}`); return Reflect.get(target, key, receiver); }
+    });
+    const known = new Proxy({ clock: true }, {
+      getOwnPropertyDescriptor(target, key) { calls.push(`known:${key}`); return Reflect.getOwnPropertyDescriptor(target, key); }
+    });
+    const state = { config: { widgets: known } };
+    const patch = { get widgets() { calls.push('patch'); return values; } };
+    const result = read(patch, state);
+    assert.strictEqual(result.clock, false);
+    assert.deepStrictEqual(calls, ['patch', 'patch', 'keys', 'enumerate:clock', 'enumerate:unknown', 'known:clock', 'known:unknown', 'value:clock']);
+    let reads = 0;
+    assert.strictEqual(read({ get widgets() { return ++reads === 1 ? {} : undefined; } }, state), sandbox.widgetSkipForTest);
+    assert.strictEqual(reads, 2);
+    assert.throws(() => read({ get widgets() { throw failure; } }, state), (error) => error === failure);
+    assert.throws(() => read({ widgets: new Proxy({}, { ownKeys() { throw failure; } }) }, state), (error) => error === failure);
+    assert.throws(() => read({ widgets: { get clock() { throw failure; } } }, state), (error) => error === failure);
+  });
+
+  assertTest('reducer normalizes raw widget values and ignores symbol and unknown keys', () => {
+    const state = createState();
+    const symbol = Symbol('widget');
+    const widgets = { clock: 0, qrcode: 'false', extra: true, [symbol]: false };
+    const result = reduceDomainCommand(state, { type: 'patch-state', payload: { widgets } });
+    assert.deepStrictEqual(result.nextState.config.widgets, { clock: false, qrcode: true });
+    assert.deepStrictEqual(state.config.widgets, { clock: true, qrcode: true });
+    assert.deepStrictEqual(result.events.map((event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(result.effects.map((effect) => effect.type), ['persist']);
+    assert.strictEqual(widgets[symbol], false);
+    const unchanged = reduceDomainCommand(state, { type: 'patch-state', payload: { widgets: { extra: false, [symbol]: true } } });
+    assert.strictEqual(unchanged.nextState, state);
+    assert.deepStrictEqual(unchanged.effects, []);
+  });
+
   assertTest('reducer patch-state specs ignore unknown widgets while composing recompute and weather-refresh flags', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {

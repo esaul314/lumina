@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-09: Audit Reducer Widget Patch Reader
+
+- **Outcome**: documented the private data-first reader's unknown patch input,
+  boolean record or skip sentinel, own-key filtering, native truthiness and
+  failures. Existing composition and executable production syntax remain intact.
+- **Tests**: invalid and missing values, inherited/hidden/symbol/unknown keys,
+  fresh outputs, repeated reads, filter-before-value order, exact failures,
+  and reducer state, event and persistence behavior.
+- **Verification**: 812 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax, whitespace and production AST checks pass.
+  The optional live endpoint smoke is skipped on sandbox `EPERM`. The strict
+  domain baseline remains nonzero at 514 core, zero fixture, 69 transitive and
+  zero global diagnostics; a callback mismatch remains in `readPatchField`.
+- **Next**: document the shared patch-reader callback and result contracts.
+
 ### 2026-11-09: Document Widget Patch Inputs and Results
 
 - **Outcome**: the pure data-first builder accepts unknown input and returns a

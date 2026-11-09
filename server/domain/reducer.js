@@ -871,17 +871,26 @@ const readExcludedKeywordsPatch = readPatchField('excludedKeywords', (keywords) 
     : PATCH_SKIP
 ));
 
-const readWidgetPatch = readPatchField('widgets', (widgets, nextState) => {
+/**
+ * Read the widgets field twice when present, then normalize only enumerable own
+ * string keys already owned by the current widget configuration. Values use
+ * native truthiness; symbols, unknown keys, and invalid widget objects are
+ * skipped. Lookup, enumeration and accessor failures propagate unchanged.
+ * A successful record is fresh and arbitrary keys may be absent.
+ * @typedef {(widgets: unknown, nextState: DomainState) => Partial<Record<string, boolean>> | typeof PATCH_SKIP} WidgetPatchNormalizer
+ * @type {(patch: unknown, nextState: DomainState) => Partial<Record<string, boolean>> | typeof PATCH_SKIP}
+ */
+const readWidgetPatch = readPatchField('widgets', /** @type {WidgetPatchNormalizer} */ ((widgets, nextState) => {
   if (!isPlainObject(widgets)) {
     return PATCH_SKIP;
   }
 
-  const normalizedEntries = Object.keys(widgets)
+  const normalizedEntries = Object.keys(/** @type {Record<string, unknown>} */ (widgets))
     .filter((widgetName) => Object.prototype.hasOwnProperty.call(nextState.config.widgets, widgetName))
-    .map((widgetName) => [widgetName, Boolean(widgets[widgetName])]);
+    .map((widgetName) => [widgetName, Boolean(/** @type {Record<string, unknown>} */ (widgets)[widgetName])]);
 
   return normalizedEntries.length > 0 ? Object.fromEntries(normalizedEntries) : PATCH_SKIP;
-});
+}));
 
 const readVisionConfigPatch = readPatchField('visionConfig', (visionConfig) => (
   isPlainObject(visionConfig) ? normalizeVisionConfig(visionConfig) : PATCH_SKIP
