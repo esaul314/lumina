@@ -881,10 +881,40 @@ function applyPatchSpec(context, spec) {
   }, spec.flags);
 }
 
+/**
+ * A config spec reads a patch, compares with the current state, and produces
+ * a new state. Undefined options and option fields select defaults; undefined
+ * flags become a fresh empty object. Other flags pass through without validation.
+ * Native key coercion and callback failures remain observable.
+ * @template T
+ * @typedef {{readValue: (patch: unknown, state: DomainState) => T | typeof PATCH_SKIP,
+ *   hasChanged: (state: DomainState, value: T) => boolean,
+ *   applyValue: (state: DomainState, value: T) => DomainState,
+ *   flags: unknown}} ConfigPatchSpec
+ */
+/** @template T
+ * @overload
+ * @param {unknown} field
+ * @param {{readValue: (patch: unknown, state: DomainState) => T | typeof PATCH_SKIP,
+ *   hasChanged?: (state: DomainState, value: T) => boolean,
+ *   applyValue?: (state: DomainState, value: T) => DomainState, flags?: unknown}} options
+ * @returns {ConfigPatchSpec<T>}
+ */
+/** @overload
+ * @param {unknown} field
+ * @param {{readValue?: undefined, hasChanged?: (state: DomainState, value: unknown) => boolean,
+ *   applyValue?: (state: DomainState, value: unknown) => DomainState, flags?: unknown}} [options]
+ * @returns {ConfigPatchSpec<unknown>}
+ */
+/**
+ * @param {any} field Native property-key coercion is intentional.
+ * @param {any} [options] Overloads describe the correlated callbacks.
+ * @returns {ConfigPatchSpec<any>}
+ */
 const createConfigPatchSpec = (field, {
   readValue = readPatchField(field),
-  hasChanged = (nextState, value) => nextState.config[field] !== value,
-  applyValue = (nextState, value) => ({
+  hasChanged = (/** @type {DomainState} */ nextState, /** @type {unknown} */ value) => nextState.config[field] !== value,
+  applyValue = (/** @type {DomainState} */ nextState, /** @type {unknown} */ value) => ({
     ...nextState,
     config: {
       ...nextState.config,

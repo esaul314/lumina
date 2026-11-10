@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-10: Document Config Patch Specifications
+
+- **Outcome**: separate default-reader and generic custom-reader contracts
+  document callbacks and unvalidated flags. Native coercion and immutable
+  projection behavior remain intact; executable production syntax is unchanged.
+- **Tests**: immutable state/config writes, aliases, symbol keys, default flags,
+  skip/no-op identity, callback order, flag truthiness, failures, and positive
+  and negative private compile fixtures.
+- **Verification**: 819 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax and production AST checks pass. The optional
+  live endpoint smoke is skipped on sandbox `EPERM`. Strict domain checking
+  remains nonzero at 497 core, zero fixture, 69 transitive and zero global.
+- **Next**: audit the shared patch-spec construction and interpretation contracts.
+
 ### 2026-11-09: Document Reducer Object Guard
 
 - **Outcome**: the existing predicate narrows unknown inputs to records of

@@ -2993,6 +2993,59 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('config patch specs preserve default reads, immutable writes and native keys', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.makeSpec = createConfigPatchSpec;\nglobalThis.applySpec = applyPatchSpec;`, sandbox);
+    const state = createState();
+    const key = Symbol('config');
+    const value = Object.freeze({ marker: true });
+    const spec = sandbox.makeSpec(key);
+    const context = { patch: { [key]: value }, nextState: state, changed: false, recomputePhotos: false, refreshWeather: false };
+    const result = sandbox.applySpec(context, spec);
+    assert.strictEqual(result.nextState.config[key], value);
+    assert.notStrictEqual(result.nextState, state);
+    assert.notStrictEqual(result.nextState.config, state.config);
+    assert.strictEqual(result.nextState.library, state.library);
+    assert.strictEqual(state.config[key], undefined);
+    assert.strictEqual(result.changed, true);
+    assert.strictEqual(sandbox.applySpec({ ...context, patch: {} }, spec).nextState, state);
+    assert.notStrictEqual(spec.flags, sandbox.makeSpec(key).flags);
+    assert.throws(() => sandbox.makeSpec('theme', null), (error) => error.name === 'TypeError');
+  });
+
+  assertTest('config patch specs preserve custom callback order, flags and failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.makeSpec = createConfigPatchSpec;\nglobalThis.applySpec = applyPatchSpec;\nglobalThis.skip = PATCH_SKIP;`, sandbox);
+    const state = createState();
+    const patch = {};
+    const calls = [];
+    const flags = { recomputePhotos: 'yes', refreshWeather: 0 };
+    const updated = { ...state };
+    const options = {
+      readValue: (input, current) => { calls.push('read'); assert.strictEqual(input, patch); assert.strictEqual(current, state); return 7; },
+      hasChanged: (current, value) => { calls.push('compare'); assert.strictEqual(current, state); assert.strictEqual(value, 7); return true; },
+      applyValue: (current, value) => { calls.push('apply'); assert.strictEqual(current, state); assert.strictEqual(value, 7); return updated; },
+      flags
+    };
+    const spec = sandbox.makeSpec('theme', options);
+    const context = { patch, nextState: state, changed: false, recomputePhotos: false, refreshWeather: true };
+    assert.strictEqual(spec.flags, flags);
+    const result = sandbox.applySpec(context, spec);
+    assert.strictEqual(result.nextState, updated);
+    assert.strictEqual(result.recomputePhotos, true);
+    assert.strictEqual(result.refreshWeather, true);
+    assert.deepStrictEqual(calls, ['read', 'compare', 'apply']);
+    const skipped = sandbox.makeSpec('theme', { ...options, readValue: () => sandbox.skip });
+    assert.strictEqual(sandbox.applySpec(context, skipped), context);
+    const unchanged = sandbox.makeSpec('theme', { ...options, hasChanged: () => false });
+    assert.strictEqual(sandbox.applySpec(context, unchanged), context);
+    const failure = new Error('callback failed');
+    assert.throws(() => sandbox.applySpec(context, sandbox.makeSpec('theme', { ...options, readValue: () => { throw failure; } })), (error) => error === failure);
+    assert.throws(() => sandbox.applySpec(context, sandbox.makeSpec('theme', { ...options, flags: null })), (error) => error.name === 'TypeError');
+  });
+
   assertTest('reducer object guard accepts object prototypes without inspecting properties', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

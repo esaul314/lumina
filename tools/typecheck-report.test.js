@@ -67,6 +67,20 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       // @ts-expect-error property values remain unknown
       /** @type {string} */ const fixtureString = fixtureCandidate.field;
     }
+    const fixtureSpec = createConfigPatchSpec('theme', {
+      readValue: () => 42,
+      hasChanged: (state, value) => value > 0,
+      applyValue: (state, value) => ({ ...state, config: { ...state.config, theme: value } }),
+      flags: { refreshWeather: 'truthy' }
+    });
+    /** @type {number | typeof PATCH_SKIP} */ const fixtureSpecRead = fixtureSpec.readValue({}, fixtureState);
+    // @ts-expect-error custom readers do not accept string values in their callbacks
+    fixtureSpec.hasChanged(fixtureState, 'wrong');
+    const fixtureDefaultSpec = createConfigPatchSpec('theme');
+    // @ts-expect-error the default reader retains unknown values
+    /** @type {number} */ const fixtureDefaultRead = fixtureDefaultSpec.readValue({}, fixtureState);
+    // @ts-expect-error a custom comparator without a reader must accept unknown values
+    createConfigPatchSpec('theme', { hasChanged: (state, /** @type {number} */ value) => value > 0 });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);
