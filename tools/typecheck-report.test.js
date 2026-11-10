@@ -59,6 +59,14 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     const fixtureUnsafeResult = fixtureReader({}, fixtureState);
     // @ts-expect-error a normalizer must accept an unknown raw value
     readPatchField('x', (/** @type {string} */ value) => value);
+    /** @type {unknown} */ const fixtureCandidate = {};
+    // @ts-expect-error unchecked candidates cannot be indexed
+    fixtureCandidate.field;
+    if (isPlainObject(fixtureCandidate)) {
+      /** @type {unknown} */ const fixtureField = fixtureCandidate.field;
+      // @ts-expect-error property values remain unknown
+      /** @type {string} */ const fixtureString = fixtureCandidate.field;
+    }
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

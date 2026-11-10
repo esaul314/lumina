@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-09: Document Reducer Object Guard
+
+- **Outcome**: the existing predicate narrows unknown inputs to records of
+  unknown properties, not validated plain objects. Prototype acceptance, native
+  behavior and executable production syntax are unchanged.
+- **Tests**: null/custom prototypes, opaque and revoked proxies, array/function
+  exclusion, inherited vision/location fields, repeated reads, accessor failures
+  and private positive/negative type fixtures.
+- **Verification**: 817 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax and production AST checks pass. The optional
+  live endpoint smoke is skipped on sandbox `EPERM`. Strict domain checking
+  remains nonzero at 505 core, zero fixture, 69 transitive and zero global.
+- **Next**: audit config patch spec options, callbacks and flags.
+
 ### 2026-11-09: Document Partially Applied Patch Reader
 
 - **Outcome**: separate identity and generic callback overloads retain the

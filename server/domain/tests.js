@@ -2993,6 +2993,59 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('reducer object guard accepts object prototypes without inspecting properties', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.guardForTest = isPlainObject;`, sandbox);
+    const guard = sandbox.guardForTest;
+    const opaque = new Proxy({}, {
+      get() { assert.fail('property read'); },
+      getPrototypeOf() { assert.fail('prototype read'); },
+      ownKeys() { assert.fail('property enumeration'); }
+    });
+    [Object.create(null), Object.create({ inherited: true }), new Date(), opaque].forEach((value) => {
+      assert.strictEqual(guard(value), true);
+      assert.strictEqual(guard(value), true);
+    });
+    [null, undefined, false, 0, '', 'object', Symbol('x'), 1n, [], () => {}].forEach((value) => {
+      assert.strictEqual(guard(value), false);
+    });
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    assert.throws(() => guard(revoked.proxy), (error) => error.name === 'TypeError');
+  });
+
+  assertTest('vision and location patch readers preserve inherited values, reads, skips and failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.readersForTest = [readVisionConfigPatch, readManualLocationPatch];\nglobalThis.skipForTest = PATCH_SKIP;`, sandbox);
+    const [readVision, readLocation] = sandbox.readersForTest;
+    const state = createState();
+    const calls = [];
+    const vision = Object.create({ get model() { calls.push('model'); return ' model '; } });
+    const location = Object.create({ get city() { calls.push('city'); return ' Montreal '; }, lat: '45.5', lon: '-73.6' });
+    const patch = {
+      get visionConfig() { calls.push('vision'); return vision; },
+      get manualLocation() { calls.push('location'); return location; }
+    };
+    assert.strictEqual(readVision(patch, state).model, 'model');
+    const normalized = readLocation(patch, state);
+    assert.strictEqual(normalized.city, 'Montreal');
+    assert.strictEqual(normalized.lat, 45.5);
+    assert.strictEqual(normalized.lon, -73.6);
+    assert.deepStrictEqual(calls, ['vision', 'vision', 'model', 'location', 'location', 'city']);
+    [null, [], () => {}, 'invalid'].forEach((value) => {
+      assert.strictEqual(readVision({ visionConfig: value }, state), sandbox.skipForTest);
+      assert.strictEqual(readLocation({ manualLocation: value }, state), sandbox.skipForTest);
+    });
+    const failure = new Error('property failure');
+    assert.throws(() => readVision({ visionConfig: { get apiUrl() { throw failure; } } }, state), (error) => error === failure);
+    assert.throws(() => readLocation({ manualLocation: { get lat() { throw failure; } } }, state), (error) => error === failure);
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    assert.throws(() => readLocation({ manualLocation: revoked.proxy }, state), (error) => error.name === 'TypeError');
+  });
+
   assertTest('partially applied patch reader keeps missing and identity cases distinct', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

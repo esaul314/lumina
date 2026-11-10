@@ -669,6 +669,12 @@ function normalizePoolName(value) {
   return String(value || '').trim();
 }
 
+/**
+ * Recognize truthy non-array objects, including those with custom prototypes.
+ * Properties remain unvalidated; native Array.isArray failures propagate.
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
