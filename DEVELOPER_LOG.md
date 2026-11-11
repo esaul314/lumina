@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-10: Document Shared Patch Interpretation
+
+- **Outcome**: generic spec and context contracts retain reader/callback types;
+  the heterogeneous spec list has one local type-erasure boundary. Native flag
+  access, callback ordering and executable production syntax are unchanged.
+- **Tests**: callback and flag aliases, fresh defaults, skip and no-op identity,
+  write-before-flag order, flag short-circuiting, preserved extra fields,
+  propagated failures and private positive/negative compile fixtures.
+- **Verification**: 822 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint, syntax and production AST checks pass. The optional
+  live endpoint smoke is skipped on sandbox `EPERM`. Strict domain checking
+  remains nonzero at 486 core, zero fixture, 69 transitive and zero global.
+- **Next**: audit the widget patch partial-record contract and immutable merge.
+
 ### 2026-11-10: Document Config Patch Specifications
 
 - **Outcome**: separate default-reader and generic custom-reader contracts

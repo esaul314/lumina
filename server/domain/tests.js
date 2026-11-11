@@ -2993,6 +2993,87 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('shared patch specs retain callbacks, flags and fresh undefined defaults', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.makeSpec = createPatchSpec;`, sandbox);
+    const readValue = () => 1;
+    const hasChanged = () => true;
+    const applyValue = (state) => state;
+    const flags = Object.freeze({ refreshWeather: true });
+    const options = Object.freeze({ readValue, hasChanged, applyValue, flags });
+    const spec = sandbox.makeSpec(options);
+    assert.notStrictEqual(spec, options);
+    assert.strictEqual(spec.readValue, readValue);
+    assert.strictEqual(spec.hasChanged, hasChanged);
+    assert.strictEqual(spec.applyValue, applyValue);
+    assert.strictEqual(spec.flags, flags);
+    assert.notStrictEqual(sandbox.makeSpec({ ...options, flags: undefined }).flags, sandbox.makeSpec({ ...options, flags: undefined }).flags);
+    assert.strictEqual(sandbox.makeSpec({ ...options, flags: null }).flags, null);
+  });
+
+  assertTest('shared patch interpreter preserves skip, comparison, write and flag ordering', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.applySpec = applyPatchSpec;\nglobalThis.skip = PATCH_SKIP;`, sandbox);
+    const state = createState();
+    const patch = Object.freeze({ raw: true });
+    const context = { patch, nextState: state, changed: false, recomputePhotos: false, refreshWeather: false, extra: patch };
+    const calls = [];
+    const flags = {
+      get recomputePhotos() { calls.push('recompute'); return 'yes'; },
+      get refreshWeather() { calls.push('weather'); return 0; }
+    };
+    const written = { ...state };
+    const spec = {
+      readValue: (input, current) => { calls.push('read'); assert.strictEqual(input, patch); assert.strictEqual(current, state); return 7; },
+      hasChanged: (current, value) => { calls.push('compare'); assert.strictEqual(current, state); assert.strictEqual(value, 7); return true; },
+      applyValue: (current, value) => { calls.push('write'); assert.strictEqual(current, state); assert.strictEqual(value, 7); return written; },
+      flags
+    };
+    const result = sandbox.applySpec(context, spec);
+    assert.deepStrictEqual(calls, ['read', 'compare', 'write', 'recompute', 'weather']);
+    assert.strictEqual(result.nextState, written);
+    assert.strictEqual(result.extra, patch);
+    assert.strictEqual(result.changed, true);
+    assert.strictEqual(result.recomputePhotos, true);
+    assert.strictEqual(result.refreshWeather, false);
+    assert.strictEqual(context.changed, false);
+    calls.length = 0;
+    assert.strictEqual(sandbox.applySpec(context, { ...spec, readValue: () => sandbox.skip }), context);
+    assert.deepStrictEqual(calls, []);
+    assert.strictEqual(sandbox.applySpec(context, { ...spec, hasChanged: () => false }), context);
+    assert.deepStrictEqual(calls, ['read']);
+    calls.length = 0;
+    const alreadySet = { ...context, recomputePhotos: true, refreshWeather: true };
+    const unchangedFlags = sandbox.applySpec(alreadySet, { ...spec, flags: null });
+    assert.strictEqual(unchangedFlags.recomputePhotos, true);
+    assert.strictEqual(unchangedFlags.refreshWeather, true);
+    assert.deepStrictEqual(calls, ['read', 'compare', 'write']);
+  });
+
+  assertTest('shared patch interpreter propagates callback and flag access failures in order', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.applySpec = applyPatchSpec;`, sandbox);
+    const state = createState();
+    const context = { patch: {}, nextState: state, changed: false, recomputePhotos: false, refreshWeather: false };
+    const failure = new Error('patch failure');
+    const calls = [];
+    const base = {
+      readValue: () => { calls.push('read'); return 1; },
+      hasChanged: () => { calls.push('compare'); return true; },
+      applyValue: () => { calls.push('write'); return state; },
+      flags: { get recomputePhotos() { calls.push('flag'); throw failure; } }
+    };
+    assert.throws(() => sandbox.applySpec(context, base), (error) => error === failure);
+    assert.deepStrictEqual(calls, ['read', 'compare', 'write', 'flag']);
+    calls.length = 0;
+    assert.throws(() => sandbox.applySpec(context, { ...base, hasChanged: () => { throw failure; } }), (error) => error === failure);
+    assert.deepStrictEqual(calls, ['read']);
+    assert.strictEqual(context.nextState, state);
+  });
+
   assertTest('config patch specs preserve default reads, immutable writes and native keys', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

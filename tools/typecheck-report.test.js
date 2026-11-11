@@ -81,6 +81,19 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     /** @type {number} */ const fixtureDefaultRead = fixtureDefaultSpec.readValue({}, fixtureState);
     // @ts-expect-error a custom comparator without a reader must accept unknown values
     createConfigPatchSpec('theme', { hasChanged: (state, /** @type {number} */ value) => value > 0 });
+    /** @type {PatchContext} */ const fixtureContext = {
+      patch: {}, nextState: fixtureState, changed: false, recomputePhotos: false, refreshWeather: false
+    };
+    const fixtureSharedSpec = createPatchSpec({
+      readValue: () => 'value',
+      hasChanged: (state, value) => value.length > 0,
+      applyValue: (state, value) => ({ ...state, config: { ...state.config, theme: value } })
+    });
+    /** @type {PatchContext} */ const fixtureApplied = applyPatchSpec(fixtureContext, fixtureSharedSpec);
+    // @ts-expect-error callbacks retain their shared string result type
+    fixtureSharedSpec.applyValue(fixtureState, 2);
+    // @ts-expect-error a spec requires a writer
+    createPatchSpec({ readValue: () => 1, hasChanged: () => true });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

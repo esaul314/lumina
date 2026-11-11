@@ -811,11 +811,16 @@ function shallowEqualObjects(left = {}, right = {}) {
 
 const PATCH_SKIP = Symbol('patch-skip');
 
+/**
+ * @param {PatchContext} context
+ * @param {unknown} [flags]
+ * @returns {PatchContext}
+ */
 const markPatchChange = (context, flags = {}) => ({
   ...context,
   changed: true,
-  recomputePhotos: context.recomputePhotos || Boolean(flags.recomputePhotos),
-  refreshWeather: context.refreshWeather || Boolean(flags.refreshWeather)
+  recomputePhotos: context.recomputePhotos || Boolean(/** @type {any} */ (flags).recomputePhotos),
+  refreshWeather: context.refreshWeather || Boolean(/** @type {any} */ (flags).refreshWeather)
 });
 
 /**
@@ -856,6 +861,13 @@ const readPatchField = (field, normalize = (value) => value) => (patch, nextStat
 
 // Patch writers stay pure: each spec returns the next state and leaves the
 // context reducer responsible for accumulating change flags.
+/**
+ * Assemble a fresh specification, preserving callback and supplied flag aliases.
+ * Only undefined flags produce a fresh empty default; no validation is performed.
+ * @template T
+ * @param {Omit<ConfigPatchSpec<T>, 'flags'> & {flags?: unknown}} options
+ * @returns {ConfigPatchSpec<T>}
+ */
 const createPatchSpec = ({
   readValue,
   hasChanged,
@@ -868,6 +880,19 @@ const createPatchSpec = ({
   flags
 });
 
+/**
+ * Interpret one specification, reading once and returning the original context
+ * on skip or a falsy comparison. Otherwise write before accumulating flags.
+ * Native property access and callback failures propagate without rollback.
+ * @typedef {{patch: unknown, nextState: DomainState, changed: boolean,
+ *   recomputePhotos: boolean, refreshWeather: boolean}} PatchContext
+ */
+/**
+ * @template T
+ * @param {PatchContext} context
+ * @param {ConfigPatchSpec<T>} spec
+ * @returns {PatchContext}
+ */
 function applyPatchSpec(context, spec) {
   const value = spec.readValue(context.patch, context.nextState);
 
@@ -966,6 +991,8 @@ const readManualLocationPatch = readPatchField('manualLocation', (manualLocation
   isPlainObject(manualLocation) ? normalizeManualLocation(manualLocation) : PATCH_SKIP
 ));
 
+// This interpreter list contains specs with different reader result types.
+/** @type {ConfigPatchSpec<any>[]} */
 const PATCH_STATE_SPECS = [
   ...STATE_PATCH_FIELDS.map((field) => createConfigPatchSpec(field)),
   createConfigPatchSpec('excludedKeywords', {
@@ -1031,13 +1058,13 @@ const PATCH_STATE_SPECS = [
 ];
 
 function reduceStatePatchCommand(state, patch, env) {
-  const context = PATCH_STATE_SPECS.reduce((current, spec) => applyPatchSpec(current, spec), {
+  const context = PATCH_STATE_SPECS.reduce((current, spec) => applyPatchSpec(current, spec), /** @type {PatchContext} */ ({
     patch,
     nextState: cloneState(state),
     changed: false,
     refreshWeather: false,
     recomputePhotos: false
-  });
+  }));
 
   if (!context.changed) {
     return unchangedResult(state);
