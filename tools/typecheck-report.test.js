@@ -94,6 +94,14 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     fixtureSharedSpec.applyValue(fixtureState, 2);
     // @ts-expect-error a spec requires a writer
     createPatchSpec({ readValue: () => 1, hasChanged: () => true });
+    const fixtureWidgets = readWidgetPatch({}, fixtureState);
+    if (fixtureWidgets !== PATCH_SKIP) {
+      /** @type {boolean | undefined} */ const maybeWidget = fixtureWidgets.missing;
+      // @ts-expect-error arbitrary widget keys can be absent
+      /** @type {boolean} */ const presentWidget = fixtureWidgets.missing;
+      // @ts-expect-error normalized values cannot be strings
+      fixtureWidgets.clock = 'visible';
+    }
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

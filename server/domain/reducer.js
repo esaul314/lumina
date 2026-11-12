@@ -1017,7 +1017,9 @@ const PATCH_STATE_SPECS = [
         ...nextState.config,
         widgets: {
           ...nextState.config.widgets,
-          ...widgets
+          // The reader creates only boolean-valued own entries; the assertion
+          // applies to spreading those entries, not to arbitrary key presence.
+          .../** @type {Record<string, boolean>} */ (widgets)
         }
       }
     })

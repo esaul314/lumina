@@ -3308,6 +3308,49 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(unchanged.effects, []);
   });
 
+  assertTest('widget reader preserves absence and boolean own data properties for special keys', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.readWidgets = readWidgetPatch;`, sandbox);
+    const known = Object.create({ inherited: true });
+    Object.defineProperties(known, {
+      hidden: { value: true, enumerable: false },
+      absent: { value: true, enumerable: true }
+    });
+    // Object-literal __proto__ is special, so define it as an own data key.
+    Object.defineProperty(known, '__proto__', { value: true, enumerable: true });
+    const input = Object.fromEntries([['__proto__', 0], ['hidden', 'yes'], ['inherited', false]]);
+    const output = sandbox.readWidgets({ widgets: input }, { config: { widgets: known } });
+    assert.deepStrictEqual(Array.from(Object.entries(output), (entry) => Array.from(entry)), [
+      ['__proto__', false], ['hidden', true]
+    ]);
+    assert.deepStrictEqual(Object.getOwnPropertyDescriptor(output, '__proto__'), {
+      value: false, writable: true, enumerable: true, configurable: true
+    });
+    assert.strictEqual(Object.hasOwn(output, 'absent'), false);
+    assert.strictEqual(Object.hasOwn(output, 'inherited'), false);
+    assert.strictEqual(input.__proto__, 0);
+  });
+
+  assertTest('widget patch spec merges only normalized own entries and keeps no-op identity', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.widgetSpec = PATCH_STATE_SPECS.find((spec) => spec.readValue === readWidgetPatch);\nglobalThis.applySpec = applyPatchSpec;`, sandbox);
+    const state = createState();
+    state.config.widgets = Object.fromEntries([['__proto__', true], ['clock', true], ['qrcode', false]]);
+    const values = Object.fromEntries([['__proto__', 0], ['clock', 1], ['unknown', true]]);
+    const context = { patch: { widgets: values }, nextState: state, changed: false, recomputePhotos: false, refreshWeather: false };
+    const result = sandbox.applySpec(context, sandbox.widgetSpec);
+    assert.notStrictEqual(result.nextState, state);
+    assert.notStrictEqual(result.nextState.config.widgets, state.config.widgets);
+    assert.deepStrictEqual(Object.entries(result.nextState.config.widgets), [['__proto__', false], ['clock', true], ['qrcode', false]]);
+    assert.strictEqual(Object.hasOwn(result.nextState.config.widgets, '__proto__'), true);
+    assert.strictEqual(Object.hasOwn(result.nextState.config.widgets, 'unknown'), false);
+    assert.strictEqual(state.config.widgets.__proto__, true);
+    const noChange = { ...context, nextState: result.nextState };
+    assert.strictEqual(sandbox.applySpec(noChange, sandbox.widgetSpec), noChange);
+  });
+
   assertTest('reducer patch-state specs ignore unknown widgets while composing recompute and weather-refresh flags', () => {
     const state = createState();
     const result = reduceDomainCommand(state, {
