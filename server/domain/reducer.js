@@ -166,6 +166,16 @@ function buildMutationResult(nextState, {
   );
 }
 
+/**
+ * Clone before applying a mutation. A truthy apply result selects the continuation
+ * with that same clone; otherwise return the original state and fresh empty outputs.
+ * Callback results and failures are not normalized or caught.
+ * @template R
+ * @param {DomainState} state
+ * @param {(nextState: DomainState) => unknown} apply
+ * @param {(nextState: DomainState) => R} onChanged
+ * @returns {R | ReducerResult}
+ */
 const reduceClonedMutation = (state, apply, onChanged) => {
   const nextState = cloneState(state);
 
@@ -174,6 +184,13 @@ const reduceClonedMutation = (state, apply, onChanged) => {
     : unchangedResult(state);
 };
 
+/**
+ * Apply a state mutation and, only when changed, resolve result factories with
+ * the clone as context. Defaults are evaluated before cloning, even on no-ops.
+ * @param {DomainState} state
+ * @param {Omit<MutationResultOptions<DomainState>, 'context'> & {apply: (nextState: DomainState) => unknown}} options
+ * @returns {ReducerResult}
+ */
 function reduceStateMutation(state, {
   apply,
   events = emitStateSync(),

@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-12: Audit Cloned-State Mutations
+
+- **Outcome**: the shared clone/apply boundary relates its clone to both
+  callbacks and retains the continuation result alongside the unchanged result.
+  State mutations describe their state-aware event/effect factories; no runtime
+  validation or executable production changes were introduced.
+- **Tests**: two regressions cover option and clone read ordering, original and
+  clone identities, truthy and falsy callbacks, defaults, factory order,
+  persistence and propagated failures. Private compiler fixtures check callback
+  relationships, the no-op union and the closed event vocabulary.
+- **Verification**: 831 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint and production AST checks pass. The optional live
+  endpoint smoke is skipped on sandbox `EPERM`. Strict domain checking remains
+  nonzero at 461 core, zero fixture, 69 transitive and zero global diagnostics.
+- **Next**: audit command-aware mutation callback adaptation and defaults.
+
 ### 2026-11-12: Audit Mutation-Result Factories
 
 - **Outcome**: generic contracts relate mutation event/effect factories to an

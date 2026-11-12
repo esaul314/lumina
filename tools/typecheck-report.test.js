@@ -139,6 +139,25 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     buildMutationResult(fixtureState, { context: { count: 1 }, events: (/** @type {string} */ value) => [] });
     // @ts-expect-error undefined context defaults to state, not undefined
     buildMutationResult(fixtureState, { context: undefined, events: (/** @type {undefined} */ value) => [] });
+    const fixtureCloneResult = reduceClonedMutation(fixtureState, (state) => state.config, (state) => state.playback);
+    /** @type {DomainState['playback'] | ReducerResult} */ const fixtureCloneUnion = fixtureCloneResult;
+    // @ts-expect-error no-op returns a reducer result, not always playback
+    /** @type {DomainState['playback']} */ const fixtureAlwaysChanged = fixtureCloneResult;
+    // @ts-expect-error apply receives a domain state
+    reduceClonedMutation(fixtureState, (/** @type {string} */ state) => true, () => 1);
+    // @ts-expect-error continuation receives a domain state
+    reduceClonedMutation(fixtureState, () => true, (/** @type {number} */ state) => state);
+    /** @type {ReducerResult} */ const fixtureMutation = reduceStateMutation(fixtureState, {
+      apply: (state) => state.config,
+      events: (state) => state.playback ? [{ type: 'state-sync' }] : [],
+      effects: (state) => state.config ? [{ type: 'refresh-weather' }] : null
+    });
+    // @ts-expect-error an apply callback is required
+    reduceStateMutation(fixtureState, {});
+    // @ts-expect-error factories receive state, not a string
+    reduceStateMutation(fixtureState, { apply: () => true, effects: (/** @type {string} */ value) => [] });
+    // @ts-expect-error events retain their closed vocabulary
+    reduceStateMutation(fixtureState, { apply: () => true, events: [{ type: 'invalid' }] });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

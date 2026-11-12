@@ -3083,6 +3083,74 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => sandbox.buildResult(state, null), (error) => error.name === 'TypeError');
   });
 
+  assertTest('cloned mutations preserve continuation and unchanged identities', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reduceClone = reduceClonedMutation;`, sandbox);
+    const state = createState();
+    const calls = [];
+    let cloned;
+    const token = Object.freeze({ result: true });
+    const changed = sandbox.reduceClone(state, (next) => {
+      calls.push('apply');
+      cloned = next;
+      next.config.theme = 'changed';
+      return 'truthy';
+    }, (next) => (calls.push('continuation'), assert.strictEqual(next, cloned), token));
+    assert.strictEqual(changed, token);
+    assert.notStrictEqual(cloned, state);
+    assert.notStrictEqual(cloned.config, state.config);
+    assert.notStrictEqual(state.config.theme, 'changed');
+    assert.deepStrictEqual(calls, ['apply', 'continuation']);
+    for (const value of [false, 0, '', null, undefined, NaN]) {
+      const result = sandbox.reduceClone(state, () => value, () => { throw new Error('must not continue'); });
+      assert.strictEqual(result.nextState, state);
+      assert.strictEqual(result.events.length, 0);
+      assert.strictEqual(result.effects.length, 0);
+      assert.notStrictEqual(result.events, result.effects);
+    }
+    const failure = new Error('callback failure');
+    assert.throws(() => sandbox.reduceClone(state, () => { throw failure; }, () => token), (error) => error === failure);
+    assert.throws(() => sandbox.reduceClone(state, () => true, () => { throw failure; }), (error) => error === failure);
+    assert.throws(() => sandbox.reduceClone(null, () => { throw failure; }, () => token), (error) => error.name === 'TypeError');
+  });
+
+  assertTest('state mutation resolves options before cloning and factories only after changes', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reduceMutation = reduceStateMutation;`, sandbox);
+    const state = createState();
+    const reads = [];
+    const keywords = state.config.searchKeywords;
+    Object.defineProperty(state.config, 'searchKeywords', {
+      enumerable: true,
+      get: () => (reads.push('clone'), keywords)
+    });
+    const events = Object.freeze([{ type: 'photo-update' }]);
+    const effects = Object.freeze([{ type: 'refresh-weather' }]);
+    let applied;
+    const options = {
+      get apply() { reads.push('read apply'); return (next) => (reads.push('apply'), applied = next, true); },
+      get events() { reads.push('read events'); return (next) => (reads.push('events'), assert.strictEqual(next, applied), events); },
+      get effects() { reads.push('read effects'); return (next) => (reads.push('effects'), assert.strictEqual(next, applied), effects); },
+      get persist() { reads.push('read persist'); return true; }
+    };
+    const result = sandbox.reduceMutation(state, options);
+    assert.deepStrictEqual(reads, ['read apply', 'read events', 'read effects', 'read persist', 'clone', 'clone', 'apply', 'effects', 'events']);
+    assert.strictEqual(result.nextState, applied);
+    assert.strictEqual(result.events, events);
+    assert.deepStrictEqual(Array.from(result.effects, (effect) => effect.type), ['persist', 'refresh-weather']);
+    const noop = sandbox.reduceMutation(state, { apply: () => false, events: () => { throw new Error('unused'); } });
+    assert.strictEqual(noop.nextState, state);
+    assert.strictEqual(noop.events.length, 0);
+    const defaults = sandbox.reduceMutation(state, { apply: () => true });
+    assert.deepStrictEqual(Array.from(defaults.events, (event) => event.type), ['state-sync']);
+    assert.strictEqual(defaults.effects.length, 0);
+    const failure = new Error('option failure');
+    assert.throws(() => sandbox.reduceMutation(state, { get events() { throw failure; } }), (error) => error === failure);
+    assert.throws(() => sandbox.reduceMutation(state, null), (error) => error.name === 'TypeError');
+  });
+
   assertTest('private state-patch reducer clones before reading a patch, even for a no-op', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
