@@ -102,6 +102,18 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       // @ts-expect-error normalized values cannot be strings
       fixtureWidgets.clock = 'visible';
     }
+    /** @type {ReducerResult} */ const fixturePatchResult = reduceStatePatchCommand(fixtureState, null, {});
+    /** @type {Effect[]} */ const fixtureEffects = fixturePatchResult.effects;
+    reduceStatePatchCommand(fixtureState, { theme: 7 }, { now: new Date(), rng: () => 0.5 });
+    // @ts-expect-error state must be a domain state
+    reduceStatePatchCommand({}, {}, {});
+    // @ts-expect-error an execution environment is required
+    reduceStatePatchCommand(fixtureState, {});
+    // @ts-expect-error the random source must be callable
+    reduceStatePatchCommand(fixtureState, {}, { rng: 3 });
+    buildMutationResult(fixtureState, { effects: [{ type: 'refresh-weather' }] });
+    // @ts-expect-error effects use the closed effect vocabulary
+    buildMutationResult(fixtureState, { effects: [{ type: 'not-an-effect' }] });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

@@ -113,6 +113,13 @@ function resolveMutationOutput(output, nextState) {
   return output;
 }
 
+/**
+ * Effect descriptions may be supplied directly or produced from the context;
+ * falsy results select an empty list. The remaining legacy inputs are not yet
+ * checked here, and no runtime validation is performed.
+ * @param {any} nextState
+ * @param {{events?: any, effects?: Effect[] | null | false | 0 | '' | ((context: any) => Effect[] | null | undefined | false | 0 | ''), persist?: boolean, context?: any}} options
+ */
 function buildMutationResult(nextState, {
   events = emitStateSync(),
   effects = [],
@@ -1059,6 +1066,16 @@ const PATCH_STATE_SPECS = [
   })
 ];
 
+/**
+ * Clone before interpreting the ordered patch specs, but return the original
+ * state on a no-op. Changed exclusions trigger photo recomputation; changed
+ * location settings request weather refresh after persistence. Effects and
+ * events are descriptions only. Native access and callback failures propagate.
+ * @param {DomainState} state
+ * @param {unknown} patch
+ * @param {ReducerEnvironment} env
+ * @returns {ReducerResult}
+ */
 function reduceStatePatchCommand(state, patch, env) {
   const context = PATCH_STATE_SPECS.reduce((current, spec) => applyPatchSpec(current, spec), /** @type {PatchContext} */ ({
     patch,

@@ -2993,6 +2993,56 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('private state-patch reducer clones before reading a patch, even for a no-op', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reducePatch = reduceStatePatchCommand;`, sandbox);
+    const state = createState();
+    const keywords = state.config.searchKeywords;
+    const reads = [];
+    Object.defineProperty(state.config, 'searchKeywords', {
+      enumerable: true,
+      configurable: true,
+      get: () => (reads.push('clone'), keywords)
+    });
+    const patch = new Proxy({}, { get: () => (reads.push('patch'), undefined) });
+    const env = { get now() { throw new Error('unused environment'); } };
+    const first = sandbox.reducePatch(state, patch, env);
+    const second = sandbox.reducePatch(state, null, env);
+    assert.strictEqual(reads[0], 'clone');
+    assert.ok(reads.indexOf('patch') > 0);
+    assert.strictEqual(first.nextState, state);
+    assert.strictEqual(second.nextState, state);
+    assert.notStrictEqual(first.events, second.events);
+    assert.notStrictEqual(first.effects, second.effects);
+    assert.strictEqual(first.events.length, 0);
+    assert.strictEqual(first.effects.length, 0);
+    const failure = new Error('clone failed');
+    Object.defineProperty(state.config, 'searchKeywords', { get: () => { throw failure; } });
+    assert.throws(() => sandbox.reducePatch(state, null, env), (error) => error === failure);
+  });
+
+  assertTest('private state-patch reducer reads its environment only when exclusions change', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reducePatch = reduceStatePatchCommand;`, sandbox);
+    const state = createState();
+    const reads = [];
+    const failure = new Error('rng read failed');
+    const env = {
+      get now() { reads.push('now'); return new Date('2026-06-27T12:00:00'); },
+      get rng() { reads.push('rng'); throw failure; }
+    };
+    const changed = sandbox.reducePatch(state, { theme: 'new theme', autoLocation: true }, env);
+    assert.notStrictEqual(changed.nextState, state);
+    assert.strictEqual(state.config.theme === 'new theme', false);
+    assert.deepStrictEqual(reads, []);
+    assert.deepStrictEqual(Array.from(changed.events, (event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(Array.from(changed.effects, (effect) => effect.type), ['persist', 'refresh-weather']);
+    assert.throws(() => sandbox.reducePatch(state, { excludedKeywords: ['hallway'] }, env), (error) => error === failure);
+    assert.deepStrictEqual(reads, ['now', 'rng']);
+  });
+
   assertTest('shared patch specs retain callbacks, flags and fresh undefined defaults', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

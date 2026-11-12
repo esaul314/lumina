@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-12: Audit State-Patch Reducer
+
+- **Outcome**: the private patch reducer now describes its state, unknown patch,
+  execution environment and result; the shared result builder accepts effect
+  arrays and factories. Other builder inputs remain unchecked. Executable
+  production syntax is unchanged.
+- **Tests**: eager cloning before patch reads, fresh no-op arrays and original
+  state identity, clone failures, conditional environment reads, ordering of
+  environment access and persistence/refresh effects, and private type checks.
+- **Verification**: 826 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint and production AST checks pass. The optional live
+  endpoint smoke is skipped on sandbox `EPERM`. Strict domain checking remains
+  nonzero at 475 core, zero fixture, 69 transitive and zero global diagnostics.
+- **Next**: audit the shared mutation-result and output-resolution contracts,
+  including generic context, event/effect factories, defaults and failures.
+
 ### 2026-11-11: Audit Widget Patch Merge
 
 - **Outcome**: the widget reader remains a partial boolean record. A local
