@@ -114,6 +114,31 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     buildMutationResult(fixtureState, { effects: [{ type: 'refresh-weather' }] });
     // @ts-expect-error effects use the closed effect vocabulary
     buildMutationResult(fixtureState, { effects: [{ type: 'not-an-effect' }] });
+    const fixtureOutput = [{ type: 'photo-update' }];
+    /** @type {typeof fixtureOutput} */ const resolvedDirect = resolveMutationOutput(fixtureOutput, fixtureState);
+    /** @type {number} */ const resolvedFactory = resolveMutationOutput((/** @type {string} */ value) => value.length, 'context');
+    // @ts-expect-error a factory must accept its supplied context
+    resolveMutationOutput((/** @type {string} */ value) => value.length, 5);
+    const fixtureBuilt = buildMutationResult(fixtureState, {
+      events: (state) => state === fixtureState ? [{ type: 'state-sync' }] : null,
+      effects: (state) => state === fixtureState ? [{ type: 'refresh-weather' }] : false
+    });
+    /** @type {DomainState} */ const fixtureBuiltState = fixtureBuilt.nextState;
+    /** @type {Event[]} */ const fixtureBuiltEvents = fixtureBuilt.events;
+    const fixtureCustom = buildMutationResult(fixtureState, {
+      context: { count: 1 },
+      events: (context) => context.count ? [{ type: 'photo-update' }] : [],
+      effects: (context) => context.count ? [{ type: 'refresh-weather' }] : []
+    });
+    /** @type {DomainState} */ const fixtureCustomState = fixtureCustom.nextState;
+    buildMutationResult(fixtureState, { context: null, events: (context) => context === null ? [] : [] });
+    buildMutationResult(fixtureState, { context: undefined, events: (state) => state.config ? [] : [] });
+    // @ts-expect-error event types use the closed event vocabulary
+    buildMutationResult(fixtureState, { events: [{ type: 'not-an-event' }] });
+    // @ts-expect-error explicit context must match the factory argument
+    buildMutationResult(fixtureState, { context: { count: 1 }, events: (/** @type {string} */ value) => [] });
+    // @ts-expect-error undefined context defaults to state, not undefined
+    buildMutationResult(fixtureState, { context: undefined, events: (/** @type {undefined} */ value) => [] });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

@@ -2993,6 +2993,96 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('mutation output resolution preserves values, aliases, and native factory failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.resolveOutput = resolveMutationOutput;`, sandbox);
+    const context = Object.freeze({ value: 3 });
+    const values = Object.freeze([1, 2]);
+    const record = Object.freeze({ value: 4 });
+    assert.strictEqual(sandbox.resolveOutput(values, context), values);
+    assert.strictEqual(sandbox.resolveOutput(record, context), record);
+    assert.strictEqual(sandbox.resolveOutput(null, context), null);
+    assert.strictEqual(sandbox.resolveOutput((input) => input, context), context);
+    const failure = new Error('factory failure');
+    assert.throws(() => sandbox.resolveOutput(() => { throw failure; }, context), (error) => error === failure);
+  });
+
+  assertTest('mutation result resolves ordered factories against the exact selected context', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildResult = buildMutationResult;`, sandbox);
+    const state = Object.freeze({ state: true });
+    const context = Object.freeze({ context: true });
+    const events = Object.freeze([{ type: 'photo-update' }]);
+    const effects = Object.freeze([{ type: 'refresh-weather' }]);
+    const calls = [];
+    const options = {
+      get events() { calls.push('read events'); return (value) => (calls.push('events'), assert.strictEqual(value, context), events); },
+      get effects() { calls.push('read effects'); return (value) => (calls.push('effects'), assert.strictEqual(value, context), effects); },
+      get persist() { calls.push('read persist'); return true; },
+      get context() { calls.push('read context'); return context; }
+    };
+    const result = sandbox.buildResult(state, options);
+    assert.deepStrictEqual(calls, ['read events', 'read effects', 'read persist', 'read context', 'effects', 'events']);
+    assert.strictEqual(result.nextState, state);
+    assert.strictEqual(result.events, events);
+    assert.notStrictEqual(result.effects, effects);
+    assert.deepStrictEqual(Array.from(result.effects, (effect) => effect.type), ['persist', 'refresh-weather']);
+    assert.strictEqual(result.effects[1], effects[0]);
+    for (const [supplied, expected] of [[undefined, state], [null, null], [false, false], [0, 0]]) {
+      const observed = sandbox.buildResult(state, { context: supplied, events: (value) => (assert.strictEqual(value, expected), events), effects });
+      assert.strictEqual(observed.events, events);
+      assert.strictEqual(observed.effects, effects);
+    }
+  });
+
+  assertTest('mutation result keeps default, falsy, malformed, and failure behavior', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildResult = buildMutationResult;`, sandbox);
+    const state = Object.freeze({});
+    const first = sandbox.buildResult(state, {});
+    const second = sandbox.buildResult(state, {});
+    assert.deepStrictEqual(Array.from(first.events, (event) => event.type), ['state-sync']);
+    assert.notStrictEqual(first.events, second.events);
+    assert.notStrictEqual(first.effects, second.effects);
+    for (const value of [null, false, 0, '', NaN]) {
+      const result = sandbox.buildResult(state, { events: () => value, effects: () => value });
+      assert.strictEqual(result.events.length, 0);
+      assert.strictEqual(result.effects.length, 0);
+    }
+    const malformed = Object.freeze({ unexpected: true });
+    const passthrough = sandbox.buildResult(state, { events: malformed, effects: malformed });
+    assert.strictEqual(passthrough.events, malformed);
+    assert.strictEqual(passthrough.effects, malformed);
+    const calls = [];
+    assert.throws(() => sandbox.buildResult(state, {
+      effects: () => (calls.push('effects'), malformed),
+      events: () => (calls.push('events'), []),
+      persist: true
+    }), (error) => error.name === 'TypeError');
+    assert.deepStrictEqual(calls, ['effects', 'events']);
+    const failure = new Error('effects failed');
+    assert.throws(() => sandbox.buildResult(state, {
+      effects: () => { throw failure; },
+      events: () => { throw new Error('events must not run'); }
+    }), (error) => error === failure);
+    const eventFailure = new Error('events failed');
+    const neverSpread = { get [Symbol.iterator]() { throw new Error('spread must not run'); } };
+    assert.throws(() => sandbox.buildResult(state, {
+      effects: neverSpread, events: () => { throw eventFailure; }, persist: true
+    }), (error) => error === eventFailure);
+    const getterFailure = new Error('context read failed');
+    assert.throws(() => sandbox.buildResult(state, {
+      get context() { throw getterFailure; },
+      effects: () => { throw new Error('factory must not run'); }
+    }), (error) => error === getterFailure);
+    const spread = sandbox.buildResult(state, { effects: 'xy', persist: true });
+    assert.deepStrictEqual(Array.from(spread.effects).slice(1), ['x', 'y']);
+    assert.throws(() => sandbox.buildResult(state, null), (error) => error.name === 'TypeError');
+  });
+
   assertTest('private state-patch reducer clones before reading a patch, even for a no-op', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

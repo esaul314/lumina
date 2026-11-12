@@ -6,6 +6,24 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-12: Audit Mutation-Result Factories
+
+- **Outcome**: generic contracts relate mutation event/effect factories to an
+  explicit context or the undefined-only state fallback. Output resolution
+  keeps aliases, and canonical types do not imply runtime validation. The
+  implementation uses local type erasure for overloads and a callable-only
+  assertion at the native factory dispatch; executable syntax is unchanged.
+- **Tests**: three regressions cover getter and factory ordering, explicit
+  null/falsy contexts, default/falsy output freshness, persistence, malformed
+  pass-through, spread and exceptions. Private compiler fixtures check context
+  and closed event/effect vocabularies.
+- **Verification**: 829 assertions, 13 sensor regressions and three typecheck
+  report tests pass. The optional live endpoint smoke is skipped on sandbox
+  `EPERM`. Strict domain checking remains nonzero at 473 core, zero fixture,
+  69 transitive and zero global diagnostics.
+- **Next**: audit clone/apply/continuation contracts in `reduceClonedMutation`
+  and `reduceStateMutation`.
+
 ### 2026-11-12: Audit State-Patch Reducer
 
 - **Outcome**: the private patch reducer now describes its state, unknown patch,

@@ -101,24 +101,55 @@ function effectOnlyResult(state, effects = []) {
   return createResult(state, [], effects);
 }
 
+/**
+ * Resolve a value or call its factory with the original context. Arrays are
+ * returned by identity; callable values are always invoked, not treated as data.
+ * No validation, fallback, cloning, or exception handling occurs here.
+ * @template T, C
+ * @param {T | ((context: C) => T)} output
+ * @param {C} nextState
+ * @returns {T}
+ */
 function resolveMutationOutput(output, nextState) {
   if (Array.isArray(output)) {
     return output;
   }
 
   if (typeof output === 'function') {
-    return output(nextState);
+    return /** @type {(context: C) => T} */ (output)(nextState);
   }
 
   return output;
 }
 
 /**
- * Effect descriptions may be supplied directly or produced from the context;
- * falsy results select an empty list. The remaining legacy inputs are not yet
- * checked here, and no runtime validation is performed.
+ * Assemble canonical event/effect descriptions without executing them. Context
+ * defaults only when undefined; effects resolve before events, and persistence
+ * is prepended afterwards. Falsy resolved outputs become fresh empty arrays.
+ * These types describe intended callers, not runtime validation: truthy malformed
+ * values pass through or may fail when persistence spreads effects.
+ * @template C
+ * @typedef {{events?: Event[] | null | false | 0 | '' | ((context: C) => Event[] | null | undefined | false | 0 | ''), effects?: Effect[] | null | false | 0 | '' | ((context: C) => Effect[] | null | undefined | false | 0 | ''), persist?: boolean, context?: C}} MutationResultOptions
+ */
+
+/**
+ * @template S, C
+ * @overload
+ * @param {S} nextState
+ * @param {MutationResultOptions<C> & {context: Exclude<C, undefined>}} options
+ * @returns {{nextState: S, events: Event[], effects: Effect[]}}
+ */
+/**
+ * @template S
+ * @overload
+ * @param {S} nextState
+ * @param {MutationResultOptions<S> & {context?: undefined}} options
+ * @returns {{nextState: S, events: Event[], effects: Effect[]}}
+ */
+/**
  * @param {any} nextState
- * @param {{events?: any, effects?: Effect[] | null | false | 0 | '' | ((context: any) => Effect[] | null | undefined | false | 0 | ''), persist?: boolean, context?: any}} options
+ * @param {MutationResultOptions<any>} options
+ * @returns {{nextState: any, events: Event[], effects: Effect[]}}
  */
 function buildMutationResult(nextState, {
   events = emitStateSync(),
