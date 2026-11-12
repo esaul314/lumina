@@ -158,6 +158,21 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     reduceStateMutation(fixtureState, { apply: () => true, effects: (/** @type {string} */ value) => [] });
     // @ts-expect-error events retain their closed vocabulary
     reduceStateMutation(fixtureState, { apply: () => true, events: [{ type: 'invalid' }] });
+    const fixtureCommand = { name: 'selected', count: 1 };
+    /** @type {ReducerResult} */ const fixtureCommandResult = reduceCommandMutation(fixtureState, fixtureCommand, {
+      apply: (state, command) => state.config && command.count,
+      events: (state, command) => command.name ? [{ type: 'state-sync' }] : null,
+      effects: (state, command) => command.count ? [{ type: 'refresh-weather' }] : false
+    });
+    reduceCommandMutation(fixtureState, fixtureCommand, { apply: () => true, events: [], effects: null });
+    // @ts-expect-error an apply callback is required
+    reduceCommandMutation(fixtureState, fixtureCommand, {});
+    // @ts-expect-error callback command must accept the actual command
+    reduceCommandMutation(fixtureState, fixtureCommand, { apply: (state, /** @type {number} */ command) => true });
+    // @ts-expect-error output factories receive the actual command
+    reduceCommandMutation(fixtureState, fixtureCommand, { apply: () => true, events: (state, /** @type {number} */ command) => [] });
+    // @ts-expect-error effects retain their closed vocabulary
+    reduceCommandMutation(fixtureState, fixtureCommand, { apply: () => true, effects: [{ type: 'invalid' }] });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

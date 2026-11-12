@@ -6,6 +6,20 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-12: Audit Command-Aware Mutations
+
+- **Outcome**: the generic command-mutation contract relates the original
+  command to apply and output callbacks while retaining the shared cloned state
+  and the existing no-op identity. No executable production code changed.
+- **Tests**: two runtime regressions and private compiler fixtures cover aliases,
+  option reads, defaults and explicit falsy values, callback order, persistence,
+  no-ops, typed command callbacks and propagated failures.
+- **Verification**: 833 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint and production AST checks pass. The optional live
+  endpoint smoke is skipped on sandbox `EPERM`. Strict domain checking remains
+  nonzero at 453 core, zero fixture, 69 transitive and zero global diagnostics.
+- **Next**: audit the partially applied entries-command reducer builder.
+
 ### 2026-11-12: Audit Cloned-State Mutations
 
 - **Outcome**: the shared clone/apply boundary relates its clone to both

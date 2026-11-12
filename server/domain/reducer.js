@@ -204,6 +204,17 @@ function reduceStateMutation(state, {
   }));
 }
 
+/**
+ * Adapt command-aware callbacks to the state mutation boundary. The same
+ * command and cloned state reach apply and, on change, each output factory.
+ * Undefined outputs use state-mutation defaults; other values pass through.
+ * Option reads, callback failures, and malformed inputs retain native behavior.
+ * @template C
+ * @param {DomainState} state
+ * @param {C} command
+ * @param {Omit<MutationResultOptions<DomainState>, 'context' | 'events' | 'effects'> & {apply: (nextState: DomainState, command: C) => unknown, events?: Event[] | null | false | 0 | '' | ((nextState: DomainState, command: C) => Event[] | null | undefined | false | 0 | ''), effects?: Effect[] | null | false | 0 | '' | ((nextState: DomainState, command: C) => Effect[] | null | undefined | false | 0 | '')}} options
+ * @returns {ReducerResult}
+ */
 function reduceCommandMutation(state, command, {
   apply,
   events,
