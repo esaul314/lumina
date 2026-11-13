@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-13: Investigate Reported TV Cursor Regression
+
+- **Host evidence**: the service was active, `screensaverActive` was true,
+  Chromium used `?mode=tv`, and served HTML matched the local built HTML.
+  Selected pools were not changed; no service restart or live interaction was
+  required. These observations do not establish what the physical pointer or
+  the already loaded kiosk DOM was doing.
+- **Coverage**: isolated built-client browser tests exercise the inactivity
+  deadline, rearming, settings drawer, active-state transition, and admin preview
+  page boundary. React owns timer and DOM effects; no new abstraction or
+  production behavior change was warranted by this evidence.
+- **Follow-up**: physically observe the TV and investigate live cursor and
+  pointer-event behavior. The user report remains unresolved and no cause is
+  asserted. Step 6's next field-reducer audit remains queued.
+
 ### 2026-11-13: Audit Entries-Command Reducer and Record Pointer Report
 
 - **Outcome**: checked contracts preserve the partially applied entry reader's

@@ -11,6 +11,14 @@ Last updated: 2026-10-26
   distinguish a kiosk regression from admin-preview behavior. Add deterministic
   browser coverage and verify any eventual fix on the actual TV. Do not infer a
   cause or claim resolution without runtime evidence.
+- Cursor investigation (2026-11-13): the host service was active, the live
+  screensaver state was true, and the Chromium kiosk was launched with
+  `?mode=tv`. The served HTML matched the local built HTML. Isolated built-client
+  browser tests cover the three-second timer, settings, activity rearming,
+  activation/deactivation and the admin-preview body boundary. The physical
+  pointer and live kiosk DOM could not be inspected; the reported regression
+  remains open. Next observe the physical TV and live pointer events before
+  choosing a fix; a passing isolated browser test is not proof of resolution.
 
 ## Implementation Companion
 

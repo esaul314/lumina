@@ -20,7 +20,7 @@ const photo = (id, orientation = 'landscape') => ({
 const landscapePhotos = () => ['a', 'b', 'c', 'broken'].map(id => photo(id));
 const portraitPhotos = () => ['p1', 'p2', 'p3', 'broken'].map(id => photo(id, 'portrait'));
 
-async function createFixture(photos) {
+async function createFixture(photos, { screensaverActive = false } = {}) {
   const app = express();
   const server = http.createServer(app);
   // Clock jumps must not simulate Socket.IO heartbeat failure.
@@ -31,7 +31,7 @@ async function createFixture(photos) {
     widgets: {}, slideshowInterval: INTERVAL, inactivityTimeout: 600000,
     alignTimeOfDay: false, alignWeather: false, nightPercentage: 50,
     searchKeywords: {}, feedConfigs: {}, poolPolicies: {}, excludedKeywords: [],
-    autoLocation: false, manualLocation: {}, screensaverActive: false, splitSeed: 1
+    autoLocation: false, manualLocation: {}, screensaverActive, splitSeed: 1
   };
   const collections = { Fixture: photos.map(row => ({ ...row })) };
   const events = [];
@@ -82,8 +82,8 @@ const activeBackground = () => document.querySelector(
   '.slide.active .single-slide-image, .slide.active .slide-half-image'
 )?.style.backgroundImage || '';
 
-async function withFixture(browser, run, photos = landscapePhotos()) {
-  const fixture = await createFixture(photos);
+async function withFixture(browser, run, photos = landscapePhotos(), options = {}) {
+  const fixture = await createFixture(photos, options);
   const context = await browser.newContext();
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
@@ -115,7 +115,7 @@ async function withFixture(browser, run, photos = landscapePhotos()) {
         }
       }).observe(document, { subtree: true, childList: true, attributes: true });
     });
-    await page.goto(`${fixture.url}/?mode=tv`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${fixture.url}/${options.preview ? '' : '?mode=tv'}`, { waitUntil: 'domcontentloaded' });
     await expect.poll(() => page.evaluate(activeBackground)).toContain(photos[0].url);
     await page.clock.pauseAt(await page.evaluate(() => Date.now() + 20));
     const shown = id => expect.poll(() => page.evaluate(activeBackground)).toContain(`/fixtures/${id}.svg`);
@@ -275,6 +275,45 @@ const cases = [
   }, [photo('a')]]
 ];
 
+const cursorCases = [
+  ['active kiosk hides the cursor on the page and settings after inactivity', async ({ page }) => {
+    await page.locator('.desktop-settings-btn').evaluate(button => button.click());
+    await expect(page.locator('.desktop-settings-drawer')).toHaveClass(/open/);
+    await page.clock.fastForward(2999);
+    await expect(page.locator('body')).not.toHaveClass(/hide-cursor/);
+    await page.clock.fastForward(1);
+    await expect(page.locator('body')).toHaveClass(/hide-cursor/);
+    for (const selector of ['body', '.desktop-settings-btn', '.desktop-settings-drawer']) {
+      assert.strictEqual(await page.locator(selector).evaluate(element => getComputedStyle(element).cursor), 'none');
+    }
+    await page.evaluate(() => window.dispatchEvent(new MouseEvent('mousemove', { clientX: 40, clientY: 40 })));
+    await expect(page.locator('body')).not.toHaveClass(/hide-cursor/);
+    await page.clock.fastForward(2999);
+    await expect(page.locator('body')).not.toHaveClass(/hide-cursor/);
+    await page.clock.fastForward(1);
+    await expect(page.locator('body')).toHaveClass(/hide-cursor/);
+  }, { screensaverActive: true }],
+  ['activation rearms the kiosk cursor timer and deactivation restores the page', async ({ fixture, page }) => {
+    await page.clock.fastForward(4000);
+    await expect(page.locator('body')).not.toHaveClass(/hide-cursor/);
+    fixture.state.screensaverActive = true;
+    fixture.broadcastStateSync();
+    await expect.poll(() => page.evaluate(() => window.__state.screensaverActive)).toBe(true);
+    await page.clock.fastForward(2999);
+    await expect(page.locator('body')).not.toHaveClass(/hide-cursor/);
+    await page.clock.fastForward(1);
+    await expect(page.locator('body')).toHaveClass(/hide-cursor/);
+    fixture.state.screensaverActive = false;
+    fixture.broadcastStateSync();
+    await expect(page.locator('body')).not.toHaveClass(/hide-cursor/);
+  }, {}],
+  ['admin TV preview never hides the page-wide cursor', async ({ page }) => {
+    await page.clock.fastForward(4000);
+    await expect(page.locator('body')).not.toHaveClass(/hide-cursor/);
+    assert.notStrictEqual(await page.locator('body').evaluate(element => getComputedStyle(element).cursor), 'none');
+  }, { screensaverActive: true, preview: true }]
+];
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
@@ -286,6 +325,11 @@ async function main() {
       console.log(`PASS: ${name}`);
     }
     console.log(`${cases.length} slideshow browser regressions passed.`);
+    for (const [name, run, options] of cursorCases) {
+      await withFixture(browser, run, landscapePhotos(), options);
+      console.log(`PASS: ${name}`);
+    }
+    console.log(`${cursorCases.length} cursor browser regressions passed.`);
   } finally {
     await browser.close();
   }

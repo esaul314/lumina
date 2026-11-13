@@ -18,6 +18,10 @@ The target end state is:
 
 Current checkpoint:
 
+- Cursor investigation: isolated built-client browser tests exercise the
+  existing React timer and page-wide CSS without changing production behavior.
+  The reported physical-TV issue remains open; inspect the live kiosk and
+  pointer events before inferring a cause. The next Step 6 seam is unchanged.
 - Playback correction (2026-10-23): the displayed primary URL is a pure projection of bounded slide state and the sole image identity in the rotation effect's dependencies. Timer setup/cleanup remains in React; retry decisions stay in the existing pure data-first media policy. The server owns replacement selection after a broken-image report. No curried or algebraic wrapper is needed for this scalar selector and effect boundary. The Step 6 coverage-audit checkpoint remains unchanged.
 - Manual recrawl and manual vision-analysis now run through shared `trigger-* -> start-*-job` effect paths, with REST owning job submission and Socket.IO reduced to live status pushes plus backward-compatible shims.
 - Step 1 is now complete: `server/sockets.js` is a transport adapter over shared command listeners, shared patch-state decoders, and explicit async/telemetry listener helpers.
