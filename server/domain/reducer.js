@@ -205,6 +205,11 @@ function reduceStateMutation(state, {
 }
 
 /**
+ * @template C
+ * @typedef {Omit<MutationResultOptions<DomainState>, 'context' | 'events' | 'effects'> & {apply: (nextState: DomainState, command: C) => unknown, events?: Event[] | null | false | 0 | '' | ((nextState: DomainState, command: C) => Event[] | null | undefined | false | 0 | ''), effects?: Effect[] | null | false | 0 | '' | ((nextState: DomainState, command: C) => Effect[] | null | undefined | false | 0 | '')}} CommandMutationOptions
+ */
+
+/**
  * Adapt command-aware callbacks to the state mutation boundary. The same
  * command and cloned state reach apply and, on change, each output factory.
  * Undefined outputs use state-mutation defaults; other values pass through.
@@ -212,7 +217,7 @@ function reduceStateMutation(state, {
  * @template C
  * @param {DomainState} state
  * @param {C} command
- * @param {Omit<MutationResultOptions<DomainState>, 'context' | 'events' | 'effects'> & {apply: (nextState: DomainState, command: C) => unknown, events?: Event[] | null | false | 0 | '' | ((nextState: DomainState, command: C) => Event[] | null | undefined | false | 0 | ''), effects?: Effect[] | null | false | 0 | '' | ((nextState: DomainState, command: C) => Effect[] | null | undefined | false | 0 | '')}} options
+ * @param {CommandMutationOptions<C>} options
  * @returns {ReducerResult}
  */
 function reduceCommandMutation(state, command, {
@@ -241,6 +246,17 @@ function reduceCommandMutation(state, command, {
   });
 }
 
+/**
+ * Partially apply a target selector and constant entries or a command-aware
+ * entry reader. The reader receives the original command, clone and selected
+ * target. Only a nonempty array is assigned; unchanged entries retain the
+ * original state. Option spreading and native callback failures are unguarded.
+ * @template C, T
+ * @param {(nextState: DomainState) => T} selectTarget
+ * @param {ReadonlyArray<readonly [PropertyKey, unknown]> | null | undefined | false | ((command: C, nextState: DomainState, target: T) => unknown)} readEntries
+ * @param {Omit<CommandMutationOptions<C>, 'apply'>} [options]
+ * @returns {(state: DomainState, command: C) => ReducerResult}
+ */
 function buildEntriesCommandReducer(selectTarget, readEntries, options = {}) {
   return (state, command) => reduceCommandMutation(state, command, {
     ...options,

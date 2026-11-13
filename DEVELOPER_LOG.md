@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-13: Audit Entries-Command Reducer and Record Pointer Report
+
+- **Outcome**: checked contracts preserve the partially applied entry reader's
+  command, cloned-state and selected-target relationships and reuse the existing
+  command options type. No executable production code changed.
+- **Tests**: two regressions and private compiler fixtures cover constant and
+  computed entries, ordering, aliases, no-ops, option reads and native failures.
+- **Verification**: 835 assertions, 13 sensor regressions and three typecheck
+  report tests pass; lint and production AST checks pass. The optional live
+  endpoint smoke is skipped on sandbox `EPERM`. Strict domain checking remains
+  nonzero at 444 core, zero fixture, 69 transitive and zero global diagnostics.
+- **Follow-up**: the reported TV pointer regression is on the roadmap for
+  physical-kiosk investigation; its cause and resolution are not yet verified.
+  Next audit the partially applied field-command reducer.
+
 ### 2026-11-12: Audit Command-Aware Mutations
 
 - **Outcome**: the generic command-mutation contract relates the original

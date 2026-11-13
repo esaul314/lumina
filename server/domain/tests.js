@@ -3151,6 +3151,63 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => sandbox.reduceMutation(state, null), (error) => error.name === 'TypeError');
   });
 
+  assertTest('entries reducer partially applies readers and preserves assignment order and aliases', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildEntries = buildEntriesCommandReducer;`, sandbox);
+    const state = createState();
+    const command = Object.freeze({ theme: 'new', interval: 7 });
+    const reads = [];
+    let selected;
+    let cloned;
+    const reduce = sandbox.buildEntries((next) => {
+      reads.push('select');
+      cloned = next;
+      selected = new Proxy(next.config, { set: (target, key, value) => (reads.push(`set ${String(key)}`), Reflect.set(target, key, value)) });
+      return selected;
+    }, (current, next, target) => {
+      reads.push('read');
+      assert.strictEqual(current, command);
+      assert.strictEqual(next, cloned);
+      assert.strictEqual(target, selected);
+      return [['theme', current.theme], ['slideshowInterval', current.interval]];
+    }, {
+      events: (next, current) => (assert.strictEqual(next, cloned), assert.strictEqual(current, command), []),
+      persist: true
+    });
+    assert.deepStrictEqual(reads, []);
+    const result = reduce(state, command);
+    assert.deepStrictEqual(reads, ['select', 'read', 'set theme', 'set slideshowInterval']);
+    assert.strictEqual(result.nextState, cloned);
+    assert.notStrictEqual(cloned, state);
+    assert.notStrictEqual(state.config.theme, command.theme);
+    assert.strictEqual(cloned.config.theme, command.theme);
+    assert.strictEqual(cloned.config.slideshowInterval, command.interval);
+    assert.deepStrictEqual(Array.from(result.effects, (effect) => effect.type), ['persist']);
+    const constant = sandbox.buildEntries((next) => next.config, [['theme', 'constant']]);
+    assert.strictEqual(constant(state, command).nextState.config.theme, 'constant');
+  });
+
+  assertTest('entries reducer retains no-op, option spread and failure behavior', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildEntries = buildEntriesCommandReducer;`, sandbox);
+    const state = createState();
+    const calls = [];
+    const options = { get events() { calls.push('options'); return () => { throw new Error('no event'); }; } };
+    for (const entries of [null, false, {}, [], [['theme', undefined]], [['theme', state.config.theme]]]) {
+      const reduce = sandbox.buildEntries((next) => (calls.push('select'), next.config), entries, options);
+      assert.strictEqual(reduce(state, {}).nextState, state);
+    }
+    assert.deepStrictEqual(calls, Array.from({ length: 6 }, () => ['options', 'select']).flat());
+    const failure = new Error('reader failed');
+    assert.throws(() => sandbox.buildEntries(() => { throw failure; }, [])(state, {}), (error) => error === failure);
+    assert.throws(() => sandbox.buildEntries((next) => next.config, () => { throw failure; })(state, {}), (error) => error === failure);
+    assert.throws(() => sandbox.buildEntries(() => null, [['x', 1]])(state, {}), (error) => error.name === 'TypeError');
+    assert.throws(() => sandbox.buildEntries((next) => next.config, [null])(state, {}), (error) => error.name === 'TypeError');
+    assert.throws(() => sandbox.buildEntries((next) => next.config, [], { get events() { throw failure; } })(state, {}), (error) => error === failure);
+  });
+
   assertTest('command mutation adapts callbacks with shared clone and command aliases', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

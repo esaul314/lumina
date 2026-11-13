@@ -173,6 +173,21 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     reduceCommandMutation(fixtureState, fixtureCommand, { apply: () => true, events: (state, /** @type {number} */ command) => [] });
     // @ts-expect-error effects retain their closed vocabulary
     reduceCommandMutation(fixtureState, fixtureCommand, { apply: () => true, effects: [{ type: 'invalid' }] });
+    const fixtureEntriesReducer = buildEntriesCommandReducer(
+      (state) => state.config,
+      (/** @type {{name: string}} */ command, state, target) => {
+        /** @type {DomainState['config']} */ const selected = target;
+        return [['theme', command.name]];
+      },
+      { events: (state, command) => command.name ? [{ type: 'state-sync' }] : [] }
+    );
+    /** @type {ReducerResult} */ const fixtureEntriesResult = fixtureEntriesReducer(fixtureState, { name: 'x' });
+    // @ts-expect-error the partially applied reducer retains its command type
+    fixtureEntriesReducer(fixtureState, { name: 7 });
+    // @ts-expect-error the selector receives a domain state
+    buildEntriesCommandReducer((/** @type {string} */ state) => state, []);
+    // @ts-expect-error events retain their closed vocabulary
+    buildEntriesCommandReducer((state) => state.config, [], { events: [{ type: 'invalid' }] });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

@@ -3,6 +3,14 @@
 Last updated: 2026-10-26
 
 - Screensaver cursor correction (2026-10-25): the active TV kiosk restarts its three-second inactivity timer when screensaver state changes and hides the pointer across the page, including over settings panels.
+- Reported TV pointer regression (2026-11-13; unverified): the pointer is again
+  remaining visible. Prioritize an investigation of the actual Playwright-host
+  service, served build, kiosk launch mode and active state, then reproduce on
+  the physical TV after at least three seconds without pointer activity. Check
+  timer rearming, page-wide cursor CSS, settings overlays and pointer events;
+  distinguish a kiosk regression from admin-preview behavior. Add deterministic
+  browser coverage and verify any eventual fix on the actual TV. Do not infer a
+  cause or claim resolution without runtime evidence.
 
 ## Implementation Companion
 
@@ -83,7 +91,8 @@ Phase 1 is in progress. The current checkpoint is:
 - Step 6 mutation-result audit (2026-11-12): generic contracts distinguish explicit context from the undefined state fallback, preserve event/effect factory relationships and document unvalidated legacy values. Three regressions and private compiler fixtures cover aliases, resolution order, defaults, persistence and native failures. Production syntax is unchanged; the strict baseline is 473 core, zero fixture, 69 transitive and zero global diagnostics.
 - Step 6 cloned-mutation audit (2026-11-12): contracts connect the clone to the apply callback, changed continuation and result factories; the continuation keeps its own result type alongside the no-op reducer result. Two regressions and private type fixtures cover eager option reads and cloning, truthiness, identity, defaults, ordering and native failures. Production syntax is unchanged; the strict baseline is 461 core, zero fixture, 69 transitive and zero global diagnostics.
 - Step 6 command-mutation audit (2026-11-12): generic contracts preserve the command type across apply and result factories. Two regressions and private type fixtures cover clone/command aliases, option-read order, defaults, no-ops, output ordering and failures. Production syntax is unchanged; the strict baseline is 453 core, zero fixture, 69 transitive and zero global diagnostics.
-- Next Step 6 checkpoint: audit `buildEntriesCommandReducer`, including partially applied target/entry callbacks, aliases, no-op behavior, options and native failures. Step 6 remains incomplete and the compiler remains nonzero.
+- Step 6 entries-reducer audit (2026-11-13): generic contracts preserve partial application and command/target callback relationships. Two regressions and private type fixtures cover aliases, ordered writes, constant and computed entries, no-ops, options and failures. Production syntax is unchanged; the strict baseline is 444 core, zero fixture, 69 transitive and zero global diagnostics.
+- Next Step 6 checkpoint: audit `buildFieldCommandReducer`, including partial application, field/value callback relationships, defaults, aliases and native failures. Step 6 remains incomplete and the compiler remains nonzero.
 - In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
 - Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
 - Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
