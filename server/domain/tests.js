@@ -3406,6 +3406,104 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(reads, ['name', 'name']);
   });
 
+  assertTest('playback command preserves callback aliases and resolves direction before cloning', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildPlayback = buildPlaybackCommandReducer;\nglobalThis.replaceUpdate = fn => { updateActivePhotoUrl = fn; };`, sandbox);
+    const state = createState();
+    const config = state.config;
+    const calls = [];
+    Object.defineProperty(state, 'config', { get: () => (calls.push('clone'), config) });
+    const command = Object.freeze({});
+    const payload = Object.freeze({});
+    const selected = Object.freeze({ url: 'selected' });
+    const env = Object.freeze({ rng: () => 0.5 });
+    const prepared = createState();
+    const updated = createState();
+    sandbox.replaceUpdate((next, photo, direction) => {
+      calls.push('update');
+      assert.strictEqual(next, prepared);
+      assert.strictEqual(photo, selected);
+      assert.strictEqual(direction, 'prev');
+      return { state: updated, changed: false };
+    });
+    const reduce = sandbox.buildPlayback({
+      readPayload: (c, s) => (calls.push('read'), assert.strictEqual(c, command), assert.strictEqual(s, state), payload),
+      selectPhoto: (s, p, e) => (calls.push('select'), assert.strictEqual(s, state), assert.strictEqual(p, payload), assert.strictEqual(e, env), selected),
+      resolveDirection: (p, c, s, e) => (calls.push('direction'), assert.strictEqual(p, payload), assert.strictEqual(c, command), assert.strictEqual(s, state), assert.strictEqual(e, env), 'prev'),
+      prepareState: (next, p, photo, c, s, e) => {
+        calls.push('prepare');
+        assert.notStrictEqual(next, state);
+        assert.notStrictEqual(next.config, config);
+        assert.strictEqual(p, payload);
+        assert.strictEqual(photo, selected);
+        assert.strictEqual(c, command);
+        assert.strictEqual(s, state);
+        assert.strictEqual(e, env);
+        return prepared;
+      }
+    });
+    const result = reduce(state, command, env);
+    assert.ok(calls.includes('clone'));
+    assert.deepStrictEqual(calls.filter((call) => call !== 'clone'), ['read', 'select', 'direction', 'prepare', 'update']);
+    assert.ok(calls.indexOf('clone') > calls.indexOf('direction'));
+    assert.ok(calls.lastIndexOf('clone') < calls.indexOf('prepare'));
+    assert.strictEqual(result.nextState, updated);
+    assert.deepStrictEqual(Array.from(result.events, (event) => event.type), ['photo-update', 'state-sync']);
+    assert.strictEqual(result.effects.length, 0);
+  });
+
+  assertTest('playback command short circuits null payload and falsy selection, and forwards environment', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildPlayback = buildPlaybackCommandReducer;`, sandbox);
+    const state = createState();
+    const calls = [];
+    let selection = null;
+    let payload = null;
+    let receivedEnv;
+    const reduce = sandbox.buildPlayback({
+      readPayload: () => (calls.push('read'), payload),
+      selectPhoto: (_state, value, env) => (calls.push('select'), assert.strictEqual(value, payload), receivedEnv = env, selection),
+      resolveDirection: () => { throw new Error('must not resolve direction'); },
+      prepareState: () => { throw new Error('must not prepare'); }
+    });
+    assert.strictEqual(reduce(state, {}).nextState, state);
+    assert.deepStrictEqual(calls, ['read']);
+    payload = undefined;
+    for (const value of [null, undefined, false, 0, '']) {
+      calls.length = 0;
+      selection = value;
+      const result = reduce(state, {}, null);
+      assert.strictEqual(result.nextState, state);
+      assert.strictEqual(receivedEnv, null);
+      assert.deepStrictEqual(calls, ['read', 'select']);
+      assert.strictEqual(result.events.length, 0);
+      assert.strictEqual(result.effects.length, 0);
+    }
+    reduce(state, {});
+    assert.deepStrictEqual(Object.keys(receivedEnv), []);
+  });
+
+  assertTest('playback selection clones before preparation, updates unchanged URLs and propagates failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.applyPlayback = applyPlaybackSelection;\nglobalThis.buildPlayback = buildPlaybackCommandReducer;`, sandbox);
+    const state = createState();
+    const selected = { url: state.playback.activePhotoUrl };
+    const result = sandbox.applyPlayback(state, selected, { direction: 'prev' });
+    assert.notStrictEqual(result.nextState, state);
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, state.playback.activePhotoUrl);
+    assert.strictEqual(result.nextState.playback.splitSeed, state.playback.splitSeed);
+    assert.strictEqual(result.nextState.playback.lastDirection, 'prev');
+    assert.deepStrictEqual(Array.from(result.events, (event) => event.type), ['photo-update', 'state-sync']);
+    const failure = new Error('playback failed');
+    assert.throws(() => sandbox.applyPlayback(state, selected, { prepareState: () => { throw failure; } }), (error) => error === failure);
+    assert.throws(() => sandbox.applyPlayback(state, selected, { prepareState: () => null }), (error) => error.name === 'TypeError');
+    const reduce = sandbox.buildPlayback({ readPayload: () => ({}), selectPhoto: () => selected, resolveDirection: () => { throw failure; } });
+    assert.throws(() => reduce(state, {}), (error) => error === failure);
+  });
+
   assertTest('feed finalization shares its projected context and preserves output ordering', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

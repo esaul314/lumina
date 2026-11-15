@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-14: Audit Playback Command Composition
+
+- **Outcome**: documented the existing generic playback selection and
+  preparation pipeline. Null payloads and falsy selections retain their
+  short-circuit behavior; direction resolves before cloning and callbacks
+  receive the original aliases. No executable production syntax changed.
+- **Coverage**: three runtime regressions and private compiler fixtures cover
+  callback ordering and identities, environment forwarding, unchanged-photo
+  events, defaults and native failures. No new abstraction was needed.
+- **Verification**: 850 assertions, 13 sensor regressions and three compiler
+  fixture tests pass; the optional live endpoint smoke is skipped on sandbox
+  `EPERM`. Strict domain checking remains nonzero at 345 core, zero fixture,
+  69 transitive and zero global diagnostics. Next audit selectable-photo lookup
+  and preview staging. The physical-TV cursor report remains unresolved.
+
 ### 2026-11-14: Audit Pool Command and Mutation Composition
 
 - **Outcome**: documented generic pool-command and guarded-mutation contracts.

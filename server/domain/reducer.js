@@ -5,6 +5,7 @@
  * @typedef {import('./types').DomainState} DomainState
  * @typedef {import('./types').Effect} Effect
  * @typedef {import('./types').Event} Event
+ * @typedef {import('./types').FeedPhoto} FeedPhoto
  * @typedef {import('./types').Photo} Photo
  * @typedef {import('./types').ReducerEnvironment} ReducerEnvironment
  * @typedef {import('./types').ReducerResult} ReducerResult
@@ -747,6 +748,16 @@ function findSelectablePhoto(state, url, fallbackPhoto = null) {
     || null;
 }
 
+/**
+ * Clone before preparation, passing the original selected row to the callback.
+ * Use its returned state for the photo update even when the URL is unchanged;
+ * neither callback output nor row fields are validated, and failures propagate.
+ * @template {FeedPhoto} T
+ * @param {DomainState} state
+ * @param {T} selectedPhoto
+ * @param {{direction?: 'next' | 'prev', prepareState?: (nextState: DomainState, photo: T) => DomainState}} options
+ * @returns {ReducerResult}
+ */
 function applyPlaybackSelection(state, selectedPhoto, {
   direction,
   prepareState = (nextState) => nextState
@@ -756,6 +767,16 @@ function applyPlaybackSelection(state, selectedPhoto, {
   return photoUpdateResult(updatedState.state);
 }
 
+/**
+ * Compose decoding, selection and preparation. Only a null payload skips
+ * selection; any falsy selection returns the original state. Direction resolves
+ * before cloning; preparation receives the clone and original callback aliases.
+ * The environment defaults only when undefined and is forwarded unchanged.
+ * @template C, P
+ * @template {FeedPhoto} T
+ * @param {{readPayload: (command: C, state: DomainState) => P | null, selectPhoto: (state: DomainState, payload: P, env: ReducerEnvironment) => T | null | undefined | false | 0 | '', resolveDirection: (payload: P, command: C, state: DomainState, env: ReducerEnvironment) => 'next' | 'prev' | undefined, prepareState?: (nextState: DomainState, payload: P, photo: T, command: C, state: DomainState, env: ReducerEnvironment) => DomainState}} spec
+ * @returns {(state: DomainState, command: C, env?: ReducerEnvironment) => ReducerResult}
+ */
 function buildPlaybackCommandReducer({
   readPayload,
   selectPhoto,

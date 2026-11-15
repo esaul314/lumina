@@ -285,6 +285,32 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       // @ts-expect-error persistence resolvers must return booleans
       persist: () => 'yes'
     });
+    const fixturePlayback = buildPlaybackCommandReducer({
+      readPayload: (/** @type {{photo: {url: string, marker: number}}} */ command) => command.photo,
+      selectPhoto: (state, payload, env) => payload,
+      resolveDirection: (payload, command, state, env) => payload.marker ? 'next' : 'prev',
+      prepareState: (next, payload, photo, command, original, env) => {
+        /** @type {number} */ const marker = photo.marker;
+        /** @type {string} */ const url = command.photo.url;
+        return next;
+      }
+    });
+    /** @type {ReducerResult} */ const fixturePlaybackResult = fixturePlayback(fixtureState, { photo: { url: 'x', marker: 1 } });
+    // @ts-expect-error the command preserves its selected row type
+    fixturePlayback(fixtureState, { photo: { url: 'x', marker: 'wrong' } });
+    applyPlaybackSelection(fixtureState, { url: 'x', marker: 1 }, {
+      direction: 'next', prepareState: (next, photo) => photo.marker ? next : fixtureState
+    });
+    applyPlaybackSelection(fixtureState, { url: 'x' }, {
+      // @ts-expect-error directions are limited to the playback vocabulary
+      direction: 'sideways'
+    });
+    buildPlaybackCommandReducer({
+      readPayload: (/** @type {{url: string}} */ command) => command,
+      selectPhoto: (state, payload) => payload,
+      // @ts-expect-error direction resolvers must return a supported direction
+      resolveDirection: () => 'sideways'
+    });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);
