@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-14: Audit Feed-Command Payload and Option Composition
+
+- **Outcome**: documented the existing partially applied payload continuation,
+  option projection and feed-command builder without changing their behavior.
+  A partial projected record reflects omitted non-enumerable and symbol keys;
+  local assertions describe native evaluation, not runtime validation.
+- **Coverage**: three regressions and private compiler fixtures preserve null-only
+  rejection, aliases, eager option reads and callbacks, no-op and environment
+  precedence, finalizer resolution, and native failures. No additional wrapper
+  or algebra improves the existing composition.
+- **Verification**: 842 assertions, 13 sensor regressions and three compiler
+  fixture tests pass; the optional live endpoint smoke is skipped on sandbox
+  `EPERM`. The strict domain baseline remains nonzero at 395 core, zero fixture,
+  69 transitive and zero global diagnostics. Next audit the pool-command and
+  pool-mutation adapters. The physical-TV cursor report remains unresolved.
+
 ### 2026-11-14: Audit Field Commands and Feed Finalization
 
 - **Outcome**: documented the partially applied field-command contract and the

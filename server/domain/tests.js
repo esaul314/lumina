@@ -3151,6 +3151,118 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => sandbox.reduceMutation(state, null), (error) => error.name === 'TypeError');
   });
 
+  assertTest('payload continuation skips only null and preserves argument aliases and failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.wrap = withCommandPayload;`, sandbox);
+    const state = createState();
+    const env = Object.freeze({ now: new Date(0) });
+    const marker = Object.freeze({ result: true });
+    for (const payload of [undefined, false, 0, '', Object.freeze({ value: 1 })]) {
+      const command = Object.freeze({ payload });
+      const reduce = sandbox.wrap((current, original) => {
+        assert.strictEqual(current, command);
+        assert.strictEqual(original, state);
+        return payload;
+      }, (original, current, value, runtime) => {
+        assert.strictEqual(original, state);
+        assert.strictEqual(current, command);
+        assert.strictEqual(value, payload);
+        assert.strictEqual(runtime, env);
+        return marker;
+      });
+      assert.strictEqual(reduce(state, command, env), marker);
+    }
+    const noOp = sandbox.wrap(() => null, () => { throw new Error('must not run'); })(state, {});
+    assert.strictEqual(noOp.nextState, state);
+    assert.strictEqual(noOp.events.length, 0);
+    assert.strictEqual(noOp.effects.length, 0);
+    const defaultEnv = sandbox.wrap(() => 1, (_state, _command, _payload, runtime) => runtime);
+    assert.deepStrictEqual(Object.keys(defaultEnv(state, {})), []);
+    assert.strictEqual(defaultEnv(state, {}, null), null);
+    const failure = new Error('payload failure');
+    assert.throws(() => sandbox.wrap(() => { throw failure; }, () => marker)(state, {}), (error) => error === failure);
+    assert.throws(() => sandbox.wrap(() => 1, () => { throw failure; })(state, {}), (error) => error === failure);
+  });
+
+  assertTest('reducer option projection reads all entries before resolving callbacks', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.resolveOptions = resolveReducerOptions;`, sandbox);
+    const state = createState();
+    const command = Object.freeze({});
+    const payload = Object.freeze({});
+    const calls = [];
+    const symbol = Symbol('ignored');
+    const options = Object.setPrototypeOf({
+      get first() { calls.push('read first'); return (p, c, s) => (calls.push('first'), assert.strictEqual(p, payload), assert.strictEqual(c, command), assert.strictEqual(s, state), payload); },
+      get second() { calls.push('read second'); return () => (calls.push('second'), false); },
+      [symbol]: 'ignored'
+    }, { inherited: 'ignored' });
+    const result = sandbox.resolveOptions(options, payload, command, state);
+    assert.deepStrictEqual(calls, ['read first', 'read second', 'first', 'second']);
+    assert.deepStrictEqual(Object.keys(result), ['first', 'second']);
+    assert.strictEqual(result.first, payload);
+    assert.strictEqual(result.second, false);
+    assert.strictEqual(Object.getOwnPropertySymbols(result).length, 0);
+    const failure = new Error('option failure');
+    assert.throws(() => sandbox.resolveOptions({ first: () => { throw failure; }, second: () => { throw new Error('must not run'); } }, payload, command, state), (error) => error === failure);
+    assert.throws(() => sandbox.resolveOptions({ get first() { throw failure; } }, payload, command, state), (error) => error === failure);
+  });
+
+  assertTest('feed command resolves options before cloning and passes the finalizer through', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildFeed = buildFeedCommandReducer;\nglobalThis.replaceRecompute = fn => { recomputeAndEnsureActivePhoto = fn; };`, sandbox);
+    const state = createState();
+    const command = Object.freeze({});
+    const payload = Object.freeze({});
+    const calls = [];
+    let cloned;
+    const events = Object.freeze([{ type: 'photo-update' }]);
+    sandbox.replaceRecompute((next, selection) => {
+      calls.push('recompute');
+      assert.strictEqual(next, cloned);
+      assert.strictEqual(selection.direction, 'prev');
+      return { state: next, photoChanged: true };
+    });
+    const option = (name, value) => (p, c, s) => {
+      calls.push(name);
+      assert.strictEqual(p, payload);
+      assert.strictEqual(c, command);
+      assert.strictEqual(s, state);
+      return value;
+    };
+    const reduce = sandbox.buildFeed({
+      readPayload: () => (calls.push('read'), payload),
+      direction: option('direction', 'next'),
+      forceReselect: option('force', false),
+      eventsFor: option('events resolver', (finalized) => (calls.push('events finalizer'), assert.strictEqual(finalized.state, cloned), events)),
+      persist: option('persist', true),
+      apply: (next, p, c, original) => {
+        calls.push('apply');
+        cloned = next;
+        assert.notStrictEqual(next, state);
+        assert.strictEqual(p, payload);
+        assert.strictEqual(c, command);
+        assert.strictEqual(original, state);
+        return true;
+      }
+    });
+    const result = reduce(state, command, { direction: 'prev' });
+    assert.deepStrictEqual(calls, ['read', 'direction', 'force', 'events resolver', 'persist', 'apply', 'recompute', 'events finalizer']);
+    assert.strictEqual(result.nextState, cloned);
+    assert.strictEqual(result.events, events);
+    assert.deepStrictEqual(Array.from(result.effects, (effect) => effect.type), ['persist']);
+    calls.length = 0;
+    const noop = sandbox.buildFeed({ readPayload: () => payload, direction: option('direction', 'next'), apply: () => (calls.push('apply'), false) });
+    assert.strictEqual(noop(state, command).nextState, state);
+    assert.deepStrictEqual(calls, ['direction', 'apply']);
+    const failure = new Error('resolver failed');
+    const failing = sandbox.buildFeed({ readPayload: () => payload, direction: () => { throw failure; }, apply: () => { throw new Error('must not run'); } });
+    assert.throws(() => failing(state, command), (error) => error === failure);
+  });
+
   assertTest('feed finalization shares its projected context and preserves output ordering', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

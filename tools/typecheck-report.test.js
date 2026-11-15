@@ -214,6 +214,44 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     finalizeFeedMutation(fixtureState, { eventsFor: [{ type: 'invalid' }] });
     // @ts-expect-error feed mutations require an apply callback
     reduceFeedMutation(fixtureState, {}, {});
+    const fixturePayloadReducer = withCommandPayload(
+      (/** @type {{value: number | null}} */ command) => command.value,
+      (state, command, payload, env) => ({ payload, command, state, env })
+    );
+    const fixturePayloadResult = fixturePayloadReducer(fixtureState, { value: 3 });
+    if ('payload' in fixturePayloadResult) {
+      /** @type {number} */ const payloadValue = fixturePayloadResult.payload;
+      // @ts-expect-error null payloads do not reach the continuation
+      /** @type {null} */ const nullPayload = fixturePayloadResult.payload;
+    }
+    // @ts-expect-error the reader preserves its command type
+    fixturePayloadReducer(fixtureState, { value: 'wrong' });
+    const fixtureOptionSymbol = Symbol('not an enumerable string key');
+    const fixtureResolvedOptions = resolveReducerOptions({
+      count: (/** @type {number} */ payload) => payload + 1,
+      unchanged: 'constant', [fixtureOptionSymbol]: 2
+    }, 3, fixtureCommand, fixtureState);
+    /** @type {number | undefined} */ const maybeCount = fixtureResolvedOptions.count;
+    // @ts-expect-error enumerable membership is not guaranteed
+    /** @type {number} */ const definiteCount = fixtureResolvedOptions.count;
+    // @ts-expect-error symbols are not projected by Object.entries
+    fixtureResolvedOptions[fixtureOptionSymbol];
+    const fixtureFeedReducer = buildFeedCommandReducer({
+      readPayload: (/** @type {{value: number}} */ command) => command.value > 0 ? command.value : null,
+      apply: (next, payload, command, original) => next !== original && payload === command.value,
+      direction: (payload, command, state) => payload === command.value && state.config ? 'next' : 'prev',
+      eventsFor: (payload) => (finalized) => payload && finalized.photoChanged ? [{ type: 'photo-update' }] : [],
+      persist: (payload) => payload > 0
+    });
+    /** @type {ReducerResult} */ const fixtureFeedResult = fixtureFeedReducer(fixtureState, { value: 1 });
+    // @ts-expect-error the feed reducer retains its command type
+    fixtureFeedReducer(fixtureState, { value: 'wrong' });
+    buildFeedCommandReducer({
+      readPayload: (/** @type {{value: number}} */ command) => command.value,
+      apply: (next, payload) => payload > 0,
+      // @ts-expect-error a direction resolver must return a supported direction
+      direction: () => 'sideways'
+    });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

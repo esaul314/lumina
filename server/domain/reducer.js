@@ -609,17 +609,49 @@ function buildPhotoCommandReducer({
   };
 }
 
+/**
+ * Resolve function-valued options with the supplied arguments, passing other
+ * values through unchanged. Callable values are always invoked, not validated.
+ * @template V
+ * @param {V} value
+ * @param {...unknown} args
+ * @returns {ResolvedReducerOption<V>}
+ */
 function resolveReducerValue(value, ...args) {
-  return typeof value === 'function' ? value(...args) : value;
+  return /** @type {any} */ (typeof value === 'function' ? value(...args) : value);
 }
 
-const resolveReducerOptions = (options, payload, command, state) => Object.fromEntries(
+/**
+ * @template V
+ * @typedef {V extends (...args: any[]) => infer R ? R : V} ResolvedReducerOption
+ */
+
+/**
+ * Resolve own enumerable string-keyed options in entry order. All entries
+ * are read before any callback runs; symbols and inherited keys are omitted.
+ * @template {Record<string, unknown>} O
+ * @param {O} options
+ * @param {unknown} payload
+ * @param {unknown} command
+ * @param {DomainState} state
+ * @returns {Partial<{[K in keyof O as K extends string | number ? `${K}` : never]: ResolvedReducerOption<O[K]>}>}
+ */
+const resolveReducerOptions = (options, payload, command, state) => /** @type {any} */ (Object.fromEntries(
   Object.entries(options).map(([key, value]) => [
     key,
     resolveReducerValue(value, payload, command, state)
   ])
-);
+));
 
+/**
+ * Partially apply a command payload reader and continuation. Only null skips
+ * the continuation; undefined and all other values are passed through. The
+ * original command and state are shared, and failures propagate unchanged.
+ * @template C, P, R
+ * @param {(command: C, state: DomainState) => P | null} readPayload
+ * @param {(state: DomainState, command: C, payload: P, env: ReducerEnvironment) => R} reduce
+ * @returns {(state: DomainState, command: C, env?: ReducerEnvironment) => R | ReducerResult}
+ */
 const withCommandPayload = (readPayload, reduce) => (state, command, env = {}) => {
   const payload = readPayload(command, state);
 
@@ -628,6 +660,21 @@ const withCommandPayload = (readPayload, reduce) => (state, command, env = {}) =
     : reduce(state, command, payload, env);
 };
 
+/**
+ * @template P, C, V
+ * @typedef {V | ((payload: P, command: C, state: DomainState) => V)} ReducerOption
+ */
+
+/**
+ * Build a feed reducer from a payload reader, mutation and resolved options.
+ * Option functions run in declaration order before cloning, even for a later
+ * no-op. A function-valued eventsFor is a resolver, not the finalizer itself;
+ * it may return a finalizer. Environment options override resolved values only
+ * after an actual mutation. Callback aliases and native failures are retained.
+ * @template C, P
+ * @param {{readPayload: (command: C, state: DomainState) => P | null, apply: (nextState: DomainState, payload: P, command: C, state: DomainState) => unknown, direction?: ReducerOption<P, C, 'next' | 'prev'>, forceReselect?: ReducerOption<P, C, boolean>, eventsFor?: Event[] | null | false | 0 | '' | ((payload: P, command: C, state: DomainState) => FeedMutationOptions['eventsFor']), persist?: ReducerOption<P, C, boolean>}} spec
+ * @returns {(state: DomainState, command: C, env?: FeedMutationOptions) => ReducerResult}
+ */
 function buildFeedCommandReducer({
   readPayload,
   apply,
