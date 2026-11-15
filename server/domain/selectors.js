@@ -59,7 +59,7 @@
 
 /**
  * @typedef {{ state: DomainState, direction?: Direction }} SequentialPhotoOptions
- * @typedef {SequentialPhotoOptions & { now?: Date, rng?: RandomSource }} SmartPhotoOptions
+ * @typedef {SequentialPhotoOptions & { now?: Date | null, rng?: RandomSource | null }} SmartPhotoOptions
  */
 
 const DEFAULT_SPLIT_CROP = 50;
@@ -641,6 +641,9 @@ function selectSequentialPhoto({ state, direction = 'next' }) {
 /**
  * State adapter for smart selection; prev allows reselecting current URL.
  * Weather is_day takes precedence over local-hour night classification.
+ * Explicit null is forwarded, not defaulted: the clock fails when read, while
+ * a null RNG fails only if selection draws. Local assertions describe the
+ * downstream native operations; they do not validate or replace either value.
  * @param {SmartPhotoOptions} options
  * @returns {FeedPhoto | null} Original unvalidated feed row alias, or null.
  */
@@ -649,7 +652,7 @@ function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = M
     photo.url === state.playback.activePhotoUrl
   );
 
-  return selectSmartPhotoFromFeed({
+  return selectSmartPhotoFromFeed(/** @type {SmartFeedOptions<FeedPhoto>} */ ({
     photos: state.library.photosList,
     currentPhotoUrl: direction === 'prev' ? null : state.playback.activePhotoUrl,
     previousCategory: currentPhoto?.category ?? null,
@@ -661,11 +664,11 @@ function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = M
     alignTimeOfDay: state.config.alignTimeOfDay,
     isNight: state.runtime.weather?.current
       ? state.runtime.weather.current.is_day === 0
-      : now.getHours() >= 18 || now.getHours() < 6,
+      : /** @type {Date} */ (now).getHours() >= 18 || /** @type {Date} */ (now).getHours() < 6,
     nightPercentage: state.config.nightPercentage,
     now,
     rng
-  });
+  }));
 }
 
 function hashString(value) {

@@ -98,6 +98,11 @@ const rawSequentialCategory: unknown = rawSequential?.category;
 // @ts-expect-error cursor lookup does not normalize the selected category
 const normalizedSequentialCategory: string | undefined = rawSequential?.category;
 const rawSmart: FeedPhoto | null = selectSmartPhoto({ state: rawFeedState });
+const nullableSmart: FeedPhoto | null = selectSmartPhoto({ state: rawFeedState, now: null, rng: null });
+// @ts-expect-error supplied clocks are dates or null, not callbacks
+selectSmartPhoto({ state: rawFeedState, now: () => new Date() });
+// @ts-expect-error supplied random sources are callbacks or null, not numbers
+selectSmartPhoto({ state: rawFeedState, rng: 0 });
 const rawSmartFeed: typeof preview | null = selectSmartPhotoFromFeed({ photos: [preview], previousCategory: { legacy: true } });
 const rawWeighted: typeof preview | null = selectWeightedRandomPhoto({ photos: [preview], currentPhotoUrl: { legacy: true } });
 const rawRatingRows = [{ url: 'rated', rating: { legacy: true } }];

@@ -1693,6 +1693,47 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => selectors.selectSmartPhotoFromFeed({ photos: [{ url: 'one' }], now: new Date(2026, 0, 1, 9), rng: () => { throw failure; } }), error => error === failure);
   });
 
+  assertTest('smart state selection forwards explicit nulls to native clock and conditional random operations', () => {
+    const now = new Date(2026, 0, 1, 9);
+    const empty = createState({ library: { photosList: [] } });
+    const zeroWeight = { url: 'zero', category: 'pool', rating: 0 };
+    const one = createState({ library: { photosList: [zeroWeight] }, playback: { activePhotoUrl: null } });
+    [empty, createState({ library: { photosList: [] }, runtime: { weather: { current: { is_day: 1 } } } })]
+      .forEach((state) => assert.throws(() => selectSmartPhoto({ state, now: null, rng: null }), TypeError));
+    assert.strictEqual(selectSmartPhoto({ state: empty, now, rng: null }), null);
+    assert.strictEqual(selectSmartPhoto({ state: one, now, rng: null }), zeroWeight);
+    const weighted = createState({ library: { photosList: [{ ...zeroWeight, rating: 2 }] }, playback: { activePhotoUrl: null } });
+    assert.throws(() => selectSmartPhoto({ state: weighted, now, rng: null }), TypeError);
+  });
+
+  assertTest('smart state selection observes weather precedence and clock before conditional random draws', () => {
+    const calls = [];
+    const now = new Date(2026, 0, 1, 9);
+    now.getHours = () => { calls.push('hours'); return 9; };
+    now.getMinutes = () => { calls.push('minutes'); return 0; };
+    const rng = () => { calls.push('draw'); return 0; };
+    const row = { url: 'one', category: 'pool', rating: 10 };
+    const state = createState({ library: { photosList: [row] }, playback: { activePhotoUrl: null } });
+    assert.strictEqual(selectSmartPhoto({ state, now, rng }), row);
+    assert.deepStrictEqual(calls, ['hours', 'hours', 'hours', 'minutes', 'draw']);
+    calls.length = 0;
+    const withWeather = { ...state, runtime: { ...state.runtime, weather: { current: { is_day: 1 } } } };
+    assert.strictEqual(selectSmartPhoto({ state: withWeather, now, rng }), row);
+    assert.deepStrictEqual(calls, ['hours', 'minutes', 'draw']);
+    const failure = new Error('clock failed');
+    now.getHours = () => { throw failure; };
+    assert.throws(() => selectSmartPhoto({ state: withWeather, now, rng }), error => error === failure);
+  });
+
+  assertTest('sequence playback does not invoke truthy malformed clock or random inputs', () => {
+    const state = createState();
+    const env = { now: {}, rng: {} };
+    const sequence = { type: 'advance-photo', payload: { direction: 'next', strategy: 'sequence' } };
+    const smart = { ...sequence, payload: { ...sequence.payload, strategy: 'smart' } };
+    assert.strictEqual(reduceDomainCommand(state, sequence, env).nextState.playback.activePhotoUrl, 'port-2');
+    assert.throws(() => reduceDomainCommand(state, smart, env), TypeError);
+  });
+
   assertTest('normalizes category aliases and drops invalid selections', () => {
     const selected = normalizeCategorySelection(
       'Liminal Space,AI Creation,Missing',

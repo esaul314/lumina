@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-14: Audit Smart-Selection Execution Inputs
+
+- **Outcome**: documented the distinction between the reducer's truthy defaults
+  and the selector's undefined-only defaults. Explicit null is forwarded to
+  native clock or conditional random operations, not validated or normalized.
+  Local type assertions leave executable production syntax unchanged.
+- **Coverage**: three runtime regressions and compiler fixtures cover weather
+  precedence, clock/draw ordering, no-candidate and zero-weight paths, sequence
+  short-circuiting and propagated failures. The existing functional pipeline
+  already expresses the behavior without an additional abstraction.
+- **Verification**: 857 assertions, 13 sensor regressions and three compiler
+  fixtures pass; the optional live endpoint smoke is skipped on sandbox
+  `EPERM`. Strict checking remains nonzero at 337 core, zero fixture, 69
+  transitive and zero global diagnostics. Next audit active-photo maintenance.
+  The physical-TV cursor report remains unresolved.
+
 ### 2026-11-14: Audit Selectable Photo Lookup and Preview Staging
 
 - **Outcome**: documented lookup precedence and raw row/fallback aliases, and
