@@ -3406,6 +3406,92 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(reads, ['name', 'name']);
   });
 
+  assertTest('selectable photo lookup preserves feed, curated, external and fallback precedence', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.findSelectable = findSelectablePhoto;`, sandbox);
+    const feed = { url: 'same', rating: 1, isBroken: true };
+    const curated = { url: 'same' };
+    const external = { url: 'same' };
+    const fallback = Object.freeze({ url: 'different' });
+    const state = createState();
+    state.library = { photosList: [feed], collections: { curated: [curated] }, externalCollections: { external: [external] } };
+    assert.strictEqual(sandbox.findSelectable(state, 'same', fallback), feed);
+    state.library.photosList = [];
+    assert.strictEqual(sandbox.findSelectable(state, 'same', fallback), curated);
+    state.library.collections = {};
+    assert.strictEqual(sandbox.findSelectable(state, 'same', fallback), external);
+    state.library.externalCollections = {};
+    assert.strictEqual(sandbox.findSelectable(state, 'same', fallback), fallback);
+    assert.strictEqual(sandbox.findSelectable(state, 'same', 42), 42);
+    assert.strictEqual(sandbox.findSelectable(state, 'same', false), null);
+    assert.strictEqual(sandbox.findSelectable(state, 'same'), null);
+    const key = {};
+    const unvalidated = { url: key };
+    state.library.photosList = [unvalidated];
+    assert.strictEqual(sandbox.findSelectable(state, key, fallback), unvalidated);
+    assert.strictEqual(sandbox.findSelectable(state, {}, fallback), fallback);
+  });
+
+  assertTest('selectable photo lookup short circuits feed hits but eagerly reads both pool maps', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.findSelectable = findSelectablePhoto;`, sandbox);
+    const state = createState();
+    const selected = { url: 'same' };
+    const failure = new Error('external collection failure');
+    state.library = { photosList: [selected], get collections() { throw failure; } };
+    assert.strictEqual(sandbox.findSelectable(state, 'same'), selected);
+    state.library = { photosList: [], collections: { pool: [selected] }, get externalCollections() { throw failure; } };
+    assert.throws(() => sandbox.findSelectable(state, 'same'), (error) => error === failure);
+    state.library = { photosList: [{ get url() { throw failure; } }], collections: {} };
+    assert.throws(() => sandbox.findSelectable(state, 'same'), (error) => error === failure);
+    state.library = { photosList: [null, { url: undefined }], collections: {}, externalCollections: {} };
+    assert.strictEqual(sandbox.findSelectable(state, undefined, selected), selected);
+  });
+
+  assertTest('preview staging copies enumerable fields and retains nonmatching row aliases', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.prepend = prependVisiblePhoto;`, sandbox);
+    const calls = [];
+    const shared = {};
+    const symbol = Symbol('photo metadata');
+    const photo = Object.assign(Object.create({ inherited: 'not copied' }), { nested: shared, [symbol]: 'copied' });
+    Object.defineProperty(photo, 'url', { enumerable: true, get: () => (calls.push('photo url'), 'same') });
+    Object.defineProperty(photo, 'hidden', { value: 'not copied' });
+    const keep = { get url() { calls.push('keep url'); return 'other'; } };
+    const duplicate = { get url() { calls.push('duplicate url'); return 'same'; } };
+    const rows = [keep, duplicate];
+    const result = sandbox.prepend(rows, photo);
+    assert.notStrictEqual(result, rows);
+    assert.notStrictEqual(result[0], photo);
+    assert.strictEqual(result[0].url, 'same');
+    assert.strictEqual(result[0].nested, shared);
+    assert.strictEqual(result[0][symbol], 'copied');
+    assert.strictEqual('inherited' in result[0], false);
+    assert.strictEqual('hidden' in result[0], false);
+    assert.strictEqual(result[1], keep);
+    assert.strictEqual(result.length, 2);
+    assert.deepStrictEqual(calls, ['photo url', 'photo url', 'keep url', 'photo url', 'duplicate url', 'photo url']);
+    assert.strictEqual(rows[1], duplicate);
+  });
+
+  assertTest('preview staging keeps no-op identity and propagates native access failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.prepend = prependVisiblePhoto;`, sandbox);
+    const rows = [{ url: 'other' }];
+    for (const photo of [null, undefined, {}, { url: 0 }, { url: '' }]) {
+      assert.strictEqual(sandbox.prepend(rows, photo), rows);
+    }
+    assert.strictEqual(sandbox.prepend(null, null), null);
+    const failure = new Error('URL read failed');
+    assert.throws(() => sandbox.prepend(rows, { get url() { throw failure; } }), (error) => error === failure);
+    assert.throws(() => sandbox.prepend([null], { url: 'x' }), (error) => error.name === 'TypeError');
+    assert.throws(() => sandbox.prepend(null, { url: 'x' }), (error) => error.name === 'TypeError');
+  });
+
   assertTest('playback command preserves callback aliases and resolves direction before cloning', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

@@ -730,17 +730,39 @@ function buildPoolCommandReducer({
   });
 }
 
+/**
+ * Keep the original list when the photo has no truthy URL. Otherwise prepend a
+ * shallow own-enumerable copy and retain nonmatching row aliases in order.
+ * URL reads are repeated during filtering; no values are normalized, and native
+ * getter/filter failures propagate. Nested values remain shared.
+ * @template {{url?: unknown}} T
+ * @template {{url?: unknown}} P
+ * @param {T[]} photosList
+ * @param {P | null | undefined} photo
+ * @returns {Array<T | Partial<P>>}
+ */
 function prependVisiblePhoto(photosList, photo) {
   if (!photo?.url) {
     return photosList;
   }
 
   return [
-    { ...photo },
+    /** @type {Partial<P>} */ ({ ...photo }),
     ...photosList.filter((currentPhoto) => currentPhoto.url !== photo.url)
   ];
 }
 
+/**
+ * Resolve the first truthy result from the feed, curated then external pools,
+ * and finally the fallback; return the original row/fallback alias or null.
+ * URL matching is strict and does not validate metadata or visibility. Pool
+ * lookup eagerly reads both collection maps; native errors are not caught.
+ * @template T
+ * @param {DomainState} state
+ * @param {unknown} url
+ * @param {T | null} [fallbackPhoto=null]
+ * @returns {FeedPhoto | Exclude<T, null | undefined | false | 0 | ''> | null}
+ */
 function findSelectablePhoto(state, url, fallbackPhoto = null) {
   return findPhotoInFeed(state.library.photosList, url)
     || getPhotoByUrl(state.library.collections, url, state.library.externalCollections)

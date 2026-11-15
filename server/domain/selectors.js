@@ -269,7 +269,7 @@ function findPhotoInFeed(photosList, url) {
 
 /**
  * @param {Readonly<CollectionsState>} collections Curated pools searched first.
- * @param {string | null | undefined} url Strict equality; no visibility filtering.
+ * @param {unknown} url Strict equality; no visibility filtering or coercion.
  * @param {Readonly<CollectionsState>} [externalCollections={}]
  * @returns {Photo | null} First row alias or null.
  */

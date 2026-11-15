@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-14: Audit Selectable Photo Lookup and Preview Staging
+
+- **Outcome**: documented lookup precedence and raw row/fallback aliases, and
+  preview staging's identity, shallow-copy and repeated-read behavior. The
+  existing small pure projections remain unchanged; a local type assertion
+  describes the partial copy without performing validation.
+- **Coverage**: four runtime regressions and private compiler fixtures cover
+  lookup precedence, eager pool reads, strict keys, copying, getters, malformed
+  inputs and native failures. Executable production syntax is unchanged.
+- **Verification**: 854 assertions, 13 sensor regressions and three compiler
+  fixture tests pass; the optional live endpoint smoke is skipped on sandbox
+  `EPERM`. Strict domain checking remains nonzero at 339 core, zero fixture,
+  69 transitive and zero global diagnostics. Next audit nullable playback
+  environment forwarding. The physical-TV cursor report remains unresolved.
+
 ### 2026-11-14: Audit Playback Command Composition
 
 - **Outcome**: documented the existing generic playback selection and

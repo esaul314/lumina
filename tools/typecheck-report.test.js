@@ -311,6 +311,18 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       // @ts-expect-error direction resolvers must return a supported direction
       resolveDirection: () => 'sideways'
     });
+    const fixtureLookup = findSelectablePhoto(fixtureState, { key: 'raw' }, { marker: 7 });
+    /** @type {FeedPhoto | {marker: number} | null} */ const fixtureLookupResult = fixtureLookup;
+    // @ts-expect-error a fallback is not guaranteed to be selected
+    /** @type {{marker: number}} */ const fixtureFallbackOnly = fixtureLookup;
+    const fixtureStaged = prependVisiblePhoto([{ url: 'x', existing: true }], { url: 'y', count: 2 });
+    /** @type {boolean | undefined} */ const fixtureExisting = 'existing' in fixtureStaged[0] ? fixtureStaged[0].existing : undefined;
+    if ('count' in fixtureStaged[0]) {
+      // @ts-expect-error a copied property may have been inherited or non-enumerable
+      /** @type {number} */ const fixtureRequiredCount = fixtureStaged[0].count;
+    }
+    // @ts-expect-error feed entries must be URL-bearing row shapes
+    prependVisiblePhoto([42], { url: 'x' });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);
