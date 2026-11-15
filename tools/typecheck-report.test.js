@@ -252,6 +252,39 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       // @ts-expect-error a direction resolver must return a supported direction
       direction: () => 'sideways'
     });
+    /** @type {ReducerResult} */ const fixturePoolMutation = reducePoolMutation(fixtureState, 'garden', {
+      poolExists: (state, name) => state.config && name === 'garden',
+      apply: (next, name) => next.config && name.length > 0,
+      effects: [{ type: 'refresh-weather' }]
+    });
+    // Omitted options are supported until a matching pool requires apply.
+    reducePoolMutation(fixtureState, 'missing');
+    // @ts-expect-error the guard must accept the supplied numeric name
+    reducePoolMutation(fixtureState, 4, {
+      poolExists: (state, /** @type {string} */ name) => name.length
+    });
+    const fixturePoolReducer = buildPoolCommandReducer({
+      readPayload: (/** @type {{name: string, count: number}} */ command) => command.name ? command : null,
+      apply: (next, payload, command, original) => {
+        /** @type {string} */ const poolName = payload.name;
+        /** @type {number | undefined} */ const copiedCount = payload.count;
+        // @ts-expect-error payload copies can omit non-enumerable or inherited fields
+        /** @type {number} */ const requiredCount = payload.count;
+        return next !== original && command.name === poolName && copiedCount !== undefined;
+      },
+      effects: (payload, command) => payload.count === command.count ? [{ type: 'refresh-weather' }] : [],
+      poolExists: (state, name) => state.config && name.length,
+      persist: (payload) => payload.count > 0
+    });
+    /** @type {ReducerResult} */ const fixturePoolResult = fixturePoolReducer(fixtureState, { name: 'garden', count: 2 });
+    // @ts-expect-error the pool reducer retains its command type
+    fixturePoolReducer(fixtureState, { name: 'garden', count: 'wrong' });
+    buildPoolCommandReducer({
+      readPayload: (/** @type {{name: string}} */ command) => command,
+      apply: () => true,
+      // @ts-expect-error persistence resolvers must return booleans
+      persist: () => 'yes'
+    });
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

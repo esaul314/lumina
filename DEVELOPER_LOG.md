@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-14: Audit Pool Command and Mutation Composition
+
+- **Outcome**: documented generic pool-command and guarded-mutation contracts.
+  Resolvers run before the guard; guarded payloads are shallow copies whose
+  non-name fields may be absent, while unguarded payloads retain identity.
+  The existing partially applied composition stays intact without new ceremony.
+- **Coverage**: five runtime regressions and private compiler fixtures cover
+  existence checks, changing getters, guard-name precedence, method receivers,
+  cloning, no-op identity, output ordering and propagated failures. A local
+  type assertion preserves native optional-apply behavior without validation.
+- **Verification**: 847 assertions, 13 sensor regressions and three compiler
+  fixture tests pass; the optional live endpoint smoke is skipped on sandbox
+  `EPERM`. Strict domain checking remains nonzero at 371 core, zero fixture,
+  69 transitive and zero global diagnostics. Next audit playback-command
+  selection and preparation. The physical-TV cursor report remains unresolved.
+
 ### 2026-11-14: Audit Feed-Command Payload and Option Composition
 
 - **Outcome**: documented the existing partially applied payload continuation,

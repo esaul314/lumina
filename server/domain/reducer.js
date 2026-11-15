@@ -696,6 +696,17 @@ function buildFeedCommandReducer({
   ));
 }
 
+/**
+ * Build a pool reducer from a payload reader and mutation. Option resolvers run
+ * before the existence guard, including for missing pools. The guarded path
+ * passes apply a shallow own-enumerable copy with the guarded name overwritten;
+ * the unguarded path passes the original payload. Native reads and failures,
+ * callback aliases and no-op identity are retained without validation.
+ * @template C
+ * @template {{name: string}} P
+ * @param {{readPayload: (command: C, state: DomainState) => P | null, apply: (nextState: DomainState, payload: Partial<P> & Pick<P, 'name'>, command: C, state: DomainState) => unknown, effects?: Effect[] | null | false | 0 | '' | ((payload: P, command: C, state: DomainState) => MutationResultOptions<DomainState>['effects']), persist?: ReducerOption<P, C, boolean>, requireExistingPool?: boolean, poolExists?: (state: DomainState, name: P['name']) => unknown}} spec
+ * @returns {(state: DomainState, command: C, env?: ReducerEnvironment) => ReducerResult}
+ */
 function buildPoolCommandReducer({
   readPayload,
   apply,
@@ -942,6 +953,18 @@ function removePoolState(nextState, name) {
   return true;
 }
 
+/**
+ * Guard a pool mutation before copying options or cloning state. A falsy
+ * poolExists option selects the default guard; a falsy guard result returns the
+ * original state. For existing pools the apply property is read again when the
+ * clone is mutated. Missing/non-callable callbacks and thrown failures retain
+ * their native behavior rather than being validated here.
+ * @template N
+ * @param {DomainState} state
+ * @param {N} name
+ * @param {Omit<MutationResultOptions<DomainState>, 'context'> & {apply?: (nextState: DomainState, name: N) => unknown, poolExists?: ((state: DomainState, name: N) => unknown) | null | false | 0 | ''}} [options]
+ * @returns {ReducerResult}
+ */
 function reducePoolMutation(state, name, options = {}) {
   if (!(options.poolExists || hasPool)(state, name)) {
     return unchangedResult(state);
@@ -949,7 +972,7 @@ function reducePoolMutation(state, name, options = {}) {
 
   return reduceStateMutation(state, {
     ...options,
-    apply: (nextState) => options.apply(nextState, name)
+    apply: (nextState) => (/** @type {any} */ (options).apply)(nextState, name)
   });
 }
 

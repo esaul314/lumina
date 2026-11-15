@@ -3263,6 +3263,149 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => failing(state, command), (error) => error === failure);
   });
 
+  assertTest('pool mutation checks existence before copying options or cloning', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reducePool = reducePoolMutation;`, sandbox);
+    const state = createState();
+    const name = Object.freeze({ name: 'identity' });
+    const calls = [];
+    const options = {
+      get poolExists() { calls.push('read guard'); return (current, key) => (calls.push('guard'), assert.strictEqual(current, state), assert.strictEqual(key, name), false); },
+      get apply() { throw new Error('apply must not be read'); }
+    };
+    const missing = sandbox.reducePool(state, name, options);
+    assert.strictEqual(missing.nextState, state);
+    assert.strictEqual(missing.events.length, 0);
+    assert.strictEqual(missing.effects.length, 0);
+    assert.deepStrictEqual(calls, ['read guard', 'guard']);
+    const failure = new Error('guard failed');
+    assert.throws(() => sandbox.reducePool(state, name, { poolExists: () => { throw failure; } }), (error) => error === failure);
+    assert.throws(() => sandbox.reducePool(state, name, { poolExists: true }), (error) => error.name === 'TypeError');
+    assert.throws(() => sandbox.reducePool(state, name, null), (error) => error.name === 'TypeError');
+    assert.strictEqual(sandbox.reducePool(state, 'missing').nextState, state);
+  });
+
+  assertTest('pool mutation rereads apply after option spread and keeps native receivers', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reducePool = reducePoolMutation;`, sandbox);
+    const state = createState();
+    const name = Object.freeze({ name: 'identity' });
+    const calls = [];
+    let clone;
+    let reads = 0;
+    const options = {
+      get poolExists() { calls.push('read guard'); return () => (calls.push('guard'), true); },
+      get apply() {
+        calls.push('read apply');
+        reads += 1;
+        if (reads === 1) return () => { throw new Error('spread copy must not be called'); };
+        return function (next, key) {
+          calls.push('apply');
+          assert.strictEqual(this, options);
+          assert.strictEqual(key, name);
+          clone = next;
+          next.config.theme = 'pool change';
+          return true;
+        };
+      },
+      get effects() { calls.push('read effects'); return [{ type: 'refresh-weather' }]; },
+      persist: true
+    };
+    const result = sandbox.reducePool(state, name, options);
+    assert.deepStrictEqual(calls, ['read guard', 'guard', 'read guard', 'read apply', 'read effects', 'read apply', 'apply']);
+    assert.notStrictEqual(clone, state);
+    assert.strictEqual(result.nextState, clone);
+    assert.notStrictEqual(state.config.theme, 'pool change');
+    assert.deepStrictEqual(Array.from(result.effects, (effect) => effect.type), ['persist', 'refresh-weather']);
+    const failure = new Error('apply failure');
+    assert.throws(() => sandbox.reducePool(state, name, { poolExists: () => true, apply: () => { throw failure; } }), (error) => error === failure);
+    assert.throws(() => sandbox.reducePool(state, name, { poolExists: () => true }), (error) => error.name === 'TypeError');
+  });
+
+  assertTest('guarded pool command resolves options before checking and copies enumerable payload fields', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildPool = buildPoolCommandReducer;`, sandbox);
+    const state = createState();
+    const command = Object.freeze({});
+    const calls = [];
+    const symbol = Symbol('copied');
+    const payload = Object.assign(Object.create({ inherited: 'not copied' }), { name: 'garden', value: 7, [symbol]: 'copied' });
+    Object.defineProperty(payload, 'hidden', { value: 'not copied' });
+    const effects = Object.freeze([{ type: 'refresh-weather' }]);
+    let clone;
+    const build = (exists) => sandbox.buildPool({
+      readPayload: (current, original) => (calls.push('read'), assert.strictEqual(current, command), assert.strictEqual(original, state), payload),
+      effects: (item, current, original) => (calls.push('effects resolver'), assert.strictEqual(item, payload), assert.strictEqual(current, command), assert.strictEqual(original, state), effects),
+      persist: (item) => (calls.push('persist resolver'), assert.strictEqual(item, payload), true),
+      poolExists: (original, name) => (calls.push('guard'), assert.strictEqual(original, state), assert.strictEqual(name, payload.name), exists),
+      apply: (next, copy, current, original) => {
+        calls.push('apply');
+        clone = next;
+        assert.notStrictEqual(next, state);
+        assert.notStrictEqual(copy, payload);
+        assert.strictEqual(copy.name, payload.name);
+        assert.strictEqual(copy.value, payload.value);
+        assert.strictEqual(copy[symbol], 'copied');
+        assert.strictEqual(copy.hidden, undefined);
+        assert.strictEqual(copy.inherited, undefined);
+        assert.strictEqual(current, command);
+        assert.strictEqual(original, state);
+        return true;
+      }
+    });
+    const missing = build(false)(state, command);
+    assert.strictEqual(missing.nextState, state);
+    assert.deepStrictEqual(calls, ['read', 'effects resolver', 'persist resolver', 'guard']);
+    calls.length = 0;
+    const changed = build(true)(state, command);
+    assert.strictEqual(changed.nextState, clone);
+    assert.deepStrictEqual(calls, ['read', 'effects resolver', 'persist resolver', 'guard', 'apply']);
+    assert.deepStrictEqual(Array.from(changed.effects, (effect) => effect.type), ['persist', 'refresh-weather']);
+    assert.strictEqual(changed.effects[1], effects[0]);
+  });
+
+  assertTest('unguarded pool command retains payload identity and propagates resolver failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildPool = buildPoolCommandReducer;`, sandbox);
+    const state = createState();
+    const command = Object.freeze({});
+    const payload = Object.freeze({ name: 'garden' });
+    const calls = [];
+    const reduce = sandbox.buildPool({
+      readPayload: () => payload,
+      requireExistingPool: false,
+      poolExists: () => { throw new Error('guard must not run'); },
+      apply: (next, current, cmd, original) => (calls.push('apply'), assert.notStrictEqual(next, state), assert.strictEqual(current, payload), assert.strictEqual(cmd, command), assert.strictEqual(original, state), false)
+    });
+    assert.strictEqual(reduce(state, command).nextState, state);
+    assert.deepStrictEqual(calls, ['apply']);
+    const failure = new Error('resolver failed');
+    const failing = sandbox.buildPool({ readPayload: () => payload, effects: () => { throw failure; }, poolExists: () => { throw new Error('must not run'); }, apply: () => true });
+    assert.throws(() => failing(state, command), (error) => error === failure);
+    const skipped = sandbox.buildPool({ readPayload: () => null, effects: () => { throw new Error('must not run'); }, apply: () => true });
+    assert.strictEqual(skipped(state, command).nextState, state);
+  });
+
+  assertTest('pool command overwrites a copied name with the earlier guarded read', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildPool = buildPoolCommandReducer;`, sandbox);
+    const state = createState();
+    const reads = [];
+    const payload = { get name() { reads.push('name'); return reads.length === 1 ? 'guarded' : 'later'; } };
+    const reduce = sandbox.buildPool({
+      readPayload: () => payload,
+      poolExists: (_state, name) => (assert.strictEqual(name, 'guarded'), true),
+      apply: (_next, copy) => (assert.strictEqual(copy.name, 'guarded'), true)
+    });
+    assert.notStrictEqual(reduce(state, {}).nextState, state);
+    assert.deepStrictEqual(reads, ['name', 'name']);
+  });
+
   assertTest('feed finalization shares its projected context and preserves output ordering', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
