@@ -188,6 +188,32 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     buildEntriesCommandReducer((/** @type {string} */ state) => state, []);
     // @ts-expect-error events retain their closed vocabulary
     buildEntriesCommandReducer((state) => state.config, [], { events: [{ type: 'invalid' }] });
+    const fixtureFieldReducer = buildFieldCommandReducer(
+      (state) => state.config, 'theme',
+      (/** @type {{name: string}} */ command, state) => state.config ? command.name : '',
+      { effects: (state, command) => command.name ? [{ type: 'refresh-weather' }] : [] }
+    );
+    /** @type {ReducerResult} */ const fixtureFieldResult = fixtureFieldReducer(fixtureState, { name: 'x' });
+    // @ts-expect-error the partially applied field reader retains its command type
+    fixtureFieldReducer(fixtureState, { name: 7 });
+    // @ts-expect-error field names are property keys
+    buildFieldCommandReducer((state) => state.config, {}, () => 'x');
+    buildFieldCommandReducer((state) => state.config, 'theme', (/** @type {string} */ command) => command,
+      // @ts-expect-error output factories receive the same command as the reader
+      { effects: (state, /** @type {number} */ command) => [] });
+    /** @type {ReducerResult} */ const fixtureFinalized = finalizeFeedMutation(fixtureState, {
+      direction: 'prev', eventsFor: (result) => result.photoChanged ? [{ type: 'photo-update' }] : [],
+      effects: (result) => result.state.config ? [{ type: 'refresh-weather' }] : []
+    });
+    /** @type {ReducerResult} */ const fixtureFeedMutation = reduceFeedMutation(fixtureState, {
+      apply: (state) => state.config, persist: true
+    }, { rng: () => 0.5 });
+    // @ts-expect-error finalization context is not a string
+    finalizeFeedMutation(fixtureState, { eventsFor: (/** @type {string} */ value) => [] });
+    // @ts-expect-error events retain their closed vocabulary
+    finalizeFeedMutation(fixtureState, { eventsFor: [{ type: 'invalid' }] });
+    // @ts-expect-error feed mutations require an apply callback
+    reduceFeedMutation(fixtureState, {}, {});
   `;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);

@@ -3151,6 +3151,113 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => sandbox.reduceMutation(state, null), (error) => error.name === 'TypeError');
   });
 
+  assertTest('feed finalization shares its projected context and preserves output ordering', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.finalize = finalizeFeedMutation;\nglobalThis.replaceRecompute = fn => { recomputeAndEnsureActivePhoto = fn; };`, sandbox);
+    const state = createState();
+    const finalState = createState();
+    const finalized = { state: finalState, photoChanged: true };
+    const calls = [];
+    const directions = [];
+    const effects = Object.freeze([{ type: 'refresh-weather' }]);
+    sandbox.replaceRecompute((next, options) => {
+      calls.push('recompute');
+      assert.strictEqual(next, state);
+      directions.push(options.direction);
+      return finalized;
+    });
+    const result = sandbox.finalize(state, {
+      direction: 'prev', persist: true,
+      effects: (context) => (calls.push('effects'), assert.strictEqual(context, finalized), effects),
+      eventsFor: (context) => (calls.push('events'), assert.strictEqual(context, finalized), [{ type: 'photo-update' }])
+    });
+    assert.strictEqual(result.nextState, finalState);
+    assert.deepStrictEqual(calls, ['recompute', 'effects', 'events']);
+    assert.deepStrictEqual(directions, ['prev']);
+    assert.deepStrictEqual(Array.from(result.effects, (effect) => effect.type), ['persist', 'refresh-weather']);
+    assert.deepStrictEqual(Array.from(result.events, (event) => event.type), ['photo-update']);
+    const defaultResult = sandbox.finalize(state, {});
+    assert.deepStrictEqual(Array.from(defaultResult.events, (event) => event.type), ['photo-update', 'state-sync']);
+  });
+
+  assertTest('feed mutation skips finalization on no-op and spreads environment after options', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reduceFeed = reduceFeedMutation;\nglobalThis.replaceRecompute = fn => { recomputeAndEnsureActivePhoto = fn; };`, sandbox);
+    const state = createState();
+    const calls = [];
+    const failure = new Error('finalization failure');
+    const env = { get direction() { calls.push('env'); return 'prev'; } };
+    const options = {
+      apply: (next) => (calls.push('apply'), next.config.theme = 'changed', true),
+      get direction() { calls.push('options'); return 'next'; }
+    };
+    sandbox.replaceRecompute((next, selection) => {
+      calls.push('recompute');
+      assert.notStrictEqual(next, state);
+      assert.strictEqual(selection.direction, 'prev');
+      return { state: next, photoChanged: false };
+    });
+    const result = sandbox.reduceFeed(state, options, env);
+    assert.deepStrictEqual(calls, ['apply', 'options', 'env', 'recompute']);
+    assert.notStrictEqual(result.nextState, state);
+    assert.notStrictEqual(state.config.theme, 'changed');
+    assert.deepStrictEqual(Array.from(result.events, (event) => event.type), ['state-sync']);
+    calls.length = 0;
+    assert.strictEqual(sandbox.reduceFeed(state, {
+      apply: () => false,
+      get direction() { calls.push('options'); return 'next'; }
+    }, env).nextState, state);
+    assert.deepStrictEqual(calls, []);
+    sandbox.replaceRecompute(() => { throw failure; });
+    assert.throws(() => sandbox.reduceFeed(state, options, env), (error) => error === failure);
+  });
+
+  assertTest('field reducer composes selector, command reader and output factories with shared aliases', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildField = buildFieldCommandReducer;`, sandbox);
+    const state = createState();
+    const value = Object.freeze({ raw: true });
+    const command = Object.freeze({ value });
+    const calls = [];
+    let clone;
+    const reduce = sandbox.buildField((next) => (calls.push('select'), clone = next, next.config), 'theme',
+      (current, next) => (calls.push('read'), assert.strictEqual(current, command), assert.strictEqual(next, clone), current.value),
+      { effects: (next, current) => (calls.push('effects'), assert.strictEqual(next, clone), assert.strictEqual(current, command), []), persist: true });
+    assert.deepStrictEqual(calls, []);
+    const result = reduce(state, command);
+    assert.deepStrictEqual(calls, ['select', 'read', 'effects']);
+    assert.strictEqual(result.nextState, clone);
+    assert.strictEqual(clone.config.theme, value);
+    assert.notStrictEqual(state.config.theme, value);
+    assert.deepStrictEqual(Array.from(result.events, (event) => event.type), ['state-sync']);
+    assert.deepStrictEqual(Array.from(result.effects, (effect) => effect.type), ['persist']);
+  });
+
+  assertTest('field reducer preserves no-ops, native keys, option timing and failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildField = buildFieldCommandReducer;`, sandbox);
+    const state = createState();
+    const calls = [];
+    const key = { [Symbol.toPrimitive]: () => (calls.push('key'), 'theme') };
+    const reduce = sandbox.buildField((next) => (calls.push('select'), next.config), key,
+      (command) => (calls.push('read'), command.value),
+      { get events() { calls.push('options'); return []; } });
+    assert.strictEqual(reduce(state, { value: undefined }).nextState, state);
+    assert.deepStrictEqual(calls, ['options', 'select', 'read']);
+    calls.length = 0;
+    assert.strictEqual(reduce(state, { value: state.config.theme }).nextState, state);
+    assert.deepStrictEqual(calls, ['options', 'select', 'read', 'key']);
+    const failure = new Error('field failure');
+    assert.throws(() => sandbox.buildField(() => { throw failure; }, 'theme', () => 1)(state, {}), (error) => error === failure);
+    assert.throws(() => sandbox.buildField((next) => next.config, 'theme', () => { throw failure; })(state, {}), (error) => error === failure);
+    assert.throws(() => sandbox.buildField((next) => next.config, { [Symbol.toPrimitive]() { throw failure; } }, () => 1)(state, {}), (error) => error === failure);
+    assert.throws(() => sandbox.buildField((next) => next.config, 'theme', null)(state, {}), (error) => error.name === 'TypeError');
+  });
+
   assertTest('entries reducer partially applies readers and preserves assignment order and aliases', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

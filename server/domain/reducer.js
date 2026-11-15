@@ -273,6 +273,18 @@ function buildEntriesCommandReducer(selectTarget, readEntries, options = {}) {
   });
 }
 
+/**
+ * Partially apply a single-field command update through the entries reducer.
+ * The reader receives the original command and cloned state; its value is
+ * assigned without validation. Field lookup/coercion, no-op identity, options
+ * and failures follow the entries reducer's native behavior.
+ * @template C, T, V
+ * @param {(nextState: DomainState) => T} selectTarget
+ * @param {PropertyKey} field
+ * @param {(command: C, nextState: DomainState) => V} readValue
+ * @param {Omit<CommandMutationOptions<C>, 'apply'>} [options]
+ * @returns {(state: DomainState, command: C) => ReducerResult}
+ */
 function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) {
   return buildEntriesCommandReducer(
     selectTarget,
@@ -281,6 +293,20 @@ function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) 
   );
 }
 
+/**
+ * @typedef {{state: DomainState, photoChanged: boolean}} FeedFinalization
+ * @typedef {ReducerEnvironment & {direction?: 'next' | 'prev', forceReselect?: boolean, eventsFor?: Event[] | null | false | 0 | '' | ((finalized: FeedFinalization) => Event[] | null | undefined | false | 0 | ''), effects?: Effect[] | null | false | 0 | '' | ((finalized: FeedFinalization) => Effect[] | null | undefined | false | 0 | ''), persist?: boolean}} FeedMutationOptions
+ */
+
+/**
+ * Recompute the feed and active photo, then describe events and effects using
+ * the same finalization result. A custom event factory receives that result;
+ * output resolution and persistence ordering belong to buildMutationResult.
+ * No runtime input validation or exception handling is introduced.
+ * @param {DomainState} nextState
+ * @param {FeedMutationOptions} options
+ * @returns {ReducerResult}
+ */
 function finalizeFeedMutation(nextState, {
   now,
   rng,
@@ -307,6 +333,15 @@ function finalizeFeedMutation(nextState, {
   });
 }
 
+/**
+ * Clone and apply before finalizing. A falsy apply result returns the original
+ * state without reading/spreading finalization options or environment. On a
+ * change, environment fields override options in the existing spread order.
+ * @param {DomainState} state
+ * @param {FeedMutationOptions & {apply: (nextState: DomainState) => unknown}} options
+ * @param {FeedMutationOptions} env
+ * @returns {ReducerResult}
+ */
 function reduceFeedMutation(state, options, env) {
   return reduceClonedMutation(state, options.apply, (nextState) => (
     finalizeFeedMutation(nextState, {

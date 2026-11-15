@@ -6,6 +6,18 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-14: Audit Field Commands and Feed Finalization
+
+- **Outcome**: documented the partially applied field-command contract and the
+  adjacent feed mutation/finalization boundary. Runtime behavior remains intact;
+  callback relationships remain explicit without adding functional ceremony.
+- **Tests**: four runtime cases and private positive/negative compiler fixtures
+  cover aliases, raw values and native keys, no-op identity, option ordering,
+  context, defaults, persistence ordering and propagated failures.
+- **Checkpoint**: strict type checking remains nonzero at 426 core, zero fixture,
+  69 transitive and zero global diagnostics. Next audit payload/option adapters
+  and the feed-command builder; the physical TV cursor report remains open.
+
 ### 2026-11-13: Investigate Reported TV Cursor Regression
 
 - **Host evidence**: the service was active, `screensaverActive` was true,
