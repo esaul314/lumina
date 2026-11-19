@@ -415,6 +415,17 @@ function recomputeAndEnsureActivePhoto(state, {
   );
 }
 
+/**
+ * Shallow-copy the state and playback even when the URL is unchanged. Falsy
+ * URLs become null; truthy URLs retain their unvalidated value and identity.
+ * Strict inequality controls seed increment; a falsy direction keeps the old one.
+ * Accessors, native addition and their failures are not intercepted.
+ * @typedef {Omit<DomainState, 'playback'> & {playback: Omit<DomainState['playback'], 'activePhotoUrl'> & {activePhotoUrl: unknown}}} ActivePhotoState
+ * @param {DomainState} state
+ * @param {FeedPhoto | null | undefined} photo
+ * @param {'next' | 'prev' | null | undefined} direction
+ * @returns {{state: ActivePhotoState, changed: boolean}}
+ */
 function updateActivePhotoUrl(state, photo, direction) {
   const nextActivePhotoUrl = photo?.url || null;
   const changed = state.playback.activePhotoUrl !== nextActivePhotoUrl;
@@ -470,6 +481,15 @@ function advancePoolSequenceCursor(state, selectedPhoto, direction) {
   return state;
 }
 
+/**
+ * Retain the original state when the active lookup is still in the feed unless
+ * forced; lookup still occurs before the force check. Otherwise select and
+ * project a new playback state, preserving the selected row's raw URL.
+ * Defaults apply only to undefined; selector and accessor failures propagate.
+ * @param {DomainState} state
+ * @param {ReducerEnvironment & {direction?: 'next' | 'prev', forceReselect?: unknown}} options
+ * @returns {{state: ActivePhotoState, photoChanged: boolean}}
+ */
 function ensureActivePhoto(state, { now, rng, direction = 'next', forceReselect = false }) {
   const currentPhoto = getActivePhoto(state);
   const visibleCurrentPhoto = currentPhoto && findPhotoInFeed(state.library.photosList, currentPhoto.url);

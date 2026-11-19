@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-19: Audit Active-Photo Maintenance
+
+- **Outcome**: documented the existing pure active-photo update and maintenance
+  projections. State identity is retained on an unforced feed hit; replacement
+  preserves raw URL values, shallow copies, strict change detection, seed
+  addition and direction fallback. The local type exposes unknown URLs without
+  pretending the compatibility feed has been normalized.
+- **Coverage**: four runtime regressions and private compiler fixtures exercise
+  unchanged and forced paths, aliases, lookup/selection order, native coercion,
+  propagated failures and raw URLs. Production executable syntax is unchanged.
+- **Verification**: 861 assertions, 13 sensor regressions and three compiler
+  fixtures pass; optional live endpoint smoke is skipped on sandbox `EPERM`.
+  Strict checking remains nonzero at 335 core, zero fixture, 69 transitive and
+  zero global diagnostics. Next audit feed recomputation and its active-photo
+  continuation. The physical-TV cursor report remains unresolved.
+
 ### 2026-11-14: Audit Smart-Selection Execution Inputs
 
 - **Outcome**: documented the distinction between the reducer's truthy defaults

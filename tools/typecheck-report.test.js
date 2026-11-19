@@ -311,6 +311,15 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       // @ts-expect-error direction resolvers must return a supported direction
       resolveDirection: () => 'sideways'
     });
+    const fixtureActiveUpdate = updateActivePhotoUrl(fixtureState, { url: { raw: true } }, 'next');
+    /** @type {unknown} */ const fixtureRawActiveUrl = fixtureActiveUpdate.state.playback.activePhotoUrl;
+    // @ts-expect-error active URLs preserve arbitrary raw feed values
+    /** @type {string | null} */ const fixtureNormalizedActiveUrl = fixtureActiveUpdate.state.playback.activePhotoUrl;
+    /** @type {boolean} */ const fixturePhotoChanged = ensureActivePhoto(fixtureState, { now: null, rng: null }).photoChanged;
+    // @ts-expect-error unsupported directions do not belong to the typed contract
+    ensureActivePhoto(fixtureState, { direction: 'sideways' });
+    // @ts-expect-error photo inputs are feed rows, not primitive numbers
+    updateActivePhotoUrl(fixtureState, 3, 'next');
     const fixtureLookup = findSelectablePhoto(fixtureState, { key: 'raw' }, { marker: 7 });
     /** @type {FeedPhoto | {marker: number} | null} */ const fixtureLookupResult = fixtureLookup;
     // @ts-expect-error a fallback is not guaranteed to be selected

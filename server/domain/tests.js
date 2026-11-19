@@ -3447,6 +3447,92 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(reads, ['name', 'name']);
   });
 
+  assertTest('active-photo projection copies playback and preserves raw URL and direction semantics', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.updateActive = updateActivePhotoUrl;`, sandbox);
+    const state = createState({ playback: { activePhotoUrl: 'old', splitSeed: 3, lastDirection: 'prev' } });
+    const rawUrl = Object.freeze({ identity: 'url' });
+    const changed = sandbox.updateActive(state, { url: rawUrl }, 'next');
+    assert.strictEqual(changed.changed, true);
+    assert.strictEqual(changed.state.playback.activePhotoUrl, rawUrl);
+    assert.strictEqual(changed.state.playback.splitSeed, 4);
+    assert.strictEqual(changed.state.playback.lastDirection, 'next');
+    assert.notStrictEqual(changed.state, state);
+    assert.notStrictEqual(changed.state.playback, state.playback);
+    assert.strictEqual(changed.state.library, state.library);
+    assert.strictEqual(state.playback.activePhotoUrl, 'old');
+    const unchanged = sandbox.updateActive(state, { url: 'old' }, null);
+    assert.strictEqual(unchanged.changed, false);
+    assert.strictEqual(unchanged.state.playback.splitSeed, 3);
+    assert.strictEqual(unchanged.state.playback.lastDirection, 'prev');
+    assert.notStrictEqual(unchanged.state, state);
+    [null, undefined, { url: '' }, { url: 0 }, { url: false }].forEach((photo) => {
+      assert.strictEqual(sandbox.updateActive(state, photo, undefined).state.playback.activePhotoUrl, null);
+    });
+  });
+
+  assertTest('active-photo projection keeps native access, seed coercion and failure ordering', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.updateActive = updateActivePhotoUrl;`, sandbox);
+    const calls = [];
+    const state = createState({ playback: { activePhotoUrl: 'old', splitSeed: { valueOf() { calls.push('seed'); return 7; } } } });
+    const photo = { get url() { calls.push('url'); return 'new'; } };
+    assert.strictEqual(sandbox.updateActive(state, photo, 'next').state.playback.splitSeed, 8);
+    assert.deepStrictEqual(calls, ['url', 'seed']);
+    const failure = new Error('url access');
+    assert.throws(() => sandbox.updateActive(state, { get url() { throw failure; } }, 'next'), error => error === failure);
+    const invalidSeed = createState({ playback: { activePhotoUrl: 'old', splitSeed: Symbol('seed') } });
+    assert.throws(() => sandbox.updateActive(invalidSeed, { url: 'new' }, 'next'), error => error.name === 'TypeError');
+    assert.strictEqual(sandbox.updateActive(invalidSeed, { url: 'old' }, 'next').state.playback.splitSeed, invalidSeed.playback.splitSeed);
+  });
+
+  assertTest('active-photo maintenance keeps current feed aliases or reselects when forced', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.ensureActive = ensureActivePhoto;`, sandbox);
+    const row = { url: 'current', category: 'pool', rating: 0 };
+    const state = createState({ library: { photosList: [row] }, playback: { activePhotoUrl: 'current' } });
+    const options = { now: new Date(2026, 0, 1, 9), rng: () => assert.fail('zero weight does not draw') };
+    const retained = sandbox.ensureActive(state, options);
+    assert.strictEqual(retained.state, state);
+    assert.strictEqual(retained.photoChanged, false);
+    const forced = sandbox.ensureActive(state, { ...options, forceReselect: true });
+    assert.notStrictEqual(forced.state, state);
+    assert.strictEqual(forced.state.playback.activePhotoUrl, 'current');
+    assert.strictEqual(forced.photoChanged, false);
+    const empty = createState({ library: { photosList: [] }, playback: { activePhotoUrl: 'missing', splitSeed: 3 } });
+    const cleared = sandbox.ensureActive(empty, options);
+    assert.strictEqual(cleared.state.playback.activePhotoUrl, null);
+    assert.strictEqual(cleared.state.playback.splitSeed, 4);
+    assert.strictEqual(cleared.photoChanged, true);
+  });
+
+  assertTest('active-photo maintenance looks up before forcing and forwards selector inputs unchanged', () => {
+    const calls = [];
+    const failure = new Error('lookup failure');
+    const selected = { url: { raw: true } };
+    const now = new Date(2026, 0, 1, 9);
+    const rng = () => 0;
+    const mockSelectors = { ...selectors,
+      getActivePhoto: () => { calls.push('active'); return { url: 'existing' }; },
+      findPhotoInFeed: (_rows, url) => { calls.push(`feed:${url}`); return { url }; },
+      selectSmartPhoto: (options) => { calls.push('select'); assert.strictEqual(options.now, now); assert.strictEqual(options.rng, rng); assert.strictEqual(options.direction, 'prev'); return selected; }
+    };
+    const sandbox = { module: { exports: {} }, require: name => name === './selectors.js' ? mockSelectors : require(name) };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.ensureActive = ensureActivePhoto;`, sandbox);
+    const state = createState();
+    const result = sandbox.ensureActive(state, { now, rng, direction: 'prev', forceReselect: true });
+    assert.deepStrictEqual(calls, ['active', 'feed:existing', 'select']);
+    assert.strictEqual(result.state.playback.activePhotoUrl, selected.url);
+    mockSelectors.findPhotoInFeed = () => { throw failure; };
+    const failingSandbox = { module: { exports: {} }, require: name => name === './selectors.js' ? mockSelectors : require(name) };
+    runInNewContext(`${source}\nglobalThis.ensureActive = ensureActivePhoto;`, failingSandbox);
+    assert.throws(() => failingSandbox.ensureActive(state, { forceReselect: true }), error => error === failure);
+  });
+
   assertTest('selectable photo lookup preserves feed, curated, external and fallback precedence', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
