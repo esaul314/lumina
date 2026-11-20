@@ -201,10 +201,17 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     buildFieldCommandReducer((state) => state.config, 'theme', (/** @type {string} */ command) => command,
       // @ts-expect-error output factories receive the same command as the reader
       { effects: (state, /** @type {number} */ command) => [] });
-    /** @type {ReducerResult} */ const fixtureFinalized = finalizeFeedMutation(fixtureState, {
+    /** @type {FeedMutationResult} */ const fixtureFinalized = finalizeFeedMutation(fixtureState, {
       direction: 'prev', eventsFor: (result) => result.photoChanged ? [{ type: 'photo-update' }] : [],
-      effects: (result) => result.state.config ? [{ type: 'refresh-weather' }] : []
+      effects: (result) => {
+        /** @type {unknown} */ const rawUrl = result.state.playback.activePhotoUrl;
+        // @ts-expect-error callbacks cannot assume a normalized active URL
+        /** @type {string | null} */ const normalizedUrl = result.state.playback.activePhotoUrl;
+        return result.state.config ? [{ type: 'refresh-weather' }] : [];
+      }
     });
+    // @ts-expect-error finalized state can contain a raw active URL
+    /** @type {ReducerResult} */ const fixtureNormalizedFinalization = fixtureFinalized;
     /** @type {ReducerResult} */ const fixtureFeedMutation = reduceFeedMutation(fixtureState, {
       apply: (state) => state.config, persist: true
     }, { rng: () => 0.5 });

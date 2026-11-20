@@ -6,6 +6,22 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-20: Audit Feed Finalization Results and Callbacks
+
+- **Outcome**: corrected the finalization context and introduced a local result
+  contract retaining unknown active URLs. The existing functional composition
+  remains intact; no new abstraction or runtime validation was needed.
+- **Coverage**: three runtime regressions and private compiler fixtures cover
+  real raw-URL selection, shared context identity, effects-before-events order,
+  default versus explicit falsy outputs and failure boundaries. Production
+  executable syntax is unchanged.
+- **Verification**: 868 assertions, 13 sensor regressions, three compiler fixture
+  tests, lint, syntax checks and diff checks pass. Optional endpoint smoke is
+  skipped on sandbox `EPERM`. Strict checking remains nonzero at 327 core, zero
+  fixture, 69 transitive and zero global diagnostics. Next propagate this result
+  through `reduceFeedMutation` and command-builder contracts. No restart was
+  needed; the physical-TV cursor report remains unresolved.
+
 ### 2026-11-19: Audit Feed Recomputation
 
 - **Outcome**: documented the existing pure feed-rebuild and active-photo

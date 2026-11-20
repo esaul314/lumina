@@ -295,7 +295,8 @@ function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) 
 }
 
 /**
- * @typedef {{state: DomainState, photoChanged: boolean}} FeedFinalization
+ * @typedef {{state: ActivePhotoState, photoChanged: boolean}} FeedFinalization
+ * @typedef {{nextState: ActivePhotoState, events: Event[], effects: Effect[]}} FeedMutationResult
  * @typedef {ReducerEnvironment & {direction?: 'next' | 'prev', forceReselect?: boolean, eventsFor?: Event[] | null | false | 0 | '' | ((finalized: FeedFinalization) => Event[] | null | undefined | false | 0 | ''), effects?: Effect[] | null | false | 0 | '' | ((finalized: FeedFinalization) => Effect[] | null | undefined | false | 0 | ''), persist?: boolean}} FeedMutationOptions
  */
 
@@ -303,10 +304,12 @@ function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) 
  * Recompute the feed and active photo, then describe events and effects using
  * the same finalization result. A custom event factory receives that result;
  * output resolution and persistence ordering belong to buildMutationResult.
- * No runtime input validation or exception handling is introduced.
+ * The result retains the unvalidated active URL. Effects resolve before events;
+ * persistence is described afterwards, not executed. Explicit falsy outputs
+ * suppress defaults, and callback/accessor failures propagate unchanged.
  * @param {DomainState} nextState
  * @param {FeedMutationOptions} options
- * @returns {ReducerResult}
+ * @returns {FeedMutationResult}
  */
 function finalizeFeedMutation(nextState, {
   now,

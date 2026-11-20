@@ -3845,6 +3845,75 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(Array.from(defaultResult.events, (event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('feed finalization preserves raw active URLs and shares one context across factories', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.finalize = finalizeFeedMutation;`, sandbox);
+    const rawUrl = Object.freeze({ media: 'raw' });
+    const photo = Object.freeze({ url: rawUrl, rating: 0 });
+    const state = createState({
+      library: { collections: { pool: [photo] }, externalCollections: {}, photosList: [] },
+      playback: { selectedCategories: ['pool'], activePhotoUrl: null }
+    });
+    const calls = [];
+    let context;
+    const result = sandbox.finalize(state, {
+      now: new Date(2026, 0, 1), rng: () => assert.fail('zero weight does not draw'), persist: true,
+      effects: finalized => (calls.push('effects'), context = finalized, [{ type: 'refresh-weather' }]),
+      eventsFor: finalized => (calls.push('events'), assert.strictEqual(finalized, context), [{ type: 'photo-update' }])
+    });
+    assert.strictEqual(result.nextState, context.state);
+    assert.strictEqual(context.photoChanged, true);
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, rawUrl);
+    assert.strictEqual(state.playback.activePhotoUrl, null);
+    assert.deepStrictEqual(calls, ['effects', 'events']);
+    assert.deepStrictEqual(Array.from(result.effects, effect => effect.type), ['persist', 'refresh-weather']);
+  });
+
+  assertTest('feed finalization distinguishes default events from explicit falsy outputs', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.finalize = finalizeFeedMutation;\nglobalThis.replaceRecompute = fn => { recomputeAndEnsureActivePhoto = fn; };`, sandbox);
+    const state = createState();
+    [false, true].forEach(photoChanged => {
+      sandbox.replaceRecompute(() => ({ state, photoChanged }));
+      assert.deepStrictEqual(Array.from(sandbox.finalize(state, {}).events, event => event.type),
+        photoChanged ? ['photo-update', 'state-sync'] : ['state-sync']);
+      [null, false, 0, ''].forEach(value => {
+        const result = sandbox.finalize(state, { eventsFor: value, effects: value });
+        assert.strictEqual(result.nextState, state);
+        assert.strictEqual(result.events.length, 0);
+        assert.strictEqual(result.effects.length, 0);
+        const resolved = sandbox.finalize(state, { eventsFor: () => value, effects: () => value });
+        assert.strictEqual(resolved.events.length, 0);
+        assert.strictEqual(resolved.effects.length, 0);
+      });
+    });
+  });
+
+  assertTest('feed finalization propagates failures at their original resolution boundary', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.finalize = finalizeFeedMutation;\nglobalThis.replaceRecompute = fn => { recomputeAndEnsureActivePhoto = fn; };`, sandbox);
+    const state = createState();
+    const failure = new Error('finalization failed');
+    const calls = [];
+    const stop = stage => { calls.push(stage); throw failure; };
+    sandbox.replaceRecompute(() => (calls.push('recompute'), { state, photoChanged: false }));
+    assert.throws(() => sandbox.finalize(state, {
+      effects: () => stop('effects'), eventsFor: () => stop('events')
+    }), error => error === failure);
+    assert.deepStrictEqual(calls, ['recompute', 'effects']);
+    calls.length = 0;
+    assert.throws(() => sandbox.finalize(state, {
+      effects: () => (calls.push('effects'), []), eventsFor: () => stop('events')
+    }), error => error === failure);
+    assert.deepStrictEqual(calls, ['recompute', 'effects', 'events']);
+    calls.length = 0;
+    assert.throws(() => sandbox.finalize(state, { get effects() { return stop('options'); } }), error => error === failure);
+    assert.deepStrictEqual(calls, ['options']);
+  });
+
   assertTest('feed mutation skips finalization on no-op and spreads environment after options', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
