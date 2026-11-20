@@ -6,6 +6,21 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-19: Audit Feed Recomputation
+
+- **Outcome**: documented the existing pure feed-rebuild and active-photo
+  continuation. Rebuilding uses shallow copies before selection and forwards
+  execution inputs without normalizing them; the result retains raw active URLs.
+  The local options assertion does not validate a nullable RNG.
+- **Coverage**: four runtime regressions and private compiler fixtures cover
+  aliases, ordering, retained and changed photos, conditional random draws and
+  failures. Production executable syntax is unchanged.
+- **Verification**: 865 assertions, 13 sensor regressions and three compiler
+  fixtures pass; optional live endpoint smoke is skipped on sandbox `EPERM`.
+  Strict checking remains nonzero at 329 core, zero fixture, 69 transitive and
+  zero global diagnostics. Next audit feed-finalization result and callback
+  contracts. The physical-TV cursor report remains unresolved.
+
 ### 2026-11-19: Audit Active-Photo Maintenance
 
 - **Outcome**: documented the existing pure active-photo update and maintenance

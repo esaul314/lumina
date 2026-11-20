@@ -316,6 +316,16 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     // @ts-expect-error active URLs preserve arbitrary raw feed values
     /** @type {string | null} */ const fixtureNormalizedActiveUrl = fixtureActiveUpdate.state.playback.activePhotoUrl;
     /** @type {boolean} */ const fixturePhotoChanged = ensureActivePhoto(fixtureState, { now: null, rng: null }).photoChanged;
+    const fixtureRecomputed = recomputeFeed(fixtureState, null);
+    /** @type {Photo[]} */ const fixtureBuiltFeed = fixtureRecomputed.library.photosList;
+    const fixtureRecomputeResult = recomputeAndEnsureActivePhoto(fixtureState, { now: null, rng: null });
+    /** @type {unknown} */ const fixtureFinalizedUrl = fixtureRecomputeResult.state.playback.activePhotoUrl;
+    // @ts-expect-error recomputation can select a row with an unvalidated URL
+    /** @type {string | null} */ const fixtureFinalizedStringUrl = fixtureRecomputeResult.state.playback.activePhotoUrl;
+    // @ts-expect-error execution inputs retain the RNG callback contract
+    recomputeFeed(fixtureState, 42);
+    // @ts-expect-error unsupported directions are outside the typed contract
+    recomputeAndEnsureActivePhoto(fixtureState, { direction: 'sideways' });
     // @ts-expect-error unsupported directions do not belong to the typed contract
     ensureActivePhoto(fixtureState, { direction: 'sideways' });
     // @ts-expect-error photo inputs are feed rows, not primitive numbers

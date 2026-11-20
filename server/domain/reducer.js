@@ -387,22 +387,37 @@ function emitPhotoUpdate(events = []) {
   return [...events, { type: 'photo-update' }, { type: 'state-sync' }];
 }
 
+/**
+ * Replace only the feed in shallow state/library copies. Feed inputs and RNG
+ * are forwarded verbatim; the selector owns defaults, shuffling and failures.
+ * The local options assertion permits a nullable RNG without validating it.
+ * @param {DomainState} state
+ * @param {ReducerEnvironment['rng']} rng
+ * @returns {Omit<DomainState, 'library'> & {library: Omit<DomainState['library'], 'photosList'> & {photosList: Photo[]}}}
+ */
 function recomputeFeed(state, rng) {
   return {
     ...state,
     library: {
       ...state.library,
-      photosList: buildBalancedFeed({
+      photosList: buildBalancedFeed(/** @type {import('./selectors').BalancedFeedOptions} */ ({
         selectedCategories: state.playback.selectedCategories,
         collections: state.library.collections,
         externalCollections: state.library.externalCollections,
         excludedKeywords: state.config.excludedKeywords,
         rng
-      })
+      }))
     }
   };
 }
 
+/**
+ * Rebuild before looking up the active photo; selection receives the rebuilt
+ * state and the same execution inputs. Defaults apply only to undefined.
+ * @param {DomainState} state
+ * @param {ReducerEnvironment & {direction?: 'next' | 'prev', forceReselect?: unknown}} options
+ * @returns {{state: ActivePhotoState, photoChanged: boolean}}
+ */
 function recomputeAndEnsureActivePhoto(state, {
   now,
   rng,

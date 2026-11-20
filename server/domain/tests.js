@@ -3447,6 +3447,104 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(reads, ['name', 'name']);
   });
 
+  assertTest('feed recomputation forwards inputs and replaces only the shallow library feed', () => {
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    const state = createState();
+    const feed = [{ url: 'new' }];
+    const rng = () => 0.5;
+    let inputs;
+    const mockSelectors = { ...selectors, buildBalancedFeed: options => (inputs = options, feed) };
+    const sandbox = { module: { exports: {} }, require: name => name === './selectors.js' ? mockSelectors : require(name) };
+    runInNewContext(`${source}\nglobalThis.recompute = recomputeFeed;`, sandbox);
+    const result = sandbox.recompute(state, rng);
+    assert.notStrictEqual(result, state);
+    assert.notStrictEqual(result.library, state.library);
+    assert.strictEqual(result.library.photosList, feed);
+    assert.strictEqual(result.library.collections, state.library.collections);
+    assert.strictEqual(result.playback, state.playback);
+    assert.strictEqual(result.config, state.config);
+    assert.strictEqual(inputs.selectedCategories, state.playback.selectedCategories);
+    assert.strictEqual(inputs.collections, state.library.collections);
+    assert.strictEqual(inputs.externalCollections, state.library.externalCollections);
+    assert.strictEqual(inputs.excludedKeywords, state.config.excludedKeywords);
+    assert.strictEqual(inputs.rng, rng);
+    assert.notStrictEqual(state.library.photosList, feed);
+  });
+
+  assertTest('feed recomputation precedes lookup and forwards selection inputs without normalization', () => {
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    const calls = [];
+    const rawUrl = { raw: true };
+    const feed = [{ url: rawUrl }];
+    const now = new Date(2026, 0, 1);
+    const rng = () => 0;
+    let rebuilt;
+    const mockSelectors = { ...selectors,
+      buildBalancedFeed: options => (calls.push('build'), assert.strictEqual(options.rng, rng), feed),
+      getActivePhoto: current => (calls.push('active'), rebuilt = current, null),
+      selectSmartPhoto: options => (calls.push('select'), assert.strictEqual(options.state, rebuilt), assert.strictEqual(options.state.library.photosList, feed), assert.strictEqual(options.now, now), assert.strictEqual(options.rng, rng), assert.strictEqual(options.direction, 'prev'), feed[0])
+    };
+    const sandbox = { module: { exports: {} }, require: name => name === './selectors.js' ? mockSelectors : require(name) };
+    runInNewContext(`${source}\nglobalThis.recomputeAndEnsure = recomputeAndEnsureActivePhoto;`, sandbox);
+    const state = createState({ playback: { activePhotoUrl: 'old', splitSeed: 2 } });
+    const result = sandbox.recomputeAndEnsure(state, { now, rng, direction: 'prev', forceReselect: true });
+    assert.deepStrictEqual(calls, ['build', 'active', 'select']);
+    assert.notStrictEqual(rebuilt, state);
+    assert.strictEqual(result.state.library, rebuilt.library);
+    assert.strictEqual(result.state.playback.activePhotoUrl, rawUrl);
+    assert.strictEqual(result.photoChanged, true);
+    assert.strictEqual(state.playback.activePhotoUrl, 'old');
+  });
+
+  assertTest('feed recomputation retains rebuilt state on a hit and propagates build failures first', () => {
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    const calls = [];
+    const feed = [{ url: 'current' }];
+    const failure = new Error('build failed');
+    let fail = false;
+    const mockSelectors = { ...selectors,
+      buildBalancedFeed: options => { calls.push('build'); assert.strictEqual(options.rng, null); if (fail) throw failure; return feed; },
+      getActivePhoto: () => (calls.push('active'), feed[0]),
+      findPhotoInFeed: (rows, url) => (calls.push('find'), assert.strictEqual(rows, feed), assert.strictEqual(url, 'current'), feed[0]),
+      selectSmartPhoto: () => assert.fail('retained photo must not select')
+    };
+    const sandbox = { module: { exports: {} }, require: name => name === './selectors.js' ? mockSelectors : require(name) };
+    runInNewContext(`${source}\nglobalThis.recomputeAndEnsure = recomputeAndEnsureActivePhoto;`, sandbox);
+    const state = createState({ playback: { activePhotoUrl: 'current' } });
+    const result = sandbox.recomputeAndEnsure(state, { rng: null });
+    assert.deepStrictEqual(calls, ['build', 'active', 'find']);
+    assert.notStrictEqual(result.state, state);
+    assert.strictEqual(result.state.library.photosList, feed);
+    assert.strictEqual(result.state.playback, state.playback);
+    assert.strictEqual(result.photoChanged, false);
+    calls.length = 0;
+    fail = true;
+    assert.throws(() => sandbox.recomputeAndEnsure(state, { rng: null }), error => error === failure);
+    assert.deepStrictEqual(calls, ['build']);
+  });
+
+  assertTest('feed recomputation uses native conditional RNG calls and leaves source rows untouched', () => {
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${source}\nglobalThis.recompute = recomputeFeed;`, sandbox);
+    const single = Object.freeze({ url: 'one', rating: 2 });
+    const state = createState({
+      library: { collections: { pool: [single] }, externalCollections: {}, photosList: [] },
+      playback: { selectedCategories: ['pool'] }
+    });
+    const result = sandbox.recompute(state, null);
+    assert.strictEqual(result.library.photosList.length, 1);
+    assert.notStrictEqual(result.library.photosList[0], single);
+    assert.strictEqual(result.library.photosList[0].url, 'one');
+    assert.strictEqual(single.category, undefined);
+    state.library.collections.pool = [single, { url: 'two', rating: 2 }];
+    assert.throws(() => sandbox.recompute(state, null), error => error.name === 'TypeError');
+    let draws = 0;
+    const shuffled = sandbox.recompute(state, () => (draws += 1, 0));
+    assert.strictEqual(draws, 1);
+    assert.deepStrictEqual(Array.from(shuffled.library.photosList, photo => photo.url), ['two', 'one']);
+  });
+
   assertTest('active-photo projection copies playback and preserves raw URL and direction semantics', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
