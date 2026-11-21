@@ -341,10 +341,12 @@ function finalizeFeedMutation(nextState, {
  * Clone and apply before finalizing. A falsy apply result returns the original
  * state without reading/spreading finalization options or environment. On a
  * change, environment fields override options in the existing spread order.
+ * Both paths use the feed result envelope: the unchanged input is compatible,
+ * while finalization may retain an unvalidated active URL.
  * @param {DomainState} state
  * @param {FeedMutationOptions & {apply: (nextState: DomainState) => unknown}} options
  * @param {FeedMutationOptions} env
- * @returns {ReducerResult}
+ * @returns {FeedMutationResult}
  */
 function reduceFeedMutation(state, options, env) {
   return reduceClonedMutation(state, options.apply, (nextState) => (
@@ -710,9 +712,11 @@ const withCommandPayload = (readPayload, reduce) => (state, command, env = {}) =
  * no-op. A function-valued eventsFor is a resolver, not the finalizer itself;
  * it may return a finalizer. Environment options override resolved values only
  * after an actual mutation. Callback aliases and native failures are retained.
+ * Null-payload and apply-no-op paths retain the original state; changed paths
+ * expose the same raw active URL as finalization, without normalization.
  * @template C, P
  * @param {{readPayload: (command: C, state: DomainState) => P | null, apply: (nextState: DomainState, payload: P, command: C, state: DomainState) => unknown, direction?: ReducerOption<P, C, 'next' | 'prev'>, forceReselect?: ReducerOption<P, C, boolean>, eventsFor?: Event[] | null | false | 0 | '' | ((payload: P, command: C, state: DomainState) => FeedMutationOptions['eventsFor']), persist?: ReducerOption<P, C, boolean>}} spec
- * @returns {(state: DomainState, command: C, env?: FeedMutationOptions) => ReducerResult}
+ * @returns {(state: DomainState, command: C, env?: FeedMutationOptions) => FeedMutationResult}
  */
 function buildFeedCommandReducer({
   readPayload,

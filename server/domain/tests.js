@@ -3304,6 +3304,87 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => failing(state, command), (error) => error === failure);
   });
 
+  assertTest('feed mutation carries raw selected URLs and cloned state into environment factories', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.reduceFeed = reduceFeedMutation;`, sandbox);
+    const rawUrl = Object.freeze({ id: 'raw' });
+    const row = Object.freeze({ url: rawUrl, rating: 0 });
+    const state = createState({
+      library: { collections: { pool: [row] }, externalCollections: {}, photosList: [] },
+      playback: { selectedCategories: ['pool'], activePhotoUrl: null }
+    });
+    let clone;
+    let context;
+    const calls = [];
+    const result = sandbox.reduceFeed(state, {
+      apply: next => (clone = next, next.config.theme = 'changed', true),
+      effects: () => assert.fail('environment overrides option factory')
+    }, {
+      now: new Date(2026, 0, 1), rng: () => assert.fail('no draw'), persist: true,
+      effects: finalized => (calls.push('effects'), context = finalized, []),
+      eventsFor: finalized => (calls.push('events'), assert.strictEqual(finalized, context), [])
+    });
+    assert.notStrictEqual(clone, state);
+    assert.strictEqual(result.nextState, context.state);
+    assert.strictEqual(result.nextState.config, clone.config);
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, rawUrl);
+    assert.strictEqual(result.nextState.config.theme, 'changed');
+    assert.notStrictEqual(state.config.theme, 'changed');
+    assert.strictEqual(state.playback.activePhotoUrl, null);
+    assert.deepStrictEqual(calls, ['effects', 'events']);
+    assert.deepStrictEqual(Array.from(result.effects, effect => effect.type), ['persist']);
+  });
+
+  assertTest('feed command keeps command and payload aliases through raw-URL finalization', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildFeed = buildFeedCommandReducer;`, sandbox);
+    const rawUrl = Object.freeze({ id: 'selected' });
+    const payload = Object.freeze({ url: rawUrl, rating: 0 });
+    const command = Object.freeze({ payload });
+    const state = createState({ playback: { selectedCategories: ['pool'], activePhotoUrl: null } });
+    let context;
+    const reduce = sandbox.buildFeed({
+      readPayload: (current, original) => (assert.strictEqual(current, command), assert.strictEqual(original, state), current.payload),
+      apply: (next, selected, current, original) => {
+        assert.strictEqual(selected, payload);
+        assert.strictEqual(current, command);
+        assert.strictEqual(original, state);
+        next.library.collections.pool = [selected];
+        return true;
+      },
+      eventsFor: selected => finalized => (assert.strictEqual(selected, payload), context = finalized, [])
+    });
+    const result = reduce(state, command, { now: new Date(2026, 0, 1), rng: () => assert.fail('no draw') });
+    assert.strictEqual(result.nextState, context.state);
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, rawUrl);
+    assert.strictEqual(result.events.length, 0);
+    assert.strictEqual(state.library.collections.pool, undefined);
+  });
+
+  assertTest('feed command skip paths retain state and avoid environment reads or finalization', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildFeed = buildFeedCommandReducer;`, sandbox);
+    const state = createState();
+    const calls = [];
+    const env = { get rng() { return assert.fail('skip must not read environment'); } };
+    [null, { value: true }].forEach(payload => {
+      calls.length = 0;
+      const reduce = sandbox.buildFeed({
+        readPayload: () => (calls.push('read'), payload),
+        direction: () => (calls.push('resolve'), 'next'),
+        apply: () => (calls.push('apply'), false)
+      });
+      const result = reduce(state, {}, env);
+      assert.strictEqual(result.nextState, state);
+      assert.strictEqual(result.events.length, 0);
+      assert.strictEqual(result.effects.length, 0);
+      assert.deepStrictEqual(calls, payload === null ? ['read'] : ['read', 'resolve', 'apply']);
+    });
+  });
+
   assertTest('pool mutation checks existence before copying options or cloning', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

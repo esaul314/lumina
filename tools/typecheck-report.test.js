@@ -212,9 +212,11 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     });
     // @ts-expect-error finalized state can contain a raw active URL
     /** @type {ReducerResult} */ const fixtureNormalizedFinalization = fixtureFinalized;
-    /** @type {ReducerResult} */ const fixtureFeedMutation = reduceFeedMutation(fixtureState, {
+    /** @type {FeedMutationResult} */ const fixtureFeedMutation = reduceFeedMutation(fixtureState, {
       apply: (state) => state.config, persist: true
     }, { rng: () => 0.5 });
+    // @ts-expect-error changed feed mutations may retain raw URLs
+    /** @type {ReducerResult} */ const fixtureNormalizedFeedMutation = fixtureFeedMutation;
     // @ts-expect-error finalization context is not a string
     finalizeFeedMutation(fixtureState, { eventsFor: (/** @type {string} */ value) => [] });
     // @ts-expect-error events retain their closed vocabulary
@@ -250,7 +252,17 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       eventsFor: (payload) => (finalized) => payload && finalized.photoChanged ? [{ type: 'photo-update' }] : [],
       persist: (payload) => payload > 0
     });
-    /** @type {ReducerResult} */ const fixtureFeedResult = fixtureFeedReducer(fixtureState, { value: 1 });
+    /** @type {FeedMutationResult} */ const fixtureFeedResult = fixtureFeedReducer(fixtureState, { value: 1 });
+    // @ts-expect-error a command-builder result does not guarantee normalized URLs
+    /** @type {string | null} */ const fixtureNormalizedFeedCommandUrl = fixtureFeedResult.nextState.playback.activePhotoUrl;
+    fixtureFeedReducer(fixtureState, { value: 1 }, {
+      effects: finalized => {
+        /** @type {unknown} */ const url = finalized.state.playback.activePhotoUrl;
+        // @ts-expect-error environment factories also receive raw finalization state
+        /** @type {string | null} */ const normalized = finalized.state.playback.activePhotoUrl;
+        return [];
+      }
+    });
     // @ts-expect-error the feed reducer retains its command type
     fixtureFeedReducer(fixtureState, { value: 'wrong' });
     buildFeedCommandReducer({

@@ -6,6 +6,23 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-21: Propagate Feed Mutation and Command Results
+
+- **Outcome**: carried the raw active-URL result contract through feed mutation
+  and its command builder. Original-state no-ops fit the same envelope. The
+  existing higher-order composition and production executable syntax remain
+  unchanged; no extra abstraction, validation or effect was introduced.
+- **Coverage**: three runtime regressions and private compiler fixtures cover
+  real raw-URL selection, shared command/payload aliases, environment factory
+  context and precedence, and null-payload/apply-no-op skip paths.
+- **Verification**: 871 assertions, 13 sensor regressions, three compiler fixture
+  tests, lint, syntax and diff checks pass. Optional endpoint smoke is skipped
+  on sandbox `EPERM`. Strict checking remains nonzero at 326 core, zero fixture,
+  69 transitive and zero global diagnostics. Next audit the reducer-family
+  interpreter and descriptors: their unchecked result still hides the raw
+  feed-state mismatch at the public reducer boundary. No restart was needed;
+  the physical-TV cursor report remains unresolved.
+
 ### 2026-11-20: Audit Feed Finalization Results and Callbacks
 
 - **Outcome**: corrected the finalization context and introduced a local result
