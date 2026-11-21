@@ -6,6 +6,26 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-21: Check Reducer-Family Dispatch Contracts
+
+- **Outcome**: checked the existing partially applied, declarative interpreter
+  rather than adding another abstraction. Generic family descriptors relate
+  commands, original/adapted environments and results. A local call assertion
+  restores only the environment pairing lost during indexing, not normalized
+  state. Results are passed through, not combined as a Monoid. Effect execution,
+  public exports and executable production syntax remain unchanged.
+- **Coverage**: four runtime regressions and private compiler fixtures cover
+  eager own-entry capture, last-callable-key precedence, closed lookup, exact
+  aliases, selected-only adaptation, fresh no-op outputs, native failures and
+  raw URL identity through public dispatch. Frozen family lists remain accepted.
+- **Verification**: 875 assertions, 13 sensor regressions, three compiler fixture
+  tests, lint, syntax and diff checks pass. Optional endpoint smoke remains
+  sandbox-blocked by `EPERM`. Strict checking is still nonzero: 309 core, zero
+  fixture, 69 transitive and zero global diagnostics. Next audit the public
+  reducer result and shared active-URL state contract through dispatcher/snapshot
+  consumers; checked dispatch now exposes that mismatch. No restart was needed;
+  the physical-TV cursor report remains unresolved.
+
 ### 2026-11-21: Propagate Feed Mutation and Command Results
 
 - **Outcome**: carried the raw active-URL result contract through feed mutation

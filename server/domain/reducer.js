@@ -1607,6 +1607,17 @@ const reducePlaybackCommand = {
   })
 };
 
+/**
+ * A family pairs each reducer with its environment adapter. Without an adapter,
+ * reducers receive undefined; adapted reducers receive the adapter's exact result.
+ * Results are returned unchanged, not combined into an algebraic envelope.
+ * @template C, E, A, R
+ * @typedef {{reducers: Record<string, (state: DomainState, command: C, env: A) => R>, buildEnv: (env: E) => A} | {reducers: Record<string, (state: DomainState, command: C, env: undefined) => R>, buildEnv?: undefined}} ReducerFamily
+ */
+
+/** @typedef {{now: Date, rng: () => number}} ResolvedReducerEnvironment */
+
+/** @type {ReducerFamily<Command, ResolvedReducerEnvironment, ResolvedReducerEnvironment, FeedMutationResult>[]} */
 const REDUCER_FAMILY_SPECS = [
   { reducers: reduceSimpleCommand },
   { reducers: reducePhotoCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },
@@ -1615,7 +1626,7 @@ const REDUCER_FAMILY_SPECS = [
   { reducers: reducePlaybackCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },
   {
     reducers: {
-      'patch-state': (state, command, { now, rng }) => reduceStatePatchCommand(
+      'patch-state': (/** @type {DomainState} */ state, /** @type {Command} */ command, /** @type {ResolvedReducerEnvironment} */ { now, rng }) => reduceStatePatchCommand(
         state,
         command.payload && typeof command.payload === 'object' ? command.payload : {},
         { now, rng }
@@ -1625,20 +1636,35 @@ const REDUCER_FAMILY_SPECS = [
   }
 ];
 
+/**
+ * Partially apply a closed command vocabulary. Own enumerable string entries
+ * are captured eagerly; non-callables are ignored and the last callable key
+ * wins. Only a selected family adapts the environment. Misses retain state
+ * identity with fresh outputs; native access/adapter/reducer failures propagate.
+ * @template {{type?: unknown}} C
+ * @template E, A, R
+ * @param {ReadonlyArray<ReducerFamily<C, E, A, R>>} families
+ * @returns {(state: DomainState, command: C | null | undefined, env: E) => R | ReducerResult}
+ */
 const createReducerFamilyInterpreter = (families) => {
   const reducerEntries = families.flatMap(({ reducers, buildEnv }) => (
     Object.entries(reducers)
       .filter(([, reducer]) => typeof reducer === 'function')
-      .map(([type, reducer]) => [type, { reducer, buildEnv }])
+      .map(/** @returns {[unknown, {reducer: ReducerFamily<C, E, A, R>['reducers'][string], buildEnv: typeof buildEnv}]} */
+        ([type, reducer]) => [type, { reducer, buildEnv }])
   ));
   const interpret = createIndexedInterpreter(
     reducerEntries,
-    ({ reducer, buildEnv }, state, command, env) => reducer(
+    // Indexing separates the paired descriptor fields. Erase only that call's
+    // environment correlation: the family contract above checks both branches.
+    /** @returns {R | ReducerResult} */
+    ({ reducer, buildEnv }, /** @type {DomainState} */ state, /** @type {C} */ command, /** @type {E} */ env) => /** @type {(state: DomainState, command: C, env: A | undefined) => R} */ (reducer)(
       state,
       command,
       buildEnv ? buildEnv(env) : undefined
     ),
-    (state) => unchangedResult(state)
+    /** @returns {R | ReducerResult} */
+    (/** @type {DomainState} */ state) => unchangedResult(state)
   );
 
   return (state, command, env) => interpret(command?.type, state, command, env);

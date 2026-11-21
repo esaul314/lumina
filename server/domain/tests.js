@@ -1995,6 +1995,108 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('family dispatch returns exact results and adapts only the selected environment', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildFamilies = createReducerFamilyInterpreter;`, sandbox);
+    const state = Object.freeze(createState());
+    const env = Object.freeze({ marker: true });
+    const result = Object.freeze({ arbitrary: 'result' });
+    const calls = [];
+    const reduce = sandbox.buildFamilies([
+      { reducers: { bare: (s, c, e) => (calls.push('bare'), assert.strictEqual(s, state), assert.strictEqual(e, undefined), result) } },
+      {
+        buildEnv: original => (calls.push('adapt'), assert.strictEqual(original, env), null),
+        reducers: { adapted: (s, c, e) => (calls.push('reduce'), assert.strictEqual(s, state), assert.strictEqual(c, command), assert.strictEqual(e, null), result) }
+      },
+      { buildEnv: () => assert.fail('unselected adapter'), reducers: { other: () => result } }
+    ]);
+    const command = Object.freeze({ type: 'adapted' });
+    assert.strictEqual(reduce(state, command, env), result);
+    assert.deepStrictEqual(calls, ['adapt', 'reduce']);
+    calls.length = 0;
+    assert.strictEqual(reduce(state, { type: 'bare' }, env), result);
+    assert.deepStrictEqual(calls, ['bare']);
+  });
+
+  assertTest('family indexing captures own string entries eagerly with last-callable-key precedence', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildFamilies = createReducerFamilyInterpreter;`, sandbox);
+    const calls = [];
+    const first = Object.create({ inherited: () => assert.fail('inherited') }, {
+      key: { enumerable: true, get: () => (calls.push('key'), () => 'first') },
+      ignored: { enumerable: true, get: () => (calls.push('ignored'), 42) },
+      hidden: { value: () => assert.fail('hidden') },
+      [Symbol('symbol')]: { enumerable: true, value: () => assert.fail('symbol') }
+    });
+    const last = { key: () => 'last', ['__proto__']: () => 'explicit' };
+    const reduce = sandbox.buildFamilies([
+      { get reducers() { calls.push('reducers'); return first; }, get buildEnv() { calls.push('build env'); return undefined; } },
+      { reducers: last }, { reducers: { key: false } }
+    ]);
+    assert.deepStrictEqual(calls, ['reducers', 'build env', 'key', 'ignored']);
+    last.key = () => 'replacement must not be observed';
+    const state = createState();
+    assert.strictEqual(reduce(state, { get type() { calls.push('type'); return 'key'; } }), 'last');
+    assert.deepStrictEqual(calls, ['reducers', 'build env', 'key', 'ignored', 'type']);
+    assert.strictEqual(reduce(state, { type: '__proto__' }), 'explicit');
+    [null, undefined, {}, { type: 'inherited' }, { type: 'hidden' }, { type: 'ignored' },
+      { type: { toString: () => assert.fail('keys must not coerce') } }].forEach(command => {
+      const a = reduce(state, command);
+      const b = reduce(state, command);
+      assert.strictEqual(a.nextState, state);
+      assert.strictEqual(a.events.length, 0);
+      assert.strictEqual(a.effects.length, 0);
+      assert.notStrictEqual(a, b);
+      assert.notStrictEqual(a.events, b.events);
+      assert.notStrictEqual(a.effects, b.effects);
+    });
+  });
+
+  assertTest('family dispatch propagates native registration, lookup, adapter and reducer failures in order', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildFamilies = createReducerFamilyInterpreter;`, sandbox);
+    const failure = new Error('family failure');
+    const fail = () => { throw failure; };
+    assert.throws(() => sandbox.buildFamilies([{ reducers: { get key() { return fail(); } } }]), error => error === failure);
+    const state = createState();
+    const calls = [];
+    const reduce = sandbox.buildFamilies([
+      { buildEnv: () => (calls.push('adapter'), fail()), reducers: { adapt: () => assert.fail('after failed adapter') } },
+      { buildEnv: () => (calls.push('adapter'), false), reducers: { run: (s, c, e) => (calls.push('reducer'), assert.strictEqual(e, false), fail()) } },
+      { buildEnv: false, reducers: { bare: (s, c, e) => (assert.strictEqual(e, undefined), 'bare') } },
+      { buildEnv: true, reducers: { malformed: () => assert.fail('after malformed adapter') } }
+    ]);
+    assert.throws(() => reduce(state, { get type() { return fail(); } }), error => error === failure);
+    assert.deepStrictEqual(calls, []);
+    assert.throws(() => reduce(state, { type: 'adapt' }), error => error === failure);
+    assert.deepStrictEqual(calls, ['adapter']);
+    calls.length = 0;
+    assert.throws(() => reduce(state, { type: 'run' }), error => error === failure);
+    assert.deepStrictEqual(calls, ['adapter', 'reducer']);
+    assert.strictEqual(reduce(state, { type: 'bare' }), 'bare');
+    assert.throws(() => reduce(state, { type: 'malformed' }), error => error.name === 'TypeError');
+  });
+
+  assertTest('public family dispatch preserves raw selected URL identity without mutating its input', () => {
+    const rawUrl = Object.freeze({ id: 'family-selected' });
+    const row = Object.freeze({ url: rawUrl, rating: 0 });
+    const state = createState({
+      library: { collections: { pool: [row] }, externalCollections: {}, photosList: [] },
+      playback: { selectedCategories: ['pool'], activePhotoUrl: null }
+    });
+    const result = reduceDomainCommand(state, { type: 'select-categories', payload: { categories: ['pool'] } }, {
+      now: new Date(2026, 0, 1), rng: () => assert.fail('zero-weight selection must not draw')
+    });
+    assert.strictEqual(result.nextState.playback.activePhotoUrl, rawUrl);
+    assert.notStrictEqual(result.nextState, state);
+    assert.strictEqual(state.playback.activePhotoUrl, null);
+    assert.strictEqual(state.library.photosList.length, 0);
+    assert.deepStrictEqual(result.events.map(({ type }) => type), ['photo-update', 'state-sync']);
+  });
+
   assertTest('reducer execution inputs replay time-filtered selection without mutating inputs', () => {
     const state = Object.freeze(createState({
       library: {

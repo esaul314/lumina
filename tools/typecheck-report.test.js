@@ -42,6 +42,38 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   // Check the private factory in its own lexical scope without adding exports.
   const readerFixture = `
     /** @type {DomainState} */ const fixtureState = /** @type {DomainState} */ ({});
+    const fixtureFamilies = createReducerFamilyInterpreter([{
+      buildEnv: (/** @type {{seed: number}} */ env) => ({ factor: env.seed }),
+      reducers: {
+        inspect: (/** @type {DomainState} */ state, /** @type {{type: 'inspect', value: number}} */ command, /** @type {{factor: number}} */ env) => command.value * env.factor
+      }
+    }]);
+    /** @type {number | ReducerResult} */ const fixtureFamilyResult = fixtureFamilies(fixtureState, { type: 'inspect', value: 2 }, { seed: 3 });
+    // @ts-expect-error dispatch retains the reducer's numeric result, not any
+    /** @type {string | ReducerResult} */ const fixtureWrongFamilyResult = fixtureFamilies(fixtureState, null, { seed: 3 });
+    // @ts-expect-error dispatch can miss and return an unchanged-state envelope
+    /** @type {number} */ const fixtureFamilyNumberOnly = fixtureFamilyResult;
+    // @ts-expect-error the original command type remains checked through dispatch
+    fixtureFamilies(fixtureState, { type: 'inspect', value: 'wrong' }, { seed: 3 });
+    // @ts-expect-error the environment adapter retains its original input type
+    fixtureFamilies(fixtureState, null, { seed: 'wrong' });
+    const fixtureBareFamilies = createReducerFamilyInterpreter(Object.freeze([{
+      reducers: { bare: (/** @type {DomainState} */ state, /** @type {{type: 'bare'}} */ command, /** @type {undefined} */ env) => command.type }
+    }]));
+    /** @type {'bare' | ReducerResult} */ const fixtureBareResult = fixtureBareFamilies(fixtureState, { type: 'bare' }, undefined);
+    /** @type {ReducerFamily<{type: 'inspect'}, {seed: number}, {factor: number}, number>} */
+    const fixtureInvalidFamily = {
+      buildEnv: env => ({ factor: env.seed }),
+      // @ts-expect-error adapted reducers must accept their adapter's output
+      reducers: { inspect: (state, command, /** @type {{factor: string}} */ env) => env.factor.length }
+    };
+    /** @type {ReducerFamily<{type: 'bare'}, {}, {factor: number}, number>} */
+    // @ts-expect-error without an adapter, reducers must accept undefined
+    const fixtureMissingAdapter = { reducers: { bare: (state, command, /** @type {{factor: number}} */ env) => env.factor } };
+    const fixtureProductionFamilyResult = interpretCommandFamilies(fixtureState, null, { now: new Date(), rng: () => 0 });
+    /** @type {unknown} */ const fixtureFamilyRawUrl = fixtureProductionFamilyResult.nextState.playback.activePhotoUrl;
+    // @ts-expect-error family results retain the unvalidated active URL
+    /** @type {string | null} */ const fixtureFamilyNormalizedUrl = fixtureProductionFamilyResult.nextState.playback.activePhotoUrl;
     const fixtureReader = readPatchField('x', (value, state, patch) => {
       /** @type {unknown} */ const raw = value;
       /** @type {DomainState} */ const sameState = state;
