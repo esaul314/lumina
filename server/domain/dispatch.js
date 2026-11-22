@@ -42,7 +42,7 @@ const { createClosedInterpreter } = require('../utils/fn.js');
  * @typedef {object} DispatcherDependencies
  * @property {LegacyState} state
  * @property {CollectionsState} collections
- * @property {{emit: (event: 'photo-update' | 'state-sync', payload: import('./types').Photo | LegacyState) => unknown}} io
+ * @property {{emit: (event: 'photo-update' | 'state-sync', payload: import('./types').FeedPhoto | LegacyState) => unknown}} io
  * @property {(() => RuntimeOverrides)} [getRuntimeContext]
  * @property {(() => unknown)} [launchKioskBrowser]
  * @property {(() => unknown)} [killKioskBrowser]
@@ -77,6 +77,8 @@ const { createClosedInterpreter } = require('../utils/fn.js');
 /**
  * Snapshot captured before effects; callbacks and state-sync may subsequently
  * change the live shell. Results stay aligned with reducer effects, not cloned.
+ * Reducer, snapshot and emitted photos preserve raw active URL values; dispatch
+ * does not validate or serialize them before handing them to the emitter.
  *
  * @typedef {{ reducerResult: ReducerResult, snapshot: Snapshot, effectResults: EffectResult[] }} DispatchResult
  */

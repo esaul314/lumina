@@ -100,9 +100,12 @@
  */
 
 /**
+ * Compatibility playback state. Selection and legacy rebuilding retain a
+ * truthy feed URL verbatim (falsy selected URLs become null); lookup compares
+ * by strict equality. Consumers must narrow, not assume a normalized string.
  * @typedef {object} PlaybackState
  * @property {string[]} selectedCategories
- * @property {string | null} activePhotoUrl
+ * @property {unknown} activePhotoUrl
  * @property {number} splitSeed
  * @property {'next' | 'prev'} lastDirection
  * @property {Record<string, number>} poolSequenceCursors
@@ -255,6 +258,7 @@
 /**
  * Ordered descriptions, not executed effects. A no-op retains the input state
  * identity with fresh empty event/effect arrays; changed states are projections.
+ * Playback retains the same unvalidated active URL as the shared domain state.
  * This envelope is neither an atomic transaction nor a result-combining Monoid.
  *
  * @typedef {{

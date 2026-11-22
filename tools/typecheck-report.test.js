@@ -233,7 +233,7 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     buildFieldCommandReducer((state) => state.config, 'theme', (/** @type {string} */ command) => command,
       // @ts-expect-error output factories receive the same command as the reader
       { effects: (state, /** @type {number} */ command) => [] });
-    /** @type {FeedMutationResult} */ const fixtureFinalized = finalizeFeedMutation(fixtureState, {
+    /** @type {ReducerResult} */ const fixtureFinalized = finalizeFeedMutation(fixtureState, {
       direction: 'prev', eventsFor: (result) => result.photoChanged ? [{ type: 'photo-update' }] : [],
       effects: (result) => {
         /** @type {unknown} */ const rawUrl = result.state.playback.activePhotoUrl;
@@ -242,13 +242,11 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
         return result.state.config ? [{ type: 'refresh-weather' }] : [];
       }
     });
-    // @ts-expect-error finalized state can contain a raw active URL
-    /** @type {ReducerResult} */ const fixtureNormalizedFinalization = fixtureFinalized;
-    /** @type {FeedMutationResult} */ const fixtureFeedMutation = reduceFeedMutation(fixtureState, {
+    /** @type {DomainState} */ const fixtureSharedFinalization = fixtureFinalized.nextState;
+    /** @type {ReducerResult} */ const fixtureFeedMutation = reduceFeedMutation(fixtureState, {
       apply: (state) => state.config, persist: true
     }, { rng: () => 0.5 });
-    // @ts-expect-error changed feed mutations may retain raw URLs
-    /** @type {ReducerResult} */ const fixtureNormalizedFeedMutation = fixtureFeedMutation;
+    /** @type {DomainState} */ const fixtureSharedFeedMutation = fixtureFeedMutation.nextState;
     // @ts-expect-error finalization context is not a string
     finalizeFeedMutation(fixtureState, { eventsFor: (/** @type {string} */ value) => [] });
     // @ts-expect-error events retain their closed vocabulary
@@ -284,7 +282,7 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
       eventsFor: (payload) => (finalized) => payload && finalized.photoChanged ? [{ type: 'photo-update' }] : [],
       persist: (payload) => payload > 0
     });
-    /** @type {FeedMutationResult} */ const fixtureFeedResult = fixtureFeedReducer(fixtureState, { value: 1 });
+    /** @type {ReducerResult} */ const fixtureFeedResult = fixtureFeedReducer(fixtureState, { value: 1 });
     // @ts-expect-error a command-builder result does not guarantee normalized URLs
     /** @type {string | null} */ const fixtureNormalizedFeedCommandUrl = fixtureFeedResult.nextState.playback.activePhotoUrl;
     fixtureFeedReducer(fixtureState, { value: 1 }, {

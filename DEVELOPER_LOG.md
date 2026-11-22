@@ -6,6 +6,29 @@ This document serves as a public-facing, generic history of technical developmen
 
 ## 📅 Technical Changelog & Milestones
 
+### 2026-11-21: Reconcile Shared Active-URL State and Public Results
+
+- **Outcome**: `PlaybackState.activePhotoUrl` is unknown, matching raw URL
+  values retained by feed selection and legacy rebuilding. Public reduction,
+  snapshots and dispatch now agree; feed finalization reuses the shared state
+  and result types, removing two temporary local shapes. Emitter inputs admit
+  unvalidated feed rows. Existing data-first composition remains appropriate;
+  no new wrapper, validation, coercion or executable production change is needed.
+- **Coverage**: three runtime regressions and positive/negative compiler fixtures
+  trace raw URL identity through reduction, snapshot application, legacy rebuild,
+  emission, refresh and subsequent no-op reduction. They preserve shallow row
+  copies, strict lookup, falsy-to-null projection, native getter failures and
+  event/effect ordering. The legacy fixture uses its own input contract rather
+  than assuming every public snapshot is assignable to it: optional pool policy
+  fields differ, independently of this URL correction.
+- **Verification**: 878 assertions, 13 sensor regressions, three compiler fixture
+  tests, lint, syntax and diff checks pass. All four touched production modules
+  have unchanged executable syntax. Optional endpoint smoke remains sandbox-
+  blocked by `EPERM`. Strict checking remains nonzero at 307 core, zero fixture,
+  68 transitive and zero global diagnostics (previously 309/0/69/0). No runtime
+  restart was needed; the physical-TV cursor report remains unresolved. Next
+  audit the shared result constructors and their state/output relationships.
+
 ### 2026-11-21: Check Reducer-Family Dispatch Contracts
 
 - **Outcome**: checked the existing partially applied, declarative interpreter

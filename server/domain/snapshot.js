@@ -56,6 +56,8 @@
 
 /**
  * Public snapshot shape shared by REST, Socket.IO, and the legacy runtime.
+ * Playback keeps the raw active URL; frame lookup uses strict equality and
+ * returns selected row aliases. This projection is not URL validation.
  *
  * @typedef {DomainState['config'] & DomainState['runtime'] & {
  *   currentCategory: string,
@@ -97,6 +99,7 @@ function cloneSearchKeywords(searchKeywords = {}) {
 
 /**
  * Decode the mutable legacy state into an immutable domain-state projection.
+ * A truthy active-photo URL retains its value/alias; falsy values become null.
  *
  * @param {LegacyState} legacyState
  * @param {CollectionsState} collections

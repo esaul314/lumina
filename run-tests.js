@@ -10059,6 +10059,38 @@ assertAsyncTest('dispatch forwards execution inputs and returns the applied pre-
   assert.deepStrictEqual(reads, ['now', 'rng', 'now', 'rng', 'draw']);
 });
 
+assertAsyncTest('dispatch carries raw active URLs through selection, emission, refresh and subsequent reduction', async () => {
+  const { dispatcher, state, collections, ioEmits } = createDispatcherHarness();
+  const rawUrl = Object.freeze({ id: 'dispatch-raw', toString: () => assert.fail('unexpected URL coercion') });
+  const row = Object.freeze({ url: rawUrl, category: 'Scenic Nature', rating: 0 });
+  state.splitPortrait = false;
+  state.activePhoto = null;
+  state.photosList = [row];
+  collections['Scenic Nature'] = [row];
+  const env = Object.freeze({ now: new Date(2026, 0, 1), rng: () => assert.fail('unexpected RNG draw') });
+  const result = await dispatcher.dispatchCommand({ type: 'advance-photo', payload: { strategy: 'sequence' } }, env);
+  assert.strictEqual(result.reducerResult.nextState.playback.activePhotoUrl, rawUrl);
+  assert.strictEqual(result.snapshot.playback, result.reducerResult.nextState.playback);
+  assert.strictEqual(result.snapshot.activePhoto.url, rawUrl);
+  assert.strictEqual(result.snapshot.activePhoto, result.reducerResult.nextState.library.photosList[0]);
+  assert.deepStrictEqual(result.effectResults, []);
+  assert.deepStrictEqual(ioEmits.map(([event]) => event), ['photo-update', 'state-sync']);
+  assert.strictEqual(ioEmits[0][1], result.snapshot.activePhoto);
+  assert.strictEqual(ioEmits[1][1], state);
+  assert.strictEqual(state.playback.activePhotoUrl, rawUrl);
+  assert.strictEqual(state.activePhoto.url, rawUrl);
+  const refreshed = dispatcher.refreshSnapshot();
+  assert.strictEqual(refreshed.playback.activePhotoUrl, rawUrl);
+  assert.strictEqual(refreshed.activePhoto.url, rawUrl);
+  ioEmits.length = 0;
+  const unchanged = await dispatcher.dispatchCommand({ type: 'set-scale-mode', payload: { mode: 'cover' } }, env);
+  assert.strictEqual(unchanged.reducerResult.nextState.playback.activePhotoUrl, rawUrl);
+  assert.strictEqual(unchanged.snapshot.activePhoto.url, rawUrl);
+  assert.deepStrictEqual(unchanged.reducerResult.effects, []);
+  assert.deepStrictEqual(unchanged.reducerResult.events, []);
+  assert.deepStrictEqual(ioEmits, []);
+});
+
 assertAsyncTest('createDomainDispatcher routes photo-update events and state-sync broadcasts through the shared handler table', async () => {
   const { dispatcher, ioEmits, state } = createDispatcherHarness();
   const result = await dispatcher.dispatchCommand({

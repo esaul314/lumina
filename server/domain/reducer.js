@@ -295,8 +295,7 @@ function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) 
 }
 
 /**
- * @typedef {{state: ActivePhotoState, photoChanged: boolean}} FeedFinalization
- * @typedef {{nextState: ActivePhotoState, events: Event[], effects: Effect[]}} FeedMutationResult
+ * @typedef {{state: DomainState, photoChanged: boolean}} FeedFinalization
  * @typedef {ReducerEnvironment & {direction?: 'next' | 'prev', forceReselect?: boolean, eventsFor?: Event[] | null | false | 0 | '' | ((finalized: FeedFinalization) => Event[] | null | undefined | false | 0 | ''), effects?: Effect[] | null | false | 0 | '' | ((finalized: FeedFinalization) => Effect[] | null | undefined | false | 0 | ''), persist?: boolean}} FeedMutationOptions
  */
 
@@ -309,7 +308,7 @@ function buildFieldCommandReducer(selectTarget, field, readValue, options = {}) 
  * suppress defaults, and callback/accessor failures propagate unchanged.
  * @param {DomainState} nextState
  * @param {FeedMutationOptions} options
- * @returns {FeedMutationResult}
+ * @returns {ReducerResult}
  */
 function finalizeFeedMutation(nextState, {
   now,
@@ -341,12 +340,12 @@ function finalizeFeedMutation(nextState, {
  * Clone and apply before finalizing. A falsy apply result returns the original
  * state without reading/spreading finalization options or environment. On a
  * change, environment fields override options in the existing spread order.
- * Both paths use the feed result envelope: the unchanged input is compatible,
- * while finalization may retain an unvalidated active URL.
+ * Both paths use the shared result envelope, whose playback state retains
+ * unvalidated active URLs on unchanged and finalized paths alike.
  * @param {DomainState} state
  * @param {FeedMutationOptions & {apply: (nextState: DomainState) => unknown}} options
  * @param {FeedMutationOptions} env
- * @returns {FeedMutationResult}
+ * @returns {ReducerResult}
  */
 function reduceFeedMutation(state, options, env) {
   return reduceClonedMutation(state, options.apply, (nextState) => (
@@ -421,7 +420,7 @@ function recomputeFeed(state, rng) {
  * state and the same execution inputs. Defaults apply only to undefined.
  * @param {DomainState} state
  * @param {ReducerEnvironment & {direction?: 'next' | 'prev', forceReselect?: unknown}} options
- * @returns {{state: ActivePhotoState, photoChanged: boolean}}
+ * @returns {{state: DomainState, photoChanged: boolean}}
  */
 function recomputeAndEnsureActivePhoto(state, {
   now,
@@ -440,11 +439,10 @@ function recomputeAndEnsureActivePhoto(state, {
  * URLs become null; truthy URLs retain their unvalidated value and identity.
  * Strict inequality controls seed increment; a falsy direction keeps the old one.
  * Accessors, native addition and their failures are not intercepted.
- * @typedef {Omit<DomainState, 'playback'> & {playback: Omit<DomainState['playback'], 'activePhotoUrl'> & {activePhotoUrl: unknown}}} ActivePhotoState
  * @param {DomainState} state
  * @param {FeedPhoto | null | undefined} photo
  * @param {'next' | 'prev' | null | undefined} direction
- * @returns {{state: ActivePhotoState, changed: boolean}}
+ * @returns {{state: DomainState, changed: boolean}}
  */
 function updateActivePhotoUrl(state, photo, direction) {
   const nextActivePhotoUrl = photo?.url || null;
@@ -508,7 +506,7 @@ function advancePoolSequenceCursor(state, selectedPhoto, direction) {
  * Defaults apply only to undefined; selector and accessor failures propagate.
  * @param {DomainState} state
  * @param {ReducerEnvironment & {direction?: 'next' | 'prev', forceReselect?: unknown}} options
- * @returns {{state: ActivePhotoState, photoChanged: boolean}}
+ * @returns {{state: DomainState, photoChanged: boolean}}
  */
 function ensureActivePhoto(state, { now, rng, direction = 'next', forceReselect = false }) {
   const currentPhoto = getActivePhoto(state);
@@ -716,7 +714,7 @@ const withCommandPayload = (readPayload, reduce) => (state, command, env = {}) =
  * expose the same raw active URL as finalization, without normalization.
  * @template C, P
  * @param {{readPayload: (command: C, state: DomainState) => P | null, apply: (nextState: DomainState, payload: P, command: C, state: DomainState) => unknown, direction?: ReducerOption<P, C, 'next' | 'prev'>, forceReselect?: ReducerOption<P, C, boolean>, eventsFor?: Event[] | null | false | 0 | '' | ((payload: P, command: C, state: DomainState) => FeedMutationOptions['eventsFor']), persist?: ReducerOption<P, C, boolean>}} spec
- * @returns {(state: DomainState, command: C, env?: FeedMutationOptions) => FeedMutationResult}
+ * @returns {(state: DomainState, command: C, env?: FeedMutationOptions) => ReducerResult}
  */
 function buildFeedCommandReducer({
   readPayload,
@@ -1617,7 +1615,7 @@ const reducePlaybackCommand = {
 
 /** @typedef {{now: Date, rng: () => number}} ResolvedReducerEnvironment */
 
-/** @type {ReducerFamily<Command, ResolvedReducerEnvironment, ResolvedReducerEnvironment, FeedMutationResult>[]} */
+/** @type {ReducerFamily<Command, ResolvedReducerEnvironment, ResolvedReducerEnvironment, ReducerResult>[]} */
 const REDUCER_FAMILY_SPECS = [
   { reducers: reduceSimpleCommand },
   { reducers: reducePhotoCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },

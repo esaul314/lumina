@@ -2097,6 +2097,50 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map(({ type }) => type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('raw active URL state composes reduction, snapshot application and legacy rebuilding by identity', () => {
+    const rawUrl = Object.freeze({ id: 'raw-active', toString: () => assert.fail('URL must not coerce') });
+    const row = Object.freeze({ url: rawUrl, category: 'pool', orientation: 'landscape' });
+    const state = Object.freeze(createState({
+      config: { splitPortrait: false },
+      library: { collections: {}, externalCollections: {}, photosList: [row] },
+      playback: { selectedCategories: ['pool'], activePhotoUrl: rawUrl }
+    }));
+    const env = Object.freeze({ now: new Date(2026, 0, 1), rng: () => assert.fail('unexpected RNG draw') });
+    const reduced = reduceDomainCommand(state, null, env);
+    assert.strictEqual(reduced.nextState, state);
+    const snapshot = buildSnapshot(reduced.nextState);
+    assert.strictEqual(snapshot.playback, state.playback);
+    assert.strictEqual(snapshot.activePhoto, row);
+    assert.strictEqual(snapshot.photosList[0].url, rawUrl);
+    assert.notStrictEqual(snapshot.photosList[0], row);
+    const legacy = {};
+    const applied = applyDomainState(legacy, {}, reduced.nextState);
+    assert.strictEqual(applied.playback, state.playback);
+    assert.strictEqual(legacy.activePhoto, row);
+    const rebuilt = buildDomainState(legacy, {});
+    assert.strictEqual(rebuilt.playback.activePhotoUrl, rawUrl);
+    assert.notStrictEqual(rebuilt.library.photosList[0], row);
+    assert.strictEqual(buildSnapshot(rebuilt).activePhoto.url, rawUrl);
+    assert.strictEqual(reduceDomainCommand(rebuilt, null, env).nextState, rebuilt);
+    const differentIdentity = { ...state, playback: { ...state.playback, activePhotoUrl: { id: 'raw-active' } } };
+    assert.strictEqual(buildSnapshot(differentIdentity).activePhoto, null);
+  });
+
+  assertTest('legacy active URL projection preserves truthiness, single reads and native failures', () => {
+    const baseline = buildSnapshot(createState({ config: { splitPortrait: false } }));
+    [false, 0, NaN, '', null, undefined, 42, Symbol('url'), Object.freeze({ id: 'url' })].forEach(url => {
+      let reads = 0;
+      const activePhoto = Object.freeze({ get url() { reads += 1; return url; } });
+      const rebuilt = buildDomainState({ ...baseline, activePhoto }, {});
+      assert.strictEqual(rebuilt.playback.activePhotoUrl, url || null);
+      assert.strictEqual(reads, 1);
+    });
+    const failure = new Error('raw URL read');
+    const legacy = { ...baseline, activePhoto: { get url() { throw failure; } } };
+    assert.throws(() => buildDomainState(legacy, {}), error => error === failure);
+    assert.strictEqual(baseline.playback.activePhotoUrl, 'port-1');
+  });
+
   assertTest('reducer execution inputs replay time-filtered selection without mutating inputs', () => {
     const state = Object.freeze(createState({
       library: {

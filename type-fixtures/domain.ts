@@ -1,10 +1,11 @@
 // Compile-only examples of the currently documented boundary contracts.
 // Expected errors are assertions: an unused directive is itself a diagnostic.
-import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, DomainState, FeedPhoto, Photo } from '../server/domain/types';
+import type { ActivePhotoPreview, Command, Effect, ReducerEnvironment, ReducerResult, DomainState, FeedPhoto, Photo } from '../server/domain/types';
 import { buildBooleanFieldPatch, buildWidgetPatch, decodeCategorySelectionFromHttp, decodeScreensaverActiveCommand, decodeStatePatchCommand } from '../server/domain/commands';
 import { reduceDomainCommand } from '../server/domain/reducer';
 import { buildDomainState, buildSnapshot } from '../server/domain/snapshot';
 import { createDomainDispatcher, createTypedHandlerInvoker } from '../server/domain/dispatch';
+import type { DispatcherDependencies } from '../server/domain/dispatch';
 import { deriveCurrentFrame, filterPhotosForNight, filterPhotosForTime, filterPhotosForWeather, filterVisiblePhotos, findPhotoInFeed, getActivePhoto, inferOrientation, selectSequentialPhoto, selectSmartPhoto, selectSmartPhotoFromFeed, selectWeightedRandomPhoto, uniqByUrl } from '../server/domain/selectors';
 
 declare const state: DomainState;
@@ -208,6 +209,28 @@ const rawCategoryInput: Command = { type: 'select-categories', payload: { catego
 // @ts-expect-error a custom array join can return a non-string value
 const normalizedCategories: string | undefined = categoryCommand?.payload.categories;
 const result = reduceDomainCommand(state, command, environment);
+const sharedResult: ReducerResult = result;
+const rawPlayback: DomainState['playback'] = { ...state.playback, activePhotoUrl: { legacy: true } };
+const rawActiveState: DomainState = { ...state, playback: rawPlayback };
+const replayed: ReducerResult = reduceDomainCommand(result.nextState, command, environment);
+const rawActiveUrl: unknown = result.nextState.playback.activePhotoUrl;
+const rawSnapshotUrl: unknown = buildSnapshot(rawActiveState).playback.activePhotoUrl;
+const rawLegacyUrl: unknown = buildDomainState({ ...legacyState, activePhoto: { url: { legacy: true } } }, {}).playback.activePhotoUrl;
+// @ts-expect-error public reduction does not normalize the selected URL
+const normalizedResultUrl: string | null = result.nextState.playback.activePhotoUrl;
+// @ts-expect-error public snapshots preserve the raw playback URL
+const normalizedSnapshotUrl: string | null = buildSnapshot(rawActiveState).playback.activePhotoUrl;
+// @ts-expect-error legacy rebuilding does not validate truthy active-photo URLs
+const normalizedLegacyUrl: string | null = buildDomainState({ ...legacyState, activePhoto: { url: {} } }, {}).playback.activePhotoUrl;
+const rawEmittedPhoto: Parameters<DispatcherDependencies['io']['emit']>[1] = { url: { legacy: true } };
+type CompletedDispatch = NonNullable<Awaited<ReturnType<typeof dispatcher.dispatchCommand>>>;
+declare const completedDispatch: CompletedDispatch;
+const dispatchedResult: ReducerResult = completedDispatch.reducerResult;
+const dispatchedSnapshotUrl: unknown = completedDispatch.snapshot.playback.activePhotoUrl;
+// @ts-expect-error dispatch preserves the raw result rather than narrowing its URL
+const normalizedDispatchUrl: string | null = completedDispatch.reducerResult.nextState.playback.activePhotoUrl;
+// @ts-expect-error the captured pre-effect snapshot is not normalized either
+const normalizedDispatchSnapshotUrl: string | null = completedDispatch.snapshot.playback.activePhotoUrl;
 const visible: Photo[] = filterVisiblePhotos(photos);
 const selected: FeedPhoto | null = selectSmartPhoto({ state, rng: () => 0.5 });
 const normalizedFeedSelection: Photo | null = selectSmartPhotoFromFeed({ photos, rng: () => 0.5 });
@@ -256,6 +279,8 @@ type AssertFalse<T extends false> = T;
 type CurriedPatchIsNotAny = AssertFalse<IsAny<ReturnType<typeof buildBooleanFieldPatch>>>;
 type WidgetPatchIsNotAny = AssertFalse<IsAny<ReturnType<typeof buildWidgetPatch>>>;
 type HandlerResultIsNotAny = AssertFalse<IsAny<ReturnType<ReturnType<typeof createTypedHandlerInvoker>>>>;
+type ActiveResultUrlIsNotAny = AssertFalse<IsAny<ReturnType<typeof reduceDomainCommand>['nextState']['playback']['activePhotoUrl']>>;
+type DispatchSnapshotUrlIsNotAny = AssertFalse<IsAny<CompletedDispatch['snapshot']['playback']['activePhotoUrl']>>;
 
 void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wrongCommand,
   screensaverCommand, rawScreensaverActive, rawScreensaverInput, normalizedScreensaverActive,
