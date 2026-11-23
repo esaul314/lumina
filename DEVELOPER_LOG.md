@@ -1,5 +1,69 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-23 — consolidate the agent guide
+
+The agent guide now keeps the full standing coding prompt, operational rules,
+architecture map and essential contracts, with a link to the current checkpoint.
+Repeated migration/integration narrative moved to the historical reference below;
+paragraphs already present in this journal were not copied again. Original bytes
+are hash-archived locally. This is documentation/context reduction, not capability
+removal or an application behavior change. Runtime inspection also corrected a
+prior assumption: the service used Node24, while the system shell used Node22;
+commands must resolve the real application runtime before verification.
+
+## 2026-11-23 — correlate effect reducer payload and result contracts
+
+- **Outcome:** reused the existing curried effect-result builder, deriving payload
+  types from the canonical Effect vocabulary rather than maintaining another
+  catalog. Commands, callback inputs and custom results remain related; a falsy
+  payload still returns the unchanged envelope. Local default assertions bridge
+  compiler limits without widening the callable contract. No runtime abstraction,
+  dependency, validation or public export was added.
+- **Coverage:** four declarative runtime cases preserve undefined-only defaults,
+  fresh descriptions, state/command/payload aliases, receiver/arity, falsy skips,
+  custom results and ordered failures. Existing lexical compiler fixtures check
+  literal/union correlation, command/result contracts and sensitivity to weakened
+  annotations. Independent review accepted, with the registry gap below nonblocking.
+- **Verification:** Node 22 suite 916/13/3, affected lint and diff checks pass.
+  Strict diagnostics 298→291 core, 0 fixture / 68 transitive / 0 global: 8 removed / 1 exposed.
+  Executable nodes/leaves and exports match after ignoring one added redundant
+  grouping for the JSDoc assertion; raw comment-free source is not identical.
+- **Next seam:** the family registry still asks each handler to accept the whole
+  Command union instead of its keyed variant. Preserve this visible typing gap;
+  do not weaken the newly checked builder or expand into unrelated helper polish.
+- **Complexity/feedback:** the product roadmap now names bounded guide/checkpoint
+  consolidation and a coherent client-state test extraction, not another test
+  framework or supervisor. Alex's suggestion to evaluate a newer Node runtime
+  was added to Phase 1's TypeScript/runtime bridge during this work, without
+  changing the active task, runtime or deployment. Beads retained a real
+  implementation → acceptance dependency; task translation and claim renewal
+  remain explicit overhead. No productivity uplift or unattended safety claim.
+
+## 2026-11-23 — bounded roadmap and task-tracker workflow
+
+- Audited the live dependency graph: the first three tasks were a selected
+  qualification → constructor implementation → independent acceptance sequence,
+  not an automatic import of the product roadmap. The tracker is task memory,
+  not the design authority, executor or source-complexity repair mechanism.
+- Added the reusable feedback/discovery, WIP and complexity discipline to
+  `CONVENTIONS.md`; roadmap and agent guidance link to it. Reduced our repeated
+  constructor summaries instead of copying another detailed status ledger.
+  Commit reporting now leads with subject, roadmap movement and remaining work.
+- The current constructor slice remains accepted and Step 6 remains incomplete.
+  Gauge flags include state-module/test-fixture paths and the large test runner;
+  they require interpretation, not deletion of real product state. Larger
+  documentation consolidation precedes further factory-tooling expansion.
+- Documentation-only verification checks exact guarded replacements, preserved
+  incumbent edits, policy links and unchanged code. No new runtime layer,
+  dependency, source behavior, deployment or public push is introduced.
+
+## 2026-11-23 — shared reducer result-constructor contracts
+
+- Added generic state-preserving JSDoc to the five existing pure data-first result envelopes; canonical Event/Effect descriptions remain typed caller contracts, not runtime validation. No executable production syntax, exports or dependency changed. No Monoid/currying wrapper is justified for a direct envelope constructor.
+- Added three declarative runtime regressions and private lexical compiler fixtures with an annotation-removal weakening probe. Aliases, fresh output defaults, event order and native failures are preserved. Independent review accepted the exact three-file diff.
+- Verification: 912 runtime assertions, 13 sensor regressions and three compiler tests pass, including the existing Node 22 runtime; scoped lint/diff checks pass. Strict diagnostics 307→298 core, 68 transitive unchanged, zero fixture/global. Ten implicit-any errors removed; the newly exposed effect-builder payload relationship is the next bounded audit, not a suppressed error.
+- The Fila-owned development-cycle pilot used one scoped dependency graph and native worker/result custody. Product direction remains in the living roadmap; no deployment or public push is part of this checkpoint. Existing unrelated documentation edits are preserved.
+
 This document serves as a public-facing, generic history of technical developments, architectural decisions, and key technical lessons learned. Any developer or visiting AI agent should read this file to understand why certain features were built in a specific way and to avoid repeating past mistakes.
 
 ---
@@ -398,6 +462,19 @@ This document serves as a public-facing, generic history of technical developmen
   typecheck remains nonzero at 515 core, zero fixture, 69 transitive and zero
   global diagnostics.
 - **Next**: audit `readWidgetPatch` input/result contracts and normalization.
+
+### 2026-11-09: Plan Image Comments, Display Controls, Trends, and Collections
+
+- **Roadmap**: placed private-by-default admin image comments and a separate TV
+  weather-location visibility control in Phase 1; placed temperature/humidity
+  trends with the Phase 2 sensor platform; and added a Phase 1 feasibility
+  investigation for Unsplash collection subscriptions.
+- **Boundaries**: comments remain distinct from ratings and AI captions; hiding
+  a label must not disable location-dependent behavior; trends need explicit
+  comparison and missing-data semantics and non-color-only cues; Unsplash API,
+  licensing, attribution, refresh, and identity constraints need investigation.
+- **Scope**: documentation and planning only; no implementation, runtime
+  changes, deployment, or tests.
 
 ### 2026-11-04: Preserve Widget Computed-Key Coercion
 
@@ -1078,6 +1155,7 @@ This document serves as a public-facing, generic history of technical developmen
   to measure future peaks before tightening the ceiling.
 - **Coverage**: focused selection recovery tests cover aliases, removed pools,
   malformed/missing files, atomic writes, and detached stored values.
+
 ### 2026-10-23: Give Visible Primaries a Full Interval and Recover Once
 
 - **Causes**: the TV's mount-relative interval could replace a newly displayed
@@ -2536,6 +2614,20 @@ This document serves as a public-facing, generic history of technical developmen
 - **Next seam**: type the pure keyword-to-feed-config projection in
   `server/config/state.js`, leaving mutable `screensaverState` ownership
   explicit at the module boundary.
+
+### 2026-10-04: Record Cross-Cutting Design Audit Findings
+
+- **Audit**: compared roadmap claims and backlog entries with current pool,
+  retention, geolocation, RSS, OAuth, and kiosk code paths.
+- **Corrections**: marked age retention as implemented; removed unsupported
+  total-memory and CPU claims; documented the actual Canada-configured RSS feed;
+  retired backlog entries for already implemented geolocation and Google Photos
+  OAuth flows.
+- **Backlog**: recorded asset identity versus pool membership, lifecycle-cap
+  semantics, OAuth callback hardening, news-region alignment, measured resource
+  budgets, and IP geolocation transport/timeout work in `ROADMAP.md`.
+- **Scope**: documentation and planning only. No implementation or runtime
+  behavior changed; no tests were run.
 
 ### 2026-10-04: Type Pool Schedule Runtime Status Projection
 
@@ -5341,9 +5433,344 @@ A local diagnostic utility script is available at `.agents/skills/lumina-diagnos
 - **Implementation**: `App` identifies the explicitly launched `?mode=tv` kiosk session and passes a dismissal capability to `Dashboard`. The Dashboard defaults to no dismissal capability, so toggled/embedded previews remain visual-only while the kiosk retains input dismissal.
 - **Regression coverage**: tested preview activity as inert, and verified the explicit kiosk-mode capability wiring and safe Dashboard default.
 - **Verification**: `npm test` passes 717 assertions and all 13 sensor regressions; lint and the client production build pass. The optional Unix-socket smoke check was skipped because the sandbox denies socket creation.
+
 ### 2026-10-25: Hide the Pointer Throughout the Active TV Screensaver
 
 - **Problem**: the cursor timeout was scoped to the Dashboard element and was not re-armed when screensaver state changed, leaving the pointer visible in parts of the TV viewport or over an open settings panel.
 - **Implementation**: re-arm the three-second timeout on screensaver state changes and apply the cursor-hiding class to the page body for an active TV kiosk. Admin previews do not change page-wide cursor state.
 - **Regression coverage**: assert the timeout duration and state dependencies, kiosk-only page-wide class, and CSS cursor suppression.
 - **Verification**: `npm test` passes 718 assertions and all 13 sensor regressions; lint and the client production build pass. Host diagnostics found the service and kiosk inactive, so the live TV presentation could not be confirmed in this session.
+
+
+## Historical agent-guide reference — 2026-11-23
+
+This is preserved reference/history, not a current checkpoint or execution queue.
+Its source-specific descriptions reflect the pre-consolidation guide. Current
+source, tests, roadmap decisions and verified runtime outrank historical wording.
+
+Current migration checkpoint:
+- Accepted Step 6 slice: **fix(types): correlate effect reducer payload and result contracts** (2026-11-23). See the [current engineering checkpoint](./FUNCTIONAL_REFACTOR_ROADMAP.md#step-6-prepare-the-codebase-for-typescript-without-a-premature-rewrite) and [verification/lessons](./DEVELOPER_LOG.md). Step 6 and Phase 1 remain incomplete.
+- Next engineering code candidate: preserve key-to-command relationships in the reducer-family registry; see the [companion checkpoint](./FUNCTIONAL_REFACTOR_ROADMAP.md#step-6-prepare-the-codebase-for-typescript-without-a-premature-rewrite). Documentation consolidation precedes commissioning a broader batch.
+- Earlier checkpoint entries below retain historical counts and findings; the November 23 constructor slice above is current.
+- The preceding Step 6 checkpoint made shared playback active URLs unknown across public reduction, snapshots, legacy rebuilding and dispatch; feed finalization now reuses `DomainState`/`ReducerResult`, and emitter inputs admit raw feed rows. Three runtime regressions and compiler fixtures preserve strict equality, aliases, falsy-to-null projection and native failures. Production executable syntax is unchanged; no restart was needed. The nonzero strict baseline is 307 core, zero fixture, 68 transitive and zero global. That constructor audit is now complete as recorded above. Step 6 remains incomplete.
+- The reported TV pointer regression remains open despite isolated built-client cursor tests passing. The actual kiosk was launched with `?mode=tv` and active; physical cursor and live DOM still require verification. `node test_slideshow.js` exercises cursor timeout, rearming, settings and admin-preview boundaries without touching the live daemon.
+- Slideshow rotation starts after the first primary image mounts and restarts only when a different primary URL is displayed or the configured interval changes. Metadata, crop, title, secondary-only, and layout updates retain the countdown; loading/retries keep the previous slide's timer until replacement. Report a confirmed broken image once: the server owns recovery selection, so never append a client `next-photo` command. Run `npm run test:slideshow` for deterministic built-client timing/recovery coverage with isolated local images and production command handling. `LUMINA_CHROMIUM_PATH` can override the host Chromium executable.
+- Phase 1 Step 1 complete: remote photo-control mutations are REST-first by default.
+- Phase 1 Step 2 complete: remote durable state/settings mutations are REST-first by default.
+- Phase 1 Step 3 complete: category selection, pool lifecycle, and feed-configuration mutations now use REST by default in operator UIs, with Socket.IO retained as the live sync/event transport.
+- Phase 1 Step 4 complete: manual recrawl flows now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
+- Phase 1 Step 5 complete: manual vision-analysis runs now start through REST-first async jobs, with Socket.IO reduced to live progress/status transport.
+- Implementation companion Step 4 complete: the backend command/effect readability pass meets its acceptance criteria. A quality audit found the broader client boundary still needed the same standard; Step 5 is complete with pure state-patch builders, declarative REST-first mutation request plans, a shared JSON transport boundary, and normalized live-sync projections. Step 6 is active for stable JSDoc contracts and TypeScript readiness.
+- Step 6 has a strict, no-emit domain baseline: `npm run typecheck:domain` reports 473 core, zero fixture, 69 transitive, and zero global diagnostics with pinned TypeScript 5.9.3; add `-- --details` for all errors. It exits nonzero and is not a clean gate. Domain, legacy and public snapshot feeds, sequential/smart selection, active-photo lookup and current-frame photos use unvalidated `FeedPhoto` fields; generic feed selectors preserve input row types and aliases. Native division, sequential cursor indexing and pairing URL comparison use local dynamic assertions, not validation; coercion and failures remain. Screensaver command lookup checks the first read but preserves the unknown second read and native failures. HTTP category decoding preserves eager native property reads and unknown custom array-join results. `readRequiredString` preserves primitive inputs and original values through native trim truthiness and failures. `trimString` returns unknown native results; `buildWidgetPatch` accepts unknown inputs and retains raw visible values, native key coercion, lookup order and failures. The reducer's `readWidgetPatch` keeps repeated reads, known own enumerable string keys, boolean coercion and skip/failure behavior. `readPatchField` exposes partial identity and generic normalizer contracts while retaining native lookup, repeated reads, callback aliases and the skip sentinel. The reducer's object guard narrows unknown values without checking prototypes or properties; vision/location retain inherited reads and native failures. Config patch specs distinguish raw default reads from generic custom readers and preserve unvalidated flags and immutable writes. The shared patch interpreter keeps generic callbacks, skip/no-op identity, flag truthiness and native failures; its heterogeneous list uses local type erasure. The widget partial-record merge uses a local spread-only assertion; the state-patch reducer has checked input and result contracts, and the shared result builder relates event/effect factories to explicit or default context. Next audit clone/apply mutation helpers. State and snapshot `theme`, `scaleMode`, `splitPortrait`, `splitCropPercent`, `inactivityTimeout`, `slideshowInterval`, `allowOpenAiFallback`, `alignWeather`, `alignTimeOfDay`, and `nightPercentage` are unknown because patches preserve raw values. Legacy rebuilds, weather/night selection and relevant socket toggles use truthiness; night percentage instead uses native division and can throw. The vision fallback gate treats even `"false"` as enabled; explicit boolean consent enforcement is separate hardening work.
+- The widget reader returns a partial boolean record; its local spread-only assertion describes its own boolean-valued entries, not arbitrary key presence. `reduceStatePatchCommand` documents domain state, unknown patch, environment and result; eager cloning, conditional environment reads, no-op identity and persistence-before-refresh remain. `buildMutationResult` and `resolveMutationOutput` relate event/effect factories to explicit context or the undefined-only state fallback; preserve unvalidated truthy values, resolution ordering and native failures. Next audit `reduceClonedMutation` and `reduceStateMutation`. The strict baseline is now 473 core, zero fixture, 69 transitive and zero global diagnostics.
+- `filterVisiblePhotos` preserves generic raw row types and unknown visibility fields; it returns original aliases after truthy filtering, exact rating comparison and native keyword coercion. Its boolean type predicate and the `uniqByUrl` predicate narrow nullish rows while preserving evaluation order and failures.
+- `uniqByUrl` preserves generic unvalidated row types, first truthy URL ownership and native Set equality; keep row aliases and repeated accessor reads unchanged while modeling remaining feed and snapshot contracts.
+- `findPhotoInFeed` preserves the input row type and alias, accepts unknown lookup keys, and uses strict equality without validating metadata. Nullish rows can terminate an undefined-key lookup. Active lookup preserves feed-first, curated-then-external precedence; frame, snapshot and smart-selection photos retain raw aliases. Feed-based smart selectors retain their generic input row types.
+- `client/src/api/requestPlans.js` keeps REST-first mutation bodies and temporary legacy Socket.IO payloads as pure, JSDoc-covered projections; `luminaClient.js` owns only their fetch/fallback interpretation.
+- `client/src/api/jsonClient.js` owns the shared JSON request effect and response/error/media-type contract; dashboard, environment, and credential views keep their state transitions and presentation policies explicit.
+- `getStateSnapshot()` uses the strict `readJson(...)` boundary like other client reads, so non-JSON fallback responses cannot enter snapshot state as a parsed empty object.
+- `client/src/state/frameSelectors.js` owns the pure `normalizeSnapshotResponse(...)` compatibility projection; direct REST snapshots, `{ state: snapshot }` mutation responses, and Socket.IO `state-sync` payloads share that boundary before React applies state.
+- `client/src/state/frameSelectors.js` carries local `@ts-check` contracts for the client snapshot, current frame, photo-event envelope, and crop selectors; keep these shapes client-owned so TypeScript migration does not couple browser code to server-only modules.
+- `client/src/state/categorySelection.js` carries the pure category-selection contract and canonical legacy aliases; keep selection inputs unknown-safe and snapshot shapes browser-owned as the checked boundary expands.
+- `client/src/state/jobStatus.js` carries the checked pure job-status and legacy-event projection contract; keep job types closed, payload compatibility at the boundary, and React target selection in the effect shell.
+- `client/src/state/feedMutations.js` carries checked client-owned contracts for immutable category and feed-source snapshot projections; keep unknown edit inputs at the pure boundary and preserve identity on invalid no-ops.
+- `client/src/state/environmentHistory.js` carries checked contracts for pure metric conversion, timestamp formatting, and environment-status presentation; keep adapter-specific readings opaque and presentation fallbacks deterministic.
+- `client/src/state/photoCrop.js` carries a checked scalar contract for contain/cover crop baselines and interpolation; preserve its pure numeric formulas and absent-mode cover fallback when extending preview controls.
+- `client/src/state/screensaverActivity.js` carries a checked pure event contract for Escape and active-screensaver dismissal classification; only an explicitly launched `?mode=tv` kiosk may dismiss shared screensaver state from input, while admin TV previews remain presentation-only.
+- `client/src/state/poolPolicyDrafts.js` carries checked client-owned contracts for normalized policy defaults and immutable, partially applied draft updates; preserve form-string values and nested schedule defaults at this pure boundary.
+- `client/src/state/keywordInput.js` carries a checked pure parser contract for pasted keyword phrases and timed feed parameters; preserve exact phrase text and keep malformed input inert at this browser boundary.
+- `client/src/state/credentialStatus.js` carries a checked pure acknowledgement contract for credential saves; preserve its success/error projection and keep transport event names and input clearing in the effect shell.
+- `client/src/state/cssImage.js` carries a checked pure presentation contract for deterministic CSS image values; preserve its empty-input identity and URL escaping without moving browser style effects into the helper.
+- `client/src/state/clock.js` carries a checked pure clock-parts contract; preserve locale/options composition and the separate `{ time, period }` projection without moving formatter or rendering effects into the helper.
+- `client/src/components/remote/tvPreview.js` carries a checked pure preview-geometry contract; preserve measured-dimension fallbacks and aspect-ratio fitting without moving DOM measurement or style effects into the helper.
+- `client/src/state/poolLifecycleView.js` carries checked client-owned contracts for schedule inputs, lifecycle policy summaries, rows, and policy readers; preserve schedule fallback presentation and keep persistence/React effects outside the pure helper.
+- `client/src/components/remote/googlePhotosPicker.js` carries checked client-owned contracts for Picker copy and credential status; preserve the pure visible projection and keep OAuth/transport/React effects outside the helper.
+- `client/src/state/actionPlans.js` carries checked client-owned contracts for partially applied durable field and widget patches; preserve pure patch construction and keep API execution/React state effects outside the helper.
+- `client/src/state/imageFeedsPanels.js` carries checked client-owned contracts for immutable panel transitions, unknown-safe preference codecs, and injected storage adapters; preserve transient focus semantics and keep browser storage/document effects outside the helper.
+- `client/src/api/requestPlans.js` carries checked client-owned contracts for pure REST-first mutation plans and their temporary legacy Socket.IO envelopes; preserve partial plan application and keep fetch/fallback execution in `luminaClient.js`.
+- `client/src/api/jsonClient.js` carries checked client-owned contracts for parsed API error payloads, request options, and generic JSON results; preserve media-type/error interpretation at the shared transport edge and keep view-specific state outside it.
+- `client/src/state/swipeGesture.js` carries checked pure contracts for touch-coordinate decoding and strict-threshold direction/status projection; preserve its null-safe malformed-input fallback and keep action callbacks/timers in `useSwipeGesture.js`.
+- `client/src/state/cropDrag.js` carries checked pure contracts for pointer-coordinate decoding and bounded crop-position projection; preserve its null-safe malformed-input fallback and keep DOM listeners, timeout coalescing, React state, and crop actions in `useCropDrag.js`.
+- `server/domain/selectors.js` keeps the visible feed unique while automatic playback rotates eligible pools evenly; rating, weather, and night preferences apply within the chosen pool, and sequence playback round-robins pools with per-pool cursors.
+- `App.jsx` is the sole client owner of normalized `state-sync` application; Dashboard effects should derive from its `state` prop rather than registering duplicate raw snapshot listeners. Keep only genuinely local transient guards in the view.
+- RemoteControl live acknowledgements should use pure status/event projections plus declarative subscription records when event branches share policy; credential-specific input clearing and job-specific React targets remain in the view effect shell.
+- App photo acknowledgements should use the pure side-aware event projection and declarative subscription records; `state-sync`, connection lifecycle, and transport-specific telemetry remain explicit because their policies differ.
+- `client/src/state/poolLifecycleView.js` owns the pure lifecycle-row and schedule-summary projection; `ImageFeedsTab.jsx` keeps draft mutation and save effects explicit, while its page-specific CSS supplies the bounded desktop workspace and narrow-screen field reflow.
+- Pool lifecycle controls are intentionally collapsed by default with native `<details>/<summary>` panels; keep the summary scannable and descriptive when extending the editor, and do not hide the current policy values behind a generic label.
+- Scheduled pool activation is additive: preserve the existing `playback.selectedCategories`, append the scheduled pool only when absent, and restore the pre-schedule baseline when the window ends. Never dispatch a singleton scheduled category as a replacement selection.
+- Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares curated photo mutation broadcast ceremony through one higher-order shell while preserving Google Photos source-local updates and silent missing-photo broken reports.
+- Latest Step 4 slice: dispatcher effects and events now share one closed typed-handler invoker while keeping their distinct sequencing and emission behavior explicit.
+- Latest Step 4 slice: Socket.IO command listeners now select shared dispatch, legacy fallback, or no-handler behavior through one pure command runner, preserving dispatch precedence and legacy payload forwarding.
+- Latest Step 4 slice: Socket.IO command listener registration now passes declarative records directly into the listener shell, removing positional reshaping while preserving dispatch, fallback, interception, and error behavior.
+- Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares pool existence, persistence, and broadcast ceremony through one higher-order fallback shell while its keyword, feed-config, and policy update functions remain domain-specific.
+- Latest Google Photos Picker accumulation correction: completed Picker sessions append/upsert into the persistent source-local pool, preserving ordinary usable rows as well as loved rows. Stable media IDs deduplicate with the latest synced representation winning, existing user metadata retained, and the shared retention/maximum-photo policy applied after the accumulated union. Picker remains the only ingestion path; no daily Google Photos revalidation job is required.
+- Google Photos Picker rows retain the API `createTime`; the TV slide title projection formats it as a localized date in the browser's locale and time zone in single and split slides, with the cached title retained when the date is absent or invalid. Single-slide title overlays are limited to Google Photos so other sources keep their existing presentation. Older rows without timestamps need to be selected again through Picker after their Picker session expires.
+- Latest Step 6 slice: `server/utils/fn.js` now exposes checked contracts for curried primitives, data-last collection combinators, and closed declarative interpreters; runtime behavior and null-safe identities remain unchanged.
+- Latest Step 6 slice: `server/utils/validation.js` now exposes checked contracts for the curried numeric range validator and specialized rating, percent, and crop validators; preserve null-safe identities and inclusive bounds while keeping command decoding outside the pure helper.
+- Latest Step 6 slice: `server/config/env.js` now exposes checked contracts for environment-value normalization and the pure replace-or-append content projection; preserve normalized quoting and idempotence while keeping filesystem/process mutation in `persistEnvVars`.
+- Latest Step 6 slice: `server/services/sentiment.js` now exposes checked contracts for the curried lexicon counters, declarative RSS headline parser, score classification, and sentiment result; preserve deterministic empty-feed identity while keeping network refresh orchestration outside the pure service.
+- Latest Step 6 slice: `server/domain/poolRetention.js` now exposes checked contracts for policy normalization, immutable loved-photo capping, and partially applied retention transforms; preserve prune-then-cap composition while keeping persistence and crawler orchestration outside the pure domain core.
+- Latest Step 6 slice: `server/domain/photoTimestamps.js` now exposes an open checked `PhotoRecord` contract for timestamp normalization and immutable stamping; preserve source-specific metadata, malformed-clock no-ops, and the pure boundary while keeping persistence outside the domain helper.
+- Latest Step 6 slice: `server/domain/poolSchedule.js` now exposes checked contracts for schedule inputs, policy maps, resolved entries, and local-time evaluation; preserve immutable category appends and deterministic priority selection while keeping interval polling, command dispatch, and restoration in the runtime shell.
+- Latest Step 6 slice: `server/domain/snapshot.js` now exposes checked contracts for legacy-state decoding, domain/public snapshot projection, runtime overrides, and the compatibility mutation shell; preserve immutable normalization and current-frame derivation while keeping in-place legacy synchronization explicit.
+- Latest Step 6 slice: `server/domain/environmentSettings.js` now exposes checked contracts for device inputs, canonical catalogs, runtime/legacy projections, immutable profile updates, and adapter validation; preserve pure settings projections while keeping config persistence and sensor-runtime updates in `app.js`.
+- Latest Step 6 slice: `server/services/ecowitt.js` now exposes checked contracts for vendor payload decoding, canonical indoor readings, settings normalization, validation, and public environment responses; preserve the pure protocol projection while keeping polling, timeouts, logging, and network effects in the adapter shell.
+- Latest Step 6 slice: `server/services/sensorHistory.js` now exposes checked contracts for sensor/weather inputs, hourly records, query/statistics results, CSV projection, and the injected SQLite store; preserve invalid-timestamp nulls and limit defaults while keeping database operations in the store interpreter.
+- Latest Step 6 slice: `server/services/sensorPlatform.js` now exposes checked contracts for adapter descriptors, registered adapters, public summaries, settings results, and platform methods; preserve alias canonicalization, metadata isolation, and explicit lifecycle/read effects.
+- Latest Step 6 slice: `server/services/weather.js` now exposes checked WMO classification contracts; preserve the constant-time mapping and cloudy fallback while keeping geolocation and forecast fetching in the effectful shell.
+- Latest Step 6 slice: `server/runtime/environmentRefresh.js` now exposes checked contracts for weather snapshot projections; preserve provider-field projection and absent-current behavior while keeping refresh effects in the runtime shell.
+- Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing, normalization, and balanced feed projections; preserve source collections and keep `photosList` mutation in the runtime shell.
+- Active feed choices persist in the gitignored `active_categories.json` across daemon restarts; saved names are filtered against current pools at startup. Keep schedule-only category changes out of this manual selection store.
+- Latest Step 6 slice: `server/runtime/idleDaemon.js` now exposes checked contracts for host observations, daemon inputs, and screensaver transitions; preserve the closed action vocabulary and keep polling/browser/timer/broadcast effects in the shell.
+- Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; preserve the exact three-field output and keep process/governor/retry-timer/logging effects in the shell.
+- Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes a checked five-field status projection with detached category arrays; preserve runtime-owned scheduling state and keep polling/dispatch effects in the shell.
+- Latest Step 6 slice: `server/utils/routeDecode.js` now exposes generic checked success/failure, map, chain, and collection contracts; preserve legacy bare-value normalization, fail-fast collection, and empty-success identity while keeping HTTP responses in routes.
+- Latest persistence slice: `server/config/collectionsCodec.js` keeps exact image URLs unique across persisted pools with a pure first-occurrence projection; startup removes legacy duplicate feed rows while preserving sibling snapshot metadata.
+- Latest Step 6 slice: `server/utils/keywordSpecs.js` now exposes checked unknown-safe contracts for normalization, timed specs, equality, and ordered term collection; preserve phrase boundaries and detached nested arrays while keeping configuration effects outside the helper.
+- Latest Step 6 slice: `server/config/state.js` now exposes checked contracts for the pure keyword-to-feed-config projection; preserve ordered normalized terms and independent source arrays while keeping mutable `screensaverState` lifecycle explicit at the module boundary.
+- Latest Step 6 slice: `server/config/collectionsCodec.js` now exposes open persisted-record inputs and stable normalized/serialized snapshot contracts; keep filesystem reads, writes, and migration recovery in the codec's effectful shell.
+- Latest Step 6 slice: `server/config/collectionPhotoProjections.js` now exposes checked curried photo-by-URL and photo-list contracts; preserve unmatched-value identity and immutable mapping while keeping collection/state mutation and persistence in `collections.js`.
+- Latest Step 6 slice: `server/config/localSettings.js` now exposes checked local-config and section contracts; tests preserve partial updates, nested Ecowitt units, shallow sensor-history semantics, ignored unsupported patch fields, and input immutability while filesystem writes remain in `saveLocalConfigPatch(...)`.
+- Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked pure defaults/overrides projection and deprecated-secret list; preserve section merge depths and input immutability while file reads and warnings remain in `configLoader.js`.
+- Latest Step 6 slice: `server/config/collectionPhotoUpdaters.js` now exposes checked immutable rating, crop, pairing, and broken-photo projections; preserve `parseInt`, partial crop, truthiness, and input immutability while state mutation and persistence remain in `collections.js`.
+- Latest Step 6 slice: `server/config/collections.js` and `server/config/configLoader.js` now document checked input and effect-shell contracts; preserve the existing photo mutation, persistence, config-file, logging, and warning behavior.
+- Latest Step 6 slice: `updateCachedMediaItemMetadata(...)` documents its cache input, return, and conditional persistence; preserve matched-row return semantics, no-write no-ops, and the test-mode write guard while cache reads and file effects stay in `googlePhotos.js`.
+- Latest Step 6 slice: `refreshCachedMediaItem(...)` documents its session fallback, nullable result, missing-item rejection, and cache upsert; preserve Picker requests, cache persistence, and metadata retention in the Google Photos service shell.
+- Latest Step 6 slice: `refreshMediaItemUrl(...)` documents media-id and render-option inputs, mock and authenticated URL results, and logged rejection behavior; preserve authentication and network effects in the Google Photos service shell.
+- Latest Step 6 slice: `cleanOrphanedMediaFiles(...)` documents active media-id inputs, missing-directory/test-mode no-ops, best-effort cleanup, and reuse of the pure orphan projection; preserve directory reads, unlinking, and warning logs in the Google Photos service shell.
+- Latest Step 6 slice: `downloadSyncMediaItems(...)` documents selected-media inputs, cache/test-mode skips, sequential completion, and per-item versus batch failures; preserve pure URL construction and the sequential network/filesystem shell, with isolated effect adapters in tests.
+- Latest Step 6 slice: `getCachedMediaItems()` documents normalized render rows, first-usable-id ordering, serialization-based changed-only persistence, and read/write failure boundaries; preserve pure normalization and keep cache reads, conditional writes, and warnings in the service shell.
+- Latest Step 6 slice: `buildGooglePhotoContentUrl(...)` documents its pure base-URL/render-option input and string result; preserve independent defaults, ordered crop directives, verbatim base interpolation, empty-base identity, and immutable options without widening production exports.
+- Latest Step 6 slice: `isBaseUrlStale(...)` documents its cached-timestamp input and boolean result; preserve absent/falsy short-circuiting, the inclusive 55-minute TTL, future timestamps, and legacy coercion while keeping the clock-dependent predicate in the service shell.
+- Latest Step 6 slice: `getValidToken()` documents cached/refreshed token results and rejected authentication/refresh/clock failures; preserve the strict five-minute boundary, legacy expiry coercion, and unvalidated refresh results while keeping token-state mutation, logging, and network effects in the service shell.
+- Latest Step 6 slice: `refreshAccessToken()` documents refreshed/synthetic results and rejection effects; preserve encoded OAuth requests, separate mock clock reads, retained refresh tokens, unvalidated payloads, and non-atomic clock-failure updates while keeping token mutation and logging in the service shell.
+- Latest Step 6 slice: `exchangeGoogleCode(...)` documents authorization inputs, service-owned mutable token results, and rejection ordering; preserve mock clocks, encoded OAuth requests, truthy refresh-token fallback, persistence normalization/skips, and replaced state after persistence failure while keeping all effects in the service shell.
+- Latest Step 6 slice: `getGoogleAuthUrl(...)` documents callback inputs, authorization URL results, and synchronous encoding failures; preserve client-ID-only sandbox fallback, Picker-only scope, native coercion, and branch-specific Unicode handling while keeping credential reads and logging in the service shell. OAuth state and callback validation remain separate hardening work.
+- Latest Step 6 slice: `saveGoogleCredentials(...)` documents string inputs, boolean results, and synchronous failures; preserve trim completion before replacement, replacement before persistence, logged failure without rollback, and token isolation while keeping all effects in the service shell.
+- Latest Step 6 slice: `isAuthenticated()` documents its synchronous boolean presence contract; preserve native access-token truthiness, ignored expiry/refresh-token/credential fields, and current service-state reads without implying token validity or moving refresh effects into the predicate.
+- Latest Step 6 slice: `createPickerSession()` documents synthetic/unvalidated JSON results and branch-specific rejections; preserve the access-token guard, mock clock, awaited token resolution, exact POST metadata, and request-only error logging while keeping all effects in the service shell.
+- Latest Step 6 slice: `getPickerSession(sessionId)` documents its string input, synthetic or unvalidated JSON result, and rejection boundaries; preserve native input dispatch, synthetic-session independence, verbatim GET metadata, refresh-token-only authentication, awaited JSON, and request-only logging without HTTP body reads in the service shell.
+- Latest Step 6 slice: `listPickerMediaItems(sessionId)` documents its string input, accumulated raw-item result, sequential pagination, and rejection boundaries; preserve encoded queries, one resolved token, ordered array concatenation without deduplication, truthy-token continuation, and rejection without partial results while keeping authentication/network/logging in the service shell.
+- Latest Step 6 slice: `deletePickerSession(sessionId)` documents its input, asynchronous Fetch boolean result, and failure boundaries; preserve synthetic no-ops, verbatim DELETE metadata without body reads, authentication outside the request catch, silent HTTP flags, handled request failures, and refreshed-token retention in the service shell.
+- Latest Step 6 slice: `syncGoogleAlbum(...)` documents named adapters/options, incoming rows versus the retained union, and ordered effects; preserve append/upsert, metadata, post-union policy, and background downloading while keeping pure union/policy projections outside the orchestration shell.
+- Latest Step 6 slice: `findCachedMediaItem(...)` documents exact-id inputs and nullable normalized rows; preserve strict equality, structural filtering, fresh reads, normalization persistence even on misses, and propagated failures while keeping filesystem effects in the service shell.
+- Latest Step 6 slice: `readCachedMediaItemsRaw()` documents its unknown JSON result and missing/read/parse fallbacks; preserve fresh UTF-8 reads, unvalidated shapes, detached results, and propagated existence-check/warning-handler failures while keeping filesystem/logging effects in the service shell.
+- Latest Step 6 slice: `writeCachedMediaItems(...)` documents native JSON serialization, synchronous UTF-8 writes, and its void result; preserve caller-owned guards, hook ordering, repeated writes, undefined-data rejection, and failures without retry/rollback while keeping persistence in the service shell.
+- Latest Step 6 slice: `updateCachedMediaItem(...)` documents normalized-cache whole-row upsert, unconditional persistence, and exact returned-row identity; preserve verbatim Map keys, ordered normalization/input/write effects, caller-owned row policy, and failures without rollback while keeping persistence in the service shell.
+- Latest Step 6 slice: `persistGoogleRefreshToken(...)` documents unknown-input normalization, case-sensitive mock skips, synchronous persistence, and void results; preserve native coercion, repeated writes, ignored adapter results, and unchanged failures while keeping token-state assignment with callers and persistence in the service shell.
+- Latest Step 6 slice: `isGooglePhotoProxyUrl(...)` documents unknown-input boolean projection and delegated coercion/decoding failures; preserve exact relative vocabulary, one-pass decoding, and non-empty-id truthiness without adding validation or service effects to the pure composition.
+- Latest Step 6 slice: `getLocalMediaFilePath(...)` documents unknown-input/string-result and native coercion/path-normalization contracts; preserve suffix-before-normalization and propagated failures without implying containment validation or moving filesystem effects into the pure projection. Media-id validation and path confinement remain separate security hardening work.
+- Latest Step 6 slice: `difference(...)` documents generic read-only Set inputs and fresh ordered results; preserve native membership, shallow identity, immutable inputs, and subtraction/union-composition laws without changing the concise data-first projection. Difference is not associative and is not a Semigroup/Monoid operation.
+- Latest Step 6 slice: `buildEntriesCommandReducer(...)` relates partially applied target selectors and entry readers to command and clone types. Preserve option spreading, ordered assignment, original-state no-op identity and native failures; the strict baseline remains nonzero at 444 core, zero fixture, 69 transitive and zero global diagnostics. Next audit `buildFieldCommandReducer(...)`.
+- Latest Step 6 slice: `getOrphanedFiles(...)` documents read-only array inputs and fresh ordered results; preserve platform basename matching, exact active ids, original paths, duplicates, immutable inputs, concatenation/idempotence/union laws, and propagated native failures while keeping filesystem effects in the cleanup shell.
+- Latest Step 6 slice: `fetchMediaItemBytes(...)` refines its local-cache fast-path contract; preserve normalization before file access, Buffer identity, MIME truthiness, repeated reads, authentication bypass, file-failure fallthrough, and pre-authentication/warning-handler rejections while keeping all effects in the service shell.
+- Latest Step 6 slice: `fetchMediaItemBytes(...)` documents candidate-URL preparation; preserve awaited authentication, missing/stale Picker refresh precedence, original cached-base fallback, exact ordered deduplication, on-demand resolution only for empty candidates, and preparation failure boundaries in the effect shell.
+- Latest Step 6 slice: `fetchMediaItemBytes(...)` documents remote retrieval and final Picker retry; preserve HTTP-only candidate fallback, immediate thrown rejection, decoding and MIME truthiness, original token/hint retention, exact retry uniqueness, empty-buffer differences, and write-before-header partial effects in the service shell. Recovery and validation policies remain separate hardening work.
+- Latest Step 6 slice: `applyCachedMediaItemMetadataToState(...)` refines decoding, eager projection, truthy-id precedence, last-match results, aliases, and partial-failure contracts; preserve copied list rows versus in-place active frames and keep pure id/patch projections separate from live mutation. Repeated equal-value patches are value-idempotent, not reference-idempotent; normalization and atomicity remain separate hardening work.
+- Latest Step 6 slice: `updateCachedMediaItemMetadata(...)` refines read-before-projection ordering, strict cached-id matching, copied results, changed-only full-cache writes, exact test-mode suppression, and partial failures; preserve the pure merge and keep reader normalization, warnings, and persistence in the service shell. Normalization writes can survive a later invalid input; validation and atomicity remain separate hardening work.
+- Latest Step 6 slice: `mergeCachedMediaItemMetadata(...)` refines read-only inputs, strict id matching, shallow copies and last-match aliases, !== change detection, and failures; preserve sparse/falsy entries and all duplicate matches. Projected patches compose right-biased on row values, but changed flags and reference identities do not form a result-envelope Monoid. Keep the pure data-first helper separate from cache I/O; runtime behavior and exports are unchanged.
+- Latest Step 6 slice: `buildGooglePhotoMetadataPatch(...)` refines read-only inputs, fixed eager reads, inherited/non-enumerable fields, undefined-only omission, shallow aliases, and exact failures. Preserve fresh plain output and value-idempotence, not reference identity; projected patches compose right-biased, but raw spread with undefined is not preserved by projection. Keep the pure data-first pipeline separate from validation and cache I/O; runtime behavior and exports are unchanged.
+- Latest Step 6 slice: `getPickerItemMimeType(...)` refines read-only nested/legacy inputs, truthiness-before-trimming, native coercion, repeated reads, and exact failures. Preserve whitespace suppression of fallback, case/parameters, and normalization stability under flat/nested re-embedding; accessor/coercion effects can survive failures. Keep this pure data-first scalar projection separate from MIME validation and network/cache effects; runtime behavior and exports are unchanged.
+- Latest Step 6 slice: `getGooglePhotoMediaItemId(...)` refines unknown inputs, exact relative-prefix/query handling, one-pass decoding, and native failures. Preserve the pure data-first decoder and generated proxy-codec round-trip law, not decoder idempotence; runtime behavior and exports are unchanged. Identifier validation and filesystem containment remain separate security work.
+- Latest Step 6 slice: `buildGooglePhotoProxyUrl(...)` refines read-only render options, undefined-only defaults, eager named reads, ordered native coercion, id versus query encoding, crop truthiness, and native failures. Preserve immutable ordinary inputs and the existing codec round-trip law, not builder idempotence; keep this pure data-first projection separate from validation and cache/filesystem effects. Runtime behavior and exports are unchanged.
+- Latest Step 6 slice: `getPickerItemDimensions(...)` refines read-only nested/legacy metadata selection, native integer parsing, independent defaults, and failures. Preserve whole-metadata precedence, immutable ordinary inputs, and width-before-height coercion. Safe-integer metadata re-embedding is stable, but large numeric results can change on another pass; do not claim global idempotence. Keep the pure data-first projection separate from validation and cache-row clocks/I/O; runtime behavior and exports are unchanged.
+- Latest Step 6 slice: `getPickerItemBaseUrl(...)` refines read-only nested/legacy file selection, truthiness-before-trimming, native string coercion, and failures. Preserve selected-file-only base reads and the builder's cached/legacy fallback after trimming; generated flat/nested re-embedding cases verify scalar stability, not a record endomorphism. Keep the pure data-first projection separate from URL validation and cache-row clocks/I/O; runtime behavior and exports are unchanged.
+- Latest Step 6 slice: `extractLegacyBaseUrl(...)` refines unknown-input coercion, exact rejected prefixes, first-equals splitting, and native failures. Preserve fallback ordering and the builder's verbatim head versus the normalizer's extra trimming. Normalized equals-free, non-rejected bases are fixed points, but trailing whitespace before '=' rules out global idempotence. Keep this pure data-first projection separate from validation and cache-row clocks/I/O; runtime behavior and exports are unchanged.
+- Latest Step 6 slice: `normalizeCachedMediaItem(...)` refines read-only persisted rows, dimension/base defaults, shallow metadata preservation, proxy defaults, and exact native failures. Preserve truthy-id guards, undefined-only rating defaults, literal-true loved flags, inherited/accessor reads, and immutable ordinary data. Safe-dimension records with own enumerable string ids are value-idempotent, not reference-identical or globally idempotent. Keep this pure data-first projection separate from eligibility, validation, clocks, and cache I/O; executable production code and exports are unchanged.
+- Latest Step 6 slice: `isUsableCachedMediaItem(...)` refines read-only structural eligibility, ordered guards, exact mock-prefix bypass, raw refreshability truthiness, and native failures. Preserve inherited/accessor reads, native method dispatch, and immutable ordinary inputs. Direct filtering is idempotent and preserves concatenation and row references; this is neither predicate idempotence nor proof of successful retrieval. Keep the pure data-first predicate separate from validation, authentication, clocks, and retrieval effects; executable production code and exports are unchanged.
+- Latest Step 6 slice: `dedupeMediaItemsById(...)` refines read-only generic inputs, first-occurrence ordering, native id coercion, sparse-array traversal, and exact failures. Preserve original row aliases and metadata: trimmed comparison keys do not rewrite ids. Stable-record deduplication is value-idempotent; first-biased deduplicated union obeys Monoid laws, not commutativity or plain-concatenation preservation. Keep the pure data-first filter and private scratch Set separate from validation/cache effects; executable production code and exports are unchanged.
+- Latest Step 6 slice: `mergeSyncedItemWithExistingMetadata(...)` refines read-only inputs, latest synced spread precedence, five defined user-edit exceptions, shallow aliases, and native failures. Preserve inherited/hidden user edits, ordered repeated reads, and immutable ordinary inputs. Ordinary own-enumerable records obey associativity, value-idempotence, and empty-metadata identity, not commutativity; inherited records and changing accessors are outside those laws. Keep the pure data-first projection separate from cache I/O, policy, identity matching, and recovery; executable production code and exports are unchanged.
+- Latest Step 6 slice: `mergeSyncedMediaItems(...)` refines read-only collections, stable ordering, cached-first/incoming-last duplicates, raw cached-id matching, aliases, and native failures. Preserve shallow cached/matched clones versus unmatched incoming aliases, sparse/native traversal, and ordered phases. Canonical unique-id records obey associative/idempotent Monoid laws with [] identity, not commutativity; duplicate/noncanonical ids are outside those laws. Keep the pure data-first projection separate from policy/cache effects; executable production code and exports are unchanged. Canonical-id hardening is separate backlog work.
+- Latest Step 6 slice: `buildCachedMediaItem(...)` refines read-only inputs, fixed-field output, fallback precedence, separate acquisition/base clocks, retained metadata aliases, and exact native failures. Preserve immutable ordinary inputs, truthy existing acquisition dates, repeated id/rating reads, and cached-dimension reset behavior. Keep the data-first helper composition without claiming purity or global idempotence for a clock-dependent builder; executable production code and exports are unchanged.
+- Latest Step 6 slice: `getPickerMediaFile(...)` refines read-only inputs, whole nested/flat selection, original aliases versus fresh empty fallbacks, repeated accessor reads, and exact failures. Preserve native truthiness, hidden/inherited fields, and immutable ordinary inputs. Keep the pure data-first selector: stable leaf selection is reference-idempotent, not globally idempotent on arbitrarily nested records. Test-only private capture keeps executable production code and exports unchanged; field fallbacks and cache effects remain with callers.
+- Step 6 acceptance audit (2026-10-25): not complete. `types.js` now includes the existing `refresh-active-feed` Effect member; vocabulary-parity and dispatch tests preserve payload/result aliases, ordered completion, optional-adapter no-ops, and failure after state application without pending event emission. No executable production change or export added. Command/effect payload variants and dispatcher dependencies remain after the execution/selector follow-ups below; see the companion audit.
+- Latest Step 6 execution-contract slice: shared `ReducerEnvironment` describes Date-valued `now` and callable `rng`; reducer and dispatcher reuse it with explicit `ReducerResult`, `EffectResult`, and `DispatchResult` outputs. Preserve eager truthy defaults even on reducer no-ops, dispatcher missing-command short-circuiting, sequential effects, and pre-effect snapshot semantics. Seven regressions cover replay, immutable inputs, identities, failures, and ordering; executable production code and exports are unchanged.
+- Latest Step 6 selector-contract slice: all 23 exported `server/domain/selectors.js` functions document shared domain inputs/results and local selection/update shapes. Ten regressions preserve undefined-only Date/RNG defaults (unlike reducer truthy defaults), equal-turn eligible-pool selection, conditional draws, value-idempotent filters, immutable projections, row aliases, and exact failures. No executable production change or export added; keep the data-first core without an algebraic wrapper.
+- Latest Step 6 payload-contract slice: `types.js` now correlates all 25 command names with payload fields and discriminates ten effects; exported decoders document `Command | null`. `dispatch.js` documents mutable dependencies and public methods. Ten regressions preserve pass-through patch/exclusion values, metadata and job payloads, aliases, optional adapters, synchronous override/emission, awaited effect results, and partial failure. Executable production code/exports are unchanged; retain the pure data-first core and existing sequential interpreter.
+- Step 6 acceptance re-audit (2026-10-26): incomplete. Fixed the unbalanced `SessionConfig.poolPolicies` declaration; five regressions expose scalar/direct-command state-shape gaps, unvalidated optional photo metadata, and inherited/callable decoder compatibility. Public signatures exist, but `unknown` narrowing, curried/handler type erasure, and compatibility-versus-normalized state remain migration work. No executable production change or compilation claim.
+- Next Step 6 checkpoint: establish a scoped no-emit TypeScript diagnostic baseline and compile-time fixtures for command, environment, effect, and selector boundaries; report transitive errors separately. Resolve measured narrowing/inference gaps and model compatibility state explicitly without new runtime validation or blanket `any` suppression. Preserve clock/random injection, balanced playback, and the sequential shell; do not resume unrelated helper polishing.
+- `FUNCTIONAL_REFACTOR_ROADMAP.md` is the supporting Phase 1 implementation track for this work, not a separate product roadmap; its step numbers are local to that engineering cleanup sequence.
+
+## ⚙️ Detailed Backend Architecture (`server.js`)
+
+The Node.js backend handles state synchronization, API data proxying, local network discovery, dynamic Unsplash feed crawlers, and the core system daemon loops.
+
+### 1. Core State Management
+The server manages a centralized `screensaverState` object, which is broadcasted to all connected clients (TV and Remote controls) on change:
+* `activePhoto`: `{ url, title, author }` (Current background image)
+* `currentCategory`: `"Scenic Nature" | "Cosmic Space" | "Abstract Art" | "Liminal Spaces" | "AI Creations"`
+* `theme`: `"Zen Retreat" | "Cosmic Night" | "Art Museum" | "Cyberpunk Rain"`
+* `widgets`: `{ clock, weather, qrcode, particles, auraglow, animations }` (Booleans)
+* `photosList`: Array of photo objects within the current category.
+* `inactivityTimeout`: Time in milliseconds before screensaver launches (default `600000` / 10 minutes).
+* `screensaverActive`: Boolean showing if screensaver mode is engaged.
+* `slideshowInterval`: Time in milliseconds between photo rotations (default `120000` / 2 minutes).
+
+### 2. GNOME / Mutter System Screensaver Daemon
+Every 2 seconds, the server runs a DBus polling command. To handle different developer names and machine setups, the system **dynamically queries runtime environment properties** (via Node's `os.userInfo()`) to retrieve the correct `uid` (default `1000`) and user `homedir` (default `/home/username`), instead of using hardcoded paths:
+```bash
+DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" busctl --user call org.gnome.Mutter.IdleMonitor /org/gnome/Mutter/IdleMonitor/Core org.gnome.Mutter.IdleMonitor GetIdletime
+```
+If the system idle time exceeds `inactivityTimeout`, the screensaver is triggered, **unless** audio is actively playing:
+* **Audio Playback Guard**: The server runs `pactl list sink-inputs`. If an active stream has `corked: no` or `pulse.corked = "false"`, sound is playing (e.g., a movie or music). The screensaver **will not** trigger to avoid interrupting the user's entertainment.
+* **CPU Power Governor Orchestration**:
+  - When the screensaver starts, the CPU scaling governor is toggled to `performance` to guarantee liquid-smooth transitions (30/60fps Ken Burns panning and particle effects):
+    `echo "performance" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`
+  - When the screensaver is dismissed (via mouse movement, keyboard event, or manual remote command), the scaling governor is restored to the energy-saving `schedutil` profile to run cool and silent:
+    `echo "schedutil" | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`
+
+### 3. Chromium Fullscreen Kiosk Launcher & Custom CLI Optimizations
+When screensaver activation is triggered, the server spawns Chromium in fullscreen kiosk mode pointing to `http://localhost:5000/?mode=tv`. To ensure it never hangs the PC and has a tiny RAM footprint, it uses highly optimized Chromium CLI flags. It dynamically resolves wayland displays and authorities using the active `uid` and `homedir` to achieve robust startup:
+* `--js-flags="--max-old-space-size=256"`: Strictly limits the V8 JS heap memory footprint to 256MB.
+* The user service reclaims above 1.5 GiB and caps combined daemon and kiosk memory at 2 GiB. This bounds Lumina's host impact; decoded-image and GPU memory remain part of the cgroup total.
+* `--disable-dev-shm-usage`: Avoids exhausting shared memory partitions.
+* `--disk-cache-size=52428800 --media-cache-size=20971520`: Restricts disk and media cache to tiny allocations.
+* `--disable-gpu-shader-disk-cache`: Eliminates heavy disk write activities.
+* `--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --enable-native-gpu-memory-buffers --use-gl=egl`: Offloads all rendering and compositing straight onto the hardware GPU.
+* The launcher runs native Wayland first using the discovered `uid` (`WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/${uid}`), with a dynamic fallback method searching for Xwayland auth files (`.mutter-Xwaylandauth.*`) or using the user's `.Xauthority` file in their `homedir` for X11 fallback.
+
+### 4. Multi-Source Daily Crawler & Keyword Auto-Tagging
+* **Wider Selection of Photo Sources**:
+  - Lumina maintains a keyless, multi-source wallpaper aggregator pulling from **Reddit subreddits** (`/r/EarthPorn`, `/r/spaceporn`, `/r/astrophotography`, `/r/AbstractArt`, `/r/Generative`, `/r/LiminalSpace`), **Lorem Picsum** random HD photography, the **Bing Image of the Day API** (providing high-quality curated daily wallpapers), and the **Unsplash search API** (NAPI).
+  - **AI Creations Feed fallback**: If no paid `USEAPI_TOKEN` is set, the crawler falls back gracefully to a high-quality keyless dual pipeline fetching from **Lexica.art** (with queries like `midjourney landscape surreal dreamscape`) and **Wallhaven.cc** (using custom search query `cyberpunk landscape surreal` filtered for AI-generated landscapes).
+  - Feeds are automatically limited to `2000` photos maximum per category and stored in `curated_collections.json` to enable offline resilience.
+* **API Bot Gateways & Scraper Protection Rules**:
+  - **Unified Custom User-Agent Required**: All keyless crawler requests (Reddit, Unsplash, etc.) must use a clean, descriptive custom `User-Agent` (e.g. `LuminaScreensaver/1.0.0`) instead of hardcoded browser headers. Browser-like User-Agents without complete browser header sets trigger scraping detection gateways (like Anubis or Reddit's bot shields) and fail with redirects or 403 blocks even on residential IPs.
+  - **Query Randomization**: Always randomize search sorting (Wallhaven `sorting`) or search paging offset (Unsplash NAPI `page`) on each crawl. Because the backend filters out duplicate URLs globally, static query results will be discarded on subsequent runs, freezing the pool size.
+  - **Dead API / Scraper Fallbacks**: Lexica.art is currently deprecated and returns HTTP 500. Multi-query fallback queries to Wallhaven AI search should be used to compensate and maintain AI Creations pool size.
+* **Robust Unsplash CDN Parsing (Avoiding 404s)**:
+  - To prevent HTTP 404 broken links that occurred under legacy template patterns (e.g. `photo-${photoId}` templates), the Unsplash crawler pulls the direct raw CDN path (`item.urls.raw`) directly from the Unsplash API JSON payload.
+* **Automated Keyword Tagging**:
+  - During crawler execution and startup initialization, all images are dynamically scanned for keyword tags to support environmental matching.
+  - Keywords are matched to classify photos across five atmospheric states:
+    - `isNight`: Matches sunset, midnight, night, stars, dark, space, moon, etc.
+    - `isRain`: Matches rain, storm, wet, stream, dewy, drizzle, puddle, etc.
+    - `isSunny`: Matches sun, clear, bright, golden, morning, summer, daylight, warm, etc.
+    - `isCloudy`: Matches mist, fog, cloud, misty, hazy, overcast, moody, eerie, shadow, silent, empty, etc.
+    - `isSnowy`: Matches snow, winter, ice, frozen, cold, alpine, etc.
+* **Fused Weather & News Sentiment Smart Alignment**:
+  - Toggled via the **Atmospheric & News Sentiment Alignment** panel on the Remote Control.
+  - The system merges **live meteorological conditions** (retrieved from Open-Meteo) with today's **Canada-configured Google News RSS sentiment** (`en-CA` / `CA`):
+    - **News Sentiment Analyzer**: Scrapes today's latest top headlines in real-time, matching words against heuristic positive and negative lexicons to calculate a net emotional score.
+    - **Correlation Mapping**:
+      - Highly negative sentiment (score $\le -0.1$) maps to **Stormy/Rainy** wallpapers (reflecting a turbulent, dark day).
+      - Highly positive sentiment (score $\ge 0.1$) maps to **Sunny/Golden** wallpapers (reflecting a bright, optimistic day).
+      - Neutral sentiment maps to **Cloudy/Moody** wallpapers.
+    - **Atmospheric Fusion Rule**:
+      - If physical weather reports active snowfall, **Snowy** photos are prioritized.
+      - If physical weather reports active rainfall, **Rainy** photos are prioritized.
+      - Otherwise, the room's mood is set by the configured Canadian news sentiment (prioritizing Sunny, Cloudy, or Rainy/Moody wallpapers accordingly).
+    - Photos matching these atmospheric filters are served with an **80% preference weight** to preserve surprise while aligning the living space with the emotional and physical state of the world outside. Under night hours, this integrates with the user's evening/night photo ratio slider.
+
+### 5. Local Environment & Sensor Telemetry Platform
+* **Gateway Adapter (`server/services/ecowitt.js`)**:
+  - Polls gateways and consoles exposing Ecowitt's generic local HTTP API at configurable intervals (default 60s) for indoor temperature, humidity, and barometric pressure. GW1200 is the first verified device.
+  - Normalizes metric units (`temperatureC`, `humidityPercent`, `pressureAbsoluteHpa`, `pressureRelativeHpa`) while handling missing fields or stale network states defensively without interrupting Open-Meteo outdoor weather calculations.
+* **Saved Device Profiles (`server/domain/environmentSettings.js`)**:
+  - Retains named sources with a registered adapter, address, polling interval, and timeout while running exactly one active source. Existing flat `config.ecowitt` settings migrate automatically and remain available as a compatibility projection.
+* **Persistent SQLite Sensor Storage (`sensor_history.db`)**:
+  - Stores hourly environmental snapshots in SQLite, persisting full raw `gateway_metrics` payloads to retain optional multichannel, air quality (PM2.5), rain, wind, and leaf sensor blocks without requiring schema migrations.
+* **Grafana & CSV Export API**:
+  - `GET /api/environment/history/export?format=csv` projects sensor history directly into CSV format for Grafana Infinity plugin integration, spreadsheet analysis, and archival downloads.
+* **Display Units & Remote Controls**:
+  - Presentation display units are configurable from Remote Control → System → Environment. The adaptive admin uses a list–detail manager on expanded windows and a stacked phone layout. Polling is represented by the mutually exclusive active source; the separate semantic switch only controls whether indoor readings appear on the TV.
+
+### 6. API Endpoints
+* `GET /api/environment`: Resolves current normalized indoor environment readings, observation timestamp, and gateway availability status.
+* `GET /api/environment/history`: Returns historical hourly environment snapshots (supports `from`, `to`, and `limit` query parameters).
+* `GET /api/environment/history/stats`: Returns rolling day/night temperature and humidity aggregates (supports `days`, `dayStart`, and `dayEnd`).
+* `GET /api/environment/history/export`: Exports environment history as CSV (`?format=csv`) or JSON for Grafana Infinity plugin and direct downloads.
+* `GET /api/environment/settings` / `POST /api/environment/settings`: Reads or updates saved device profiles, the active source, connection timing, and display unit preferences. Legacy flat Ecowitt payloads remain accepted.
+* `GET /api/environment/adapters`: Lists registered sensor adapters and capabilities. Ecowitt is the first adapter; new protocols should implement the shared sensor-platform contract instead of changing storage or widget consumers.
+
+Ecowitt compatibility uses the vendor’s published local HTTP API endpoint `GET /get_livedata_info`; refer users to the [official Ecowitt HTTP API protocol](https://oss.ecowitt.net/uploads/20260109/HTTP%20API%20interface%20Protocol%20%28Generic%29-%28V1.0.5-2025-10-08%29.pdf) when evaluating gateway or sensor compatibility.
+* `GET /api/weather`: Resolves location weather from the Open-Meteo API.
+  > [!NOTE]
+  > The server uses the location configured in the local gitignored `config.json`, with optional automatic IP geolocation when enabled.
+* `GET /api/photos?category=...`: Returns current photos list for the category, updating active photo selection if needed.
+* `PATCH /api/photos`: REST mutation endpoint to update photo ratings, loved status, crops, and side-by-side pairing preferences.
+* `POST /api/photos/next` / `POST /api/photos/prev`: Advance or rewind photo selection through the balanced visible feed order.
+* `POST /api/jobs/recrawl`: Queue a background recrawl job with Socket.IO status reporting.
+* `POST /api/jobs/vision-analysis`: Queue a background vision-analysis job with Socket.IO status reporting.
+* `POST /api/pools` / `DELETE /api/pools/:name` / `PATCH /api/pools/:name`: Create, delete, or update pool configurations and feed sources.
+* `GET /api/state` / `PATCH /api/state`: Read or patch system state and widget settings.
+* `POST /api/state/categories`: Switch active photo category.
+* `POST /api/state/screensaver`: Kiosk screensaver activation toggle (`active: true|false`).
+* `GET /api/config`: Exposes local IP addresses and ports to allow QR coupling of mobile screens.
+
+### 7. Safe Read-Merge-Write Persistence & Ratings Engine
+Lumina implements a highly robust database persistence and rating system located under `server/config/collections.js` to manage wallpapers without losing user preferences:
+* **Safe Read-Merge-Write Persistence (`saveCuratedCollections`)**:
+  - To prevent background daily crawls or crawler actions from wiping out existing metadata (like manually selected location settings, auto-location toggles, or keyword settings), the system performs a read-merge-write sequence before persisting to `curated_collections.json`.
+  - It parses the current JSON file, merges the new feeds, search keywords, and location configurations together, and then writes the result atomically back to disk.
+* **Instant Skip & Prune on Banned Photos (Rating 1)**:
+  - If a photo's rating is set to `"1"` (Banned or Broken):
+    - The photo is instantly pruned from `state.photosList` in memory.
+    - If the banned photo is currently active on the TV view (`state.activePhoto`), both the POST handler and the socket ratings handler trigger an **immediate, real-time transition** to the next available smart photo in the feed, pushing a socket `'photo-update'` event to keep the TV screen responsive.
+* **Test-Mode Database Write Protection**:
+  - To prevent unit testing workflows or automated tests from corrupting the production database, all fs writes are guarded by checking `process.env.NODE_ENV !== 'test'`.
+
+## 🎨 Detailed Frontend Architecture (`client/`)
+
+The client is built using React (Vite) and styled with raw vanilla CSS to enable premium responsive interfaces.
+
+### 1. Dual-Device Presentation Modes (`App.jsx`)
+* The frontend automatically detects its running environment.
+* If a touch-based viewport or mobile user-agent is found, or if `?mode=remote` is in the URL, it loads **Remote Control Mode** (`RemoteControl.jsx`).
+* Otherwise, it loads the **TV Dashboard View** (`Dashboard.jsx`). A floating switcher button is available to toggle views manually.
+
+### 2. TV Dashboard UI & Environmental Animations (`Dashboard.jsx`)
+* **Double-Buffer Slideshow (DOM Bound)**: The frontend keeps at most two slide elements mounted (one fading out and one active). It preloads the incoming image through a detached native `Image()` element before mounting it. This bounds the slide DOM; total process memory also depends on decoded images, browser processes, and GPU allocations and has not yet been measured against a resource budget.
+* **Connectivity-Aware Media Recovery**: The detached native-image preload is the single authoritative load path; rendered slides do not issue a second hidden-image request. Transient failures retry through a deterministic 1s/2s/4s/8s backoff, probing the image origin first and holding the current slide while that host is unreachable. A URL is marked broken and skipped only after the host is reachable and all bounded retries fail.
+* **Bokeh Canvas Particle Engine**: An HTML5 canvas renders ambient dust motes at a backing resolution downscaled to 0.25x and scales it back up through CSS. CPU impact depends on display resolution and host hardware.
+* **Weather Overlay animations**: Custom CSS animations trigger based on active weather codes (Drifting clouds, falling rain drops, and organic drifting snow flakes).
+* **Continuous Ambient Display & Auto-Hiding Cursor**: Renders TV Dashboard elements directly (clock, weather, widgets, wallpaper slideshow, bokeh particles) without pitch-black dimming overlays. The active TV kiosk hides the pointer across the page after three seconds without mouse movement, including when a settings panel is open.
+
+### 3. Mobile Remote Control (`RemoteControl.jsx`)
+* **Direct Gesture Control**: Features an interactive swipe pad. Swiping left or right fires Socket.io pagination events. The pad background displays a darkened real-time preview of the active TV photo.
+* **Mood Aesthetics Panel**: Toggles the overall theme profile of the screensaver.
+* **System Switchboard**: Enables remote control of individual TV widgets (clock, particles, weather, aura backlights, Ken Burns pan-and-zoom) and transitions.
+* **Google Photos Connector Layout**: A configuration interface ready to receive Google OAuth client credentials for direct private album casting.
+* **Image Feeds workspace**: Curated Scenic Categories, Independent Rating Deck, Scenic Feed Source Manager, and Google Photos Picker are first-class panels in one ordered workspace. Immutable panel state remembers open/collapsed preferences and keyboard-accessible order changes in browser storage, while focus mode is transient and Escape restores the initiating control. Pool Lifecycle remains a nested native disclosure inside Categories; pointer drag-reordering remains deferred because the rating deck already uses pointer gestures for crop positioning.
+
+## 🛰️ Real-Time Socket.IO API Contracts
+
+Socket.IO remains the real-time synchronization channel, but durable control and settings work should continue migrating toward REST mutations backed by the shared domain command path.
+
+| Event Name | Direction | Payload Schema | Action / Purpose |
+| :--- | :--- | :--- | :--- |
+| **`state-sync`** | Server ➔ Client | Full `screensaverState` object | Broadcasts full unified state to keep remote and TV dashboard completely in sync. |
+| **`photo-update`** | Server ➔ Client | `{ url, title, author }` | Directs clients to transition to a specific image. |
+| **`ip-info`** | Server ➔ Client | `{ localIps: String[], port: Number }` | Sent on connection to help build the QR coupling links. |
+| **`toggle-widget`**| Client ➔ Server | `{ widgetName: String, visible: Boolean }` | Show/hide widgets (e.g. `clock`, `weather`, `particles`). |
+| **`change-category`**| Client ➔ Server | `String` (Category Name) | Switches active wallpaper feed and picks a random starting photo. |
+| **`change-interval`**| Client ➔ Server | `Number` (Interval in milliseconds) | Sets slide rotation cycle duration (15s, 1m, 2m, 5m). |
+| **`set-active-photo`**| Client ➔ Server| `{ url, title, author }` | Forces a specific wallpaper selection. |
+| **`next-photo`** | Client ➔ Server | *None* | Iterates to the next photo in the active category array. |
+| **`prev-photo`** | Client ➔ Server | *None* | Iterates to the previous photo in the active category array. |
+| **`change-theme`** | Client ➔ Server | `String` (Theme Name) | Switches color scheme and glow filters across all interfaces. |
+| **`set-screensaver-active`**| Client ➔ Server| `Boolean` (Active state) | Toggles manual override. `true` forces Kiosk launch, `false` forces Kiosk dismissal. |
+| **`toggle-align-time`**| Client ➔ Server| `Boolean` (Enabled) | Toggles evening/night image alignment during night hours. |
+| **`toggle-align-weather`**| Client ➔ Server| `Boolean` (Enabled) | Toggles rainy image alignment when active precipitation is detected. |
+| **`change-night-percentage`**| Client ➔ Server| `Number` (0-100) | Adjusts the percentage slider of evening/night photos displayed. |
+
+## 🌈 CSS Mood Theme Systems
+
+Styles are managed under `client/src/index.css` via custom theme profiles defined by classes:
+
+1. **`theme-zen-retreat`** (`🌿`)
+   * Accent: Soft Sage Green (`#86efac`)
+   * Ambient Glow: Pale organic green gradients.
+   * Atmosphere: Calming, naturalistic lighting.
+2. **`theme-cosmic-night`** (`🪐`)
+   * Accent: Deep Space Violet (`#a855f7`)
+   * Ambient Glow: Cosmic purple and stellar dust nebula shaders.
+   * Atmosphere: Mystic, late-night deep-space aesthetic.
+3. **`theme-art-museum`** (`🏛️`)
+   * Accent: Warm Gallery Gold (`#f59e0b`)
+   * Ambient Glow: Soft gold-sepia warm spotlight vignette filters.
+   * Atmosphere: Sophisticated, quiet gallery ambience.
+4. **`theme-cyberpunk-rain`** (`🌧️`)
+   * Accent: Neo-Tokyo Magenta (`#ec4899`)
+   * Ambient Glow: High-contrast neon blue and pink overlays.
+   * Atmosphere: Vibrant, wet futuristic urban environment.
