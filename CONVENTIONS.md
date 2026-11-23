@@ -72,6 +72,66 @@ Before writing complex custom helper functions or widgets:
 
 ---
 
+## Roadmap and complexity discipline
+
+The living roadmap is a maintained design, not a generated task dump. Apply this
+workflow to each commissioned slice; do not add another synchronizer or planner.
+
+1. **One owner per kind of truth.** `ROADMAP.md` owns product intent, priorities,
+   accepted feedback and deferrals. `FUNCTIONAL_REFACTOR_ROADMAP.md` owns the
+   ordered engineering track and its current checkpoint. Beads owns executable
+   tasks, dependencies and claims in the opted-in scope. Git/tests/reviews prove
+   implementation; `DEVELOPER_LOG.md` records generic rationale and lessons.
+   Host paths, tracker commands and local recovery belong only in ignored
+   `.agents/MEMORY.md`. Link these records rather than copying full histories.
+2. **Incorporate feedback and discoveries as they occur.** Before further
+   dependent work, place a new suggestion in its relevant existing phase or
+   backlog section, with its origin/date, intent, rationale, acceptance and scope
+   impact. Merge duplicates; do not quietly replace a prior decision. A worker
+   reports discoveries; the orchestrator integrates them. For a new idea, the
+   roadmap entry is sufficient until it becomes actionable. Mark proposals and
+   deferrals clearly: capture is not implementation authorization.
+3. **Translate only selected work.** Read the current roadmap, then create or
+   update a Beads task for a bounded outcome with a roadmap reference and testable
+   acceptance. Add an edge only for a real prerequisite. Do not bulk-import
+   headings, history or every checklist item. Roadmap changes affecting queued
+   work must update its task/dependencies before another dispatch. If they affect
+   active work, reconcile at the next safe boundary; never silently preempt a
+   writer or wait until closeout to record the change.
+4. **Keep WIP small.** One implementation writer and one active implementation
+   slice per authoritative checkout. Independent review is read-only. Claim and
+   query with native tracker commands; process/session tools, not task labels,
+   determine liveness. Beads is not an execution engine or code-complexity tool.
+5. **Budget the architecture.** Retain one orchestrator, one authoritative source
+   checkout and one project task store. Default net additions per slice: zero
+   supervisors, schedulers, synchronization services, shadow runtime ledgers or
+   wrapper layers. A genuinely necessary new dependency/service needs a concrete
+   unmet need, the simpler alternative, ownership, tests and removal/rollback
+   recorded in the existing plan. Do not grow infrastructure for hypothetical scale.
+6. **Check complexity where it changes.** Compare before/after using the existing
+   gauge plus the actual diff. Its path/size flags are prompts, not proof of bad
+   state management or JavaScript control-flow quality. Review new dependencies,
+   durable state, abstraction depth, largest touched module and duplicated
+   instructions. Prefer pure composition and modern syntax when clearer; no new
+   algebraic layer for a direct data projection. Keep existing small-commit
+   guidance. Avoid duplicating test harnesses or folding more unrelated tests
+   into an already large runner.
+7. **Consolidate before extending the factory.** Before any further tooling
+   expansion, shorten duplicated current-status histories in the agent guide and
+   companion into linked summaries, preserving rationale in the existing journal
+   and archived originals. This is a bounded maintenance candidate, not a new
+   refactoring program. Move a coherent test group out of the large runner only
+   when a touched seam demonstrates a maintenance benefit; preserve the single
+   existing test entrypoint. Reassess Beads after the next real slice; retire it
+   if selection/resumption is not simpler. No new monitoring daemon or audit DB.
+8. **Close with evidence and report meaning.** Update the engineering checkpoint,
+   generic journal and affected task before reporting completion; do not close a
+   phase just because one task is done. Back up the opted-in store and clean only
+   task-owned scratch. Report the commit subject, roadmap step, outcome, tests,
+   complexity delta and next work; hashes are optional secondary traceability.
+   Commit bodies explain why, the roadmap reference and verification. Mixed
+   incumbent documentation edits must not be swept into an unrelated commit.
+
 ## 🤖 Mandatory AI Agent Behaviors
 
 As an AI agent, you must execute the following procedures without exception:
