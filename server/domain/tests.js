@@ -3264,6 +3264,119 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects, []);
   });
 
+  assertTest('effect reducer defaults produce fresh descriptions without cloning state', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildEffect = buildEffectResultReducer;`, sandbox);
+    const state = Object.freeze({ marker: true });
+    const reduce = sandbox.buildEffect({ effectType: 'persist', result: undefined, buildPayload: undefined });
+    const [first, second] = [reduce(state, null), reduce(state, undefined)];
+    const omitted = sandbox.buildEffect({ effectType: 'persist' })(state, null);
+    [first, second, omitted].forEach(result => {
+      assert.strictEqual(result.nextState, state);
+      assert.strictEqual(result.events.length, 0);
+      assert.strictEqual(result.effects[0].type, 'persist');
+      assert.deepStrictEqual(Object.keys(result.effects[0].payload), []);
+    });
+    assert.notStrictEqual(first, second);
+    assert.notStrictEqual(first.events, second.events);
+    assert.notStrictEqual(first.effects, second.effects);
+    assert.notStrictEqual(first.effects[0], second.effects[0]);
+    assert.notStrictEqual(first.effects[0].payload, second.effects[0].payload);
+  });
+
+  assertTest('effect reducer captures named options once and forwards command, state, payload and custom results', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildEffect = buildEffectResultReducer;`, sandbox);
+    const state = Object.freeze({ marker: true });
+    const command = Object.freeze({ request: true });
+    const payload = Object.freeze({ categories: Object.freeze(['garden']) });
+    const calls = [];
+    let returned;
+    let described;
+    const reduce = sandbox.buildEffect({
+      get effectType() { calls.push('type'); return 'start-recrawl-job'; },
+      get result() { calls.push('result'); return function (original, effects) {
+        'use strict';
+        assert.strictEqual(arguments.length, 2);
+        calls.push('finish');
+        assert.strictEqual(this, undefined);
+        assert.strictEqual(original, state);
+        assert.strictEqual(effects.length, 1);
+        assert.strictEqual(effects[0].payload, payload);
+        assert.strictEqual(effects[0].type, 'start-recrawl-job');
+        described = effects;
+        return returned;
+      }; },
+      get buildPayload() { calls.push('builder'); return function (original) {
+        'use strict';
+        assert.strictEqual(arguments.length, 1);
+        calls.push('build');
+        assert.strictEqual(this, undefined);
+        assert.strictEqual(original, command);
+        return payload;
+      }; }
+    });
+    assert.deepStrictEqual(calls, ['type', 'result', 'builder']);
+    [Object.freeze({ custom: true }), undefined, null, false, 0, ''].forEach(value => {
+      returned = value;
+      assert.strictEqual(reduce(state, command), value);
+      const previous = described;
+      assert.strictEqual(reduce(state, command), value);
+      assert.notStrictEqual(described, previous);
+      assert.notStrictEqual(described[0], previous[0]);
+    });
+    assert.deepStrictEqual(calls.slice(3), Array.from({ length: 12 }, () => ['build', 'finish']).flat());
+  });
+
+  assertTest('effect reducer falsy payloads skip even a noncallable result and retain fresh no-op outputs', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildEffect = buildEffectResultReducer;`, sandbox);
+    const state = Object.freeze({ marker: true });
+    [undefined, null, false, 0, '', NaN].forEach(payload => {
+      const reduce = sandbox.buildEffect({ effectType: 'persist-env-vars', result: null, buildPayload: () => payload });
+      const [first, second] = [reduce(state, null), reduce(state, null)];
+      assert.strictEqual(first.nextState, state);
+      assert.strictEqual(first.events.length, 0);
+      assert.strictEqual(first.effects.length, 0);
+      assert.notStrictEqual(first, second);
+      assert.notStrictEqual(first.events, second.events);
+      assert.notStrictEqual(first.effects, second.effects);
+    });
+    // Truthy malformed data remains a description, not a validation failure.
+    const malformed = sandbox.buildEffect({ effectType: 'persist-env-vars', buildPayload: () => 'raw' })(state, null);
+    assert.strictEqual(malformed.effects[0].payload, 'raw');
+  });
+
+  assertTest('effect reducer propagates exact option and callback failures in native evaluation order', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildEffect = buildEffectResultReducer;`, sandbox);
+    const build = sandbox.buildEffect;
+    const failure = new Error('effect boundary failed');
+    const state = Object.freeze({});
+    const calls = [];
+    ['effectType', 'result', 'buildPayload'].forEach((failing, index) => {
+      calls.length = 0;
+      const options = Object.fromEntries(['effectType', 'result', 'buildPayload'].map(key => [key, undefined]));
+      Object.keys(options).forEach(key => Object.defineProperty(options, key, {
+        get() { calls.push(key); if (key === failing) throw failure; return undefined; }
+      }));
+      assert.throws(() => build(options), error => error === failure);
+      assert.deepStrictEqual(calls, ['effectType', 'result', 'buildPayload'].slice(0, index + 1));
+    });
+    assert.throws(() => build({ buildPayload: () => { throw failure; }, result: () => assert.fail('result ran') })(state, null), error => error === failure);
+    assert.throws(() => build({ buildPayload: () => (calls.push('payload'), {}), result: () => { throw failure; } })(state, null), error => error === failure);
+    assert.strictEqual(calls.at(-1), 'payload');
+    [null, false, 0, ''].forEach(value => {
+      assert.throws(() => build({ buildPayload: value })(state, null), error => error.name === 'TypeError' && /buildPayload is not a function/.test(error.message));
+      assert.throws(() => build({ result: value })(state, null), error => error.name === 'TypeError' && /result is not a function/.test(error.message));
+    });
+    [undefined, null].forEach(options => assert.throws(() => build(options), error => error.name === 'TypeError'));
+  });
+
   assertTest('mutation output resolution preserves values, aliases, and native factory failures', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

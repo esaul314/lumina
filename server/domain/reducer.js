@@ -398,10 +398,61 @@ function stateSyncEventsFor(photoChanged) {
   return photoChanged ? emitPhotoUpdate() : emitStateSync();
 }
 
+/**
+ * @typedef {{[E in Extract<Effect, {payload: unknown}> as E['type']]: E['payload']}} RequiredEffectPayloads
+ * @typedef {Exclude<Effect['type'], keyof RequiredEffectPayloads>} EmptyEffectType
+ * @typedef {RequiredEffectPayloads & Record<EmptyEffectType, Record<string, never>>} EffectPayloads
+ */
+
+/**
+ * @template {Effect['type']} K
+ * @typedef {{[P in K]: {type: P, payload: EffectPayloads[P]}}[K]} BuiltEffect
+ */
+
+/**
+ * Payload-bearing effects require a builder; only payload-free effects may use
+ * the fresh empty-record default. The mapped union retains effect/payload
+ * correlation even when a caller has a union of effect keys.
+ * @template {Effect['type']} K
+ * @template C
+ * @typedef {{[P in K]: {effectType: P, buildPayload: (command: C) => EffectPayloads[P] | null | undefined | false | 0 | ''}}[K] | {effectType: K & EmptyEffectType, buildPayload?: undefined}} EffectReducerOptions
+ */
+
+/**
+ * @template {Effect['type']} K
+ * @template C
+ * @overload
+ * @param {EffectReducerOptions<K, C> & {result?: (state: DomainState, effects: BuiltEffect<NoInfer<K>>[]) => ReducerResult}} options
+ * @returns {(state: DomainState, command: C) => ReducerResult}
+ */
+/**
+ * @template {Effect['type']} K
+ * @template C, R
+ * @overload
+ * @param {EffectReducerOptions<K, C> & {result: (state: DomainState, effects: BuiltEffect<NoInfer<K>>[]) => R}} options
+ * @returns {(state: DomainState, command: C) => R | ReducerResult}
+ */
+/**
+ * Partially apply an effect description, then build its payload from the original
+ * command before invoking the result callback with the original state. Falsy
+ * payloads skip that callback and return the unchanged envelope; custom results
+ * pass through verbatim. Options are captured in named order, defaults apply
+ * only to undefined, and accessor/callback/native failures propagate unchanged.
+ *
+ * These contracts describe safe callers, not validation of malformed runtime
+ * data. The two default assertions bridge generic implementation limits: the
+ * options union permits the empty payload only for payload-free effects, and
+ * every keyed BuiltEffect is a canonical Effect. Neither assertion widens the
+ * callable overloads or promises that a custom callback runs on the skip path.
+ * @template {Effect['type']} K
+ * @template C, R
+ * @param {EffectReducerOptions<K, C> & {result?: (state: DomainState, effects: BuiltEffect<K>[]) => R | ReducerResult}} options
+ * @returns {(state: DomainState, command: C) => R | ReducerResult}
+ */
 function buildEffectResultReducer({
   effectType,
-  result = effectOnlyResult,
-  buildPayload = () => ({})
+  result = /** @type {(state: DomainState, effects: BuiltEffect<K>[]) => ReducerResult} */ (effectOnlyResult),
+  buildPayload = () => /** @type {EffectPayloads[K]} */ ({})
 }) {
   return (state, command) => {
     const payload = buildPayload(command);
@@ -1405,12 +1456,20 @@ function reduceStatePatchCommand(state, patch, env) {
   });
 }
 
+/**
+ * @param {Extract<Command, {type: 'trigger-recrawl' | 'trigger-vision-analysis'}>} command
+ * @returns {RequiredEffectPayloads['start-recrawl-job']}
+ */
 function buildCategoryJobPayload(command) {
   return {
     categories: Array.isArray(command.payload?.categories) ? [...command.payload.categories] : []
   };
 }
 
+/**
+ * @param {Extract<Command, {type: 'save-env-secret'}>} command
+ * @returns {RequiredEffectPayloads['persist-env-vars'] | null}
+ */
 function buildEnvSecretEffectPayload(command) {
   const envKey = String(command.payload?.envKey || '').trim();
   const runtimeFlag = String(command.payload?.runtimeFlag || '').trim();

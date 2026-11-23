@@ -87,6 +87,58 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     // @ts-expect-error effects retain their required payload relationship
     createResult(fixtureConstructorState, [], [{ type: 'persist-env-vars' }]);
   `;
+  const effectFixture = `
+    /** @type {DomainState} */ const fixtureEffectState = /** @type {DomainState} */ ({});
+    const fixtureEmptyEffect = buildEffectResultReducer({ effectType: 'persist', result: undefined, buildPayload: undefined });
+    /** @type {ReducerResult} */ const fixtureEmptyEffectResult = fixtureEmptyEffect(fixtureEffectState, null);
+    const fixtureSecretEffect = buildEffectResultReducer({
+      effectType: 'persist-env-vars', result: stateSyncResult, buildPayload: buildEnvSecretEffectPayload
+    });
+    /** @type {ReducerResult} */ const fixtureSecretResult = fixtureSecretEffect(fixtureEffectState, {
+      type: 'save-env-secret', payload: { envKey: 'EXAMPLE', runtimeFlag: 'hasExample', value: '' }
+    });
+    const fixtureJobEffect = buildEffectResultReducer({ effectType: 'start-recrawl-job', buildPayload: buildCategoryJobPayload });
+    /** @type {ReducerResult} */ const fixtureJobResult = fixtureJobEffect(fixtureEffectState, { type: 'trigger-recrawl' });
+    const fixtureCustomEffect = buildEffectResultReducer({
+      effectType: 'start-vision-analysis-job',
+      buildPayload: (/** @type {{category: string}} */ command) => command.category ? { categories: [command.category] } : null,
+      result: (state, effects) => {
+        /** @type {'start-vision-analysis-job'} */ const kind = effects[0].type;
+        /** @type {string[]} */ const categories = effects[0].payload.categories;
+        // @ts-expect-error effect callback payload stays keyed by effectType
+        effects[0].payload.entries;
+        return { label: String(state.config.theme), count: categories.length, kind };
+      }
+    });
+    const fixtureCustomEffectResult = fixtureCustomEffect(fixtureEffectState, { category: 'garden' });
+    if ('label' in fixtureCustomEffectResult) {
+      /** @type {string} */ const label = fixtureCustomEffectResult.label;
+      /** @type {number} */ const count = fixtureCustomEffectResult.count;
+      // @ts-expect-error effect custom result retains its own fields
+      /** @type {string} */ const wrongCount = fixtureCustomEffectResult.count;
+    }
+    // @ts-expect-error effect custom result includes the unchanged no-op envelope
+    /** @type {{label: string}} */ const fixtureAlwaysCustom = fixtureCustomEffectResult;
+    // @ts-expect-error effect returned reducer retains its command type
+    fixtureCustomEffect(fixtureEffectState, { category: 3 });
+    // @ts-expect-error effect payloads stay keyed by effectType
+    buildEffectResultReducer({ effectType: 'persist-env-vars', buildPayload: () => ({ categories: [] }) });
+    // @ts-expect-error payload-bearing effect cannot default its builder
+    buildEffectResultReducer({ effectType: 'persist-env-vars', buildPayload: undefined });
+    // @ts-expect-error payload-bearing effect cannot omit its builder
+    buildEffectResultReducer({ effectType: 'start-recrawl-job' });
+    /** @type {'start-recrawl-job' | 'persist-env-vars'} */ const fixtureUnionEffectType = Math.random() ? 'start-recrawl-job' : 'persist-env-vars';
+    // @ts-expect-error effect union keys cannot carry an uncorrelated payload
+    buildEffectResultReducer({ effectType: fixtureUnionEffectType, buildPayload: () => ({ categories: [] }) });
+    // @ts-expect-error callback cannot widen the effect key to a different payload family
+    buildEffectResultReducer({ effectType: 'start-recrawl-job', buildPayload: buildCategoryJobPayload, result: (state, /** @type {{type: 'persist-env-vars', payload: import('./types').EnvVarsEffectPayload}[]} */ effects) => effects });
+    // @ts-expect-error effect callback state follows the returned reducer state
+    buildEffectResultReducer({ effectType: 'persist', result: (/** @type {string} */ state) => state });
+    // @ts-expect-error effect production payload builder retains normalized command fields
+    fixtureSecretEffect(fixtureEffectState, { type: 'save-env-secret', payload: { envKey: 'X', runtimeFlag: 'x', value: 3 } });
+    // @ts-expect-error effect type remains in the closed canonical vocabulary
+    buildEffectResultReducer({ effectType: 'not-an-effect' });
+  `;
   const readerFixture = `
     /** @type {DomainState} */ const fixtureState = /** @type {DomainState} */ ({});
     const fixtureFamilies = createReducerFamilyInterpreter([{
@@ -438,7 +490,7 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     }
     // @ts-expect-error feed entries must be URL-bearing row shapes
     prependVisiblePhoto([42], { url: 'x' });
-  ` + constructorFixture;
+  ` + constructorFixture + effectFixture;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);
   host.readFile = (fileName) => {
@@ -467,15 +519,36 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     assert.ok(comment, name);
     return source.replace(reducerSource.slice(comment.pos, comment.end), '');
   }, reducerSource);
+  // Erase this factory's contracts (including inline default proofs) in memory;
+  // the lexical fixtures must then lose effect/payload and command checks.
+  const effectFactory = reducerFile.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'buildEffectResultReducer');
+  assert.ok(effectFactory);
+  const erasedFactory = ts.createPrinter({ removeComments: true }).printNode(ts.EmitHint.Unspecified, effectFactory, reducerFile);
+  const weakenedFactories = weakenedReducer.replace(reducerSource.slice(effectFactory.getFullStart(), effectFactory.end), `\n${erasedFactory}`);
+  assert.notEqual(weakenedFactories, weakenedReducer);
   host.readFile = fileName => path.resolve(fileName) === reducerPath
-    ? weakenedReducer + constructorFixture
+    ? weakenedFactories + constructorFixture + effectFixture
     : readFile(fileName);
   const weakenedProgram = ts.createProgram(parsed.fileNames, parsed.options, host);
   const weakenedPrivate = ts.getPreEmitDiagnostics(weakenedProgram).filter(item => item.file &&
-    path.resolve(item.file.fileName) === reducerPath && item.start >= weakenedReducer.length);
-  assert.ok(weakenedPrivate.every(item => item.code === 2578));
-  const weakenedLines = weakenedPrivate.map(item => item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line]);
+    path.resolve(item.file.fileName) === reducerPath && item.start >= weakenedFactories.length);
+  assert.ok(weakenedPrivate.filter(item => item.start < weakenedFactories.length + constructorFixture.length)
+    .every(item => item.code === 2578));
+  const weakenedLines = weakenedPrivate.filter(item => item.code === 2578).map(item => item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line]);
   constructorNames.forEach(name => assert.ok(weakenedLines.some(line => line.includes(`${name} retains its state type`)), name));
+  ['effect payloads stay keyed', 'payload-bearing effect cannot omit', 'effect returned reducer retains'].forEach(check => assert.ok(weakenedLines.some(line => line.includes(check)), check));
+  // Dropping just the custom result's no-op alternative must invalidate its
+  // negative fixture too, even when all effect/command relationships remain.
+  const changedOnly = reducerSource.replace(
+    '@returns {(state: DomainState, command: C) => R | ReducerResult}',
+    '@returns {(state: DomainState, command: C) => R}'
+  );
+  assert.notEqual(changedOnly, reducerSource);
+  host.readFile = fileName => path.resolve(fileName) === reducerPath ? changedOnly + effectFixture : readFile(fileName);
+  const changedOnlyProgram = ts.createProgram(parsed.fileNames, parsed.options, host);
+  assert.ok(ts.getPreEmitDiagnostics(changedOnlyProgram).some(item => item.code === 2578 && item.file &&
+    path.resolve(item.file.fileName) === reducerPath && item.start >= changedOnly.length &&
+    item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line].includes('effect custom result includes')));
   const fixtureDiagnostics = diagnostics
     .filter((item) => item.file && path.resolve(item.file.fileName) === fixturePath);
   // Only the intentionally weakened check may fail.
