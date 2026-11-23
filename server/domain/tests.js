@@ -1995,6 +1995,90 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('result envelopes preserve uninspected aliases and undefined-only output defaults', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.wrapResult = createResult;`, sandbox);
+    const uninspected = new Proxy({}, { get: () => assert.fail('constructor inspected input') });
+    const events = Object.freeze([{ type: 'photo-update' }]);
+    const effects = Object.freeze([{ type: 'refresh-weather' }]);
+    const result = sandbox.wrapResult(uninspected, events, effects);
+    assert.deepStrictEqual(Object.keys(result), ['nextState', 'events', 'effects']);
+    assert.strictEqual(result.nextState, uninspected);
+    assert.strictEqual(result.events, events);
+    assert.strictEqual(result.effects, effects);
+    assert.notStrictEqual(result, sandbox.wrapResult(uninspected, events, effects));
+    // Neither malformed descriptions nor state values are validated or normalized.
+    [null, false, 0, '', NaN, uninspected, () => assert.fail('executed description')].forEach(value => {
+      const raw = sandbox.wrapResult(value, value, value);
+      assert.strictEqual(raw.nextState, value);
+      assert.strictEqual(raw.events, value);
+      assert.strictEqual(raw.effects, value);
+    });
+    const missingState = sandbox.wrapResult(undefined);
+    assert.strictEqual(missingState.nextState, undefined);
+    assert.strictEqual(missingState.events.length, 0);
+    assert.strictEqual(missingState.effects.length, 0);
+  });
+
+  assertTest('result constructors retain state and effect aliases with fresh ordered descriptions', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.results = { createResult, unchangedResult, stateSyncResult, photoUpdateResult, effectOnlyResult };`, sandbox);
+    const { createResult, unchangedResult, stateSyncResult, photoUpdateResult, effectOnlyResult } = sandbox.results;
+    const state = Object.freeze({ raw: true });
+    const cases = [
+      { make: (state, effects) => createResult(state, undefined, effects), eventTypes: [] },
+      { make: unchangedResult, eventTypes: [] },
+      { make: stateSyncResult, eventTypes: ['state-sync'] },
+      { make: photoUpdateResult, eventTypes: ['photo-update', 'state-sync'] },
+      { make: effectOnlyResult, eventTypes: [] }
+    ];
+    cases.forEach(({ make, eventTypes }) => {
+      const first = make(state);
+      const second = make(state, undefined);
+      assert.strictEqual(first.nextState, state);
+      assert.strictEqual(second.nextState, state);
+      assert.notStrictEqual(first, second);
+      assert.notStrictEqual(first.events, second.events);
+      assert.notStrictEqual(first.effects, second.effects);
+      assert.notStrictEqual(first.events, first.effects);
+      assert.deepStrictEqual(Array.from(first.events, event => event.type), eventTypes);
+      assert.deepStrictEqual(Array.from(second.events, event => event.type), eventTypes);
+      assert.strictEqual(first.effects.length, 0);
+      assert.strictEqual(second.effects.length, 0);
+      first.events.forEach((event, index) => assert.notStrictEqual(event, second.events[index]));
+      first.effects.push({ type: 'persist' });
+      assert.strictEqual(second.effects.length, 0);
+    });
+    const effects = Object.freeze([{ type: 'persist' }, { type: 'refresh-weather' }]);
+    [stateSyncResult, photoUpdateResult, effectOnlyResult].forEach(make => {
+      [null, false, 0, '', effects, new Proxy({}, { get: () => assert.fail('effect read') })].forEach(raw => {
+        const result = make(state, raw);
+        assert.strictEqual(result.nextState, state);
+        assert.strictEqual(result.effects, raw);
+      });
+    });
+  });
+
+  assertTest('event result constructors propagate native iteration failures without inspecting effects', () => {
+    const failure = new Error('event iteration failed');
+    const sandbox = { module: { exports: {} }, require, failure };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.results = { createResult, unchangedResult, stateSyncResult, photoUpdateResult, effectOnlyResult };\nglobalThis.failIteration = () => { Array.prototype[Symbol.iterator] = () => { throw failure; }; };`, sandbox);
+    const { createResult, unchangedResult, stateSyncResult, photoUpdateResult, effectOnlyResult } = sandbox.results;
+    const state = new Proxy({}, { get: () => assert.fail('state read') });
+    const effects = new Proxy({}, { get: () => assert.fail('effect read before event construction') });
+    sandbox.failIteration();
+    [stateSyncResult, photoUpdateResult].forEach(make => {
+      assert.throws(() => make(state, effects), error => error === failure);
+    });
+    // Empty outputs allocate but never iterate; raw descriptions are only forwarded.
+    assert.strictEqual(createResult(state, effects, effects).events, effects);
+    assert.strictEqual(unchangedResult(state).nextState, state);
+    assert.strictEqual(effectOnlyResult(state, effects).effects, effects);
+  });
+
   assertTest('family dispatch returns exact results and adapts only the selected environment', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

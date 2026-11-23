@@ -40,6 +40,53 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   const reducerPath = path.join(root, 'server/domain/reducer.js');
   const reducerSource = fs.readFileSync(reducerPath, 'utf8');
   // Check the private factory in its own lexical scope without adding exports.
+  const constructorNames = ['createResult', 'unchangedResult', 'stateSyncResult', 'photoUpdateResult', 'effectOnlyResult'];
+  const constructorFixture = `
+    const fixtureConstructorState = { marker: 7 };
+    const fixtureConstructorOutputs = [
+      createResult(fixtureConstructorState, [{ type: 'photo-update' }], [{ type: 'refresh-weather' }]),
+      unchangedResult(fixtureConstructorState), stateSyncResult(fixtureConstructorState),
+      photoUpdateResult(fixtureConstructorState, undefined), effectOnlyResult(fixtureConstructorState, [{ type: 'persist' }])
+    ];
+    fixtureConstructorOutputs.forEach(result => {
+      /** @type {number} */ const marker = result.nextState.marker;
+      /** @type {Event[]} */ const events = result.events;
+      /** @type {Effect[]} */ const effects = result.effects;
+    });
+    // @ts-expect-error createResult retains its state type
+    /** @type {string} */ const fixtureWrongCreateState = createResult(fixtureConstructorState).nextState;
+    // @ts-expect-error unchangedResult retains its state type
+    /** @type {string} */ const fixtureWrongUnchangedState = unchangedResult(fixtureConstructorState).nextState;
+    // @ts-expect-error stateSyncResult retains its state type
+    /** @type {string} */ const fixtureWrongSyncState = stateSyncResult(fixtureConstructorState).nextState;
+    // @ts-expect-error photoUpdateResult retains its state type
+    /** @type {string} */ const fixtureWrongPhotoState = photoUpdateResult(fixtureConstructorState).nextState;
+    // @ts-expect-error effectOnlyResult retains its state type
+    /** @type {string} */ const fixtureWrongEffectState = effectOnlyResult(fixtureConstructorState).nextState;
+    /** @type {DomainState} */ const fixtureConstructorDomain = /** @type {DomainState} */ ({});
+    /** @type {ReducerResult[]} */ const fixtureCanonicalResults = [
+      createResult(fixtureConstructorDomain, undefined, undefined), unchangedResult(fixtureConstructorDomain),
+      stateSyncResult(fixtureConstructorDomain, [{ type: 'launch-kiosk' }]), photoUpdateResult(fixtureConstructorDomain),
+      effectOnlyResult(fixtureConstructorDomain)
+    ];
+    /** @type {null} */ const fixtureNullState = stateSyncResult(null).nextState;
+    /** @type {undefined} */ const fixtureUndefinedState = createResult(undefined).nextState;
+    /** @type {number} */ const fixtureNumericState = photoUpdateResult(0).nextState;
+    /** @type {boolean} */ const fixtureFalsyState = effectOnlyResult(false).nextState;
+    /** @type {string} */ const fixtureEmptyState = unchangedResult('').nextState;
+    // @ts-expect-error events use the closed event vocabulary
+    createResult(fixtureConstructorState, [{ type: 'not-an-event' }]);
+    // @ts-expect-error direct effects use the closed effect vocabulary
+    createResult(fixtureConstructorState, [], [{ type: 'not-an-effect' }]);
+    // @ts-expect-error sync effects use the closed effect vocabulary
+    stateSyncResult(fixtureConstructorState, [{ type: 'not-an-effect' }]);
+    // @ts-expect-error photo effects use the closed effect vocabulary
+    photoUpdateResult(fixtureConstructorState, [{ type: 'not-an-effect' }]);
+    // @ts-expect-error effect-only descriptions use the closed effect vocabulary
+    effectOnlyResult(fixtureConstructorState, [{ type: 'not-an-effect' }]);
+    // @ts-expect-error effects retain their required payload relationship
+    createResult(fixtureConstructorState, [], [{ type: 'persist-env-vars' }]);
+  `;
   const readerFixture = `
     /** @type {DomainState} */ const fixtureState = /** @type {DomainState} */ ({});
     const fixtureFamilies = createReducerFamilyInterpreter([{
@@ -391,7 +438,7 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     }
     // @ts-expect-error feed entries must be URL-bearing row shapes
     prependVisiblePhoto([42], { url: 'x' });
-  `;
+  ` + constructorFixture;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);
   host.readFile = (fileName) => {
@@ -411,6 +458,24 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   const readerDiagnostics = diagnostics.filter((item) => item.file &&
     path.resolve(item.file.fileName) === reducerPath && item.start >= reducerSource.length);
   assert.deepEqual(readerDiagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
+  // Remove only constructor annotations in memory: each state relationship must
+  // lose a negative assertion, proving these private fixtures detect weakening.
+  const reducerFile = program.getSourceFile(reducerPath);
+  const weakenedReducer = constructorNames.reduce((source, name) => {
+    const declaration = reducerFile.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
+    const comment = declaration?.jsDoc?.[0];
+    assert.ok(comment, name);
+    return source.replace(reducerSource.slice(comment.pos, comment.end), '');
+  }, reducerSource);
+  host.readFile = fileName => path.resolve(fileName) === reducerPath
+    ? weakenedReducer + constructorFixture
+    : readFile(fileName);
+  const weakenedProgram = ts.createProgram(parsed.fileNames, parsed.options, host);
+  const weakenedPrivate = ts.getPreEmitDiagnostics(weakenedProgram).filter(item => item.file &&
+    path.resolve(item.file.fileName) === reducerPath && item.start >= weakenedReducer.length);
+  assert.ok(weakenedPrivate.every(item => item.code === 2578));
+  const weakenedLines = weakenedPrivate.map(item => item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line]);
+  constructorNames.forEach(name => assert.ok(weakenedLines.some(line => line.includes(`${name} retains its state type`)), name));
   const fixtureDiagnostics = diagnostics
     .filter((item) => item.file && path.resolve(item.file.fileName) === fixturePath);
   // Only the intentionally weakened check may fail.

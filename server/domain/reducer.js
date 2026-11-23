@@ -82,22 +82,60 @@ function cloneState(state) {
   };
 }
 
+/**
+ * Wrap the original state and ordered descriptions without inspecting or copying
+ * them. Only undefined outputs default to fresh arrays; this is not validation.
+ * @template S
+ * @param {S} nextState
+ * @param {Event[]} [events]
+ * @param {Effect[]} [effects]
+ * @returns {{nextState: S, events: Event[], effects: Effect[]}}
+ */
 function createResult(nextState, events = [], effects = []) {
   return { nextState, events, effects };
 }
 
+/**
+ * Retain the state alias with independent, fresh empty outputs on every call.
+ * @template S
+ * @param {S} state
+ * @returns {{nextState: S, events: Event[], effects: Effect[]}}
+ */
 function unchangedResult(state) {
   return createResult(state, [], []);
 }
 
+/**
+ * Describe state sync before forwarding the original effects, without running
+ * them. Event construction failures propagate; effects default only if undefined.
+ * @template S
+ * @param {S} nextState
+ * @param {Effect[]} [effects]
+ * @returns {{nextState: S, events: Event[], effects: Effect[]}}
+ */
 function stateSyncResult(nextState, effects = []) {
   return createResult(nextState, emitStateSync(), effects);
 }
 
+/**
+ * Describe photo update followed by state sync, retaining state/effect aliases.
+ * Event construction and undefined-only defaults follow stateSyncResult.
+ * @template S
+ * @param {S} nextState
+ * @param {Effect[]} [effects]
+ * @returns {{nextState: S, events: Event[], effects: Effect[]}}
+ */
 function photoUpdateResult(nextState, effects = []) {
   return createResult(nextState, emitPhotoUpdate(), effects);
 }
 
+/**
+ * Forward state/effect aliases with fresh empty events; do not execute effects.
+ * @template S
+ * @param {S} state
+ * @param {Effect[]} [effects]
+ * @returns {{nextState: S, events: Event[], effects: Effect[]}}
+ */
 function effectOnlyResult(state, effects = []) {
   return createResult(state, [], effects);
 }
