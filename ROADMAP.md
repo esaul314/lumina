@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-10-26
+Last updated: 2026-11-23
 
 - Screensaver cursor correction (2026-10-25): the active TV kiosk restarts its three-second inactivity timer when screensaver state changes and hides the pointer across the page, including over settings panels.
 - Reported TV pointer regression (2026-11-13; unverified): the pointer is again
@@ -28,197 +28,39 @@ For the code-shaping program that supports this roadmap, see [FUNCTIONAL_REFACTO
 - Use the functional refactor roadmap for the ordered engineering cleanup sequence, coding philosophy, and transport/domain refactor plan.
 - Treat the functional refactor roadmap as a supporting Phase 1 implementation track inside this roadmap, not as a separate product roadmap with its own platform phases.
 
+## Living roadmap operation
+
+Apply [roadmap and complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline) to feedback, discoveries, task selection and acceptance. Beads contains only selected executable work, not this whole roadmap. The next maintenance candidate is reducing duplicated current-status instructions before adding factory tooling; product priorities and existing deferrals remain unchanged.
+
+### Concrete complexity-reduction actions — 2026-11-23
+
+These are bounded maintenance outcomes, not a new platform phase or a mandate to
+rewrite the application. The current selected product slice remains Step 6's
+effect-result builder. Materialize a maintenance action in Beads only when selected.
+
+| Action | Deliverable and acceptance | Order |
+| --- | --- | --- |
+| **Shorten the agent guide** | Remove the accumulated per-helper migration history from `AGENTS.md`, retaining the full standing prompt, architecture and operational contracts plus one link to the current engineering checkpoint. Preserve unique rationale in the existing developer journal and an exact original archive. Aim for a guide at most 20 KiB; verify no capability or accepted requirement was lost. | Guide consolidated to18,858bytes with prompt/rationale preservation verified. |
+| **Keep one current engineering checkpoint** | Consolidate competing current/next-seam paragraphs in this roadmap, the companion and the guide. The companion owns one concise current Step 6 result/next action; other documents link to it. Label older diagnostic/tooling audits as history. Verify current tests/counts and deferrals agree, without duplicating a Beads checklist. | Canonical checkpoint consolidation complete; dependent implementation proceeds through Beads. |
+| **Reduce the test-runner hotspot selectively** | Extract the coherent `runClientStateTests` group from the large `run-tests.js` into a domain-owned test module, reusing the existing assertion/log interface and entrypoint. Preserve assertions, execution order, failure exit and runtime. No second framework, duplicated runner or broad test rewrite. | A separate small maintenance slice after the current engineering result is accepted. |
+| **Keep or retire the tracker on evidence** | This slice observed ready → claim → implementation close → dependent acceptance readiness, with stable task/evidence references. Retain narrow opt-in; manual task translation and short claim-lease renewal remain costs, not an unattended/concurrent-safety proof. No measured productivity uplift. Reassess after the next selected slice; add no dashboard, synchronizer or scheduler to justify the tool. | Evaluated at this acceptance; no fleet-wide promotion. |
+
+The existing state-path gauge includes client modules and fixture/persistence
+paths; it is not evidence of 24 unnecessary ledgers. Inspect a touched persistence
+path before changing it, and remove only demonstrated duplicate state. Review
+new state/dependencies/wrappers and instruction growth in every accepted diff.
+
 ## Execution Status
 
-Phase 1 is in progress. The current checkpoint is:
+Phase 1 remains in progress. The REST-first control/job migration and functional
+companion Steps1–5 are accepted; Step6 contract readiness remains incomplete.
+The single current engineering checkpoint, measured diagnostics and next seam
+are in [the companion](./FUNCTIONAL_REFACTOR_ROADMAP.md#step-6-prepare-the-codebase-for-typescript-without-a-premature-rewrite).
 
-- Playback correction (2026-10-23): rotation restarts when a different primary image mounts, giving it the full configured interval. Metadata, crops, secondary images, and layout updates keep the countdown. Broken-image recovery sends one report and lets the server select the replacement; deterministic fixture-browser regressions cover timing and recovery without using live pools.
-- Done: Step 1. Remote photo-control mutations are REST-first by default.
-- Done: Step 2. Remote durable state/settings mutations are REST-first by default.
-- Done: Step 3. Category, pool, and feed-configuration mutations now use REST by default in the operator UIs.
-- Done: Step 4. Manual recrawl flows now start on the REST command path and publish live job status over Socket.IO.
-- Done: Step 5. Manual vision-analysis runs now start on the REST command path and publish live job status over Socket.IO.
-- Done: implementation companion Step 3. `server/app.js` now delegates active-feed refresh, environment refresh, kiosk/browser lifecycle, and idle-daemon orchestration to dedicated runtime modules.
-- Done: implementation companion Step 4 is complete. Its acceptance criteria are met: repeated reducer/result/effect patterns are shared, new command branches have low ceremony, and the reducer/transport shells remain readable. The final audit found no remaining named Step 4 requirement; future cleanup is maintenance-only and must remain selective.
-- Step 4 audit result: its backend acceptance criteria remain satisfied, but the broader functional-programming bar also requires the client action boundary to be compositional and TypeScript-ready; that work belongs in implementation companion Step 5 rather than being hidden inside Step 4.
-- Done: implementation companion Step 5 now shares pure, partially applicable client state-patch builders and declarative REST-first mutation request plans; its live-sync audit is complete.
-- Done: the first Step 5 snapshot seam now normalizes direct snapshots and `{ state: snapshot }` mutation responses through one pure response projection used by actions and live `state-sync`.
-- Done: the initial client state read now uses the strict shared JSON read contract, so HTML or other non-JSON fallback pages fail before snapshot application.
-- Done: the Dashboard no longer subscribes directly to raw `state-sync`; screensaver-dependent effects derive from the canonical normalized state owned by `App.jsx`.
-- Done: remaining credential-save live acknowledgements now share one pure status projection and declarative RemoteControl subscription table; Socket.IO remains the effectful status shell.
-- Done: modern `job-status` and legacy `recrawl-complete` acknowledgements now share one pure job-event projection and declarative RemoteControl listener table; job-specific React targets remain explicit.
-- Done: paired primary and secondary photo-update acknowledgements now share one pure event-envelope projection and declarative App listener table; frame-side application remains explicit through the canonical snapshot transform.
-- Done: the Step 5 live-sync audit found no further repeated client consumer policy after normalizing paired photo, job, credential, and snapshot event boundaries; transport-specific effects remain explicit.
-- Active: implementation companion Step 6 is expanding stable JSDoc contracts around the refactored client and domain boundaries without starting a premature TypeScript rewrite.
-- Latest Step 6 slice (97): `getPickerMediaFile(...)` refines read-only inputs, whole nested/flat selection, original aliases versus fresh empty fallbacks, repeated accessor reads, and exact failures. Seven focused tests use declarative cases, frozen records, and test-only private capture. Preserve the pure data-first selector: stable leaf selection is reference-idempotent, but arbitrarily nested records are not. Executable production code and exports remain unchanged.
-- Step 6 acceptance audit (2026-10-25): corrected the missing `refresh-active-feed` Effect member, with vocabulary-parity and ordered dispatch regressions. Execution, selector, and payload/dependency contracts subsequently landed; the re-audit below supersedes the original remaining-work list.
-- Done: Step 6 execution contracts name `ReducerEnvironment`, `ReducerResult`, `EffectResult`, and `DispatchResult` at the reducer/dispatcher boundary. Seven regressions preserve replay, truthy defaults, no-op identities, failure propagation, and pre-effect snapshot/result ordering. Executable production code and exports are unchanged.
-- Done: Step 6 selector contracts cover all 23 exported functions using shared domain shapes and named selection/update inputs/results. Ten regressions preserve balanced playback, conditional randomness, undefined-only defaults, immutable projections, aliases, and exact failures. Executable production code and exports are unchanged.
-- Done: Step 6 contracts name 25 command payloads, ten effects, nullable decoder results, and dispatcher dependencies/public methods; ten regressions preserve compatibility and ordered shell effects.
-- Step 6 acceptance re-audit (2026-10-26): still incomplete. Corrected an unbalanced `SessionConfig.poolPolicies` declaration and added five regressions. Public signatures are documented, but scalar patches/optional direct payloads can exceed declared state shapes, optional photo metadata is unvalidated, decoder `unknown` narrowing is incomplete, and curried/heterogeneous interpreters erase type relationships. See the companion evidence matrix; runtime code/exports are unchanged.
-- Step 6 compiler baseline (2026-10-27): `npm run typecheck:domain` runs pinned TypeScript 5.9.3 in strict, no-emit mode and reports core, fixture, transitive, and global diagnostics separately. The baseline is intentionally red: 541 core, two fixture inference assertions, 68 transitive, and zero global diagnostics. Runtime behavior is unchanged.
-- Step 6 narrowing slice (2026-10-29): a checked object predicate removes the ten measured `decodeStatePatchCommand` unknown-input diagnostics and its own implicit-any diagnostic without changing executable behavior. That checkpoint reported 530 core, two fixture, 68 transitive, and zero global diagnostics.
-- Step 6 curried-patch slice (2026-10-29): the local boolean patch builder now documents direct, partial, and empty applications with unknown-safe keys/values and potentially absent lookup results. Runtime coercion and call conventions are unchanged. That checkpoint reported 530 core, one fixture, 68 transitive, and zero global diagnostics.
-- Step 6 handler-invoker slice (2026-10-29): a local generic contract retains the heterogeneous result union and undefined fallback without claiming payload/key correlation. Capture, identity, unawaited results, and failure behavior are unchanged. The scoped count is 530 core, zero fixture, 68 transitive, and zero global diagnostics; the compiler remains nonzero.
-- Step 6 preview-input slice (2026-10-30): active-photo commands now distinguish unvalidated preview objects from selector-facing `Photo` values. Tests preserve object aliases, native URL reads, arrays, callable input behavior, and shallow feed copies. Runtime behavior and the 530/0/68/0 diagnostic counts are unchanged.
-- Step 6 theme-compatibility slice (2026-10-30): legacy, domain, and public snapshot contracts now expose `theme` as unknown, matching raw patch and snapshot behavior. Tests cover aliases, falsy values, undefined no-ops, and the distinct direct-command coercion. Runtime behavior and the 530/0/68/0 diagnostic counts are unchanged.
-- Step 6 timing-compatibility slice (2026-10-30): legacy, domain, and snapshot timing values are unknown because patches and rebuilds preserve raw inputs. Tests cover aliases, falsy values, undefined and the direct interval command's numeric coercion. Runtime behavior and the 530/0/68/0 diagnostic counts are unchanged.
-- Step 6 scale-compatibility slice (2026-10-30): legacy, domain, and snapshot `scaleMode` values are unknown because raw patches and rebuilds preserve them. Tests cover aliases, falsy values, undefined, and the direct command's no-op and persistence behavior. Runtime behavior and the 530/0/68/0 diagnostic counts are unchanged.
-- Step 6 split-crop compatibility slice (2026-10-30): legacy, domain, snapshot, and derived secondary-frame crop values admit unknown inputs. Tests distinguish raw patches, nullish defaults, photo crop precedence, and direct numeric coercion. Runtime behavior and the 530/0/68/0 diagnostic counts are unchanged.
-- Step 6 split-portrait compatibility slice (2026-10-30): legacy input and domain/snapshot state admit unknown values. Raw patches retain aliases; legacy rebuilds, direct commands, and frame eligibility use truthiness. Tests cover falsy values, truthy objects and strings, omitted patches, and persistence. Runtime behavior and the 530/0/68/0 diagnostic counts are unchanged.
-- Step 6 fallback-consent compatibility slice (2026-10-30): legacy input and domain/snapshot state admit unknown values. Tests cover raw patches, aliases, legacy rebuilds and socket-toggle truthiness; the vision fallback gate also checks truthiness. Runtime behavior and the 530/0/68/0 diagnostic counts are unchanged.
-- Step 6 weather-alignment compatibility slice (2026-10-30): legacy input, domain/snapshot state and weather selector inputs admit unknown values. Patches retain aliases; rebuilding, the socket toggle and selection use truthiness. Regression and compile fixtures preserve these distinctions without executable changes; the 530/0/68/0 baseline remains nonzero.
-- Step 6 time-alignment compatibility slice (2026-10-30): legacy input, domain/snapshot state and night selector inputs admit unknown values. Raw patches retain aliases; rebuilding, the socket toggle and night preference use truthiness. Tests preserve disabled/daytime identity, conditional random draws and smart selection without executable changes.
-- Step 6 night-percentage compatibility slice (2026-10-30): state, snapshots and selector inputs admit unknown values. Raw patches preserve aliases, legacy rebuilds default only nullish inputs, and the socket path validates separately. The selector preserves native numeric coercion and failures; tests and compiler fixtures cover these distinctions. Executable behavior is unchanged; the honest operand type exposes one additional TS2362 diagnostic.
-- Consent hardening follow-up: a raw `allowOpenAiFallback: "false"` patch is truthy at the vision fallback gate. Decide and enforce an explicit boolean consent contract across REST, sockets, and legacy state separately, with compatibility and fallback-request tests; this contract slice does not change that behavior.
-- Step 6 feed-lookup slice (2026-10-30): `findPhotoInFeed` now preserves generic row metadata and admits unknown lookup values without implying normalization. Tests cover strict equality, first-match aliases, missing/nullish rows and getter failures; executable behavior and 531/0/68/0 counts are unchanged.
-- Step 6 URL-deduplication slice (2026-10-30): `uniqByUrl` preserves generic unvalidated row types and unknown URL values. Tests cover ordered aliases, native Set equality, falsy URLs and repeated accessor reads; executable behavior and the 531/0/68/0 diagnostic counts are unchanged.
-- Step 6 visibility-filter slice (2026-10-30): `filterVisiblePhotos` retains generic raw rows and unknown inspected fields; keyword matching uses native coercion. Tests preserve aliases, exact rating comparison, truthiness, composition and failures. One exposed filter-narrowing diagnostic raises the baseline to 532 core; runtime execution is unchanged.
-- Step 6 filter-narrowing slice (2026-10-30): visibility and URL-deduplication predicates explicitly narrow retained generic rows. Visibility converts the existing predicate to a boolean without changing filter results or property access; deduplication retains its existing boolean predicate. Tests cover nullish inputs, short circuits, access order and failures. The baseline is now 530 core, zero fixture, 68 transitive and zero global diagnostics.
-- Step 6 feed-state slice (2026-10-30): domain, legacy and public snapshot feeds now describe unvalidated known photo fields separately from normalized `Photo`. Preview staging and legacy rebuilding preserve raw metadata through shallow copies; nested aliases and snapshot library identity remain unchanged. Two regressions and compiler fixtures cover the boundary. The nonzero baseline is 535 core, zero fixture, 68 transitive and zero global: five newly exposed selector incompatibilities still need honest contracts.
-- Step 6 sequential-selection slice (2026-10-30): the pure selector returns `FeedPhoto | null`, preserving unvalidated metadata and the selected feed-row alias. Regression tests cover staged previews, pool rotation, native cursor-key coercion, unchanged inputs and empty visible feeds; compiler fixtures require narrowing. No executable production code changed. The nonzero baseline is 534 core, zero fixture, 68 transitive and zero global.
-- Step 6 active-photo lookup slice (2026-10-30): `getActivePhoto` returns an unvalidated `FeedPhoto | null`, while `inferOrientation` accepts raw metadata without coercion. Tests cover preview aliases, feed/curated/external precedence, misses, malformed dimensions and accessor failures; compiler fixtures require narrowing. No executable production code changed. The nonzero baseline is 536 core, zero fixture, 68 transitive and zero global: downstream frame-field incompatibilities are now visible.
-- Step 6 current-frame slice (2026-10-30): frame and snapshot active photos retain unvalidated feed-row types, and frame crop/category values admit raw metadata. Tests cover staged previews, split aliases, nullish defaults and malformed URL sorting; runtime behavior is unchanged. The nonzero baseline is 531 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 smart-selection slice (2026-10-30): generic feed selectors and preference filters retain raw row types and aliases, while the state adapter returns an unvalidated row or null. Staged previews, Map category identity, native rating coercion and malformed schedules are tested; executable behavior is unchanged. The nonzero baseline is 526 core, zero fixture, 69 transitive and zero global diagnostics. Re-audit confirms Step 6 remains incomplete.
-- Step 6 numeric-coercion slice (2026-10-30): a private, data-first native-division boundary accepts unknown operands and returns a number on success. Its one local dynamic assertion models JavaScript arithmetic, not validation; Symbol, BigInt and custom coercion failures still propagate. Rating and night selection retain their order and behavior. The strict baseline is 524 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 cursor-key slice (2026-10-30): sequential selection retains native property-key coercion, including symbols, short-circuiting and failures, with a local dynamic key assertion rather than normalization. Tests and compiler fixtures preserve raw category types. Production syntax is unchanged; the nonzero baseline is 523 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 pairing-sort slice (2026-10-30): a local dynamic assertion preserves the native `localeCompare` call on unknown URLs without validation. Tests cover method receiver, raw arguments, result coercion, single-candidate short-circuiting and failures; the executable AST is unchanged. The nonzero baseline is 522 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 screensaver-decoder slice (2026-10-30): local property assertions preserve native lookup without validation, and the command's second-read `active` value is unknown. Tests cover callable/inherited accessors, changing values, proxy failures and reducer truthiness; production syntax is unchanged. The strict baseline is 520 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 category-decoder slice (2026-10-30): local assertions preserve eager native property reads and unvalidated custom array-join results. Tests cover callable/inherited inputs, precedence, aliases, ordering and failures; production syntax is unchanged. The nonzero baseline is 518 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 required-string slice (2026-10-30): `readRequiredString` accepts unknown and returns the original primitive string or null; native trim lookup, truthiness and failures remain unchanged. Tests cover both photo and pool decoders and an isolated trim override; production syntax is unchanged. The nonzero baseline is 517 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 trim-string slice (2026-10-30): `trimString` accepts unknown and returns an unknown native trim result, or an empty string for non-strings. Tests cover normal idempotence, decoder composition, isolated method lookup, raw results and failures; production syntax is unchanged. One implicit-input error disappears and an unknown computed-property diagnostic appears, leaving 517 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 widget-key slice (2026-11-04): a local dynamic assertion preserves native computed-key coercion on unknown trim results, not validation. Tests cover decoder composition, symbol and special keys, conversion/visible-read order, short circuits and failures; the production AST is unchanged. The nonzero baseline is 516 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 widget-patch contract (2026-11-09): `buildWidgetPatch` accepts unknown and returns a nullable patch with raw visibility values and potentially symbol keys. Tests preserve native property access, aliases, fresh results and failures; executable syntax is unchanged. The nonzero baseline is 515 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 widget-reader audit (2026-11-09): `readWidgetPatch` documents unknown patch inputs, a skip sentinel or boolean values for known own enumerable string keys. Three regressions preserve repeated reads, filtering order, native truthiness, skipped keys, failure propagation and reducer effects; executable syntax is unchanged. The strict baseline is 514 core, zero fixture, 69 transitive and zero global diagnostics. The shared reader's inferred one-argument normalizer now exposes a callback mismatch.
-- Step 6 patch-reader contract (2026-11-09): the partially applied `readPatchField` documents raw identity and generic normalized results separately, with its original state/patch callback arguments and skip sentinel. Three regressions and private compile-time checks preserve repeated native lookup, key coercion, aliases and failures; production syntax is unchanged. The strict baseline is 508 core, zero fixture, 69 transitive and zero global diagnostics; raw unknown inputs now expose vision/location normalizer narrowing gaps.
-- Step 6 reducer object-guard slice (2026-11-09): the existing `isPlainObject` now narrows unknown values to records with unknown properties, without checking prototypes or property values. Tests preserve custom prototypes, array/function rejection, inherited vision/location values, repeated patch reads and native failures; production syntax is unchanged. The strict baseline is 505 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 config patch-spec slice (2026-11-10): `createConfigPatchSpec` distinguishes unknown default reads from generic custom readers and documents callbacks and unvalidated flags. Two regressions and private compile fixtures preserve skip/no-op identity, aliases, flag truthiness, immutable writes, native keys and failures; executable syntax is unchanged. The strict baseline is 497 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 shared patch-interpreter slice (2026-11-10): generic specification and context contracts preserve reader/callback relationships, skip/no-op identity, write-before-flags ordering and truthy flag accumulation. Three regressions and private compile fixtures cover aliases, short-circuiting and failures; a local heterogeneous-list type erasure preserves mixed spec types. Executable syntax is unchanged. The strict baseline is 486 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 widget-merge audit (2026-11-11): the reader remains a partial boolean record; a local spread-only assertion describes its own boolean entries without promising arbitrary keys exist. Two regressions and private type fixtures preserve absence, special keys, immutable merging and no-op identity. Production syntax is unchanged; the strict baseline is 485 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 state-patch reducer audit (2026-11-12): the private reducer now documents its unknown patch, domain state, environment and result. The shared result builder accepts typed effect descriptions or factories; other legacy builder inputs remain unchecked. Tests preserve eager cloning, no-op identity, conditional environment reads and persistence-before-refresh ordering. Production syntax is unchanged; the strict baseline is 475 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 mutation-result audit (2026-11-12): generic contracts distinguish explicit context from the undefined state fallback, preserve event/effect factory relationships and document unvalidated legacy values. Three regressions and private compiler fixtures cover aliases, resolution order, defaults, persistence and native failures. Production syntax is unchanged; the strict baseline is 473 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 cloned-mutation audit (2026-11-12): contracts connect the clone to the apply callback, changed continuation and result factories; the continuation keeps its own result type alongside the no-op reducer result. Two regressions and private type fixtures cover eager option reads and cloning, truthiness, identity, defaults, ordering and native failures. Production syntax is unchanged; the strict baseline is 461 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 command-mutation audit (2026-11-12): generic contracts preserve the command type across apply and result factories. Two regressions and private type fixtures cover clone/command aliases, option-read order, defaults, no-ops, output ordering and failures. Production syntax is unchanged; the strict baseline is 453 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 entries-reducer audit (2026-11-13): generic contracts preserve partial application and command/target callback relationships. Two regressions and private type fixtures cover aliases, ordered writes, constant and computed entries, no-ops, options and failures. Production syntax is unchanged; the strict baseline is 444 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 reducer checkpoint (2026-11-14): checked field-command and feed-finalization contracts preserve partial application, callback context, no-op identity, environment precedence, effect/event ordering, and native failures. Four runtime regressions and private compiler fixtures cover these boundaries; executable production behavior is unchanged. The strict baseline is 426 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 payload/option audit (2026-11-14): generic contracts preserve null-only payload rejection, command and state aliases, eager option reads and resolution, no-op identity, and post-mutation environment precedence. Three runtime regressions and private compiler fixtures cover callback order and failures. Production behavior is unchanged; the strict baseline is 395 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 pool-command audit (2026-11-14): generic contracts document guarded and unguarded pool mutations, partial shallow payload copies, option resolution and native failure ordering. Five runtime regressions and compiler fixtures cover aliases, getters, no-op identity and failure paths. Production behavior is unchanged; the strict baseline is 371 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 playback-command audit (2026-11-14): generic contracts preserve selection and preparation aliases, null-payload and falsy-selection no-ops, direction-before-clone ordering, environment forwarding and unchanged-photo events. Three runtime regressions and compiler fixtures cover these boundaries and native failures. Production syntax is unchanged; the strict baseline is 345 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 selectable-photo audit (2026-11-14): lookup preserves feed/curated/external/fallback precedence and raw aliases; preview staging retains no-op identity, shallow copies and repeated URL reads. Four runtime regressions and compiler fixtures cover those boundaries and malformed inputs. Production syntax is unchanged; the strict baseline is 339 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 selection-environment audit (2026-11-14): the public reducer replaces falsy execution inputs, while smart selection defaults only undefined and forwards null to native operations. Three runtime regressions and compiler fixtures preserve clock/weather ordering, conditional RNG draws, sequence short-circuiting and failures. Production syntax is unchanged; the strict baseline is 337 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 active-photo maintenance audit (2026-11-19): active-photo updates preserve raw URL identity, copy playback even when unchanged, and increment the seed only on strict URL change; maintenance retains the original state unless selection is needed or forced. Four runtime regressions and private compiler fixtures cover lookup ordering, defaults, native coercion and failures. Production syntax is unchanged; the strict baseline is 335 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 feed-recomputation audit (2026-11-19): feed replacement precedes active-photo lookup, forwards execution inputs and retains raw URLs. Four regressions and private compiler fixtures cover shallow copies, aliases, conditional RNG calls, selection and failures. Executable syntax is unchanged; the strict baseline is 329 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 feed-finalization audit (2026-11-20): finalization context and result now expose the unvalidated active URL to both output factories and callers. Three runtime regressions and private compiler fixtures preserve context identity, effects-before-events ordering, falsy/default outputs and failures. Executable syntax is unchanged; the strict baseline is 327 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 feed-command propagation (2026-11-21): feed mutation and command-builder results now retain the raw active-URL contract on changed paths while admitting original-state no-ops. Three runtime regressions and private compiler fixtures preserve command/payload aliases, environment factory context, option precedence and skipped work. Executable syntax is unchanged; the strict baseline is 326 core, zero fixture, 69 transitive and zero global diagnostics.
-- Step 6 family-interpreter audit (2026-11-21): generic descriptors relate original commands/environments, adapted environments and unchanged reducer results. Closed indexing retains own enumerable string entries, last-callable-key precedence, eager capture, no-op identity and native failures. Four runtime regressions and private compiler fixtures cover these contracts, including raw URLs through public dispatch. A local call assertion restores only the descriptor's environment pairing; executable syntax is unchanged. The strict baseline is 309 core, zero fixture, 69 transitive and zero global diagnostics; the public reducer result mismatch is now exposed rather than hidden by unchecked dispatch.
-- Step 6 shared active-URL contract (2026-11-21): playback now admits unknown active URLs across public reduction, snapshots, legacy rebuilding and dispatch. Feed finalization reuses `DomainState`/`ReducerResult` instead of duplicate local shapes; emitter inputs admit raw feed rows. Three runtime regressions and compiler fixtures preserve strict equality, aliases, falsy-to-null projection, native failures and effect/event behavior. Production executable syntax is unchanged. Verification passes with 878 assertions, 13 sensor regressions and three compiler fixture tests; optional endpoint smoke remains sandbox-blocked. The nonzero strict baseline is 307 core, zero fixture, 68 transitive and zero global diagnostics.
-- Next Step 6 checkpoint: audit the shared result constructors (`createResult`, `unchangedResult`, `stateSyncResult`, `photoUpdateResult`, `effectOnlyResult`) so state and event/effect relationships do not depend on implicit-any inference. Preserve result/array aliases, fresh no-op outputs, defaults and native failures. Step 6 remains incomplete and the compiler remains nonzero.
-- In parallel: continue the Phase 1 implementation companion track in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md), where Steps 1 through 5 are complete and Step 6 is active.
-- Operating rule: every substantive improvement, including a deliberate no-change audit, must be recorded in `DEVELOPER_LOG.md` and reflected in the active roadmap when it changes design direction or the next seam. Code clarity and functional composition are product requirements; performance is their evidence.
-- Latest Step 4 slice: effect and event interpretation now use the same closed indexed interpreter as reducer families, so unknown and inherited effect/event keys remain silent no-ops without open object-property dispatch.
-- Latest Step 4 slice: effect and event interpretation now share a small closed handler-record interpreter over the indexed vocabulary helper, removing duplicate lookup setup while preserving silent unknown and inherited-key behavior.
-- Latest Step 4 slice: the Socket.IO command-family adapter now uses that same closed handler-record interpreter, so state-patch, durable-command, async-job, and secret-save specializations remain declarative while unknown and inherited family keys retain their identity fallback.
-- Latest Step 4 slice: the REST-first client API now shares one higher-order 404 fallback adapter across category, screensaver, async-job, and admin-secret mutations, keeping mixed-version Socket.IO compatibility as explicit transport metadata while preserving non-404 failures.
-- Latest Step 5 slice: REST-first category, screensaver, async-job, and admin-secret actions now derive their REST and legacy Socket.IO payloads from pure request plans, preserving operation-specific shape differences while keeping request execution in one effectful interpreter.
-- Latest Step 5 slice: dashboard, environment administration, and Google credential views now share one typed/JSDoc-ready JSON transport boundary for reads and JSON posts; response media-type/error interpretation stays in the API shell while view-specific state and presentation remain explicit.
-- Latest Step 5 slice: `normalizeSnapshotResponse(...)` now composes direct REST reads, `{ state: snapshot }` mutation responses, and Socket.IO `state-sync` payloads through one pure compatibility projection; React remains responsible only for applying the normalized result.
-- Latest Step 5 slice: `getStateSnapshot()` now composes through `readJson(...)`, aligning the initial state read with the shared strict JSON media-type contract used by the other client reads.
-- Latest Step 5 slice: Dashboard screensaver-dependent effects now consume the canonical `state.screensaverActive` prop instead of maintaining a second raw Socket.IO synchronization subscription; the dismissal pending guard remains local because it represents an in-flight UI effect.
-- Latest Step 5 slice: RemoteControl credential-save acknowledgements now compose through `projectCredentialSaveStatus(...)` and a shared subscription table, preserving per-credential input clearing and transient status resets without duplicating event handlers.
-- Latest Step 5 slice: RemoteControl job acknowledgements now compose through `projectJobEvent(...)`, so modern and legacy recrawl envelopes share the existing job-status algebra and one effectful application path without hiding view-specific targets.
-- Latest Step 5 slice: App photo acknowledgements now compose through `projectPhotoEvent(...)`, so primary and secondary wire events share one subscription shell while the side-aware immutable snapshot update remains explicit.
-- Latest Step 6 slice: `client/src/state/frameSelectors.js` now exposes local `@ts-check` contracts for snapshots, frames, photo-event envelopes, and crop selectors; browser-facing types remain independent from server-only modules so later TypeScript conversion can stay mechanical.
-- Latest Step 6 slice: `client/src/state/categorySelection.js` now exposes a checked pure selection contract for canonical aliases, snapshot fallback sources, serialization, and immutable toggles; the existing data-first helper signatures remain unchanged.
-- Latest Step 6 slice: `client/src/state/jobStatus.js` now exposes checked contracts for the closed recrawl/vision job vocabulary, modern and legacy event envelopes, and the shared pure status projection; React effect targets remain explicit.
-- Latest Step 6 slice: `client/src/state/feedMutations.js` now exposes checked client-owned snapshot/config contracts for immutable category and feed-source projections; unknown edit inputs remain identity-preserving at the pure boundary.
-- Latest Step 6 slice: `client/src/state/environmentHistory.js` now exposes checked contracts for pure metric conversion, timestamp formatting, and environment-status presentation shared by TV and remote views; adapter-specific data remains outside the client vocabulary.
-- Latest Step 6 slice: `client/src/state/photoCrop.js` now exposes a checked scalar contract for contain/cover baselines and crop interpolation; its historical absent-mode fallback and pure numeric formulas remain unchanged.
-- Latest Step 6 slice: `client/src/state/screensaverActivity.js` now exposes a checked pure activity contract for Escape and dismissal-event classification; active-state gating and unknown-event no-ops remain unchanged.
-- Latest screensaver interaction correction: only an explicitly launched `?mode=tv` kiosk can dismiss the shared screensaver from input; toggled admin TV previews remain presentation-only.
-- Latest Step 6 slice: `client/src/state/poolPolicyDrafts.js` now exposes checked contracts for normalized policy defaults and immutable, partially applied draft merges; HTML form strings and nested schedule updates remain compatible at the pure boundary.
-- Latest Step 6 slice: `client/src/state/keywordInput.js` now exposes a checked pure parser contract for pasted phrases and timed feed parameters; exact per-line keyword text and malformed-input empty identities remain unchanged.
-- Latest Step 6 slice: `client/src/state/credentialStatus.js` now exposes a checked pure acknowledgement contract for credential saves; success/error projection and effect-shell input clearing remain unchanged.
-- Latest Step 6 slice: `client/src/state/cssImage.js` now exposes a checked pure presentation contract for CSS image values; empty-input identity and URL escaping remain unchanged.
-- Latest Step 6 slice: `client/src/state/clock.js` now exposes a checked pure clock-parts contract; locale/options composition and the separate `{ time, period }` projection remain unchanged.
-- Latest Step 6 slice: `client/src/components/remote/tvPreview.js` now exposes a checked pure preview-geometry contract; measured-dimension fallbacks and aspect-ratio fitting remain unchanged.
-- Latest Step 6 slice: `client/src/state/poolLifecycleView.js` now exposes client-owned schedule, policy, summary, row, and policy-reader contracts; schedule defaults and presentation mapping remain pure while React state and persisted-policy effects stay outside the helper.
-- Latest Step 6 slice: `client/src/components/remote/googlePhotosPicker.js` now exposes explicit client-owned copy and status contracts; Picker copy/status projection remains pure while OAuth, transport, and React effects stay outside the helper.
-- Latest Step 6 slice: `client/src/state/actionPlans.js` now exposes checked patch-result contracts for partially applied field and widget builders; patch construction remains pure while action execution and React state effects stay outside the helper.
-- Latest Step 6 slice: the TV slideshow now keeps media loading authoritative and connectivity-aware: `client/src/state/mediaRecovery.js` projects a bounded 1s/2s/4s/8s retry policy, while the Dashboard probes the image origin before classifying a URL as broken and holds the current slide during an unreachable-host outage.
-- Latest Step 6 slice: `client/src/state/imageFeedsPanels.js` now exposes named contracts for immutable open-state transitions, unknown-safe persisted preferences, and injected storage readers/writers; browser storage and focus effects remain in the React shell.
-- Latest Step 6 slice: `client/src/api/requestPlans.js` now names the pure mutation-plan result and legacy transport contracts, keeping REST body and Socket.IO fallback projections partially applicable while fetch execution remains in `luminaClient.js`.
-- Latest Step 6 slice: `client/src/api/jsonClient.js` now names the parsed error-payload and request-option contracts and uses a payload-oriented generic result, keeping media-type classification and fetch execution at the shared transport edge.
-- Latest Step 6 slice: `client/src/state/swipeGesture.js` now owns the checked pure touch-coordinate decoder and strict-threshold direction/status projection; `useSwipeGesture.js` keeps action dispatch and reset timers in the React effect shell.
-- Latest Step 6 slice: `client/src/state/cropDrag.js` now owns the checked pure pointer-coordinate decoder and bounded crop-position projection; `useCropDrag.js` keeps DOM listeners, timeout coalescing, React state, and crop-action dispatch in the effect shell.
-- Latest Step 5 slice: the Image Feeds admin surface now uses a bounded desktop workspace, compact responsive pool-lifecycle cards, constrained time controls, and a two-column source manager that collapses to one column on narrow displays; lifecycle row presentation is derived through a pure view-model helper.
-- Latest Step 5 refinement: pool lifecycle cards now use closed native disclosure panels by default; each summary retains the current retention, photo-cap, and schedule facts while advanced fields appear only after an explicit Configure action.
-- Latest Step 5 refinement: the Image Feeds workspace now treats Curated Scenic Categories, Independent Rating Deck, Scenic Feed Source Manager, and Google Photos Picker as four first-class panels. The pure panel-state algebra supports immutable collapse/expand, transient focus/Escape restoration, and keyboard-accessible earlier/later ordering; browser storage persists only open preferences and order.
-- Latest Step 5 UX refinement: the workspace grid now aligns panels to their content height so the Rating Deck does not stretch beside the longer Source Manager. Its title row keeps only compact disclosure/focus controls; labeled order actions live in a separate toolbar, and category/rating/chip controls use real keyboard-accessible buttons with mobile touch sizing.
-- Latest Step 5 focus refinement: Rating Deck Focus mode now expands the responsive TV preview surface itself, capped by viewport height, and remeasures the pure frame-fit projection after focus changes. The mobile rating scale uses a five-by-two, 44px-minimum grid without introducing horizontal overflow.
-- Latest Step 5 focus correction: Rating Deck content and media now clamp to their containing slot, preventing a stale focused frame from widening the normal two-column layout when Escape returns to all-panels mode.
-- Latest Step 5 responsive correction: the Image Feeds workspace now leaves the two-column layout at 959px so Source Manager ordering controls have a dedicated, separated toolbar and do not compete with title-row Expand/Focus actions in compressed tablet widths.
-- Latest Image Feeds correction: Google Photos now appears in the nested Pool Lifecycle editor, accepts the shared policy REST path, and applies its retention and maximum-photo policy to the external cache while preserving loved and legacy undated items.
-- Latest Google Photos correction: source-local cache normalization and Picker merges now keep one row per stable Google media item ID, preserving the first row's metadata when duplicate selections or legacy duplicate cache rows are encountered.
-- Latest Google Photos accumulation correction: completed Picker sessions now append/upsert into the persistent pool instead of replacing ordinary rows. The latest synced representation wins for duplicate IDs while rating, crop, pairing, and loved metadata survive; retention and the 5,000-photo policy cap run after the accumulated union, with empty/failed sessions leaving the last successful cache intact. Picker remains the sole ingestion path and no daily revalidation job is added.
-- Latest Google Photos presentation slice: Picker `createTime` is retained through cache refresh and projected as a localized date title in single and split TV slides; missing or invalid dates preserve existing titles, and non-Google single-slide presentation remains unchanged.
-- Latest Step 6 slice: `server/utils/fn.js` now exposes checked contracts for curried primitives, data-last collection combinators, and closed declarative interpreters; runtime behavior and null-safe identities remain unchanged.
-- Latest Step 6 slice: `server/utils/validation.js` now exposes checked contracts for the curried numeric validator factory and its range-specific validators; null-safe identities, parser projection, and inclusive bounds remain unchanged.
-- Latest Step 6 slice: `server/config/env.js` now exposes checked contracts for environment-value normalization and the pure replace-or-append content projection; file reads, process updates, and persistence remain in the imperative shell.
-- Latest Step 6 slice: `server/services/sentiment.js` now exposes checked contracts for the curried lexicon counters, declarative headline parser, score classification, and sentiment result; RSS input remains a pure projection while network refresh orchestration stays in the runtime shell.
-- Latest Step 6 slice: `server/domain/poolRetention.js` now exposes checked contracts for policy normalization, immutable loved-photo capping, and partially applied retention transforms; pruning and cap composition remain pure while persistence and crawler orchestration stay outside the domain boundary.
-- Latest Step 6 slice: `server/domain/photoTimestamps.js` now exposes an open checked photo-metadata contract for timestamp normalization and immutable stamping; source-specific metadata remains extensible while persistence codecs and crawler effects stay outside the pure boundary.
-- Latest Step 6 slice: `server/domain/poolSchedule.js` now exposes checked contracts for schedule inputs, policy maps, resolved schedule entries, local-time evaluation, and immutable category appends; schedule selection remains pure while interval polling, dispatch, and restoration stay in the runtime shell.
-- Latest Step 6 slice: `server/domain/snapshot.js` now exposes checked contracts for legacy-state decoding, domain/public snapshot projection, runtime overrides, and the explicit compatibility mutation shell; normalization and frame derivation remain pure while legacy synchronization stays at the imperative boundary.
-- Latest Step 6 slice: `server/domain/environmentSettings.js` now exposes checked contracts for device inputs, canonical catalogs, runtime/legacy projections, immutable profile updates, and adapter validation; preserve pure settings projections while keeping config persistence and sensor-runtime updates in `app.js`.
-- Latest Step 6 slice: `server/services/ecowitt.js` now exposes checked contracts for vendor payload decoding, canonical indoor readings, settings normalization, validation, and public environment responses; preserve the pure protocol projection while keeping polling, timeouts, logging, and network effects in the runtime shell.
-- Latest Step 6 slice: `server/services/sensorHistory.js` now exposes checked contracts for sensor/weather inputs, hourly records, query/statistics results, CSV projection, and the injected SQLite store; preserve invalid-timestamp nulls and limit defaults while keeping database operations in the store interpreter.
-- Latest Step 6 slice: `server/services/sensorPlatform.js` now exposes checked adapter-descriptor, registration, summary, settings-result, and platform-interface contracts; lifecycle/read callbacks remain explicit effects while frozen registry metadata and fresh descriptions stay isolated.
-- Latest Step 6 slice: `server/services/weather.js` now exposes checked WMO code and classification contracts; the constant-time classifier and cloudy fallback remain pure and unchanged while geolocation and forecast fetching stay effectful.
-- Latest Step 6 slice: `server/runtime/environmentRefresh.js` now exposes checked contracts for weather snapshot projections; provider values and the absent-current no-op remain unchanged while fetching, persistence, logging, and broadcasts stay in the runtime shell.
-- Latest Step 6 slice: `server/runtime/activeFeed.js` now exposes checked contracts for category parsing/normalization and balanced feed projections; source collections remain unchanged while `photosList` assignment stays in the runtime shell.
-- Latest Step 6 slice: `server/runtime/idleDaemon.js` now exposes checked contracts for normalized host observations, daemon inputs, and screensaver transitions; preserve the closed action vocabulary and keep polling, browser actions, timers, and broadcasts in the runtime shell.
-- Latest Step 6 slice: `server/runtime/kioskControl.js` now exposes a checked closed contract for its pure runtime-context projection; process, governor, retry-timer, and logging effects remain in the runtime shell.
-- Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes a checked five-field status projection with detached category arrays; schedule polling, command dispatch, and restoration remain in the runtime shell.
-- Latest Step 6 slice: `server/utils/routeDecode.js` now exposes generic checked success/failure, map, chain, and collection contracts; fail-fast decoding and the empty-success identity remain unchanged while HTTP responses stay in routes.
-- Latest Step 6 slice: `server/utils/keywordSpecs.js` now exposes checked unknown-safe contracts for phrase normalization, timed specs, normalized equality, and ordered term collection; nested specs remain detached and configuration effects stay outside the pure helper.
-- Latest Step 6 slice: `server/config/state.js` now exposes checked contracts for the pure keyword-to-feed-config projection; ordered normalized terms and independent source arrays remain unchanged while mutable `screensaverState` stays at the module boundary.
-- Latest Step 6 slice: `server/config/collectionsCodec.js` now documents the open persisted-record input and stable normalization/serialization outputs; immutable collection and state projections remain separate from filesystem reads, writes, and migration recovery.
-- Latest Step 6 slice: `server/config/collectionPhotoProjections.js` now exposes checked curried photo-by-URL and photo-list contracts; unmatched entries retain identity and list updates remain immutable, while collection/state mutation and persistence stay in `collections.js`.
-- Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract; Ecowitt units merge one level deep, sensor-history patches remain shallow, unsupported top-level patch fields stay ignored, and both inputs remain unchanged while file writes stay in `saveLocalConfigPatch(...)`.
-- Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked pure defaults/overrides projection with deprecated-secret filtering; location and Ecowitt units retain their nested merge semantics, sensor history remains shallow, and file/warning effects stay in `configLoader.js`.
-- Latest playback behavior: smart selection rotates among time-eligible pools before applying weather, night, and rating preferences; sequence playback keeps per-pool cursors while the visible feed remains URL-unique.
-- Latest persistence slice: collection snapshots keep exact image URLs globally unique across pools; the pure snapshot projection preserves first-pool ownership, and startup cleans legacy duplicate feed rows while preserving sibling metadata.
-- Completed Step 6 seam: `server/config/collectionPhotoUpdatePlan.js` exposes the typed pure photo-field update plan; live-state mutation and persistence remain in `collections.js`.
-- UI decision: Pool Lifecycle remains a nested native disclosure inside Curated Scenic Categories. Focus mode is never restored from storage. Pointer drag-reordering remains deferred because its isolated handle and touch/keyboard contract would need to coexist with the Rating Deck crop gesture; keyboard ordering covers the accessible initial contract.
-- Latest runtime correction: scheduled pool activation now appends the scheduled pool to the existing active selection and restores that exact baseline at the schedule boundary; it no longer replaces unrelated active pools.
-- Step 5 closeout: the client live-sync audit is complete after the response-to-state, paired-photo, credential, and job-event boundaries were normalized; no further repeated consumer policy was identified.
-- Latest Step 4 slice: the client Socket.IO photo-update handlers now share one pure side-aware snapshot projection, keeping primary and secondary frame updates immutable while removing duplicate legacy/canonical state synchronization.
-- Latest Step 4 slice: the remote UI now projects recrawl and vision-analysis job events through one pure status algebra, so one Socket.IO listener applies the shared queued/running/completed/failed semantics while job-specific React targets remain explicit.
-- Latest Step 4 slice: recrawl and vision-analysis services now share one declarative async-job lifecycle interpreter for scope normalization, progress merging, active-run reuse, terminal status, and error projection while their crawler/analyzer execution and legacy event policy remain explicit.
-- Latest Step 4 slice: the mixed-version Socket.IO compatibility adapter now shares one higher-order pool-mutation shell for existence checks, persistence, and state broadcasts while keyword, feed-config, and policy updates remain explicit.
-- Latest Step 4 slice: the mixed-version Socket.IO photo compatibility adapter now shares one higher-order curated-mutation broadcast shell, while Google Photos metadata, active-photo recovery, and broken-photo no-op policy remain explicit.
-- Latest Step 4 slice: dispatcher effects and events now share one closed typed-handler invoker, while their distinct sequential result and emission algebras remain explicit.
-- Latest Step 4 slice: Socket.IO command execution now resolves shared-dispatch, legacy-fallback, or no-handler behavior through one pure command runner, keeping precedence and fallback payload forwarding explicit at the listener boundary.
-- Latest Step 4 slice: environment-secret runtime flags now cross a pure normalization projection before the dispatcher shell assigns them, preserving boolean coercion and effect behavior while keeping input shaping deterministic and independently testable.
-- Latest Step 4 slice: feed, pool, and playback reducer builders now share one higher-order payload boundary for invalid-command no-ops, while their distinct mutation, selection, and finalization rules remain explicit.
-- Latest Step 4 slice: route-decode collection and route-guard evaluation now share one curried short-circuit reducer, keeping the decode algebra and guard predicates explicit while avoiding duplicate early-exit reduction ceremony.
-- Latest Step 4 slice: the pool-photo read route now reuses the shared pool-presence guard, so pool resource failures have one route-level result shape across read and mutation paths while the successful collection response remains unchanged.
-- Latest Step 4 slice: state and feed mutation reducers now share one higher-order clone/apply/unchanged boundary, keeping changed-state continuations explicit while removing duplicate no-op ceremony.
-- Latest Step 4 slice: state and feed mutation reducers now share one pure result-builder boundary for resolving events/effects and prepending persistence, while feed-specific recomputation context remains explicit.
-- Latest Step 4 slice: patch-state mutations now reuse the same pure result builder, preserving state-sync selection and `persist` before optional weather refresh effects while keeping patch recomputation explicit.
-- Latest Step 4 slice: feed mutations and `patch-state` now share one pure `recompute -> ensure active photo` continuation, keeping visibility changes and active-photo recovery aligned while preserving each command's own flags and result policy.
-- Latest Step 4 slice: photo-library mutations now reuse the same pure result builder as ordinary state, feed, and patch mutations, preserving photo-specific event selection and source-local persistence effects while removing the final duplicate result assembly.
-- Latest Step 4 slice: active-photo rating and broken-photo mutations now reuse the shared `recompute -> ensure active photo` continuation already used by feed and patch mutations, preserving immutable recovery and one consistent transition boundary.
-- Latest Step 4 slice: `patch-state` spec writers now return immutable next-state values and accumulate change flags through a pure context step, preserving no-op identity and patch result ordering while making the declarative patch pipeline easier to compose and test.
-- Latest Step 4 slice: environment read routes now share one higher-order async JSON/error boundary, while each endpoint keeps its own response projection, status, and public error message explicit.
-- Latest Step 4 slice: the weather read route now uses that same async JSON/error boundary, with cached reads, injected weather effects, and pure public response projection kept explicit.
-- Latest Step 4 slice: environment-settings persistence now uses the same async JSON boundary with a pure validation hook, preserving its distinct 400 validation response and 500 service-failure contract.
-- Latest Step 4 slice: photo mutation specs now derive the immutable in-memory update and source-local persistence metadata from one pure normalized patch, while active-photo recovery and transport-specific persistence remain explicit.
-- Latest Step 4 slice: environment-history export now reuses the shared async route shell for both JSON and CSV responses, keeping format-specific presentation explicit while consolidating error handling.
-- Latest Step 4 slice: the Google Photos media proxy now reuses the shared async route shell, keeping binary headers, dimension normalization, and its 502 failure projection explicit.
-- Latest Step 4 slice: the Google Photos OAuth callback routes now reuse a small higher-order async error adapter, keeping authorization validation, picker synchronization, redirects, and route-specific failure text explicit.
-- Latest Step 4 slice: Socket.IO command and transport listeners now share one async error-boundary runner, while command context, telemetry behavior, and Google Photos refresh acknowledgements remain explicit.
-- Latest Step 4 slice: Socket.IO command registration now passes declarative listener records directly into the listener shell, removing positional reshaping while preserving dispatch, fallback, interception, and error behavior.
+The reported physical-TV pointer regression remains open. Isolated built-client
+coverage and a correct kiosk launch are not physical-TV acceptance. Product
+features, priorities and deferrals below remain authoritative; historical
+per-helper implementation narratives are in [the developer journal](./DEVELOPER_LOG.md#historical-roadmap-checkpoints--2026-11-23), not another task queue.
 
 ### Photo timestamp foundation (2026-07-31)
 
@@ -228,10 +70,9 @@ Phase 1 is in progress. The current checkpoint is:
   discarded without inventing dates for legacy photos.
 - Done: legacy snapshot-level `lastUpdated` and `lastFeedUpdated` fields remain
   separate from per-photo acquisition timestamps.
-- Next: use `addedAt` as the basis for an explicit, tested age-retention policy
-  after the pool-size admin control is implemented. Legacy photos without
-  `addedAt` must remain exempt from age-based pruning until a deliberate
-  backfill policy exists.
+- Done: `addedAt` drives the tested age-retention policy. Legacy photos without
+  `addedAt` remain exempt from age-based pruning; any backfill policy remains a
+  separate decision.
 
 ### Pool lifecycle controls (2026-07-31)
 
@@ -240,8 +81,9 @@ Phase 1 is in progress. The current checkpoint is:
 - Done: recrawls prune dated, non-loved photos past the configured age and cap
   each pool with its configured maximum; loved photos and legacy undated photos
   remain protected.
-- Next: add optional lifecycle previews and a deliberate legacy-date backfill
-  workflow only if operationally useful.
+- Backlog: clarify when a reduced maximum takes effect and show its impact before
+  any destructive cleanup; see the lifecycle semantics audit below. Legacy-date
+  backfill remains optional and requires an explicit policy.
 
 ### Scheduled pool activation (2026-08-18)
 
@@ -327,7 +169,7 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Done: Step 6 reducer/dispatcher execution and result contracts are explicit, with seven regressions and no executable production changes. Defaults, identity, ordered effects, and pre-effect snapshots remain unchanged.
   - Done: all exported domain selectors have explicit shared-shape contracts, with ten regressions preserving pool balance, time/random injection, aliases, immutable projections, and existing defaults. No executable production change or export added.
   - Done: Step 6 now documents all 25 command payload variants, nullable decoder results, ten discriminated effects, and dispatcher dependencies/public methods. Ten regressions preserve pass-through fields, aliases, ordered effects, optional adapters, and failure boundaries without executable production changes.
-  - Next Step 6 checkpoint: re-audit command, environment, effect, and selector boundaries against both acceptance criteria. Payload contracts are documented, but compilation remains unverified; identify any remaining migration blockers explicitly before closeout. Do not resume unrelated helper polishing.
+  - Current Step 6 evidence and next contract seam live in the [companion checkpoint](./FUNCTIONAL_REFACTOR_ROADMAP.md#step-6-prepare-the-codebase-for-typescript-without-a-premature-rewrite); strict compilation is measured and remains nonzero. Older audit statements are historical, not the current tooling inventory.
 
 ### Shared domain flow
 
@@ -349,6 +191,12 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - optional description or caption
   - provenance and source flags
   - visibility and share eligibility
+- Add admin-authored comments alongside image ratings: create, view, edit, and
+  clear a comment without changing the rating. Define stable image identity and
+  source-specific persistence, including Google Photos metadata preservation;
+  keep comments distinct from captions and AI descriptions and private by
+  default. Preserve them through refresh, deduplication, and restarts, and
+  explicitly decide how comments follow an image belonging to multiple pools.
 
 ### Advisory AI metadata
 
@@ -361,8 +209,39 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
 - Add blue light filter as a first-class display setting in backend state and client rendering.
 - Add a background job subsystem for recrawls, vision analysis, later AI generation, and sensor polling or ingestion.
 - Add a typed frontend API client as the transport boundary for the remote UI.
+- Add a persistent admin control to hide the city/region label on the TV weather
+  card independently of the weather widget. Hiding the label must not disable
+  location selection, forecasts, or weather-based photo selection; keep the
+  location available where needed in the admin UI.
+
+### Photo source investigation
+
+- Investigate subscribing to Unsplash collections as a distinct feed option
+  alongside existing keyword search. Verify supported APIs, authorization,
+  attribution, licensing and rate limits before choosing an implementation;
+  evaluate collection identifiers, periodic refresh, removed items, duplicates,
+  failures, and existing pool lifecycle and metadata-preservation rules. Record
+  feasibility and tradeoffs before committing to a subscription design.
 
 ### TypeScript Migration (Transition Bridge)
+
+**Runtime upgrade candidate — Alex, 2026-11-23.** Evaluate a newer supported
+Node.js release to enable useful recent language/runtime features and simplify
+TypeScript/tooling where appropriate. This is a planned evaluation, not a runtime
+change or a premature TypeScript rewrite. Select the target from current upstream
+support status and a concrete feature payoff, not merely the highest version.
+
+- Compare the current application runtime with the candidate using the locked
+  dependencies, native-addon compatibility, full tests, strict diagnostic
+  baseline and relevant client build checks. Browser language targets remain a
+  separate decision; a server upgrade does not upgrade the kiosk browser.
+- Verify the developer/test commands, launchers and existing service resolve the
+  intended runtime consistently. Keep the node-agent runtime independent; do not
+  silently change a global/default runtime or duplicate version configuration.
+- Retain the current runtime, define a scoped rollback, and qualify candidate
+  failure/recovery before any separately commissioned service switch. Record
+  benefits, incompatibilities and the go/no-go decision in the developer journal.
+
 
 Convert the stabilized local codebase to TypeScript to build a bulletproof type contract before expanding into Phase 2's public services and third-party sensors.
 
@@ -411,6 +290,14 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
 - Done: each hourly history row preserves the complete Ecowitt `get_livedata_info` payload under `gateway_metrics`, so optional rain, wind, UV/light, lightning, air-quality, soil, leaf, leak, distance, and multichannel sensor blocks are retained without schema changes.
 - Done: introduced a general capability-aware sensor adapter platform; Ecowitt GW1200 is now the first registered adapter rather than the platform contract itself, with adapter discovery at `GET /api/environment/adapters`.
 - Have widgets consume normalized sensor records plus source/device capability metadata.
+- Add temperature and humidity trends to the TV weather/environment display,
+  using available hourly history where appropriate. Compare with a clearly
+  defined earlier reference such as the corresponding time yesterday, and assess
+  compact sparklines versus up/down indicators or warmer/cooler coloring. Decide
+  indoor and outdoor coverage explicitly, respect units and timestamps, and
+  handle missing, sparse, stale, or incomparable readings without inventing a
+  trend. Direction must remain understandable without color alone, with legible
+  contrast and a bounded display footprint.
 
 ## Phase 3
 
@@ -451,6 +338,12 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Socket disconnects do not break correctness of persistence or controls.
 - Unrated items remain stored as `null`.
 - AI analysis is persisted as advisory metadata and does not silently override human judgment.
+- Admin image comments survive supported refresh and restart paths, remain
+  independent of ratings and captions, and are private by default.
+- Hiding the city/region label persists and leaves weather data and
+  location-dependent behavior intact.
+- Unsplash collection feasibility documents API/policy constraints and a
+  refresh-and-identity design or a clear reason not to proceed.
 - Domain tests cover REST and socket adapters producing the same command semantics.
 
 ### TypeScript Migration (Transition Bridge)
@@ -458,7 +351,9 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Frontend runs entirely on TypeScript (.ts/.tsx) with Vite compiler checks passing.
 - Backend runs with Node's native type-stripping flags (`--experimental-strip-types`) or standard build transpilation.
 - Domain logic compiles under strict mode and all existing `run-tests.js` tests execute successfully without errors.
-- The screensaver client daemon continues to run under the strict 80MB memory footprint.
+- The TV client stays within a measured memory budget on the reference host. The
+  existing sub-80MB aspiration must be validated against total process RSS and
+  GPU allocations, separately from the V8 heap limit.
 
 ### Phase 2
 
@@ -467,6 +362,9 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Publish flows omit non-shareable assets such as Google Photos.
 - Ecowitt-class devices ingest into normalized sensor records that the UI can render without device-specific logic.
 - Hourly sensor snapshots are recorded into local SQLite database and served via REST query/export API for Grafana.
+- Temperature and humidity trend presentation identifies its comparison window,
+  handles missing or stale data, and conveys direction without relying on color
+  alone; tests cover the selected sources and time boundaries.
 
 ### Phase 3
 
@@ -502,3 +400,58 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Next: collect several days of `MemoryCurrent`, `MemoryPeak`, and `memory.events`
   data under ordinary kiosk use. Revisit the ceiling only from those measurements;
   investigate host-wide pressure separately from Node.js heap growth.
+
+## Backlog & Audit Findings (2026-10-04)
+
+These items came from a source-and-documentation consistency sweep. They are
+design work, not claims that the current behavior has already been changed.
+
+### High priority
+
+- **Separate image identity from pool membership.**
+  `server/config/collectionsCodec.js`
+  currently deduplicates persisted rows by exact URL and keeps the first pool's
+  row. This prevents repeated rows, but can erase a later pool's membership and
+  pool-specific metadata. URL variants and expiring signed URLs can still refer
+  to the same underlying media. Define a canonical media identity and represent
+  one stored asset with explicit pool memberships, or explicitly document
+  first-pool ownership if memberships are intentionally exclusive. Preserve
+  metadata conflict rules, visible-feed uniqueness, and equal-turn pool
+  playback through migration and regression coverage.
+- **Make pool lifecycle limits understandable and actionable.** A policy update
+  persists the new value, while crawler retention/capping runs on later crawl
+  work; lowering `maxPhotos` does not itself trim the existing collection, and
+  loved photos may exceed the cap. Choose whether the field is a prospective
+  ingestion target or an enforceable current limit. Expose that behavior in the
+  UI and, if immediate cleanup is supported, preview affected rows and preserve
+  explicit loved-photo and legacy-date rules.
+- **Harden the Google OAuth callback boundary.** The current authorization URL
+  has no OAuth `state` value and the callback rebuilds its redirect URI from the
+  request `Host` header. Add a one-time state check and use a configured,
+  trusted public origin for callback construction; cover callback mismatch and
+  replay behavior with focused tests.
+
+### Medium priority
+
+- **Align news-sentiment scope with the product language.** The configured RSS
+  URL is Canada-specific (`en-CA` / `CA`), while the remote UI still describes
+  the signal as global. Either make the region a deliberate setting with a
+  deterministic default or describe the actual source accurately.
+- **Establish measured TV resource budgets.** The two-slide DOM bound and
+  `--max-old-space-size=256` are implementation controls, not evidence of an
+  80MB total footprint or a particular CPU reduction. Measure renderer and
+  server RSS, GPU allocation where observable, idle/active CPU, and image-swap
+  behavior on the reference device; then set a reproducible budget and update
+  the existing sub-80MB aspiration from that evidence.
+- **Harden automatic IP geolocation.** `getIpLocation()` calls the provider over
+  plain HTTP and has no request timeout. Select a TLS-protected provider or
+  transport, bound the request duration, document the location lookup, and
+  retain the configured-location fallback.
+
+### Backlog maintenance
+
+- The agent guide's roadmap list named Google Photos OAuth as unimplemented,
+  although credentials, token persistence, login, and callback routes already
+  exist. That item is retired in favor of the callback hardening work above.
+- The agent guide's geolocation item described adding a flow that already
+  exists; it is replaced by the transport/resilience work above.
