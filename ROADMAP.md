@@ -44,7 +44,7 @@ single Step 6 checkpoint. Materialize a maintenance action in Beads only when se
 | **Keep one current engineering checkpoint** | Consolidate competing current/next-seam paragraphs in this roadmap, the companion and the guide. The companion owns one concise current Step 6 result/next action; other documents link to it. Label older diagnostic/tooling audits as history. Verify current tests/counts and deferrals agree, without duplicating a Beads checklist. | Canonical checkpoint consolidation complete; dependent implementation proceeds through Beads. |
 | **Reduce the test-runner hotspot selectively** | Extract the coherent `runClientStateTests` group from the large `run-tests.js` into a domain-owned test module, reusing the existing assertion/log interface and entrypoint. Preserve assertions, execution order, failure exit and runtime. No second framework, duplicated runner or broad test rewrite. | Accepted: group body byte-exact, shared runner 1,111 lines shorter, same930pass-line inventory/order and verified failure exit. No new framework. |
 | **Keep or retire the tracker on evidence** | This slice observed ready → claim → implementation close → dependent acceptance readiness, with stable task/evidence references. Retain narrow opt-in; manual task translation and short claim-lease renewal remain costs, not an unattended/concurrent-safety proof. No measured productivity uplift. Reassess after the next selected slice; add no dashboard, synchronizer or scheduler to justify the tool. | Second sequence: five outcomes closed; review rejection kept dependent work blocked until acceptance. Retain narrow opt-in, not unattended/fleet-wide promotion. |
-| **Use source-grounded architecture to remove coupling** | Current/target C4 model and concrete AR-1–AR-5 acceptance/removal criteria are in the [engineering bridge](./FUNCTIONAL_REFACTOR_ROADMAP.md#architecture-bridge--2026-11-24). Keep the same daemon/state/stores; begin with the observed legacy back-reference, not a framework rewrite. | Architecture audit accepted; the companion owns current implementation/acceptance and exact next action for the commissioned bridge. |
+| **Use source-grounded architecture to remove coupling** | Current/target C4 model and concrete AR-1–AR-5 acceptance/removal criteria are in the [engineering bridge](./FUNCTIONAL_REFACTOR_ROADMAP.md#architecture-bridge--2026-11-24). Keep the same daemon/state/stores; begin with the observed legacy back-reference, not a framework rewrite. | Audit and bounded AR-1–AR-5 bridge accepted and qualified in1.0.3; the companion owns exact evidence, remaining coverage and next selection. |
 
 The existing state-path gauge includes client modules and fixture/persistence
 paths; it is not evidence of 24 unnecessary ledgers. Inspect a touched persistence
@@ -492,8 +492,12 @@ design work, not claims that the current behavior has already been changed.
   accepted fresh results after a later transport/JSON/deadline interruption in
   the same query, preserving its existing filters/identity/count and truthful
   warning. Independent differential review confirms the former loss case. Final
-  live qualification still follows. Other providers and unavailable vision/auth
-  remain open; partial/cache preservation is not full provider recovery.
+  **Live1.0.3 acceptance:** native rollout/lifetime/API/data checks pass. Observed
+  startup has one Art Institute403, one Reddit403 and one Unsplash401; Wallhaven
+  answers successful requests in that observation, so its429 branch remains an
+  offline failure qualification, not an observed live429 recovery. Other providers
+  and unavailable vision/auth remain open; partial/cache preservation and bounded
+  rejections are not full provider recovery.
 
 ### Medium priority
 

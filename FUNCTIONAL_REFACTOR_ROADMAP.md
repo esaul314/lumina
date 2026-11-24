@@ -222,11 +222,13 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **9/10 outcomes accepted; AR-1–AR-5 and selected provider source/test work accepted.** **fix(crawler): retain accepted photos after later query failure** (396ae41) keeps the existing Unsplash accumulator through its catch and returns the same count-limited projection. Filtering, URL de-duplication, metadata and request order remain unchanged; no new retry/state/validation policy.
+Current checkpoint (2026-11-24): **All10 commissioned outcomes accepted and live as1.0.3.** AR-1–AR-5 removes the static legacy cycle, gives vision one existing workflow home, separates inert import/construction from owned start/stop, injects concrete persistence writers, and extracts the exact coherent rendering group (shared runner449lines shorter). Selected provider work covers Wallhaven direct/keyless-fallback membership, Art Institute bounds and accepted unfinished-query Unsplash results. Existing source/job policies and metadata are preserved; no new service/framework/scheduler/persistent breaker.
 
-6new awaited native cases/44crawler and full130native/13sensor/3compiler plus clean lint/diff pass. An independent offline differential probe reproduces the baseline's third-variant JSON loss and accepts preserved results, truthful warning, order, metadata, dedup/filtering and healthy-provider continuation. Root930legacy labels retain documented async-test limits; strict279core/36transitive is non-green and unchanged checked graph was not replayed.
+Release **chore(release): qualify Lumina 1.0.3 for native rollout** d6618ee follows fixture correction076e013. Full130awaited native/13sensor/3compiler and16headless browser cases, lint/build/provenance pass;930reported legacy root labels retain the separately documented async-test limitation. Strict279core/36transitive,0fixture/global is non-green; entire diagnostic text is unchanged since AR-4 (34removed/0added against that slice's baseline).
 
-**Next: qualified1.0.3 release.** Correct the independently reproduced browser-fixture missing-writer composition with isolated concrete sinks; full tests/lint/strict/build/headless qualification and supported provenance, fresh state/history backup and named rollback precede promotion. Verify new native startup AND a second candidate-owned shutdown/startup with fresh intent/data each time. Production stays1.0.2 until qualification. This batch is not whole Phase1/Step6, full provider/vision/auth/security or physical-TV acceptance.
+Native promotion and a second candidate-owned stop/start are accepted. Candidate exits0 with no timeout/forced kill/cleanup failure, then healthy HTTP/weather/sensor/history/Socket.IO. All6,948stored photo identities/prior row metadata and3,071history keys survive; automatic/manual intent, native unit/runtime and unrelated node are preserved. Client build bytes are identical, so no unnecessary asset rewrite. Old-process Chromium settlement required read-only follow-up; current owner checks follow fresh activity flags. Natural automatic kiosk dismissal/normal exit was observed. Candidate SIGTERM occurred with kiosk inactive: do not claim active-kiosk SIGTERM or physical-TV visual/pointer/AT acceptance.
+
+**Next: await separately selected scope.** No automatic next batch, project reminder or public push. Phase1/Step6 is not complete; existing strict contracts, other-provider/vision/auth/security and physical-TV debt remains in the product roadmap. Preserve accepted architecture evidence; reference-target components are not a new implementation queue.
 
 Why sixth:
 
@@ -258,7 +260,7 @@ C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
 monolith and functional core; no new services, state manager, DI container or
 framework. These are proposed bounded outcomes, not five automatically authorized
 tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
-AR-1–AR-5 are accepted at their documented source/test boundaries; final live qualification remains part of the current commissioned sequence.
+AR-1–AR-5 are accepted at their documented source/test boundaries and qualified in1.0.3; the current checkpoint states live coverage and remaining limits.
 
 ### AR-1 — remove the legacy entrypoint back-reference
 

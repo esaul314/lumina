@@ -29,7 +29,7 @@ and the intended removal reviewable.
 
 ![Reference target responsibilities](diagrams/target-components.svg)
 
-CURRENT describes the source after callback injection, vision extraction, lifecycle and concrete writer injection (AR-1–AR-4); deployed release1.0.2 is unchanged until qualified rollout. The target is a reference responsibility view, not another runtime module queue; AR-1–AR-4 runtime bridge work is accepted at the documented source boundary.
+CURRENT describes the source after callback injection, vision extraction, lifecycle and concrete writer injection (AR-1–AR-4), now qualified in release1.0.3. AR-5 test navigation and the selected provider repairs are also accepted. The target is a reference responsibility view, not another runtime module queue; AR-1–AR-4 runtime bridge work is accepted at the documented source boundary.
 Both component sets share one modeled daemon to make responsibility views comparable;
 they do not represent two concurrent backends. The container view is unchanged.
 Arrows describe runtime use/dependency, including injected callbacks; they are not
@@ -134,3 +134,14 @@ ARCH_OUTPUT is a disposable directory, not another source checkout. Repeat the
 last command for containers, current-components and target-components. The DSL
 has no remote includes, plugins, scripts or hosted themes. Rendered exports are
 read-only derivatives. Parser validity does not replace source-map review.
+
+
+## Qualified bridge boundary
+
+The bounded bridge ships without new runtime services, repositories, schedulers or
+state owners. Source/test acceptance and canonical views are distinct from runtime
+evidence:1.0.3 passed native promotion and candidate-owned graceful stop/start.
+The kiosk was inactive at candidate SIGTERM; natural activity dismissal/normal exit
+and focused active-kiosk fixtures are separate evidence, not physical-TV proof.
+The engineering checkpoint owns exact counts/coverage/next selection. Preserve the
+reference target as responsibility guidance, not an unimplemented module backlog.
