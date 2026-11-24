@@ -222,43 +222,23 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): guide/checkpoint consolidation and the keyed
-family contract are accepted. **fix(types): preserve Lumina command keys in
-reducer families** keeps the private boundary specific to the actual canonical
-Command, resolved environment and domain envelope. Speculative arbitrary-registry
-inference was removed after review exposed structural-widening hazards; no runtime
-JavaScript or exports changed. Runtime 917 / sensor 13 / compiler 3 pass on the
-actual Node 24.18 baseline. Strict diagnostics: 290 core / 0 fixture / 68 transitive /
-0 global, one registry diagnostic removed and no new diagnostic identities.
-Step 6 / Phase 1 remain incomplete; no whole-project compiler-green claim.
+Current checkpoint (2026-11-24): the prior five-step sequence is accepted;
+release1.0.1 is live on the pinned Node26.13.1. Strict baseline remains290core /
+68transitive; Phase1 and Step6 are incomplete.
 
-**Test-runner hotspot accepted:** **refactor(tests): extract client state and
-control regressions** moves the group byte-for-byte into one root test module.
-The existing runner owns shared reporting and execution; its size fell by 1,111
-lines. All 930 runtime/sensor pass lines retain their order; a deliberate failed
-assertion produced exactly one failure/exit1. No framework or production change.
+**Second commissioned sequence selected:** persist weather-location visibility →
+admin/TV control → bounded rejected-provider work → truthful degraded job status →
+qualified live release. One implementation slice at a time through the existing
+Beads store. The presentation bit reuses widgets and collection storage, not a
+new location model. Provider failure facts are run-local, not a circuit-breaker
+database. Tests/review/commit/journal acceptance precede the next outcome.
 
-**Runtime/release source qualified:** **build(runtime): pin Node LTS and align
-existing launch paths** and **chore(release): qualify the Node LTS baseline for
-Lumina 1.0.1** retain one `.nvmrc` authority, existing native service ownership
-and direct-exec fallback. Both runtimes pass 917 runtime / 13 sensor / 3 compiler /
-4 isolated runtime checks; 14 headless checks and the client build pass.
-**Five-step sequence accepted:** clean provenance passed; native live promotion
-to release1.0.1 completed with matching served assets, HTTP/Socket.IO, private-file
-and history preservation. Old runtime/unit/payload retained; rollback compatibility
-is fixture-tested, not a claimed live rollback rehearsal. Fila owns orchestration;
-Beads owns selected prerequisites/claims, not product priority or process liveness.
-
-**Runtime:** official LTS 26.13.1 is active through the existing native service. Published
-integrity is verified, and disposable history reads/writes remain compatible
-24→26→24. Shell defaults and the OpenClaw node runtime stay independent. Client
-assets rebuild identically; no UI feature or browser-language upgrade is implied.
-
-**Next selection boundary:** Step6/Phase1 remain incomplete. Select a new bounded
-outcome from the existing diagnostic/product priorities only when commissioned;
-do not schedule another batch implicitly. Existing provider denials/vision failure
-are recorded in the product audit, not hidden by this rollout's acceptance. The
-optional weather-location display remains a proposal, not an implemented control.
+Accepted: **feat(weather): persist optional TV location visibility**. New preference
+round-trips through the existing codec;919runtime/13sensor/3compiler/4launcher
+checks pass, lint and independent ACCEPT. Strict290core/59transitive remains
+non-green. Current work: client control and TV rendering; no live setting changed. The physical-TV pointer report, vision
+capability/auth configuration, generic identity and broader TypeScript work remain
+separate; no service, controller or infrastructure expansion is selected.
 
 Apply [complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline)
 and preserve [product priorities/deferrals](./ROADMAP.md). Rationale and historical

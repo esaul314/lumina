@@ -6605,3 +6605,62 @@ These per-helper observations are history, not a current checkpoint or task queu
   - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
   - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
   - Latest Step 6 slice (97): `server/services/googlePhotosCache.js` refines read-only nested/flat file-selection contracts. Seven focused tests preserve selected aliases, fresh falsy-row fallbacks, native truthiness, hidden/inherited fields, repeated reads, and exact failures. Keep the pure data-first selector without an algebraic wrapper; leaf reference-idempotence is not global idempotence. Executable production code and exports remain unchanged.
+
+
+## Historical five-step acceptance checkpoint — 2026-11-24
+
+Current checkpoint (2026-11-24): guide/checkpoint consolidation and the keyed
+family contract are accepted. **fix(types): preserve Lumina command keys in
+reducer families** keeps the private boundary specific to the actual canonical
+Command, resolved environment and domain envelope. Speculative arbitrary-registry
+inference was removed after review exposed structural-widening hazards; no runtime
+JavaScript or exports changed. Runtime 917 / sensor 13 / compiler 3 pass on the
+actual Node 24.18 baseline. Strict diagnostics: 290 core / 0 fixture / 68 transitive /
+0 global, one registry diagnostic removed and no new diagnostic identities.
+Step 6 / Phase 1 remain incomplete; no whole-project compiler-green claim.
+
+**Test-runner hotspot accepted:** **refactor(tests): extract client state and
+control regressions** moves the group byte-for-byte into one root test module.
+The existing runner owns shared reporting and execution; its size fell by 1,111
+lines. All 930 runtime/sensor pass lines retain their order; a deliberate failed
+assertion produced exactly one failure/exit1. No framework or production change.
+
+**Runtime/release source qualified:** **build(runtime): pin Node LTS and align
+existing launch paths** and **chore(release): qualify the Node LTS baseline for
+Lumina 1.0.1** retain one `.nvmrc` authority, existing native service ownership
+and direct-exec fallback. Both runtimes pass 917 runtime / 13 sensor / 3 compiler /
+4 isolated runtime checks; 14 headless checks and the client build pass.
+**Five-step sequence accepted:** clean provenance passed; native live promotion
+to release1.0.1 completed with matching served assets, HTTP/Socket.IO, private-file
+and history preservation. Old runtime/unit/payload retained; rollback compatibility
+is fixture-tested, not a claimed live rollback rehearsal. Fila owns orchestration;
+Beads owns selected prerequisites/claims, not product priority or process liveness.
+
+**Runtime:** official LTS 26.13.1 is active through the existing native service. Published
+integrity is verified, and disposable history reads/writes remain compatible
+24→26→24. Shell defaults and the OpenClaw node runtime stay independent. Client
+assets rebuild identically; no UI feature or browser-language upgrade is implied.
+
+**Next selection boundary:** Step6/Phase1 remain incomplete. Select a new bounded
+outcome from the existing diagnostic/product priorities only when commissioned;
+do not schedule another batch implicitly. Existing provider denials/vision failure
+are recorded in the product audit, not hidden by this rollout's acceptance. The
+optional weather-location display remains a proposal, not an implemented control.
+
+## Weather-label presentation persistence — 2026-11-24
+
+Repeated pressure: live widget state was not part of the saved collection
+configuration, so a visual toggle alone would not survive restart. Reuse the
+existing widgets/patch/snapshot/codec boundaries, persisting only the newly
+requested weatherLocation boolean. This deliberately leaves other widget reload
+semantics unchanged; do not grow a second location model. The pure codec restores
+known runtime defaults plus an explicit boolean, rejecting malformed saved values.
+The existing effect shell still owns persistence and state-sync delivery.
+
+Validation:919 runtime assertions,13 sensor,3 compiler and4 launcher tests; lint
+and independent read-only ACCEPT. Tests prove hide/show roundtrips and unchanged
+weather/location/photo/runtime state. Payload JSDoc uses the existing declared
+snapshot type, reducing transitive strict diagnostics68→59; core remains290.
+An initial regression wrongly placed the sync EVENT among effects; corrected the
+expectation to the existing persist-effect/state-sync-event contract. No runtime
+change was needed. Client control and live release remain the next boundaries.

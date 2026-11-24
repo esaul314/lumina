@@ -208,8 +208,10 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   option does not commission multi-location tracking. Reuse one existing
   presentation-setting boundary, not a second location model. Test persistence,
   hidden/shown TV layout and unchanged forecast/location-dependent behavior.
-  Keep this in Phase 1's backlog; it is not added to the current engineering
-  sequence or silently materialized as another active Beads task.
+  **Selected, 2026-11-24:** the second commissioned sequence implements this
+  existing Phase1 item through the current widget/collection boundary. Backend
+  persistence is accepted, with visible-by-default compatibility; client/admin
+  behavior and release acceptance follow in the companion checkpoint.
 
 ### Photo source investigation
 
