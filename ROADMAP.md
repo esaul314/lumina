@@ -501,15 +501,18 @@ design work, not claims that the current behavior has already been changed.
 
 ### Medium priority
 
-- **Await legacy asynchronous regression checks.** An isolated source probe
-  confirms root assertTest reports PASS before a returned Promise settles; eight
-  old crawler checks supply async callbacks and often swallow provider errors.
-  Those labels are not async-provider acceptance. In a separately selected
-  bounded cleanup, move them to the existing awaited assertAsyncTest/native
-  fixture owner and replace live-provider dependence with injected transports.
-  Preserve reporting/order/failure exit; no new test framework. Current changed
-  provider behavior must use awaited native fixtures. The rendering extraction
-  has no async assertTest callbacks and remains byte-preserving/accepted.
+- **Await legacy asynchronous regression checks — accepted,2026-11-24.**
+  The eight old async assertTest callbacks and their catch-and-ignore/live-provider
+  checks are removed. The existing awaited native crawler owner now covers their
+  mappings, fixture-local absent credentials and real custom-keyword requests,
+  with delayed transport/JSON and rejected-transport cases. A native AST inventory
+  guards against direct async callbacks returning to the synchronous helper.
+  The actual npm test entrypoint exits1 for an injected late NASA assertion and
+  passes normally afterward:145native/922legacy/13sensor/3compiler checks.
+  The legacy count fell by8 because false labels were removed, not because those
+  behaviors lost coverage. This does not turn the synchronous helper into a
+  general Promise-aware assertion API, qualify live providers or alter crawler
+  production behavior; rendering extraction remains preserved/accepted.
 
 - **Align news-sentiment scope with the product language.** The configured RSS
   URL is Canada-specific (`en-CA` / `CA`), while the remote UI still describes

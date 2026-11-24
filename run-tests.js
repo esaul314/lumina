@@ -9965,11 +9965,6 @@ assertTest('correctly loads and configures searchKeywords state', () => {
   assert.strictEqual(typeof screensaverState.searchKeywords['Scenic Nature'][0], 'string', 'Keyword must be a string');
 });
 
-assertTest('crawler consumes custom searchKeywords instead of static defaults', async () => {
-  const { crawlAllCollections } = require('./server/services/crawler.js');
-  assert.ok(typeof crawlAllCollections === 'function', 'crawlAllCollections must be a function');
-});
-
 assertTest('crawler cap preserves loved photos without reducing the standard dynamic pool size', () => {
   const { capCollectionLimit } = require('./server/services/crawler.js');
   const originals = Array.from({ length: 12 }, (_, index) => ({ url: `original-${index}` }));
@@ -10805,116 +10800,7 @@ assertTest('crawler exports Wallhaven, NASA APOD, Midjourney, Bing, MetMuseum, a
   assert.strictEqual(typeof fetchTumblrTaggedImages, 'function', 'fetchTumblrTaggedImages must be a function');
 });
 
-assertTest('Tumblr tagged crawler safely skips when TUMBLR_API_KEY is not configured', async () => {
-  const { fetchTumblrTaggedImages } = require('./server/services/crawler.js');
-  const originalKey = process.env.TUMBLR_API_KEY;
-  delete process.env.TUMBLR_API_KEY;
-
-  try {
-    const photos = await fetchTumblrTaggedImages('landscape', 2);
-    assert.deepStrictEqual(photos, [], 'Crawler should return an empty array without credentials');
-  } finally {
-    if (originalKey === undefined) {
-      delete process.env.TUMBLR_API_KEY;
-    } else {
-      process.env.TUMBLR_API_KEY = originalKey;
-    }
-  }
-});
-
-assertTest('MetMuseum crawler retrieves public domain artworks', async () => {
-  const { fetchMetMuseumImages } = require('./server/services/crawler.js');
-  try {
-    const photos = await fetchMetMuseumImages('impressionism', 2);
-    assert.ok(Array.isArray(photos), 'Should return photos array');
-    if (photos.length > 0) {
-      assert.ok(photos[0].url, 'Artwork must have a valid url');
-      assert.strictEqual(photos[0].source, 'metmuseum', 'Source must equal metmuseum');
-      assert.ok(photos[0].author, 'Artwork must have an artist/author');
-    }
-  } catch (err) {
-    // Graceful catch for offline
-  }
-});
-
-assertTest('AIC crawler retrieves public domain artworks', async () => {
-  const { fetchAicImages } = require('./server/services/crawler.js');
-  try {
-    const photos = await fetchAicImages('impressionism', 2);
-    assert.ok(Array.isArray(photos), 'Should return photos array');
-    if (photos.length > 0) {
-      assert.ok(photos[0].url, 'Artwork must have a valid url');
-      assert.strictEqual(photos[0].source, 'artic', 'Source must equal artic');
-      assert.ok(photos[0].author, 'Artwork must have an artist/author');
-    }
-  } catch (err) {
-    // Graceful catch for offline
-  }
-});
-
-assertTest('Wallhaven crawler maps query and returns SFW landscapes', async () => {
-  const { fetchWallhavenImages } = require('./server/services/crawler.js');
-  try {
-    const photos = await fetchWallhavenImages('nature', 'Scenic Nature', 2);
-    assert.ok(Array.isArray(photos), 'Should return photos array');
-    if (photos.length > 0) {
-      assert.ok(photos[0].url, 'Photo must have a valid url');
-      assert.strictEqual(photos[0].source, 'wallhaven', 'Source must equal wallhaven');
-      assert.ok(photos[0].title.includes('Scenic Nature'), 'Title should map category');
-    }
-  } catch (err) {
-    // Graceful catch for offline/DNS failures in test environments
-  }
-});
-
-assertTest('NASA APOD crawler retrieves astronomy picture stream', async () => {
-  const { fetchNasaApod } = require('./server/services/crawler.js');
-  try {
-    const photos = await fetchNasaApod(2);
-    assert.ok(Array.isArray(photos), 'Should return photos array');
-    if (photos.length > 0) {
-      assert.ok(photos[0].url, 'Photo must have a valid url');
-      assert.strictEqual(photos[0].source, 'nasa_apod', 'Source must equal nasa_apod');
-      assert.strictEqual(photos[0].isNight, true, 'Space APODs must be night-aligned');
-    }
-  } catch (err) {
-    // Graceful catch for API limit/offline issues
-  }
-});
-
-assertTest('Bing crawler retrieves daily high-quality wallpapers', async () => {
-  const { fetchBingImageOfTheDay } = require('./server/services/crawler.js');
-  try {
-    const photos = await fetchBingImageOfTheDay(2);
-    assert.ok(Array.isArray(photos), 'Should return photos array');
-    if (photos.length > 0) {
-      assert.ok(photos[0].url, 'Photo must have a valid url');
-      assert.strictEqual(photos[0].source, 'bing', 'Source must equal bing');
-      assert.ok(photos[0].title, 'Photo must have a valid title');
-    }
-  } catch (err) {
-    // Graceful catch for offline
-  }
-});
-
-assertTest('Midjourney crawler falls back gracefully to Lexica AI creations if no USEAPI_TOKEN is set', async () => {
-  const { fetchMidjourneyImages } = require('./server/services/crawler.js');
-  const originalToken = process.env.USEAPI_TOKEN;
-  delete process.env.USEAPI_TOKEN;
-  
-  try {
-    const photos = await fetchMidjourneyImages(2);
-    assert.ok(Array.isArray(photos), 'Should return photos array');
-    if (photos.length > 0) {
-      assert.ok(photos[0].url, 'Photo must have a valid url');
-      assert.strictEqual(photos[0].source, 'lexica', 'Fallback should retrieve Lexica AI source');
-    }
-  } catch (err) {
-    // Graceful catch for offline/DNS failures in test environments
-  } finally {
-    process.env.USEAPI_TOKEN = originalToken;
-  }
-});
+// Awaited offline provider/keyword regressions live in server/services/crawler.test.js (npm test).
 
 // ============================================================================
 // 7. INTEGRATION TEST SUITE: Live Endpoint Verification

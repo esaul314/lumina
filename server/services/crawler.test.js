@@ -150,7 +150,7 @@ function isolatedCrawler(fetchImpl) {
   const { compileFunction } = require('node:vm');
   const filename = path.join(__dirname, 'crawler.js'), localRequire = createRequire(filename), module = { exports: {} };
   compileFunction(fs.readFileSync(filename, 'utf8'), ['module', 'require', 'fetch', 'console'], { filename })(
-    module, name => name === '../config/env.js' ? { readEnvVar: () => '' } : localRequire(name),
+    module, name => name === '../config/env.js' ? { readEnvVar: (_name, fallback = '') => fallback } : localRequire(name),
     fetchImpl, { log() {}, warn() {}, error() {} }
   );
   return module.exports;
@@ -425,4 +425,158 @@ test('unfinished Unsplash results keep count/dedup/landscape/premium policy and 
     ({ author, source, isNight, isRain, isSunny, isCloudy, isSnowy })), Array.from({ length: 2 }, () => ({
       author: 'Fixture Author', source: 'unsplash', isNight: false, isRain: false, isSunny: true, isCloudy: false, isSnowy: false
     })));
+});
+
+
+// Fixture-local absent credentials never mutate process.env or turn undefined into a string.
+// Assertions stay outside adapter try/catch boundaries, after transport AND JSON have settled.
+const daytimePhoto = { isNight: false, isRain: false, isSunny: true, isCloudy: false, isSnowy: false };
+const providerFixtures = [
+  {
+    name: 'MetMuseum', invoke: service => service.fetchMetMuseumImages('mist & rain', 1),
+    requests: [
+      'https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=mist%20%26%20rain',
+      'https://collectionapi.metmuseum.org/public/collection/v1/objects/1',
+      'https://collectionapi.metmuseum.org/public/collection/v1/objects/2'
+    ],
+    responses: [{ objectIDs: [1, 2, 3] }, { title: 'Missing image' }, {
+      primaryImageSmall: 'https://example.test/museum.jpg', title: 'Museum fixture', artistDisplayName: 'Fixture Artist'
+    }],
+    expected: [{ ...daytimePhoto, url: 'https://example.test/museum.jpg', title: 'Museum fixture', author: 'Fixture Artist', source: 'metmuseum' }]
+  },
+  {
+    name: 'AIC', invoke: service => service.fetchAicImages('mist & rain', 2),
+    requests: ['https://api.artic.edu/api/v1/artworks/search?q=mist%20%26%20rain&limit=2&fields=id,title,image_id,artist_title'],
+    responses: [{ data: [{ title: 'Missing image' }, { image_id: 'fixture', title: 'Art fixture', artist_title: 'Fixture Artist' }] }],
+    expected: [{ ...daytimePhoto, url: 'https://www.artic.edu/iiif/2/fixture/full/843,/0/default.jpg',
+      title: 'Art fixture', author: 'Fixture Artist', source: 'artic' }]
+  },
+  {
+    name: 'Wallhaven', invoke: service => service.fetchWallhavenImages('mist & rain', 'Scenic Nature', 1),
+    requests: ['https://wallhaven.cc/api/v1/search?q=mist%20%26%20rain&purity=100&ratios=16x9,16x10'],
+    responses: [{ data: [{ id: 'missing' }, { id: 'wall', path: 'https://example.test/wall.jpg', uploader: { username: 'Fixture Artist' } },
+      { id: 'excess', path: 'https://example.test/excess.jpg' }] }],
+    expected: [{ ...daytimePhoto, url: 'https://example.test/wall.jpg', title: 'Scenic Nature Frame #wall', author: 'Fixture Artist',
+      source: 'wallhaven', isRain: true, isSunny: false, isCloudy: true }]
+  },
+  {
+    name: 'NASA APOD', invoke: service => service.fetchNasaApod(1),
+    requests: ['https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&count=1'],
+    responses: [[{ media_type: 'video', url: 'https://example.test/video' }, { media_type: 'image' }, {
+      media_type: 'image', url: 'https://example.test/nebula.jpg', hdurl: 'https://example.test/nebula-hd.jpg',
+      title: 'nebula fixture', copyright: '  Fixture\nArtist  '
+    }]],
+    expected: [{ ...daytimePhoto, url: 'https://example.test/nebula-hd.jpg', title: 'Nebula fixture', author: 'Fixture Artist',
+      source: 'nasa_apod', isNight: true, isSunny: false, isCloudy: true }]
+  },
+  {
+    name: 'Bing', invoke: service => service.fetchBingImageOfTheDay(2),
+    requests: ['https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=2&mkt=en-US'],
+    responses: [{ images: [
+      { url: '/fixture.jpg', copyright: 'Morning coast (© Fixture Artist)' },
+      { url: 'https://example.test/bing.jpg', title: 'Daily fixture' }
+    ] }],
+    expected: [
+      { ...daytimePhoto, url: 'https://www.bing.com/fixture.jpg', title: 'Morning coast', author: 'Fixture Artist', source: 'bing', isCloudy: true },
+      { ...daytimePhoto, url: 'https://example.test/bing.jpg', title: 'Daily fixture', author: 'Bing Photography', source: 'bing', isCloudy: true }
+    ]
+  },
+  {
+    name: 'keyless Midjourney', invoke: service => service.fetchMidjourneyImages(1),
+    requests: [
+      'https://lexica.art/api/v1/search?q=midjourney%20landscape%20surreal%20dreamscape',
+      'https://wallhaven.cc/api/v1/search?q=cyberpunk%20landscape%20surreal&purity=100&ratios=16x9,16x10',
+      'https://wallhaven.cc/api/v1/search?q=surreal%20digital%20art%20dreamscape&purity=100&ratios=16x9,16x10'
+    ],
+    responses: [{ images: [
+      { src: 'https://example.test/portrait.jpg', width: 800, height: 1200 },
+      { src: 'https://example.test/lexica.jpg', prompt: 'surreal fixture', width: 1200, height: 800 }
+    ] }, { data: [] }, { data: [] }],
+    expected: [{ ...daytimePhoto, url: 'https://example.test/lexica.jpg', title: 'Surreal fixture', author: 'Lexica AI Art', source: 'lexica', isSunny: false }]
+  }
+];
+const requestShape = raw => {
+  const { origin, pathname, searchParams } = new URL(raw);
+  searchParams.delete('sorting'); // Random sorting is not a provider contract.
+  return { endpoint: origin + pathname, params: Object.fromEntries(searchParams) };
+};
+
+for (const { name, invoke, requests, responses, expected } of providerFixtures) {
+  test(`${name} awaits offline transport and late JSON before asserting mapped photos`, async () => {
+    const calls = [], decoded = [];
+    const service = isolatedCrawler(async url => {
+      const index = calls.push(url) - 1;
+      await new Promise(resolve => setImmediate(resolve));
+      return { ...ok(responses[index]), json: async () => {
+        await new Promise(resolve => setImmediate(resolve));
+        decoded.push(index);
+        return responses[index];
+      } };
+    });
+    const photos = await invoke(service);
+    assert.deepEqual(calls.map(requestShape), requests.map(requestShape));
+    assert.equal(decoded.length, responses.length);
+    assert.deepEqual(photos, expected);
+  });
+
+  test(`${name} awaits rejected offline transport and returns its empty fallback`, async () => {
+    const calls = [];
+    const service = isolatedCrawler(async url => {
+      calls.push(url);
+      await new Promise(resolve => setImmediate(resolve));
+      throw new Error('Fixture transport rejected');
+    });
+    assert.deepEqual(await invoke(service), []);
+    const expectedRequests = name === 'keyless Midjourney' ? requests : requests.slice(0, 1);
+    assert.deepEqual(calls.map(requestShape), expectedRequests.map(requestShape));
+  });
+}
+
+test('Tumblr missing-key skip awaits an empty result without transport or credential mutation', async () => {
+  const names = ['TUMBLR_API_KEY', 'USEAPI_TOKEN'];
+  const before = names.map(name => Object.getOwnPropertyDescriptor(process.env, name));
+  const calls = [];
+  const service = isolatedCrawler(async url => { calls.push(url); throw new Error('Unexpected transport'); });
+  assert.deepEqual(await service.fetchTumblrTaggedImages('landscape', 2), []);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(names.map(name => Object.getOwnPropertyDescriptor(process.env, name)), before);
+});
+
+test('crawlAllCollections consumes custom searchKeywords in requests and accepted metadata, not static defaults', async () => {
+  const calls = [], keywords = ['aurora & mist', 'quiet valley'];
+  const input = { 'Custom fixture': cached().A }, before = structuredClone(input);
+  const fetchImpl = async url => {
+    calls.push(url);
+    await new Promise(resolve => setImmediate(resolve));
+    return url.includes('unsplash.com') ? unsplash(`custom-${calls.length}`) : wallhavenResponse(`custom-${calls.length}`);
+  };
+  const result = await isolatedCrawler(fetchImpl).crawlAllCollections(
+    input, null, { 'Custom fixture': keywords }, [], null, () => new Date('2026-11-24T00:00:00Z'), { fetchImpl }
+  );
+  const queries = calls.map(url => { const target = new URL(url); return target.searchParams.get('query') ?? target.searchParams.get('q'); });
+  assert.deepEqual(queries, [...keywords.flatMap(keyword => [keyword, `${keyword} wallpaper`, `${keyword} 4k`]), ...keywords]);
+  assert.equal(result.updatedAny, true);
+  assert.deepEqual(result.providerFailures, []);
+  assert.deepEqual(input, before);
+  const accepted = result.updatedCollections['Custom fixture'].slice(1);
+  assert.equal(accepted.length, 8);
+  assert.deepEqual([...new Set(accepted.map(photo => photo.queryKeyword))], keywords);
+  assert.ok(accepted.every(photo => photo.addedAt === '2026-11-24T00:00:00.000Z'));
+  assert.equal(result.updatedCollections['Custom fixture'][0].comment, 'Keep me');
+});
+
+test('legacy assertTest callbacks contain no async functions (AST inventory)', () => {
+  const fs = require('node:fs'), path = require('node:path'), ts = require('typescript');
+  const source = ts.createSourceFile('run-tests.js', fs.readFileSync(path.join(__dirname, '../../run-tests.js'), 'utf8'), ts.ScriptTarget.Latest, true);
+  const violations = [];
+  const visit = node => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'assertTest'
+      && node.arguments.some(argument => (ts.isArrowFunction(argument) || ts.isFunctionExpression(argument))
+        && argument.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword))) {
+      violations.push(source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  assert.deepEqual(violations, [], 'Use assertAsyncTest or node:test so asynchronous assertions are awaited');
 });
