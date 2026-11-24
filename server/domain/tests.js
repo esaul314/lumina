@@ -1144,6 +1144,128 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.effects[0].payload, { categories: [] });
   });
 
+  assertTest('photo library updates gate raw feed callbacks and preserve copies, aliases and flags', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.update = withUpdatedPhoto;`, sandbox);
+    const metadata = {}, row = { url: 'same', category: 'A', metadata }, raw = { url: 'same', title: 7, metadata }, miss = { url: 'miss', metadata };
+    const state = createState({ library: { collections: { A: [row] }, externalCollections: { E: [row] }, photosList: [raw, miss], compatibility: metadata } });
+    const calls = [];
+    const unchanged = sandbox.update(state, 'same', photo => (calls.push(photo), photo));
+    assert.strictEqual(unchanged.state, state);
+    assert.deepStrictEqual([unchanged.changed, unchanged.changedInCollections, unchanged.changedInExternalCollections], [false, false, false]);
+    assert.strictEqual(calls.length, 2, 'no feed callback when both libraries are unchanged');
+    calls.length = 0;
+    const updated = sandbox.update(state, 'same', photo => (calls.push(photo), { ...photo, loved: true }));
+    assert.deepStrictEqual([updated.changed, updated.changedInCollections, updated.changedInExternalCollections], [true, true, true]);
+    assert.strictEqual(calls.length, 3);
+    assert.strictEqual(calls[2].category, undefined, 'feed updater does not receive library category filling');
+    assert.strictEqual(updated.state.library.photosList[0].title, 7);
+    assert.strictEqual(updated.state.library.photosList[0].metadata, metadata);
+    assert.notStrictEqual(updated.state.library.photosList[1], miss);
+    assert.strictEqual(updated.state.library.photosList[1].metadata, metadata);
+    assert.strictEqual(Object.hasOwn(updated.state.library, 'compatibility'), false, 'existing library rebuild drops extra container fields');
+    assert.strictEqual(updated.state.config, state.config);
+    const failure = new Error('feed updater');
+    assert.throws(() => sandbox.update(state, 'same', photo => {
+      photo.metadata.visited = true;
+      if (photo.title === 7) throw failure;
+      return { ...photo, loved: true };
+    }), error => error === failure);
+    assert.strictEqual(metadata.visited, true, 'nested callback effects are not rolled back');
+    assert.strictEqual(row.loved, undefined);
+  });
+
+  assertTest('photo persistence filters raw own metadata before ordered library flag effects', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.helpers = { buildDefinedMetadataPatch, buildPhotoPersistenceEffects };`, sandbox);
+    const { buildDefinedMetadataPatch: defined, buildPhotoPersistenceEffects: effects } = sandbox.helpers;
+    const shared = {}, symbol = Symbol('ignored'), calls = [];
+    const raw = Object.assign(Object.create({ inherited: 1 }), { rating: 'raw', cropPercent: undefined, detail: shared, [symbol]: true });
+    const filtered = defined(raw);
+    assert.deepStrictEqual(Object.keys(filtered), ['rating', 'detail']);
+    assert.strictEqual(filtered.rating, 'raw');
+    assert.strictEqual(filtered.detail, shared);
+    assert.deepStrictEqual(Object.getOwnPropertySymbols(filtered), []);
+    const metadata = { get rating() { calls.push('metadata'); return 0; }, cropPercent: undefined, detail: shared };
+    const flags = { get changedInCollections() { calls.push('curated'); return true; }, get changedInExternalCollections() { calls.push('external'); return true; } };
+    const result = effects({ url: 'u', metadata, updateResult: flags });
+    assert.strictEqual(Array.from(result, effect => effect.type).join(','), 'persist,persist-external-photo-metadata');
+    assert.deepStrictEqual(calls, ['metadata', 'curated', 'external']);
+    assert.notStrictEqual(result[1].payload.metadata, metadata);
+    assert.strictEqual(result[1].payload.metadata.rating, 0);
+    assert.strictEqual(result[1].payload.metadata.detail, shared);
+    assert.strictEqual(effects({ url: 'u', metadata: {}, updateResult: flags }).length, 1);
+    const failure = new Error('metadata');
+    assert.throws(() => effects({ url: 'u', metadata: { get rating() { throw failure; } },
+      updateResult: { changedInCollections: false, changedInExternalCollections: false } }), error => error === failure);
+  });
+
+  assertTest('photo reduction clones before updates and finalizes before metadata and event resolution', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.reducePhoto = reducePhotoLibraryCommand;`, sandbox);
+    const row = { url: 'u', category: 'A' }, calls = [], now = new Date(0);
+    const state = createState({ library: { collections: { A: [row] }, externalCollections: {}, photosList: [row] } });
+    const keywords = state.config.searchKeywords;
+    Object.defineProperty(state.config, 'searchKeywords', { enumerable: true, get: () => (calls.push('clone'), keywords) });
+    let finalized;
+    const events = [{ type: 'photo-update' }];
+    const result = sandbox.reducePhoto(state, { url: 'u', updater: photo => (calls.push('update'), { ...photo, loved: true }),
+      metadata: { get loved() { calls.push('metadata'); return true; } }, env: { now },
+      afterUpdate: (next, context) => {
+        calls.push('finalize'); assert.notStrictEqual(next, state);
+        assert.strictEqual(context.updateResult.state, next); assert.strictEqual(context.now, now);
+        return finalized = { state: next, photoChanged: true };
+      }, eventsFor: value => (calls.push('events'), assert.strictEqual(value, finalized), events) });
+    assert.deepStrictEqual(calls, ['clone', 'clone', 'update', 'update', 'finalize', 'metadata', 'events']);
+    assert.strictEqual(result.nextState, finalized.state);
+    assert.strictEqual(result.events, events);
+    const skipped = () => assert.fail('no-op continuation must not run');
+    const noOp = sandbox.reducePhoto(state, { url: 'u', updater: photo => photo, metadata: { get loved() { return skipped(); } }, afterUpdate: skipped, eventsFor: skipped });
+    assert.strictEqual(noOp.nextState, state);
+    assert.strictEqual(noOp.events.length + noOp.effects.length, 0);
+  });
+
+  assertTest('isolated photo counterexamples retain payload-free persist and unvalidated patch spread behavior', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.reviewPhotos = { buildPhotoPersistenceEffects, buildPhotoCommandReducer };`, sandbox);
+    const { buildPhotoPersistenceEffects: effects, buildPhotoCommandReducer: build } = sandbox.reviewPhotos;
+    const persisted = effects({ url: 'u', metadata: { loved: true }, updateResult: { changedInCollections: true, changedInExternalCollections: false } });
+    assert.strictEqual(persisted.length, 1);
+    assert.strictEqual(persisted[0].type, 'persist');
+    assert.strictEqual(Object.hasOwn(persisted[0], 'payload'), false);
+    assert.throws(() => persisted[0].payload.url, error => error.name === 'TypeError');
+    const row = Object.freeze({ url: 'u', title: 'original', category: 'A' });
+    const state = createState({ library: { collections: { A: [row] }, externalCollections: {}, photosList: [row] } });
+    const result = build({ buildPatch: () => ({ loved: true, url: 7, title: 9 }) })(state, { payload: { url: 'u' } });
+    assert.strictEqual(result.nextState.library.collections.A[0].url, 7, 'typing repair must not add runtime validation');
+    assert.strictEqual(result.nextState.library.collections.A[0].title, 9);
+    assert.strictEqual(row.url, 'u');
+    assert.strictEqual(row.title, 'original');
+  });
+
+  assertTest('photo assembly retains repeated payload reads, patch/finalizer aliases and raw feed fields', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.buildPhoto = buildPhotoCommandReducer;`, sandbox);
+    const calls = [], payload = { loved: true }, patch = { loved: true }, token = {}, state = createState(), env = { now: new Date(0) };
+    let options, reads = 0;
+    const finalizer = () => assert.fail('assembly must not execute finalizer');
+    sandbox.reducePhotoLibraryCommand = (received, value) => (calls.push('reduce'), assert.strictEqual(received, state), options = value, token);
+    const reduce = sandbox.buildPhoto({ buildPatch: value => (calls.push('patch'), assert.strictEqual(value, payload), patch),
+      resolveAfterUpdate: value => (calls.push('resolve'), assert.strictEqual(value, payload), finalizer) });
+    const command = { get payload() { calls.push('payload'); return ++reads === 1 ? payload : { url: { toString: () => (calls.push('url'), 'u') } }; } };
+    assert.strictEqual(reduce(state, command, env), token);
+    assert.deepStrictEqual(calls, ['payload', 'patch', 'payload', 'url', 'resolve', 'reduce']);
+    assert.strictEqual(options.metadata, patch);
+    assert.strictEqual(options.afterUpdate, finalizer);
+    assert.strictEqual(options.env, env);
+    assert.strictEqual(options.url, 'u');
+    const raw = { url: 'u', title: 7, rating: 'legacy' }, projected = options.updater(raw);
+    assert.strictEqual(projected.title, 7);
+    assert.strictEqual(projected.rating, 'legacy');
+    assert.strictEqual(projected.loved, true);
+    assert.notStrictEqual(projected, raw);
+  });
+
   assertTest('photo commands describe exact external metadata patches after curated persistence', () => {
     const cases = [
       ['rate-photo', { rating: 7 }, { rating: 7 }],
@@ -2412,7 +2534,7 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => stateSyncEventsFor(true), error => error === failure);
   });
 
-  assertTest('private compiler contracts preserve clone, primitives, libraries, pools and state patches', () => {
+  assertTest('private compiler contracts preserve clone, primitives, libraries, pools, patches and photo mutations', () => {
     const ts = require('typescript');
     const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
     const selectorFile = require.resolve('./selectors.js'), selectorSource = fs.readFileSync(selectorFile, 'utf8');
@@ -2533,6 +2655,64 @@ normalizeFeedConfigKeywords(1);
 /** @type {number} */ const wrongPoolConfigFixture = poolConfigFixture.legacy;
 // @ts-expect-error pool assignment reports boolean flags, not the mutated state
 /** @type {DomainState} */ const wrongPoolResultFixture = assignPoolKeywords(cloneFixture, 'A', ['sun']);
+/** @overload @param {Photo} photo @returns {Photo} */
+/** @overload @param {FeedPhoto} photo @returns {FeedPhoto} */
+/** @param {FeedPhoto} photo @returns {FeedPhoto} */
+function photoUpdaterFixture(photo) { return { ...photo, loved: true }; }
+const photoMutationFixture = withUpdatedPhoto(cloneFixture, 'u', photoUpdaterFixture);
+/** @type {DomainState} */ const photoMutationStateFixture = photoMutationFixture.state;
+/** @type {0 extends (1 & typeof photoMutationFixture.state.library.photosList[number]['url']) ? true : false} */ const photoMutationUrlIsAny = false;
+const definedPhotoMetadataFixture = buildDefinedMetadataPatch({ rating: 'raw', detail: { shared: true }, cropPercent: undefined });
+/** @type {0 extends (1 & typeof definedPhotoMetadataFixture.rating) ? true : false} */ const definedPhotoMetadataIsAny = false;
+const photoFlagsFixture = { changedInCollections: true, changedInExternalCollections: false };
+const photoEffectsFixture = buildPhotoPersistenceEffects({ url: 'u', metadata: { rating: 0, cropPercent: undefined }, updateResult: photoFlagsFixture });
+/** @type {Effect[]} */ const canonicalPhotoEffectsFixture = photoEffectsFixture;
+const firstPhotoEffectFixture = photoEffectsFixture[0];
+if (firstPhotoEffectFixture.type === 'persist') {
+  /** @type {'persist'} */ const curatedPersistTagFixture = firstPhotoEffectFixture.type;
+  // @ts-expect-error payload-free curated persistence has no payload
+  const wrongCuratedPersistPayloadFixture = firstPhotoEffectFixture.payload;
+}
+// @ts-expect-error photo persistence payload requires variant narrowing
+const wrongUnnarrowedPhotoPayloadFixture = firstPhotoEffectFixture.payload.url;
+if (firstPhotoEffectFixture.type === 'persist-external-photo-metadata') {
+  /** @type {number | undefined} */ const photoRatingFixture = firstPhotoEffectFixture.payload.metadata.rating;
+  // @ts-expect-error canonical persisted rating is not a string
+  /** @type {string} */ const wrongPersistedPhotoRatingFixture = firstPhotoEffectFixture.payload.metadata.rating;
+}
+/** @type {ReturnType<typeof keepUpdatedPhotoState>} */ const preservedPhotoFixture = preserveUpdatedPhotoState(cloneFixture, { url: 'u' });
+/** @type {ReducerResult} */ const photoReductionFixture = reducePhotoLibraryCommand(cloneFixture, {
+  url: 'u', updater: photoUpdaterFixture, metadata: { loved: true },
+  afterUpdate: (state, context) => { /** @type {boolean} */ const external = context.updateResult.changedInExternalCollections; return keepUpdatedPhotoState(state); },
+  eventsFor: finalized => finalized.photoChanged ? [{ type: 'photo-update' }] : [{ type: 'state-sync' }]
+});
+const assembledPhotoFixture = buildPhotoCommandReducer({ buildPatch: ({ loved }) => ({ loved: Boolean(loved) }) });
+/** @type {ReducerResult} */ const assembledPhotoResultFixture = assembledPhotoFixture(cloneFixture, { payload: { url: 'u', loved: true } });
+const safeExtraPhotoPatchFixture = () => ({ loved: true, url: 'u', title: 'safe', detail: { legacy: true } });
+const safeExtraPhotoReducerFixture = buildPhotoCommandReducer({ buildPatch: safeExtraPhotoPatchFixture });
+/** @type {ReducerResult} */ const safeExtraPhotoResultFixture = safeExtraPhotoReducerFixture(cloneFixture, { payload: { url: 'u' } });
+const malformedExtraPhotoPatchFixture = () => ({ loved: true, url: 7, title: 9 });
+// @ts-expect-error inferred extra known Photo fields must retain their canonical types
+buildPhotoCommandReducer({ buildPatch: malformedExtraPhotoPatchFixture });
+// @ts-expect-error raw feed metadata must not be claimed normalized
+/** @type {string} */ const wrongUpdatedPhotoTitleFixture = photoMutationFixture.state.library.photosList[0].title;
+// @ts-expect-error raw metadata is not normalized by undefined filtering
+/** @type {number} */ const wrongDefinedPhotoMetadataFixture = definedPhotoMetadataFixture.rating;
+// @ts-expect-error updater must return photos for both library and raw-feed inputs
+withUpdatedPhoto(cloneFixture, 'u', () => 7);
+/** @type {import('./selectors').PhotoUpdater} */ const normalizedOnlyPhotoUpdaterFixture = photo => photo;
+// @ts-expect-error an updater cannot assume every feed row is normalized
+withUpdatedPhoto(cloneFixture, 'u', normalizedOnlyPhotoUpdaterFixture);
+// @ts-expect-error canonical effect metadata rejects unnormalized ratings
+buildPhotoPersistenceEffects({ url: 'u', metadata: { rating: 'raw' }, updateResult: photoFlagsFixture });
+// @ts-expect-error library mutation flags are booleans
+buildPhotoPersistenceEffects({ url: 'u', metadata: {}, updateResult: { changedInCollections: 'yes', changedInExternalCollections: false } });
+// @ts-expect-error photo finalization needs a canonical state
+reducePhotoLibraryCommand(cloneFixture, { url: 'u', updater: photoUpdaterFixture, metadata: {}, afterUpdate: () => ({ state: 'wrong', photoChanged: false }) });
+// @ts-expect-error photo event callbacks return events, not persistence effects
+reducePhotoLibraryCommand(cloneFixture, { url: 'u', updater: photoUpdaterFixture, metadata: {}, eventsFor: () => [{ type: 'persist' }] });
+// @ts-expect-error photo assembly patches retain canonical metadata types
+buildPhotoCommandReducer({ buildPatch: () => ({ rating: 'raw' }) });
 `;
     const selectorFixture = `
 const libraryInputFixture = { A: [{ url: 'u', category: 'A', metadata: { shared: true } }] };
@@ -2626,11 +2806,17 @@ const coordinateFallbackFixture = normalizeCoordinate(null, coordinateFallbackTo
       });
     };
     assert.deepStrictEqual(fixtureDiagnostics(source, selectorSource, patchSource).map(item => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
-    const withoutContract = ['cloneState', 'normalizeFeedConfigKeywords', 'hasPool', 'normalizePoolName', 'mergePoolFeedConfig',
-      'addPoolState', 'assignPoolKeywords', 'mergePoolSourceConfig', 'assignPoolPolicy', 'removePoolState'].reduce((text, name) => {
-      const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
-      return text.slice(0, comment) + text.slice(start);
-    }, source);
+    const contractNames = new Set(['cloneState', 'normalizeFeedConfigKeywords', 'hasPool', 'normalizePoolName', 'mergePoolFeedConfig',
+      'addPoolState', 'assignPoolKeywords', 'mergePoolSourceConfig', 'assignPoolPolicy', 'removePoolState', 'withUpdatedPhoto',
+      'buildDefinedMetadataPatch', 'buildPhotoPersistenceEffects', 'keepUpdatedPhotoState', 'preserveUpdatedPhotoState',
+      'reducePhotoLibraryCommand', 'readPhotoCommandUrl', 'buildPhotoCommandReducer']);
+    const reducerTree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    // Strip all contiguous overload/implementation docs together, not only the last block.
+    const withoutContract = reducerTree.statements.filter(node => node.jsDoc?.length && (
+      ts.isFunctionDeclaration(node) ? contractNames.has(node.name?.text)
+        : ts.isVariableStatement(node) && node.declarationList.declarations.some(item => contractNames.has(item.name.getText(reducerTree)))
+    )).map(node => [node.jsDoc[0].pos, node.getStart(reducerTree)]).sort(([left], [right]) => right - left)
+      .reduce((text, [start, end]) => text.slice(0, start) + text.slice(end), source);
     const withoutLibraryContracts = ['attachCategory', 'getCategoryPhotos', 'updatePhotoInNamedCollections'].reduce((text, name) => {
       const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
       return text.slice(0, comment) + text.slice(start);
@@ -2645,6 +2831,8 @@ const coordinateFallbackFixture = normalizeCoordinate(null, coordinateFallbackTo
     assert.ok(patchSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('patchLatitudeIsAny')), 'Location coordinates must retain their non-any leaf contract');
     const cloneSensitive = sensitive.filter(item => item.file.fileName === file);
     const librarySensitive = sensitive.filter(item => item.file.fileName === selectorFile);
+    assert.ok(cloneSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('photoMutationUrlIsAny')), 'Photo mutation output must retain its non-any raw feed leaf');
+    assert.ok(cloneSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('raw metadata is not normalized')), 'Raw metadata filtering must not acquire normalized fields');
     assert.ok(cloneSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('complete domain sections')), 'Removing the clone contract must invalidate its negative assertion');
     assert.ok(cloneSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('cloneResultIsAny')), 'The anti-any assertion must also reject an untyped clone result');
     assert.ok(cloneSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('pool creation requires')), 'Removing pool contracts must invalidate their negative assertion');

@@ -8,6 +8,8 @@
  * @typedef {import('./types').Event} Event
  * @typedef {import('./types').FeedPhoto} FeedPhoto
  * @typedef {import('./types').Photo} Photo
+ * @typedef {import('./types').PhotoMetadataPatch} PhotoMetadataPatch
+ * @typedef {import('./selectors').PhotoUpdater & ((photo: FeedPhoto) => FeedPhoto)} LibraryFeedUpdater
  * @typedef {import('./types').ReducerEnvironment} ReducerEnvironment
  * @typedef {import('./types').ReducerResult} ReducerResult
  */
@@ -651,6 +653,17 @@ function ensureActivePhoto(state, { now, rng, direction = 'next', forceReselect 
   };
 }
 
+/**
+ * Curated then external update; only a library change enables feed callbacks.
+ * Miss/no-op retains the original state and false flags, discarding library copies.
+ * Changed paths copy every feed row, updating exact matches without category fill;
+ * nested/extra metadata stays aliased. Native callback/read/filter failures escape.
+ * The updater must handle normalized library rows and unvalidated feed rows.
+ * @param {DomainState} state
+ * @param {string} url
+ * @param {LibraryFeedUpdater} updater
+ * @returns {{state: DomainState, changed: boolean, changedInCollections: boolean, changedInExternalCollections: boolean}}
+ */
 function withUpdatedPhoto(state, url, updater) {
   const {
     collections,
@@ -686,12 +699,30 @@ function withUpdatedPhoto(state, url, updater) {
   };
 }
 
+/**
+ * Fresh raw own-string record; omit only undefined values. Entries/getters are
+ * read before filtering, symbols/inherited fields are omitted, aliases retained.
+ * No normalization or validation of compatibility metadata; native failures escape.
+ * @param {object} entries
+ * @returns {Record<string, unknown>}
+ */
 function buildDefinedMetadataPatch(entries) {
   return Object.fromEntries(
     Object.entries(entries).filter(([, value]) => value !== undefined)
   );
 }
 
+/**
+ * @overload
+ * @param {{url: string, metadata: PhotoMetadataPatch, updateResult: Pick<ReturnType<typeof withUpdatedPhoto>, 'changedInCollections' | 'changedInExternalCollections'>}} options
+ * @returns {Array<{type: 'persist'} | Extract<Effect, {type: 'persist-external-photo-metadata'}>>}
+ */
+/**
+ * Filter metadata before checking flags; curated persist precedes nonempty
+ * external metadata persistence. These canonical inputs describe intended
+ * producers, not runtime validation or an atomic write. Original values stay aliased.
+ * @param {{url: string, metadata: PhotoMetadataPatch, updateResult: Pick<ReturnType<typeof withUpdatedPhoto>, 'changedInCollections' | 'changedInExternalCollections'>}} options
+ */
 function buildPhotoPersistenceEffects({ url, metadata, updateResult }) {
   const metadataPatch = buildDefinedMetadataPatch(metadata);
 
@@ -703,10 +734,18 @@ function buildPhotoPersistenceEffects({ url, metadata, updateResult }) {
   ];
 }
 
+/** @param {DomainState} state @returns {{state: DomainState, photoChanged: boolean}} */
 function keepUpdatedPhotoState(state) {
   return { state, photoChanged: false };
 }
 
+/**
+ * Feed-first then library lookup; miss retains state. A found raw URL is projected
+ * with lastDirection, without visibility filtering or metadata normalization.
+ * @param {DomainState} state
+ * @param {{url: string}} options
+ * @returns {ReturnType<typeof keepUpdatedPhotoState>}
+ */
 function preserveUpdatedPhotoState(state, { url }) {
   const focusedPhoto = findPhotoInFeed(state.library.photosList, url)
     || getPhotoByUrl(state.library.collections, url, state.library.externalCollections);
@@ -722,6 +761,16 @@ function preserveUpdatedPhotoState(state, { url }) {
   };
 }
 
+/**
+ * Clone before all updates; no-op returns the original state without finalization
+ * or metadata/event reads. Changed paths finalize, build persistence descriptions,
+ * then resolve events, preserving callback/state/metadata aliases and native failures.
+ * @param {DomainState} state
+ * @param {{url: string, updater: LibraryFeedUpdater, metadata: PhotoMetadataPatch,
+ *   afterUpdate?: (state: DomainState, context: ReducerEnvironment & {url: string, updateResult: ReturnType<typeof withUpdatedPhoto>}) => ReturnType<typeof keepUpdatedPhotoState>,
+ *   eventsFor?: (finalized: ReturnType<typeof keepUpdatedPhotoState>) => Event[], env?: ReducerEnvironment}} options
+ * @returns {ReducerResult}
+ */
 function reducePhotoLibraryCommand(state, {
   url,
   updater,
@@ -753,8 +802,21 @@ function reducePhotoLibraryCommand(state, {
   });
 }
 
+/** Native truthy URL String coercion; missing/falsy URL becomes ''.
+ * @param {{payload?: {url?: unknown} | null}} command
+ * @returns {string}
+ */
 const readPhotoCommandUrl = (command) => String(command.payload?.url || '');
 
+/**
+ * Patch, URL coercion, finalizer resolution, then clone/update/finalize. Falsy
+ * payloads use {}; defaults apply only to undefined callbacks. Patch objects are
+ * shared with persistence and shallow-spread into each row; failures propagate.
+ * @param {{buildPatch?: (payload: Partial<Photo> & {preserveActive?: boolean}) => PhotoMetadataPatch & Partial<Photo>,
+ *   resolveAfterUpdate?: (payload: Partial<Photo> & {preserveActive?: boolean}) => NonNullable<Parameters<typeof reducePhotoLibraryCommand>[1]['afterUpdate']>,
+ *   eventsFor?: NonNullable<Parameters<typeof reducePhotoLibraryCommand>[1]['eventsFor']>}} spec
+ * @returns {(state: DomainState, command: {payload?: Partial<Photo> & {preserveActive?: boolean} | null}, env?: ReducerEnvironment) => ReducerResult}
+ */
 function buildPhotoCommandReducer({
   buildPatch = () => ({}),
   resolveAfterUpdate = () => keepUpdatedPhotoState,
@@ -766,7 +828,10 @@ function buildPhotoCommandReducer({
 
     return reducePhotoLibraryCommand(state, {
       url: readPhotoCommandUrl(command),
-      updater: (photo) => ({ ...photo, ...patch }),
+      updater: /** @overload @param {Photo} photo @returns {Photo} */
+        /** @overload @param {FeedPhoto} photo @returns {FeedPhoto} */
+        /** @param {FeedPhoto} photo @returns {FeedPhoto} */
+        (photo) => ({ ...photo, ...patch }),
       metadata: patch,
       afterUpdate: resolveAfterUpdate(payload),
       ...(eventsFor ? { eventsFor } : {}),
