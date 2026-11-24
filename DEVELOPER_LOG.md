@@ -1,5 +1,30 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-24 — qualify a pinned native runtime and release
+
+Official LTS/security Node26 is qualified against the actual service Node24,
+not the shell's Node22. The one standard .nvmrc pin owns the intended version.
+The existing installer refuses mismatches before modifying a native unit; its
+ExecStart and PATH derive from the same selected executable. The manual fallback
+now directly execs Node while keeping its duplicate-port/flock guard. Removed the
+npm child wrapper; no new manager, dependency, daemon, runtime ledger or helper.
+
+Both runtimes pass 917 runtime, 13 sensor, 3 compiler and 4 isolated launcher/unit
+checks. Fake-systemctl/temp-HOME tests cannot touch the live service; mismatch
+preserves the incumbent unit. A fixture expectation initially omitted the native
+--user argument; corrected the expectation, retaining the supported user scope.
+Fourteen headless slideshow/cursor cases pass. A disposable history fixture was
+written/read across24→26→24, including a candidate write read by the old runtime;
+no production database or migration was involved. Strict remains290core/68transitive.
+
+Root release metadata is1.0.1; client metadata/locks/dependencies stay unchanged.
+The client rebuild is byte-identical, not a new UI claim. Native Temporal, Map
+upsert and Iterator.concat are available for future clear simplifications, not a
+reason to rewrite working code. Browser syntax targets remain separate.
+Independent review accepted source/qualification. Final native promotion/live
+acceptance is pending; retain old runtime/unit/payload and preserve private data.
+
+
 ## 2026-11-24 — extract client-state/control regressions
 
 Moved the coherent mixed client-selector, REST/Socket.IO and Google Photos boundary

@@ -238,6 +238,13 @@ Node.js release to enable useful recent language/runtime features and simplify
 TypeScript/tooling where appropriate. This is a planned evaluation, not a runtime
 change or a premature TypeScript rewrite. Select the target from current upstream
 support status and a concrete feature payoff, not merely the highest version.
+**Qualification accepted, 2026-11-24:** the commissioned runtime/release slice
+selects official LTS/security Node 26.13.1, declared once in `.nvmrc`. It exposes
+native Temporal, Map upsert and iterator composition without adding polyfills;
+using these APIs remains a separate, need-driven code choice. Locked-dependency
+suites, native history compatibility and headless/client-build checks pass.
+The existing service/launcher are aligned; final native promotion/live acceptance
+is an explicit owner step, not an implicit effect of editing the pin.
 
 - Compare the current application runtime with the candidate using the locked
   dependencies, native-addon compatibility, full tests, strict diagnostic
@@ -262,7 +269,7 @@ Convert the stabilized local codebase to TypeScript to build a bulletproof type 
   - Convert `server/domain/` from JSDoc `@ts-check` JS files to native `.ts` files.
   - Establish compile-time validation for the command reducer, selectors, and state models.
 - **Backend Service & Daemon Migration**:
-  - Configure Node.js TS execution using Node v22's native type stripping (`--experimental-strip-types`) with appropriate package script configurations, or standard transpilation if required for tooling compatibility.
+  - Use the qualified project runtime's supported native type stripping for an erasable TypeScript subset, or standard transpilation where language/tooling semantics require it. Verify module resolution and non-erasable constructs before migration; do not copy obsolete runtime flags.
   - Ensure the regression test runner (`run-tests.js`) and integration tests are updated to support TypeScript imports without breaking the zero-dependency execution model.
 
 ## Phase 2
@@ -357,7 +364,7 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 ### TypeScript Migration (Transition Bridge)
 
 - Frontend runs entirely on TypeScript (.ts/.tsx) with Vite compiler checks passing.
-- Backend runs with Node's native type-stripping flags (`--experimental-strip-types`) or standard build transpilation.
+- Backend uses the qualified runtime's supported erasable-TypeScript execution or standard build transpilation, with module/language compatibility tested.
 - Domain logic compiles under strict mode and all existing `run-tests.js` tests execute successfully without errors.
 - The TV client stays within a measured memory budget on the reference host. The
   existing sub-80MB aspiration must be validated against total process RSS and

@@ -238,14 +238,20 @@ The existing runner owns shared reporting and execution; its size fell by 1,111
 lines. All 930 runtime/sensor pass lines retain their order; a deliberate failed
 assertion produced exactly one failure/exit1. No framework or production change.
 
-**Next selected implementation:** qualify the runtime and release through the
-existing native service, with clean committed source, rollback and live checks. Fila owns orchestration; Beads owns executable
+**Runtime/release source qualified:** **build(runtime): pin Node LTS and align
+existing launch paths** and **chore(release): qualify the Node LTS baseline for
+Lumina 1.0.1** retain one `.nvmrc` authority, existing native service ownership
+and direct-exec fallback. Both runtimes pass 917 runtime / 13 sensor / 3 compiler /
+4 isolated runtime checks; 14 headless checks and the client build pass.
+**Remaining sequence gate:** clean provenance and native promotion/live acceptance,
+with rollback retained. No further product feature is selected by this gate. Fila owns orchestration; Beads owns executable
 prerequisites/claims, not product priority or process liveness.
 
-**Runtime:** the live service remains Node 24.18.0. Official LTS 26.13.1 is staged
-privately with published integrity verified, not activated. Shell defaults and the
-OpenClaw node runtime remain independent. The commissioned final step must qualify
-tests/build/rollback and commit clean source before rebuilding/restarting Lumina.
+**Runtime:** official LTS 26.13.1 is privately staged and fully qualified;
+the live service still uses 24.18 pending the explicit promotion gate. Published
+integrity is verified, and disposable history reads/writes remain compatible
+24→26→24. Shell defaults and the OpenClaw node runtime stay independent. Client
+assets rebuild identically; no UI feature or browser-language upgrade is implied.
 
 Apply [complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline)
 and preserve [product priorities/deferrals](./ROADMAP.md). Rationale and historical

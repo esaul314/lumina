@@ -166,7 +166,12 @@ npm run dev
 The native user service is the running owner. Inspect its ExecStart and live
 process executable before choosing a test/development runtime; shell node and the
 OpenClaw node-agent runtime can differ. Follow the project's declared runtime
-when available and qualify changes against the actual deployed baseline.
+from the committed `.nvmrc` pin and qualify changes against the actual deployed
+baseline. Select the installed qualified binary explicitly for tests/builds.
+The existing installer accepts `NODE_BIN`; it and the manual launcher reject
+a version mismatch. The generated service uses the same binary for ExecStart
+and derives PATH from its directory. Do not change a global Node default or the
+separate OpenClaw runtime to satisfy this project pin.
 
 ```bash
 systemctl --user status lumina.service
