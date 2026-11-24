@@ -6123,6 +6123,52 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(updatePhotosList('target', updateTitle, null), []);
   });
 
+
+  assertTest('weather location preference round-trips without changing other widget defaults or location data', () => {
+    const defaults = { ...createState().config, widgets: { clock: true, weather: true, weatherLocation: true } };
+    const dependencies = {
+      defaultCollections: createState().library.collections,
+      defaultState: defaults,
+      buildFeedConfigsFromKeywords: () => ({})
+    };
+    [true, false].forEach((visible) => {
+      const state = { ...defaults, widgets: { ...defaults.widgets, weatherLocation: visible } };
+      const saved = buildPersistedSnapshot(dependencies.defaultCollections, state, 123);
+      assert.deepStrictEqual(saved.widgets, { weatherLocation: visible });
+      const restored = normalizePersistedSnapshot(saved, dependencies);
+      assert.deepStrictEqual(restored.persistedState.widgets, state.widgets);
+      assert.deepStrictEqual(restored.persistedState.manualLocation, state.manualLocation);
+      assert.strictEqual(restored.persistedState.autoLocation, state.autoLocation);
+      assert.deepStrictEqual(restored.collections, dependencies.defaultCollections);
+      assert.strictEqual(defaults.widgets.weatherLocation, true);
+    });
+    [undefined, null, 'false', 0, {}].forEach((value) => {
+      const restored = normalizePersistedSnapshot({ widgets: { weatherLocation: value, clock: false } }, dependencies);
+      assert.deepStrictEqual(restored.persistedState.widgets, defaults.widgets);
+    });
+    assert.strictEqual(normalizePersistedSnapshot({}, dependencies).persistedState.widgets.weatherLocation, true);
+    assert.strictEqual(normalizePersistedSnapshot({}, { ...dependencies, defaultState: {} }).persistedState.widgets.weatherLocation, true);
+  });
+
+  assertTest('weather label patch stays presentational with persistence and a sync event', () => {
+    const state = createState();
+    state.config.widgets = { ...state.config.widgets, weather: true, weatherLocation: true };
+    const before = structuredClone(state);
+    const result = reduceDomainCommand(state, { type: 'patch-state', payload: { widgets: { weatherLocation: false } } });
+    assert.strictEqual(result.nextState.config.widgets.weatherLocation, false);
+    assert.strictEqual(result.nextState.config.widgets.weather, true);
+    assert.deepStrictEqual(result.nextState.runtime, state.runtime);
+    assert.deepStrictEqual(result.nextState.library, state.library);
+    assert.deepStrictEqual(result.nextState.playback, state.playback);
+    assert.deepStrictEqual(result.nextState.config.manualLocation, state.config.manualLocation);
+    assert.deepStrictEqual(result.effects.map(({ type }) => type), ['persist']);
+    assert.deepStrictEqual(result.events.map(({ type }) => type), ['state-sync']);
+    assert.deepStrictEqual(state, before);
+    const snapshot = buildSnapshot(result.nextState);
+    assert.strictEqual(snapshot.widgets.weatherLocation, false);
+    assert.strictEqual(buildDomainState(snapshot, state.library.collections).config.widgets.weatherLocation, false);
+  });
+
   assertTest('persistence codec normalizes legacy shapes and restores feed configs', () => {
     const normalized = normalizePersistedSnapshot({
       feeds: {

@@ -102,6 +102,7 @@ const screensaverState = {
   widgets: {
     clock: true,
     weather: true,
+    weatherLocation: true,
     indoorEnvironment: true,
     qrcode: true,
     particles: false,  // Default: Low Power Mode

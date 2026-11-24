@@ -169,6 +169,7 @@ if (loadedCollectionsSnapshot.duplicatesRemoved) {
 
 const {
   persistedState: {
+    widgets,
     searchKeywords,
     feedConfigs,
     poolPolicies,
@@ -183,6 +184,7 @@ const {
 } = loadedCollectionsSnapshot;
 
 Object.assign(screensaverState, {
+  widgets,
   searchKeywords,
   feedConfigs,
   poolPolicies,

@@ -19,6 +19,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  * open because older snapshots may carry fields newer versions do not know.
  *
  * @typedef {object} PersistedStateDefaults
+ * @property {Record<string, boolean>} [widgets]
  * @property {KeywordMap} [searchKeywords]
  * @property {Record<string, Record<string, unknown>>} [poolPolicies]
  * @property {unknown} [autoLocation]
@@ -41,6 +42,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  * Open compatibility shape decoded from the persisted JSON document.
  *
  * @typedef {Record<string, unknown> & {
+ *   widgets?: Record<string, unknown>,
  *   feeds?: CollectionEntries,
  *   searchKeywords?: KeywordMap,
  *   feedConfigs?: FeedConfigMap,
@@ -59,6 +61,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
 
 /**
  * @typedef {object} PersistedState
+ * @property {Record<string, boolean>} widgets
  * @property {KeywordMap} searchKeywords
  * @property {FeedConfigMap} feedConfigs
  * @property {Record<string, Record<string, unknown>>} poolPolicies
@@ -77,6 +80,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  * @typedef {object} PersistedSnapshot
  * @property {number} lastUpdated
  * @property {number} lastFeedUpdated
+ * @property {{weatherLocation: boolean}} [widgets]
  * @property {CollectionSnapshot} feeds
  * @property {KeywordMap} [searchKeywords]
  * @property {FeedConfigMap} [feedConfigs]
@@ -240,6 +244,13 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
   return {
     collections,
     persistedState: {
+      // ponytail: restore only the new preference; other widget defaults stay unchanged.
+      widgets: {
+        ...(defaultState.widgets ?? {}),
+        weatherLocation: typeof rawData?.widgets?.weatherLocation === 'boolean'
+          ? rawData.widgets.weatherLocation
+          : (defaultState.widgets?.weatherLocation ?? true)
+      },
       searchKeywords,
       feedConfigs,
       poolPolicies,
@@ -267,6 +278,7 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
  */
 function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now()) {
   const {
+    widgets,
     searchKeywords,
     feedConfigs,
     poolPolicies,
@@ -280,11 +292,16 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
     excludedKeywords
   } = state;
   const uniqueCollections = dedupeCollections(cloneCollectionEntries(collections)).collections;
+  /** @type {PersistedSnapshot} */
   const payload = {
     lastUpdated: timestamp,
     lastFeedUpdated,
     feeds: uniqueCollections
   };
+
+  if (widgets) {
+    payload.widgets = { weatherLocation: widgets.weatherLocation !== false };
+  }
 
   if (searchKeywords) {
     payload.searchKeywords = searchKeywords;
