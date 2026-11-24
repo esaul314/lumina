@@ -1,5 +1,14 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-24 — capture a deferred Beautiful Code Spotlight
+
+User feedback adds a later AI-curated code spotlight: one dedicated prompt selects
+and explains a particularly beautiful source snippet, perhaps monthly. This fits
+the functional/declarative teaching objective. The product roadmap owns the idea;
+no executable task, schedule, model change or UI surface is selected. Verify the
+recalled pdf_chunker precedent when commissioned, not as a prerequisite to capture.
+Native npm test passes on the unchanged application; this is documentation only.
+
 ## 2026-11-24 — qualify a pinned native runtime and release
 
 Official LTS/security Node26 is qualified against the actual service Node24,

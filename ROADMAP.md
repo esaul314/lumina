@@ -109,7 +109,7 @@ Lumina should continue moving toward one stable integration boundary:
 - Socket.IO should shrink to live sync, push notifications, TV viewport/reporting, and low-latency playback events.
 - The codebase should keep moving toward a functional core / imperative shell split with pure reducers, selectors, codecs, and transport adapters.
 
-## Optional Feature Candidate
+## Optional Feature Candidates
 
 ### Minimal display mode
 
@@ -120,6 +120,24 @@ explicit feature flag and proceed only if a real-host presenter spike proves
 measurable CPU/memory savings, visual sufficiency, and reliable recovery. The
 canonical state, selectors, metadata, and persistence layers should remain
 shared if this feature is pursued.
+
+### Beautiful Code Spotlight — later candidate (Alex, 2026-11-24)
+
+Use a dedicated, repository-versioned prompt to ask an AI agent to select a code
+snippet it considers especially beautiful and explain why. Showcase Lumina's
+project-wide declarative/functional objective: clarity, composition, useful lawful
+abstractions and modern language constructs, not cleverness or shortest code.
+Retain the source path, revision and enough context to understand the selection;
+link existing tests where relevant. A different selection roughly monthly is the
+initial idea, not an enabled schedule.
+
+Deferred until selected: agree the prompt, presentation surface (developer docs,
+admin or TV), cadence and simple repeat-selection policy. Prefer one reviewed
+output through the existing agent/workflow rather than a new service, selection
+DB or scheduler. Alex recalls a similar pdf_chunker idea; verify/reuse its useful
+parts during design, without assuming that feature already exists. Acceptance:
+a representative selection and explanation are useful to Alex and match actual
+source; no application behavior or public publication is implied by capture.
 
 ## Current Baseline
 
