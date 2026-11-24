@@ -139,40 +139,75 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     // @ts-expect-error effect type remains in the closed canonical vocabulary
     buildEffectResultReducer({ effectType: 'not-an-effect' });
   `;
-  const readerFixture = `
-    /** @type {DomainState} */ const fixtureState = /** @type {DomainState} */ ({});
-    const fixtureFamilies = createReducerFamilyInterpreter([{
-      buildEnv: (/** @type {{seed: number}} */ env) => ({ factor: env.seed }),
-      reducers: {
-        inspect: (/** @type {DomainState} */ state, /** @type {{type: 'inspect', value: number}} */ command, /** @type {{factor: number}} */ env) => command.value * env.factor
-      }
-    }]);
-    /** @type {number | ReducerResult} */ const fixtureFamilyResult = fixtureFamilies(fixtureState, { type: 'inspect', value: 2 }, { seed: 3 });
-    // @ts-expect-error dispatch retains the reducer's numeric result, not any
-    /** @type {string | ReducerResult} */ const fixtureWrongFamilyResult = fixtureFamilies(fixtureState, null, { seed: 3 });
-    // @ts-expect-error dispatch can miss and return an unchanged-state envelope
-    /** @type {number} */ const fixtureFamilyNumberOnly = fixtureFamilyResult;
-    // @ts-expect-error the original command type remains checked through dispatch
-    fixtureFamilies(fixtureState, { type: 'inspect', value: 'wrong' }, { seed: 3 });
-    // @ts-expect-error the environment adapter retains its original input type
-    fixtureFamilies(fixtureState, null, { seed: 'wrong' });
-    const fixtureBareFamilies = createReducerFamilyInterpreter(Object.freeze([{
-      reducers: { bare: (/** @type {DomainState} */ state, /** @type {{type: 'bare'}} */ command, /** @type {undefined} */ env) => command.type }
+  const familyFixture = `
+    /** @type {DomainState} */ const fixtureFamilyState = /** @type {DomainState} */ ({});
+    const fixtureEnvironment = { now: new Date(), rng: () => 0 };
+    const fixtureCanonicalFamily = createReducerFamilyInterpreter(Object.freeze([{
+      reducers: { 'trigger-recrawl': (/** @type {DomainState} */ state) => unchangedResult(state) }
     }]));
-    /** @type {'bare' | ReducerResult} */ const fixtureBareResult = fixtureBareFamilies(fixtureState, { type: 'bare' }, undefined);
-    /** @type {ReducerFamily<{type: 'inspect'}, {seed: number}, {factor: number}, number>} */
-    const fixtureInvalidFamily = {
-      buildEnv: env => ({ factor: env.seed }),
-      // @ts-expect-error adapted reducers must accept their adapter's output
-      reducers: { inspect: (state, command, /** @type {{factor: string}} */ env) => env.factor.length }
+    /** @type {ReducerResult} */ const fixtureBareFamilyResult = fixtureCanonicalFamily(fixtureFamilyState, { type: 'trigger-recrawl' }, fixtureEnvironment);
+    fixtureCanonicalFamily(fixtureFamilyState, null, fixtureEnvironment);
+    // @ts-expect-error family dispatch retains the closed command vocabulary
+    fixtureCanonicalFamily(fixtureFamilyState, { type: 'unknown-command' }, fixtureEnvironment);
+    // @ts-expect-error family dispatch retains canonical payloads
+    fixtureCanonicalFamily(fixtureFamilyState, { type: 'change-interval', payload: { intervalMs: 'wrong' } }, fixtureEnvironment);
+    // @ts-expect-error family dispatch retains the resolved environment
+    fixtureCanonicalFamily(fixtureFamilyState, null, { now: 'wrong', rng: () => 0 });
+    /** @type {ReducerFamily} */
+    const fixtureAdaptedFamily = {
+      buildEnv: env => ({ now: env.now, rng: env.rng }),
+      reducers: { 'advance-photo': (/** @type {DomainState} */ state, /** @type {Extract<Command, {type: 'advance-photo'}>} */ command, /** @type {ResolvedReducerEnvironment} */ env) => {
+        /** @type {Date} */ const now = env.now;
+        /** @type {'next' | 'prev' | undefined} */ const direction = command.payload?.direction;
+        return unchangedResult(state);
+      } }
     };
-    /** @type {ReducerFamily<{type: 'bare'}, {}, {factor: number}, number>} */
-    // @ts-expect-error without an adapter, reducers must accept undefined
-    const fixtureMissingAdapter = { reducers: { bare: (state, command, /** @type {{factor: number}} */ env) => env.factor } };
-    const fixtureProductionFamilyResult = interpretCommandFamilies(fixtureState, null, { now: new Date(), rng: () => 0 });
+    createReducerFamilyInterpreter([fixtureAdaptedFamily])(fixtureFamilyState, { type: 'advance-photo' }, fixtureEnvironment);
+    const fixtureProductionFamilyResult = interpretCommandFamilies(fixtureFamilyState, null, fixtureEnvironment);
+    interpretCommandFamilies(fixtureFamilyState, { type: 'save-env-secret', payload: { envKey: 'EXAMPLE', runtimeFlag: 'hasExample', value: '' } }, fixtureEnvironment);
+    // @ts-expect-error family results are domain envelopes, not arbitrary custom results
+    /** @type {number} */ const fixtureFamilyNumber = fixtureProductionFamilyResult;
     /** @type {unknown} */ const fixtureFamilyRawUrl = fixtureProductionFamilyResult.nextState.playback.activePhotoUrl;
     // @ts-expect-error family results retain the unvalidated active URL
     /** @type {string | null} */ const fixtureFamilyNormalizedUrl = fixtureProductionFamilyResult.nextState.playback.activePhotoUrl;
+    /** @type {ReducerFamily} */
+    const fixtureSelectedFamily = { reducers: { 'save-env-secret': reduceSimpleCommand['save-env-secret'] } };
+    if (!fixtureSelectedFamily.buildEnv) {
+      const fixtureSecretHandler = fixtureSelectedFamily.reducers['save-env-secret'];
+      if (fixtureSecretHandler) {
+        fixtureSecretHandler(fixtureFamilyState, { type: 'save-env-secret', payload: { envKey: 'X', runtimeFlag: 'x', value: '' } }, undefined);
+        // @ts-expect-error keyed registry rejects another command variant
+        fixtureSecretHandler(fixtureFamilyState, { type: 'trigger-recrawl' }, undefined);
+        // @ts-expect-error keyed registry retains the canonical payload
+        fixtureSecretHandler(fixtureFamilyState, { type: 'save-env-secret', payload: { envKey: 'X', runtimeFlag: 'x', value: 3 } }, undefined);
+      }
+    }
+    /** @type {ReducerFamily} */
+    const fixtureSwappedFamily = {
+      // @ts-expect-error keyed registry cannot move a narrow handler to another key
+      reducers: { 'trigger-recrawl': reduceSimpleCommand['save-env-secret'] }
+    };
+    const fixtureWrongKey = { reducers: { 'trigger-recrawl': reduceSimpleCommand['save-env-secret'] } };
+    // @ts-expect-error registration checks canonical keys through variables
+    createReducerFamilyInterpreter([fixtureWrongKey]);
+    const fixtureCorrectFamily = { reducers: { 'save-env-secret': reduceSimpleCommand['save-env-secret'] } };
+    // @ts-expect-error a sibling cannot make an erased physical key reachable
+    createReducerFamilyInterpreter([fixtureCorrectFamily, { reducers: { 'trigger-recrawl': (/** @type {DomainState} */ state) => unchangedResult(state) } }, fixtureWrongKey]);
+    const fixtureNeedsEnvironment = { reducers: { 'trigger-recrawl': (/** @type {DomainState} */ state, /** @type {Command} */ command, /** @type {ResolvedReducerEnvironment} */ env) => env.rng() ? unchangedResult(state) : unchangedResult(state) } };
+    // @ts-expect-error registration rejects a missing adapter in a mixed family
+    createReducerFamilyInterpreter([fixtureCorrectFamily, fixtureNeedsEnvironment]);
+    // @ts-expect-error registration rejects an incompatible adapter result
+    createReducerFamilyInterpreter([{ ...fixtureNeedsEnvironment, buildEnv: (/** @type {ResolvedReducerEnvironment} */ env) => ({ now: env.now, rng: 1 }) }]);
+    const fixtureUnionDiscriminator = (/** @type {DomainState} */ state, /** @type {{type: 'trigger-recrawl' | 'save-env-secret', payload: {value: number}}} */ command, /** @type {undefined} */ env) => unchangedResult(state);
+    // @ts-expect-error union-valued discriminators cannot erase canonical payload checks
+    createReducerFamilyInterpreter([{ reducers: { 'trigger-recrawl': fixtureUnionDiscriminator } }, fixtureCorrectFamily]);
+    // @ts-expect-error registration rejects arbitrary handler results
+    createReducerFamilyInterpreter([{ reducers: { 'trigger-recrawl': () => 1 } }]);
+    // @ts-expect-error registry keys stay in the canonical command vocabulary
+    createReducerFamilyInterpreter([{ reducers: { unsupported: (/** @type {DomainState} */ state) => unchangedResult(state) } }]);
+  `;
+  const readerFixture = `
+    /** @type {DomainState} */ const fixtureState = /** @type {DomainState} */ ({});
     const fixtureReader = readPatchField('x', (value, state, patch) => {
       /** @type {unknown} */ const raw = value;
       /** @type {DomainState} */ const sameState = state;
@@ -490,7 +525,7 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     }
     // @ts-expect-error feed entries must be URL-bearing row shapes
     prependVisiblePhoto([42], { url: 'x' });
-  ` + constructorFixture + effectFixture;
+  ` + constructorFixture + effectFixture + familyFixture;
   const host = ts.createCompilerHost(parsed.options);
   const readFile = host.readFile.bind(host);
   host.readFile = (fileName) => {
@@ -509,7 +544,8 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
     item.start >= decoder.getStart(commands) && item.start < decoder.end), []);
   const readerDiagnostics = diagnostics.filter((item) => item.file &&
     path.resolve(item.file.fileName) === reducerPath && item.start >= reducerSource.length);
-  assert.deepEqual(readerDiagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
+  assert.deepEqual(readerDiagnostics.map(item => ({ message: ts.flattenDiagnosticMessageText(item.messageText, '\n'),
+    source: item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line] })), []);
   // Remove only constructor annotations in memory: each state relationship must
   // lose a negative assertion, proving these private fixtures detect weakening.
   const reducerFile = program.getSourceFile(reducerPath);
@@ -524,10 +560,16 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   const effectFactory = reducerFile.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'buildEffectResultReducer');
   assert.ok(effectFactory);
   const erasedFactory = ts.createPrinter({ removeComments: true }).printNode(ts.EmitHint.Unspecified, effectFactory, reducerFile);
-  const weakenedFactories = weakenedReducer.replace(reducerSource.slice(effectFactory.getFullStart(), effectFactory.end), `\n${erasedFactory}`);
+  const familyFactory = reducerFile.statements.find(node => ts.isVariableStatement(node) &&
+    node.declarationList.declarations.some(declaration => declaration.name.getText(reducerFile) === 'createReducerFamilyInterpreter'));
+  assert.ok(familyFactory);
+  const erasedFamily = ts.createPrinter({ removeComments: true }).printNode(ts.EmitHint.Unspecified, familyFactory, reducerFile);
+  const weakenedFactories = weakenedReducer
+    .replace(reducerSource.slice(effectFactory.getFullStart(), effectFactory.end), `\n${erasedFactory}`)
+    .replace(reducerSource.slice(familyFactory.getFullStart(), familyFactory.end), `\n${erasedFamily}`);
   assert.notEqual(weakenedFactories, weakenedReducer);
   host.readFile = fileName => path.resolve(fileName) === reducerPath
-    ? weakenedFactories + constructorFixture + effectFixture
+    ? weakenedFactories + constructorFixture + effectFixture + familyFixture
     : readFile(fileName);
   const weakenedProgram = ts.createProgram(parsed.fileNames, parsed.options, host);
   const weakenedPrivate = ts.getPreEmitDiagnostics(weakenedProgram).filter(item => item.file &&
@@ -537,18 +579,37 @@ test('compile-time fixtures check positive cases and detect a weakened negative 
   const weakenedLines = weakenedPrivate.filter(item => item.code === 2578).map(item => item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line]);
   constructorNames.forEach(name => assert.ok(weakenedLines.some(line => line.includes(`${name} retains its state type`)), name));
   ['effect payloads stay keyed', 'payload-bearing effect cannot omit', 'effect returned reducer retains'].forEach(check => assert.ok(weakenedLines.some(line => line.includes(check)), check));
-  // Dropping just the custom result's no-op alternative must invalidate its
-  // negative fixture too, even when all effect/command relationships remain.
+  ['family dispatch retains the closed', 'family dispatch retains canonical payloads',
+    'family dispatch retains the resolved', 'registration checks canonical keys',
+    'a sibling cannot make an erased physical key reachable', 'registration rejects a missing adapter',
+    'registration rejects an incompatible adapter', 'union-valued discriminators cannot',
+    'registration rejects arbitrary handler results']
+    .forEach(check => assert.ok(weakenedLines.some(line => line.includes(check)), check));
+  // Widen only keyed handler commands: canonical selected-handler negatives
+  // must become unused even though dispatch inference and effect contracts remain.
+  const unkeyedReducer = reducerSource.replaceAll('command: Command & {type: K}', 'command: any');
+  assert.notEqual(unkeyedReducer, reducerSource);
+  host.readFile = fileName => path.resolve(fileName) === reducerPath ? unkeyedReducer + familyFixture : readFile(fileName);
+  const unkeyedProgram = ts.createProgram(parsed.fileNames, parsed.options, host);
+  const unkeyedLines = ts.getPreEmitDiagnostics(unkeyedProgram).filter(item => item.code === 2578 && item.file &&
+    path.resolve(item.file.fileName) === reducerPath && item.start >= unkeyedReducer.length)
+    .map(item => item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line]);
+  ['keyed registry rejects another', 'keyed registry retains the canonical', 'keyed registry cannot move']
+    .forEach(check => assert.ok(unkeyedLines.some(line => line.includes(check)), check));
+  // Dropping just the no-op alternatives must invalidate their negative
+  // fixtures too, even when the keyed input/adapter contracts remain.
   const changedOnly = reducerSource.replace(
     '@returns {(state: DomainState, command: C) => R | ReducerResult}',
     '@returns {(state: DomainState, command: C) => R}'
   );
   assert.notEqual(changedOnly, reducerSource);
-  host.readFile = fileName => path.resolve(fileName) === reducerPath ? changedOnly + effectFixture : readFile(fileName);
+  host.readFile = fileName => path.resolve(fileName) === reducerPath ? changedOnly + effectFixture + familyFixture : readFile(fileName);
   const changedOnlyProgram = ts.createProgram(parsed.fileNames, parsed.options, host);
-  assert.ok(ts.getPreEmitDiagnostics(changedOnlyProgram).some(item => item.code === 2578 && item.file &&
-    path.resolve(item.file.fileName) === reducerPath && item.start >= changedOnly.length &&
-    item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line].includes('effect custom result includes')));
+  const changedOnlyLines = ts.getPreEmitDiagnostics(changedOnlyProgram).filter(item => item.code === 2578 && item.file &&
+    path.resolve(item.file.fileName) === reducerPath && item.start >= changedOnly.length)
+    .map(item => item.file.text.split('\n')[item.file.getLineAndCharacterOfPosition(item.start).line]);
+  ['effect custom result includes']
+    .forEach(check => assert.ok(changedOnlyLines.some(line => line.includes(check)), check));
   const fixtureDiagnostics = diagnostics
     .filter((item) => item.file && path.resolve(item.file.fileName) === fixturePath);
   // Only the intentionally weakened check may fail.

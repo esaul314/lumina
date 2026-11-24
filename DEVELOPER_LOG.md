@@ -1,5 +1,28 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-24 — preserve keyed domain-family contracts
+
+The private registry now binds each canonical command key to its own command,
+resolved execution environment and domain result. Bare handlers still receive
+undefined and adapted handlers their paired environment. The indexed functional
+pipeline, last-callable precedence, selected-only adapter, no-op identity, native
+failures, aliases and public export are unchanged; executable JS matches baseline.
+
+Independent review rejected speculative generic inference twice: mixed-family
+structural widening could hide reachable handlers, and union discriminators
+escaped an Extract check. Instead of growing a type framework, narrowed this
+private, sole-production-caller boundary to Lumina's ACTUAL domain contract.
+Removed the inference helpers. Generic VM forwarding cases remain runtime probes,
+not a promise of an arbitrary-registry TypeScript API. Compiler fixtures now
+exercise real canonical positives/negatives and weakened-contract sensitivity.
+
+Accepted after independent review: 917 runtime, 13 sensor and 3 compiler checks;
+19 unsuppressed independent negatives diagnose correctly; lint/diff checks pass.
+Strict domain remains intentionally non-green: 291 to 290 core, 68 transitive,
+one old registry diagnostic removed and no new diagnostic identities. Next is
+the coherent client-state test extraction, not a whole-domain cleanup.
+
+
 ## 2026-11-24 — optional weather-location label feedback
 
 Enriched the existing Phase 1 location-label item rather than duplicating it.

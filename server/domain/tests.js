@@ -2103,6 +2103,42 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(calls, ['bare']);
   });
 
+  assertTest('keyed family handlers retain command, adapted environment and heterogeneous result identities', () => {
+    const sandbox = { module: { exports: {} }, require };
+    const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
+    runInNewContext(`${source}\nglobalThis.buildFamilies = createReducerFamilyInterpreter;`, sandbox);
+    const state = Object.freeze(createState());
+    const env = Object.freeze({ seed: 3 });
+    const adapted = Object.freeze({ factor: 3 });
+    const secret = Object.freeze({ type: 'save-env-secret', payload: Object.freeze({ value: 'example' }) });
+    const recrawl = Object.freeze({ type: 'trigger-recrawl', payload: Object.freeze({ categories: ['garden'] }) });
+    const result = Object.freeze({ saved: true });
+    const calls = [];
+    const select = (command, original, output) => (s, c, e) => {
+      calls.push(c.type);
+      assert.strictEqual(s, state);
+      assert.strictEqual(c, command);
+      assert.strictEqual(e, original);
+      return output;
+    };
+    const reduce = sandbox.buildFamilies([
+      { buildEnv: () => assert.fail('overridden adapter'), reducers: { 'save-env-secret': () => assert.fail('overridden handler') } },
+      {
+        buildEnv: original => (calls.push('adapt'), assert.strictEqual(original, env), adapted),
+        reducers: {
+          'save-env-secret': select(secret, adapted, result),
+          'trigger-recrawl': select(recrawl, adapted, 7)
+        }
+      }
+    ]);
+    assert.strictEqual(reduce(state, secret, env), result);
+    assert.strictEqual(reduce(state, recrawl, env), 7);
+    assert.deepStrictEqual(calls, ['adapt', 'save-env-secret', 'adapt', 'trigger-recrawl']);
+    calls.length = 0;
+    assert.strictEqual(reduce(state, { type: 'missing' }, env).nextState, state);
+    assert.deepStrictEqual(calls, []);
+  });
+
   assertTest('family indexing captures own string entries eagerly with last-callable-key precedence', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');

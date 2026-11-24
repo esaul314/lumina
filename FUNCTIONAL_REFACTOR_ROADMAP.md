@@ -222,29 +222,30 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-23): the guide and roadmap checkpoint consolidation
-are accepted. The completed effect-result contract slice is **fix(types): correlate
-effect reducer payload and result contracts**; runtime 916 / sensor 13 / compiler 3
-checks pass. Strict diagnostics remain 291 core / 0 fixture / 68 transitive / 0 global.
-Step 6 / Phase 1 are incomplete; no whole-project compiler-green claim.
+Current checkpoint (2026-11-24): guide/checkpoint consolidation and the keyed
+family contract are accepted. **fix(types): preserve Lumina command keys in
+reducer families** keeps the private boundary specific to the actual canonical
+Command, resolved environment and domain envelope. Speculative arbitrary-registry
+inference was removed after review exposed structural-widening hazards; no runtime
+JavaScript or exports changed. Runtime 917 / sensor 13 / compiler 3 pass on the
+actual Node 24.18 baseline. Strict diagnostics: 290 core / 0 fixture / 68 transitive /
+0 global, one registry diagnostic removed and no new diagnostic identities.
+Step 6 / Phase 1 remain incomplete; no whole-project compiler-green claim.
 
-**Next selected implementation:** preserve the key-to-command relationship in
-`REDUCER_FAMILY_SPECS`, without changing closed dispatch, aliases or failures.
-The commissioned sequence then extracts the coherent client-state test group
-through the existing runner and qualifies runtime/release, with a commit and
-checkpoint update between steps. Fila owns orchestration; Beads owns executable
+**Next selected implementation:** extract the coherent client-state/control
+regression group through the existing runner, preserving inventory, order,
+singleton identity, assertions and failure exit. Runtime/release qualification
+follows its reviewed commit. Fila owns orchestration; Beads owns executable
 prerequisites/claims, not product priority or process liveness.
 
-**Runtime correction:** the live service is Node 24.18.0; the shell's system
-Node 22.23.4 and the OpenClaw node's private runtime are not the application's
-runtime authority. Baseline suite passes on the actual service runtime. The
-[Node evaluation](./ROADMAP.md#typescript-migration-transition-bridge) is now part
-of the commissioned sequence; select/qualify a supported candidate before any
-final service change. No runtime change has happened at this checkpoint.
+**Runtime:** the live service remains Node 24.18.0. Official LTS 26.13.1 is staged
+privately with published integrity verified, not activated. Shell defaults and the
+OpenClaw node runtime remain independent. The commissioned final step must qualify
+tests/build/rollback and commit clean source before rebuilding/restarting Lumina.
 
 Apply [complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline)
-and preserve [product priorities/deferrals](./ROADMAP.md). Rationale, historical
-results and lessons belong in DEVELOPER_LOG; keep this checkpoint concise.
+and preserve [product priorities/deferrals](./ROADMAP.md). Rationale and historical
+results belong in DEVELOPER_LOG; keep this checkpoint concise.
 
 Why sixth:
 

@@ -1703,16 +1703,20 @@ const reducePlaybackCommand = {
 };
 
 /**
- * A family pairs each reducer with its environment adapter. Without an adapter,
- * reducers receive undefined; adapted reducers receive the adapter's exact result.
- * Results are returned unchanged, not combined into an algebraic envelope.
- * @template C, E, A, R
- * @typedef {{reducers: Record<string, (state: DomainState, command: C, env: A) => R>, buildEnv: (env: E) => A} | {reducers: Record<string, (state: DomainState, command: C, env: undefined) => R>, buildEnv?: undefined}} ReducerFamily
+ * Lumina's closed command families pair each handler with its environment.
+ * Keep this private boundary specific to the actual domain, rather than infer
+ * an arbitrary heterogeneous registry and lose hidden keys to structural widening.
+ * Each optional own key accepts only its canonical command. Adapted handlers
+ * receive the resolved environment; bare handlers receive undefined.
+ * @typedef {(
+ *   {reducers: {[K in Command['type']]?: (state: DomainState, command: Command & {type: K}, env: ResolvedReducerEnvironment) => ReducerResult}, buildEnv: (env: ResolvedReducerEnvironment) => ResolvedReducerEnvironment} |
+ *   {reducers: {[K in Command['type']]?: (state: DomainState, command: Command & {type: K}, env: undefined) => ReducerResult}, buildEnv?: undefined}
+ * )} ReducerFamily
  */
 
 /** @typedef {{now: Date, rng: () => number}} ResolvedReducerEnvironment */
 
-/** @type {ReducerFamily<Command, ResolvedReducerEnvironment, ResolvedReducerEnvironment, ReducerResult>[]} */
+/** @type {ReducerFamily[]} */
 const REDUCER_FAMILY_SPECS = [
   { reducers: reduceSimpleCommand },
   { reducers: reducePhotoCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },
@@ -1721,7 +1725,7 @@ const REDUCER_FAMILY_SPECS = [
   { reducers: reducePlaybackCommand, buildEnv: ({ now, rng }) => ({ now, rng }) },
   {
     reducers: {
-      'patch-state': (/** @type {DomainState} */ state, /** @type {Command} */ command, /** @type {ResolvedReducerEnvironment} */ { now, rng }) => reduceStatePatchCommand(
+      'patch-state': (/** @type {DomainState} */ state, /** @type {Extract<Command, {type: 'patch-state'}>} */ command, /** @type {ResolvedReducerEnvironment} */ { now, rng }) => reduceStatePatchCommand(
         state,
         command.payload && typeof command.payload === 'object' ? command.payload : {},
         { now, rng }
@@ -1736,33 +1740,31 @@ const REDUCER_FAMILY_SPECS = [
  * are captured eagerly; non-callables are ignored and the last callable key
  * wins. Only a selected family adapts the environment. Misses retain state
  * identity with fresh outputs; native access/adapter/reducer failures propagate.
- * @template {{type?: unknown}} C
- * @template E, A, R
- * @param {ReadonlyArray<ReducerFamily<C, E, A, R>>} families
- * @returns {(state: DomainState, command: C | null | undefined, env: E) => R | ReducerResult}
+ * @param {ReadonlyArray<ReducerFamily>} families
+ * @returns {(state: DomainState, command: Command | null | undefined, env: ResolvedReducerEnvironment) => ReducerResult}
  */
 const createReducerFamilyInterpreter = (families) => {
   const reducerEntries = families.flatMap(({ reducers, buildEnv }) => (
     Object.entries(reducers)
       .filter(([, reducer]) => typeof reducer === 'function')
-      .map(/** @returns {[unknown, {reducer: ReducerFamily<C, E, A, R>['reducers'][string], buildEnv: typeof buildEnv}]} */
+      .map(/** @returns {[unknown, {reducer: ReducerFamily['reducers'][Command['type']], buildEnv: typeof buildEnv}]} */
         ([type, reducer]) => [type, { reducer, buildEnv }])
   ));
   const interpret = createIndexedInterpreter(
     reducerEntries,
-    // Indexing separates the paired descriptor fields. Erase only that call's
-    // environment correlation: the family contract above checks both branches.
-    /** @returns {R | ReducerResult} */
-    ({ reducer, buildEnv }, /** @type {DomainState} */ state, /** @type {C} */ command, /** @type {E} */ env) => /** @type {(state: DomainState, command: C, env: A | undefined) => R} */ (reducer)(
+    // Own-entry indexing selects command.type and keeps its adapter beside the
+    // handler. Rejoin only these correlations here; registration checks them.
+    /** @returns {ReducerResult} */
+    ({ reducer, buildEnv }, /** @type {DomainState} */ state, /** @type {Command} */ command, /** @type {ResolvedReducerEnvironment} */ env) => /** @type {(state: DomainState, command: Command, env: ResolvedReducerEnvironment | undefined) => ReducerResult} */ (reducer)(
       state,
       command,
       buildEnv ? buildEnv(env) : undefined
     ),
-    /** @returns {R | ReducerResult} */
+    /** @returns {ReducerResult} */
     (/** @type {DomainState} */ state) => unchangedResult(state)
   );
 
-  return (state, command, env) => interpret(command?.type, state, command, env);
+  return (state, /** @type {{type?: unknown} | null | undefined} */ command, env) => interpret(command?.type, state, command, env);
 };
 
 const interpretCommandFamilies = createReducerFamilyInterpreter(REDUCER_FAMILY_SPECS);
