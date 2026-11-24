@@ -1,3 +1,4 @@
+const { reduceAsyncSequentially } = require('../utils/asyncReduce.js');
 const { readEnvVar } = require('../config/env.js');
 const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
 const { stampNewPhotos } = require('../domain/photoTimestamps.js');
@@ -20,6 +21,24 @@ const searchQueries = {
   'Liminal Spaces': ['liminal spaces', 'empty corridor', 'backrooms'],
   'AI Creations': ['surreal digital art', 'generative art', 'midjourney landscape', 'cyberpunk landscape']
 };
+
+
+// Query-specific misses remain retryable; account/provider-wide failures stop this pass.
+const classifyProviderStatus = (status) => ({
+  401: 'authentication', 403: 'policy', 429: 'rate-limit'
+})[status] ?? (status >= 500 && status <= 599 ? 'service' : null);
+
+const buildCrawlInputs = ({ param }, config, category) => param
+  ? [...(config[param] || [])].flatMap(value => {
+      if (typeof value === 'string') return [{ value, metadata: { queryKeyword: value } }];
+      if (!value || typeof value !== 'object') return [];
+      const keywords = Array.isArray(value.keywords) ? value.keywords : [value.keywords];
+      return keywords.filter(keyword => typeof keyword === 'string').map(keyword => ({
+        value: keyword,
+        metadata: { queryKeyword: keyword, timeRanges: [{ start: value.timeStart, end: value.timeEnd }] }
+      }));
+    })
+  : [{ value: category, metadata: {} }];
 
 const tumblrApiKey = () => readEnvVar('TUMBLR_API_KEY');
 
@@ -213,10 +232,10 @@ async function fetchTumblrTaggedImages(tag, count = 20) {
  * 🤖 fetchRedditImages
  * Scrapes /r/ subreddits for hot landscape photographs.
  */
-async function fetchRedditImages(subreddit, category, count = 25) {
+async function fetchRedditImages(subreddit, category, count = 25, request = fetch) {
   try {
     console.log(`Reddit Crawler: Fetching /r/${subreddit} for category "${category}"...`);
-    const res = await fetch(`https://www.reddit.com/r/${subreddit}/hot.json?limit=${count}`, {
+    const res = await request(`https://www.reddit.com/r/${subreddit}/hot.json?limit=${count}`, {
       headers: {
         'User-Agent': CRAWLER_USER_AGENT,
         'Accept': 'application/json, text/plain, */*',
@@ -561,7 +580,7 @@ async function fetchBingImageOfTheDay(count = 8) {
  * 📸 fetchUnsplashImages
  * Fetches high-definition wallpapers from Unsplash NAPI.
  */
-async function fetchUnsplashImages(query, count = 20) {
+async function fetchUnsplashImages(query, count = 20, request = fetch) {
   try {
     // ponytail: randomize search page to fetch new results and avoid duplicates on subsequent crawls
     const randomPage = Math.floor(Math.random() * 5) + 1;
@@ -576,7 +595,7 @@ async function fetchUnsplashImages(query, count = 20) {
 
     for (const url of queriesToCrawl) {
       console.log(`Unsplash Crawler: Fetching "${query}" wallpapers from ${url}...`);
-      const res = await fetch(url, {
+      const res = await request(url, {
         headers: {
           'User-Agent': CRAWLER_USER_AGENT
         }
@@ -584,6 +603,7 @@ async function fetchUnsplashImages(query, count = 20) {
 
       if (!res.ok) {
         console.warn(`Unsplash Crawler: Failed to fetch for query "${query}" (status ${res.status})`);
+        if (classifyProviderStatus(res.status)) break;
         continue;
       }
 
@@ -981,7 +1001,8 @@ async function crawlAllCollections(
   searchKeywords = null,
   excludedKeywords = null,
   poolPolicies = null,
-  now = () => new Date()
+  now = () => new Date(),
+  { fetchImpl = fetch, requestTimeoutMs = 15_000 } = {}
 ) {
   if (typeof poolPolicies === 'function') {
     now = poolPolicies;
@@ -1021,12 +1042,46 @@ async function crawlAllCollections(
     }
   }
 
+
+  // ponytail: failure facts live only for this crawl; the next pass can recover.
+  const providerFailures = new Map();
+  const requestFor = (provider) => async (url, options = {}) => {
+    const deadline = AbortSignal.timeout(requestTimeoutMs);
+    const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
+    const recordFailure = (error) => {
+      const kind = signal.aborted ? 'timeout'
+        : error instanceof SyntaxError ? 'decoding' : 'transport';
+      providerFailures.set(provider, { provider, kind });
+      throw error;
+    };
+    try {
+      const response = await fetchImpl(url, { ...options, signal });
+      const kind = classifyProviderStatus(response.status);
+      if (kind) {
+        providerFailures.set(provider, { provider, kind, status: response.status });
+        try {
+          await response.body?.cancel();
+        } catch {
+          // Rejected-body teardown must not replace its HTTP status or prior photos.
+        }
+      }
+      // Only these fields belong to the source adapter; never mutate Response.
+      return {
+        ok: response.ok,
+        status: response.status,
+        json: () => response.json().catch(recordFailure)
+      };
+    } catch (error) {
+      return recordFailure(error);
+    }
+  };
+
   // Declarative scraper definitions
   const scrapers = [
     {
       key: 'reddit',
       param: 'subreddits',
-      fetcher: async (sub, category) => fetchRedditImages(sub, category, 25)
+      fetcher: async (sub, category) => fetchRedditImages(sub, category, 25, requestFor('reddit'))
     },
     {
       key: 'picsum',
@@ -1039,7 +1094,7 @@ async function crawlAllCollections(
     {
       key: 'unsplash',
       param: 'keywords',
-      fetcher: async (kw) => fetchUnsplashImages(kw, 20)
+      fetcher: async (kw) => fetchUnsplashImages(kw, 20, requestFor('unsplash'))
     },
     {
       key: 'wallhaven',
@@ -1087,31 +1142,11 @@ async function crawlAllCollections(
   const executeJob = async (job) => {
     const { scraper, category, sourceConfig } = job;
     try {
-      let newItems = [];
-      if (scraper.param) {
-        const params = sourceConfig[scraper.param] || [];
-        for (const param of params) {
-          if (typeof param === 'string') {
-            const items = await scraper.fetcher(param, category);
-            newItems = newItems.concat(items.map(item => ({ ...item, queryKeyword: param })));
-          } else if (param && typeof param === 'object') {
-            const kws = Array.isArray(param.keywords) ? param.keywords : [param.keywords];
-            for (const kw of kws) {
-              if (typeof kw === 'string') {
-                const items = await scraper.fetcher(kw, category);
-                newItems = newItems.concat(items.map(item => ({
-                  ...item,
-                  queryKeyword: kw,
-                  timeRanges: [{ start: param.timeStart, end: param.timeEnd }]
-                })));
-              }
-            }
-          }
-        }
-      } else {
-        newItems = await scraper.fetcher(category);
-      }
-      return newItems;
+      return await reduceAsyncSequentially(async (items, { value, metadata }) => {
+        if (providerFailures.has(scraper.key)) return items;
+        const fetched = await scraper.fetcher(value, category);
+        return items.concat(fetched.map(item => ({ ...item, ...metadata })));
+      }, [])(buildCrawlInputs(scraper, sourceConfig, category));
     } catch (err) {
       console.error(`${scraper.key.toUpperCase()} daily crawl failed for category "${category}":`, err.message);
       return [];
@@ -1191,7 +1226,7 @@ async function crawlAllCollections(
     }
   }
 
-  return { updatedCollections, updatedAny };
+  return { updatedCollections, updatedAny, providerFailures: [...providerFailures.values()] };
 }
 
 module.exports = {
