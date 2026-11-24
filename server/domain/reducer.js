@@ -2,6 +2,7 @@
 
 /**
  * @typedef {import('./types').Command} Command
+ * @typedef {import('./types').CommandPayloads} CommandPayloads
  * @typedef {import('./types').DomainState} DomainState
  * @typedef {import('./types').Effect} Effect
  * @typedef {import('./types').Event} Event
@@ -1036,6 +1037,13 @@ const reducePhotoCommand = {
   })
 };
 
+/**
+ * Four independently spread keyword lists in source order; entries stay aliased.
+ * No normalization. Each spread calls the iterable anew; native failures propagate.
+ * @template T
+ * @param {Iterable<T>} keywords
+ * @returns {Record<'unsplash' | 'wallhaven' | 'metmuseum' | 'artic', {enabled: boolean, keywords: T[]}>}
+ */
 function normalizeFeedConfigKeywords(keywords) {
   return {
     unsplash: { enabled: true, keywords: [...keywords] },
@@ -1045,10 +1053,22 @@ function normalizeFeedConfigKeywords(keywords) {
   };
 }
 
+/**
+ * Truthy name and truthy curated lookup, not own-key membership; external pools
+ * are ignored. The string-index assertion permits native keys (including symbols), not
+ * normalization; native ToPropertyKey/getter failures propagate.
+ * @param {DomainState} state
+ * @param {unknown} name
+ * @returns {boolean}
+ */
 function hasPool(state, name) {
-  return Boolean(name && state.library.collections[name]);
+  return Boolean(name && state.library.collections[/** @type {string} */ (name)]);
 }
 
+/** Falsy values become ''; otherwise native String/trim coercion may throw.
+ * @param {unknown} value
+ * @returns {string}
+ */
 function normalizePoolName(value) {
   return String(value || '').trim();
 }
@@ -1063,11 +1083,21 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Shallow own-enumerable copies; patch wins within only the selected source.
+ * Other fields/nested metadata stay aliased. Existing compatibility values are
+ * not validated: local assertions express native boxing/spread/property reads,
+ * including their repeated reads, coercion and failure order.
+ * @param {unknown} existingConfig
+ * @param {unknown} source Native ToPropertyKey, including undefined/symbols.
+ * @param {CommandPayloads['merge-pool-feed-config']['config'] | undefined} patch Undefined contributes no spread fields.
+ * @returns {Record<string, unknown>}
+ */
 function mergePoolFeedConfig(existingConfig, source, patch) {
   return {
-    ...existingConfig,
-    [source]: {
-      ...(existingConfig[source] || {}),
+    .../** @type {object} */ (existingConfig),
+    [/** @type {PropertyKey} */ (source)]: {
+      ...(/** @type {Record<string, unknown>} */ (existingConfig)[/** @type {string} */ (source)] || {}),
       ...patch
     }
   };
@@ -1125,17 +1155,35 @@ function assignFields(target, entries) {
   ), false);
 }
 
+/**
+ * Only a truthy curated lookup blocks creation. Write collection, raw keyword
+ * copy, then feed defaults; iterator failures can leave earlier writes in place.
+ * Undefined keywords fail at the first spread unless the existing-pool guard
+ * returns early. Assertions model these native iterations, not defaults.
+ * @param {DomainState} nextState
+ * @param {string} name
+ * @param {Readonly<CommandPayloads['add-pool']['keywords']> | undefined} keywords
+ * @returns {boolean}
+ */
 function addPoolState(nextState, name, keywords) {
   if (hasPool(nextState, name)) {
     return false;
   }
 
   nextState.library.collections[name] = [];
-  nextState.config.searchKeywords[name] = [...keywords];
-  nextState.config.feedConfigs[name] = normalizeFeedConfigKeywords(keywords);
+  nextState.config.searchKeywords[name] = [.../** @type {Readonly<CommandPayloads['add-pool']['keywords']>} */ (keywords)];
+  nextState.config.feedConfigs[name] = normalizeFeedConfigKeywords(/** @type {Readonly<CommandPayloads['add-pool']['keywords']>} */ (keywords));
   return true;
 }
 
+/**
+ * Compare normalized keywords first; an equal input retains the original raw
+ * value. Otherwise normalize again and assign. No pool membership guard here.
+ * @param {DomainState} nextState
+ * @param {string} name
+ * @param {unknown} keywords Same unvalidated input accepted by the normalizer.
+ * @returns {boolean}
+ */
 function assignPoolKeywords(nextState, name, keywords) {
   if (keywordEntriesEqual(nextState.config.searchKeywords[name] || [], keywords)) {
     return false;
@@ -1154,11 +1202,20 @@ function assignExcludedKeywords(nextState, keywords) {
   return true;
 }
 
+/**
+ * Merge without a membership guard; shallow equality decides whether to assign.
+ * Falsy stored values default to {}; truthy compatibility values remain raw.
+ * @param {DomainState} nextState
+ * @param {string} name
+ * @param {unknown} source Native key coercion, not a validated source name.
+ * @param {CommandPayloads['merge-pool-feed-config']['config'] | undefined} configPatch
+ * @returns {boolean}
+ */
 function mergePoolSourceConfig(nextState, name, source, configPatch) {
   const existingPoolConfig = nextState.config.feedConfigs[name] || {};
-  const existingSourceConfig = existingPoolConfig[source] || {};
+  const existingSourceConfig = /** @type {Record<string, unknown>} */ (existingPoolConfig)[/** @type {string} */ (source)] || {};
   const mergedPoolConfig = mergePoolFeedConfig(existingPoolConfig, source, configPatch);
-  const mergedSourceConfig = mergedPoolConfig[source] || {};
+  const mergedSourceConfig = mergedPoolConfig[/** @type {string} */ (source)] || {};
 
   if (shallowEqualObjects(mergedSourceConfig, existingSourceConfig)) {
     return false;
@@ -1168,6 +1225,15 @@ function mergePoolSourceConfig(nextState, name, source, configPatch) {
   return true;
 }
 
+/**
+ * Initialize only a nullish map, normalize, then shallow-compare/assign. Fresh
+ * schedule objects affect equality. This stores prospective settings only: no
+ * pruning/capping, membership check or data migration. Native failures propagate.
+ * @param {DomainState} nextState
+ * @param {string} name
+ * @param {CommandPayloads['set-pool-policy']['policy']} [policy]
+ * @returns {boolean}
+ */
 function assignPoolPolicy(nextState, name, policy) {
   nextState.config.poolPolicies ??= {};
   const normalizedPolicy = normalizePoolPolicy(policy);
@@ -1177,6 +1243,14 @@ function assignPoolPolicy(nextState, name, policy) {
   return true;
 }
 
+/**
+ * Guard using curated truthiness, then delete curated/config/policy/cursor keys
+ * in order and normalize selection from remaining own keys. External libraries,
+ * feed rows and other metadata remain untouched; native failures do not roll back.
+ * @param {DomainState} nextState
+ * @param {string} name
+ * @returns {boolean}
+ */
 function removePoolState(nextState, name) {
   if (!hasPool(nextState, name)) {
     return false;

@@ -2338,7 +2338,7 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => stateSyncEventsFor(true), error => error === failure);
   });
 
-  assertTest('private compiler contracts preserve clone, mutation primitives and named library projections', () => {
+  assertTest('private compiler contracts preserve clone, primitives, libraries and pool mutations', () => {
     const ts = require('typescript');
     const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
     const selectorFile = require.resolve('./selectors.js'), selectorSource = fs.readFileSync(selectorFile, 'utf8');
@@ -2422,6 +2422,42 @@ emitPhotoUpdate([{ type: 'wrong' }]);
 withPersist(null);
 // @ts-expect-error events remain closed descriptions, not strings
 /** @type {string[]} */ const wrongConditionalEventsFixture = stateSyncEventsFor(true);
+const poolDefaultsFixture = normalizeFeedConfigKeywords([{ legacy: 1 }]);
+/** @type {number} */ const poolLegacyFixture = poolDefaultsFixture.unsplash.keywords[0].legacy;
+/** @type {0 extends (1 & typeof poolDefaultsFixture.unsplash.keywords[number]) ? true : false} */ const poolKeywordIsAny = false;
+/** @type {boolean} */ const poolArticEnabledFixture = poolDefaultsFixture.artic.enabled;
+/** @type {boolean} */ const poolExistsFixture = hasPool(cloneFixture, Symbol('pool'));
+/** @type {string} */ const poolNameFixture = normalizePoolName({ legacy: true });
+/** @type {boolean} */ const poolCreatedFixture = addPoolState(cloneFixture, 'A', Object.freeze(['sun']));
+addPoolState(cloneFixture, 'existing', undefined); // guard or native iteration failure, not a default
+assignPoolKeywords(cloneFixture, 'A', [{ timeStart: '22:00', timeEnd: '06:00', keywords: ['moon'] }]);
+const poolConfigFixture = mergePoolFeedConfig({ legacy: 1 }, Symbol('source'), undefined);
+/** @type {unknown} */ const poolRawConfigFixture = poolConfigFixture.legacy;
+/** @type {0 extends (1 & typeof poolConfigFixture.legacy) ? true : false} */ const poolConfigIsAny = false;
+/** @type {boolean} */ const poolMergeFixture = mergePoolSourceConfig(cloneFixture, 'A', undefined, undefined);
+/** @type {boolean} */ const poolPolicyFixture = assignPoolPolicy(cloneFixture, 'A', { maxPhotos: '12', schedule: { enabled: 'yes' } });
+assignPoolPolicy(cloneFixture, 'A', undefined);
+/** @type {boolean} */ const poolRemovedFixture = removePoolState(cloneFixture, 'A');
+// @ts-expect-error pool creation requires canonical state, not partial sections
+addPoolState({}, 'A', ['sun']);
+// @ts-expect-error canonical creation keywords are strings (no normalization here)
+addPoolState(cloneFixture, 'A', [1]);
+// @ts-expect-error pool mutation names are normalized strings at this boundary
+removePoolState(cloneFixture, 1);
+// @ts-expect-error source patches must be canonical records, not scalars
+mergePoolSourceConfig(cloneFixture, 'A', 'source', 1);
+// @ts-expect-error pure source projection has the same patch contract
+mergePoolFeedConfig({}, 'source', 1);
+// @ts-expect-error policy must be a policy-input object or undefined
+assignPoolPolicy(cloneFixture, 'A', 1);
+// @ts-expect-error generic source defaults require an iterable
+normalizeFeedConfigKeywords(1);
+// @ts-expect-error generic copied keyword metadata does not become normalized strings
+/** @type {string[]} */ const wrongPoolKeywordsFixture = poolDefaultsFixture.unsplash.keywords;
+// @ts-expect-error compatibility config fields are still unknown, not normalized
+/** @type {number} */ const wrongPoolConfigFixture = poolConfigFixture.legacy;
+// @ts-expect-error pool assignment reports boolean flags, not the mutated state
+/** @type {DomainState} */ const wrongPoolResultFixture = assignPoolKeywords(cloneFixture, 'A', ['sun']);
 `;
     const selectorFixture = `
 const libraryInputFixture = { A: [{ url: 'u', category: 'A', metadata: { shared: true } }] };
@@ -2479,8 +2515,11 @@ getCategoryPhotos('A', { A: 1 });
       });
     };
     assert.deepStrictEqual(fixtureDiagnostics(source, selectorSource).map(item => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
-    const declaration = source.indexOf('function cloneState(state)'), commentStart = source.lastIndexOf('/**', declaration);
-    const withoutContract = source.slice(0, commentStart) + source.slice(declaration);
+    const withoutContract = ['cloneState', 'normalizeFeedConfigKeywords', 'hasPool', 'normalizePoolName', 'mergePoolFeedConfig',
+      'addPoolState', 'assignPoolKeywords', 'mergePoolSourceConfig', 'assignPoolPolicy', 'removePoolState'].reduce((text, name) => {
+      const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
+      return text.slice(0, comment) + text.slice(start);
+    }, source);
     const withoutLibraryContracts = ['attachCategory', 'getCategoryPhotos', 'updatePhotoInNamedCollections'].reduce((text, name) => {
       const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
       return text.slice(0, comment) + text.slice(start);
@@ -2488,8 +2527,10 @@ getCategoryPhotos('A', { A: 1 });
     const sensitive = fixtureDiagnostics(withoutContract, withoutLibraryContracts);
     const cloneSensitive = sensitive.filter(item => item.file.fileName === file);
     const librarySensitive = sensitive.filter(item => item.file.fileName === selectorFile);
-    assert.ok(cloneSensitive.some(item => item.code === 2578), 'Removing the private contract must invalidate negative compiler assertions');
-    assert.ok(cloneSensitive.some(item => item.code === 2322), 'The anti-any assertion must also reject an untyped clone result');
+    assert.ok(cloneSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('complete domain sections')), 'Removing the clone contract must invalidate its negative assertion');
+    assert.ok(cloneSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('cloneResultIsAny')), 'The anti-any assertion must also reject an untyped clone result');
+    assert.ok(cloneSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('pool creation requires')), 'Removing pool contracts must invalidate their negative assertion');
+    assert.ok(cloneSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('poolKeywordIsAny')), 'The anti-any leaf assertion must reject untyped pool keyword copies');
     assert.ok(librarySensitive.some(item => item.code === 2578), 'Removing library contracts must invalidate negative compiler assertions');
     assert.ok(librarySensitive.some(item => item.code === 2322), 'The anti-any leaf assertion must reject an untyped library result');
   });
@@ -5741,6 +5782,111 @@ getCategoryPhotos('A', { A: 1 });
       payload: { name: 'Moody Rooms' }
     }, { now: new Date('2026-06-27T12:00:00'), rng: () => 0.1 });
     assert.strictEqual(deleted.nextState.library.collections['Moody Rooms'], undefined);
+  });
+
+  assertTest('pool names and creation retain truthy lookup, independent spreads and partial native failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.pools = { normalizePoolName, hasPool, normalizeFeedConfigKeywords, addPoolState };`, sandbox);
+    const { normalizePoolName: name, hasPool: exists, normalizeFeedConfigKeywords: defaults, addPoolState: add } = sandbox.pools;
+    const collections = Object.assign(Object.create({ inherited: [] }), { A: [] });
+    const state = createState({ library: { collections, externalCollections: { external: [] } } });
+    [0, false, NaN, null, undefined].forEach(value => assert.strictEqual(name(value), ''));
+    assert.strictEqual(name({ toString: () => '  A  ' }), 'A');
+    assert.strictEqual(exists(state, 'inherited'), true);
+    assert.strictEqual(exists(state, 'external'), false);
+    assert.strictEqual(exists(state, 0), false);
+    const key = Symbol('pool'); collections[key] = [];
+    assert.strictEqual(exists(state, key), true);
+    let iterations = 0;
+    const feeds = defaults({ *[Symbol.iterator]() { yield ++iterations; } });
+    assert.deepStrictEqual(Object.keys(feeds), ['unsplash', 'wallhaven', 'metmuseum', 'artic']);
+    assert.deepStrictEqual(Object.values(feeds).map(feed => feed.keywords[0]), [1, 2, 3, 4]);
+    assert.strictEqual(feeds.artic.enabled, false);
+    const keywords = Object.freeze([' raw ']);
+    assert.strictEqual(add(state, 'New', keywords), true);
+    const lists = [state.config.searchKeywords.New, ...Object.values(state.config.feedConfigs.New).map(feed => feed.keywords)];
+    assert.strictEqual(new Set(lists).size, 5);
+    lists.forEach(list => { assert.notStrictEqual(list, keywords); assert.strictEqual(list[0], ' raw '); });
+    assert.strictEqual(add(state, 'A', undefined), false, 'guard precedes iteration');
+    assert.throws(() => add(state, 'Partial', undefined), error => error.name === 'TypeError');
+    assert.strictEqual(Object.hasOwn(collections, 'Partial'), true);
+    assert.strictEqual(Object.hasOwn(state.config.searchKeywords, 'Partial'), false);
+  });
+
+  assertTest('pool keyword and source updates preserve raw no-ops, metadata aliases and native key defaults', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.pools = { assignPoolKeywords, mergePoolSourceConfig, mergePoolFeedConfig };`, sandbox);
+    const { assignPoolKeywords: keywords, mergePoolSourceConfig: merge, mergePoolFeedConfig: project } = sandbox.pools;
+    const raw = [' sun '], metadata = {}, symbol = Symbol('metadata');
+    const original = { legacy: 17, sibling: metadata, unsplash: { enabled: false, keywords: raw, metadata }, [symbol]: metadata };
+    const state = createState({ config: { searchKeywords: { A: raw }, feedConfigs: { A: original, Raw: 'xy' } } });
+    assert.strictEqual(keywords(state, 'A', ['sun']), false);
+    assert.strictEqual(state.config.searchKeywords.A, raw);
+    const timed = { timeStart: '22:00', timeEnd: '06:00', keywords: [' moon '] };
+    assert.strictEqual(keywords(state, 'missing', [timed]), true, 'no membership guard in assignment');
+    assert.notStrictEqual(state.config.searchKeywords.missing[0], timed);
+    assert.notStrictEqual(state.config.searchKeywords.missing[0].keywords, timed.keywords);
+    assert.strictEqual(merge(state, 'A', 'unsplash', { keywords: [' sun '] }), false);
+    assert.strictEqual(state.config.feedConfigs.A, original);
+    assert.strictEqual(merge(state, 'A', 'unsplash', { enabled: true }), true);
+    const updated = state.config.feedConfigs.A;
+    assert.notStrictEqual(updated, original);
+    assert.notStrictEqual(updated.unsplash, original.unsplash);
+    assert.strictEqual(updated.unsplash.metadata, metadata);
+    assert.strictEqual(updated.sibling, metadata);
+    assert.strictEqual(updated[symbol], metadata);
+    assert.strictEqual(updated.legacy, 17);
+    assert.strictEqual(merge(state, 'Raw', undefined, { enabled: true }), true);
+    assert.strictEqual(state.config.feedConfigs.Raw[0], 'x');
+    assert.strictEqual(state.config.feedConfigs.Raw.undefined.enabled, true);
+    assert.deepStrictEqual(Object.keys(project({}, undefined, undefined)), ['undefined']);
+  });
+
+  assertTest('pool policies remain prospective and removal touches only owned pool/config/selection state', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.pools = { assignPoolPolicy, removePoolState };`, sandbox);
+    const { assignPoolPolicy: policy, removePoolState: remove } = sandbox.pools;
+    const photos = Array.from({ length: 20 }, (_, index) => ({ url: String(index), addedAt: '2000-01-01' })), external = { A: photos };
+    const state = createState({ config: { poolPolicies: undefined, searchKeywords: { A: [], B: [] }, feedConfigs: { A: {}, B: {} } },
+      library: { collections: { A: photos, B: [] }, externalCollections: external, photosList: photos },
+      playback: { selectedCategories: ['A', 'B'], poolSequenceCursors: { A: 2, B: 3 } } });
+    const input = { maxPhotos: 1, retentionDays: '2' };
+    assert.strictEqual(policy(state, 'A', input), true);
+    assert.strictEqual(state.config.poolPolicies.A.maxPhotos, 12);
+    assert.strictEqual(state.library.collections.A, photos);
+    assert.strictEqual(photos.length, 20, 'assignment does not apply expiry or a cap');
+    assert.strictEqual(policy(state, 'A', input), true, 'fresh normalized schedule is shallow-different');
+    assert.strictEqual(remove(state, 'A'), true);
+    [state.library.collections, state.config.searchKeywords, state.config.feedConfigs, state.config.poolPolicies, state.playback.poolSequenceCursors]
+      .forEach(map => assert.strictEqual(Object.hasOwn(map, 'A'), false));
+    assert.strictEqual(state.library.externalCollections, external);
+    assert.strictEqual(state.library.photosList, photos);
+    assert.strictEqual(state.playback.selectedCategories.join(','), 'B');
+    const selected = state.playback.selectedCategories;
+    assert.strictEqual(remove(state, 'missing'), false);
+    assert.strictEqual(state.playback.selectedCategories, selected);
+    assert.strictEqual(remove(state, 'B'), true);
+    assert.strictEqual(state.playback.selectedCategories.join(','), 'Scenic Nature');
+  });
+
+  assertTest('pool mutations retain getter/delete order and earlier writes on native failure', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.pools = { mergePoolFeedConfig, assignPoolPolicy, removePoolState };`, sandbox);
+    const { mergePoolFeedConfig: merge, assignPoolPolicy: policy, removePoolState: remove } = sandbox.pools;
+    const calls = [], failure = new Error('native failure');
+    const config = { get source() { calls.push('source'); return { get original() { calls.push('nested'); return 1; } }; } };
+    assert.throws(() => merge(config, 'source', { get value() { calls.push('patch'); throw failure; } }), error => error === failure);
+    assert.deepStrictEqual(calls, ['source', 'source', 'nested', 'patch']);
+    const state = createState({ config: { poolPolicies: undefined, searchKeywords: { A: ['sun'] },
+      feedConfigs: new Proxy({ A: {} }, { deleteProperty: () => { throw failure; } }) }, library: { collections: { A: [] } } });
+    assert.throws(() => policy(state, 'A', { get retentionDays() { throw failure; } }), error => error === failure);
+    assert.strictEqual(Object.keys(state.config.poolPolicies).length, 0, 'nullish policy map initialized before normalization');
+    const selected = state.playback.selectedCategories;
+    assert.throws(() => remove(state, 'A'), error => error === failure);
+    assert.strictEqual(Object.hasOwn(state.library.collections, 'A'), false);
+    assert.strictEqual(Object.hasOwn(state.config.searchKeywords, 'A'), false);
+    assert.strictEqual(Object.hasOwn(state.config.feedConfigs, 'A'), true);
+    assert.strictEqual(state.playback.selectedCategories, selected);
   });
 
   assertTest('shared pool reducer specs preserve duplicate-add and invalid feed-config no-op semantics', () => {
