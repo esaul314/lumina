@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-11-23
+Last updated: 2026-11-24
 
 - Screensaver cursor correction (2026-10-25): the active TV kiosk restarts its three-second inactivity timer when screensaver state changes and hides the pointer across the page, including over settings panels.
 - Reported TV pointer regression (2026-11-13; unverified): the pointer is again
@@ -452,8 +452,10 @@ design work, not claims that the current behavior has already been changed.
   model fallback, or change source policy.
   **Second sequence, 2026-11-24:** targeted Unsplash/Reddit run-local bounds and
   request deadlines are independently accepted;12 offline cases cover rejection,
-  decoding/transport/deadline failure, cache and recovery. Job/daily reporting is
-  next. Other providers and unavailable vision/auth remain open, not claimed
+  decoding/transport/deadline failure, cache and recovery. Existing job/daily
+  reporting now preserves warnings through modern and legacy events, including
+  no-change passes, and clears them on recovery; independently accepted. Live
+  release follows. Other providers and unavailable vision/auth remain open, not claimed
   repaired. Existing source/lifecycle rules remain; transport/JSON exceptions can
   still discard fresh results inside an unfinished Unsplash query, not saved cache.
 

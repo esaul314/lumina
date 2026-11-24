@@ -6707,3 +6707,25 @@ No whole-provider health claim: current access denials and vision remain separat
 pre-existing JSON/transport exceptions may still drop fresh results inside an
 unfinished Unsplash query. Existing cache survives. Next consume failures through
 both modern and legacy job/status boundaries, not another health state store.
+
+## Truthful degraded crawl status — 2026-11-24
+
+The next boundary exposed dual completion delivery: modern job-status was followed
+by legacy recrawl-complete, whose projection could overwrite a provider warning
+with clean success. Pure completion formatting now derives meaning from the
+existing result; the generic job shell accepts a literal or result callback.
+The legacy envelope preserves optional warning text, validated as a string at
+the client boundary. No new lifecycle state, health ledger, status service or
+duplicate UI state is necessary. Completed-with-warnings still means the pass
+finished, not that denied providers recovered. Thrown failures remain failed.
+
+Daily refresh returns/logs failures even without new photos, with no extra save.
+Existing24h/manual scheduling and retention stay authoritative; no retry timer.
+Independent ACCEPT exercised real crawler→job/client/daily flows and exact event
+order, partial/no-change results, recovery, decoding/transport, malformed legacy
+messages and thrown failures.924runtime/13sensor/3compiler/4launcher/12crawler,
+lint/build and16browser checks pass; strict290core/59transitive remains nonzero.
+The coherent envelope fix spans6files but only106added/8removed lines; splitting
+it to meet a file-count preference would hide the end-to-end dependency.
+Next: qualify the clean versioned release, publish built assets through the native
+service owner and verify live boundaries; no physical-TV/provider health claim.

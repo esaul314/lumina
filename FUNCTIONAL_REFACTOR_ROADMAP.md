@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-11-23
+Last updated: 2026-11-24
 
 ## Purpose
 
@@ -242,7 +242,11 @@ HTTP503 failure. Candidate assets remain private.
 **fix(crawler): bound rejected provider work per crawl** is accepted after fixing
 a rejected-body cleanup defect found in review.12 offline regressions pass;
 run-local failure facts and native deadlines replace repeated rejected requests.
-Current work: carry degraded meaning through existing job/status envelopes. The physical-TV pointer report, vision
+**fix(jobs): preserve degraded provider results across status events** is accepted:
+modern/legacy parity, daily no-change warnings and recovery pass independent
+review;924runtime/13sensor/3compiler/16native and16browser checks pass.
+Current work: qualified release1.0.2 and native live acceptance. No new runtime,
+unit, controller or job state is introduced. The physical-TV pointer report, vision
 capability/auth configuration, generic identity and broader TypeScript work remain
 separate; no service, controller or infrastructure expansion is selected.
 
