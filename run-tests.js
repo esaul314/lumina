@@ -266,7 +266,7 @@ function buildConfiguredRoutesApp(extraEnv = {}) {
   return app;
 }
 
-function createSocketHarness(extraEnv = {}) {
+function createSocketHarness(extraEnv = {}, configure = configureSockets) {
   const ioEmits = [];
   let connectionHandler = null;
   const io = {
@@ -309,7 +309,7 @@ function createSocketHarness(extraEnv = {}) {
     'Liminal Spaces': [{ url: 'port-1', title: 'Hallway' }]
   };
 
-  configureSockets({
+  configure({
     io,
     state,
     collections,

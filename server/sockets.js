@@ -193,6 +193,7 @@ const createSocketCommandSpecInterpreter = ({ compatibility, emitSecretSaveResul
  * 🛰️ configureSockets
  * Orchestrates Socket.IO event hooks, synchronizing the smart display
  * client and mobile remote controls in real-time.
+ * The composition root supplies background analysis for the no-dispatch fallback.
  */
 module.exports = function configureSockets({
   io,
@@ -206,6 +207,7 @@ module.exports = function configureSockets({
   getLocalIpAddresses,
   port,
   triggerWeatherUpdate,
+  triggerImageAnalysisBackground,
   dispatchCommand,
   broadcastStateSync,
   getLatestJobs = null,
@@ -232,6 +234,7 @@ module.exports = function configureSockets({
       killKioskBrowser,
       setManualOverride,
       triggerWeatherUpdate,
+      triggerImageAnalysisBackground,
       broadcast
     });
 

@@ -7,6 +7,58 @@ const { SOCKET_COMMAND_LISTENER_SPECS } = require('./server/domain/commands.js')
 const { createSocketCommandSpecInterpreter } = require('./server/sockets.js');
 const googlePhotos = require('./server/services/googlePhotos.js');
 const { buildGooglePhotoProxyUrl } = googlePhotos;
+const { compileFunction } = require('node:vm');
+
+// Exercise the actual socket/compatibility chain with isolated effect imports;
+// never patch the global require cache, call providers or write collection files.
+function createLegacyCategoryHarness(createSocketHarness, { crawl, analyze = () => Promise.resolve(), ...extraEnv } = {}) {
+  const events = [], saves = [], analysisArgs = [], errors = [], imports = [];
+  const dependencies = {
+    './domain/commands.js': require('./server/domain/commands.js'),
+    './utils/fn.js': require('./server/utils/fn.js'),
+    './services/googlePhotos.js': {},
+    './services/notifier.js': {},
+    './services/system.js': {},
+    './config/env.js': {},
+    './config/collections.js': {
+      saveCuratedCollections: (collections, state) => {
+        events.push('save');
+        saves.push(structuredClone({ collections, state }));
+      }
+    },
+    './services/crawler.js': {
+      crawlAllCollections: async (...args) => {
+        events.push('crawl');
+        return crawl ? crawl(...args) : { updatedCollections: args[0], updatedAny: false };
+      }
+    }
+  };
+  const load = (name) => {
+    const filename = path.join(__dirname, 'server', name);
+    const module = { exports: {} };
+    compileFunction(fs.readFileSync(filename, 'utf8'), ['module', 'require', 'console'], { filename })(
+      module,
+      (request) => {
+        imports.push(request);
+        if (request === './socketLegacyCompatibility.js') return load('socketLegacyCompatibility.js');
+        assert.ok(Object.hasOwn(dependencies, request), `Unexpected socket dependency: ${request}`);
+        return dependencies[request];
+      },
+      { log() {}, warn() {}, error: (...args) => errors.push(args) }
+    );
+    return module.exports;
+  };
+  const harness = createSocketHarness({
+    ...extraEnv,
+    broadcastStateSync: () => events.push('broadcast'),
+    triggerImageAnalysisBackground: (...args) => {
+      events.push('analyze');
+      analysisArgs.push(args);
+      return analyze(...args);
+    }
+  }, load('sockets.js'));
+  return { ...harness, events, saves, analysisArgs, errors, imports };
+}
 
 async function runClientStateTests({
   logSuite, assertTest, assertAsyncTest, importClientModule, createSocketHarness
@@ -895,6 +947,125 @@ async function runClientStateTests({
         }
       }
     ]);
+  });
+
+  await assertAsyncTest('legacy add-category persists, crawls, refreshes and starts injected analysis without loading app', async () => {
+    const photo = { url: 'new-photo', title: 'New pool', rating: 8, custom: 'retained' };
+    let analysisFinished = false;
+    const analysisPending = new Promise(resolve => setImmediate(() => { analysisFinished = true; resolve(); }));
+    const keywords = ['mist', 'forest'];
+    const harness = createLegacyCategoryHarness(createSocketHarness, {
+      crawl: async (collections, feedConfigs, searchKeywords) => {
+        assert.strictEqual(collections, harness.collections);
+        assert.strictEqual(feedConfigs, harness.state.feedConfigs);
+        assert.strictEqual(searchKeywords, harness.state.searchKeywords);
+        assert.deepStrictEqual(collections['New Pool'], []);
+        return { updatedCollections: { ...collections, 'New Pool': [photo] }, updatedAny: true };
+      },
+      combineFeedsBalanced: (categories, collections) => {
+        harness.events.push('combine');
+        assert.deepStrictEqual(categories, ['Scenic Nature', 'New Pool']);
+        assert.strictEqual(collections, harness.collections);
+        return [photo];
+      },
+      getSmartPhoto: (direction) => {
+        harness.events.push('smart');
+        assert.strictEqual(direction, 'next');
+        return null; // Retain the first-photo fallback when the selector has no result.
+      },
+      analyze: () => analysisPending
+    });
+    harness.state.currentCategory = 'Scenic Nature, New Pool';
+    await harness.socketHandlers['add-category']({ name: ' New Pool ', keywords });
+    assert.deepStrictEqual(harness.events, ['save', 'broadcast', 'crawl', 'save', 'combine', 'smart', 'broadcast', 'analyze']);
+    assert.deepStrictEqual(harness.analysisArgs, [[]]);
+    assert.strictEqual(analysisFinished, false, 'The socket handler must not await background analysis');
+    assert.deepStrictEqual(harness.saves.map(({ collections }) => collections['New Pool']), [[], [photo]]);
+    assert.deepStrictEqual(harness.saves[0].state.searchKeywords['New Pool'], keywords);
+    assert.notStrictEqual(harness.state.searchKeywords['New Pool'], keywords);
+    assert.deepStrictEqual(harness.state.feedConfigs['New Pool'], Object.fromEntries(
+      ['unsplash', 'wallhaven', 'metmuseum', 'artic'].map(source => [source, { enabled: source !== 'artic', keywords }])
+    ));
+    assert.strictEqual(harness.state.activePhoto, photo);
+    assert.deepStrictEqual(harness.ioEmits, [['photo-update', photo]]);
+    assert.deepStrictEqual(harness.errors, []);
+    assert.ok(!harness.imports.includes('./app.js'));
+  });
+
+  await assertAsyncTest('legacy add-category keeps unchanged crawls and duplicate guards without refreshing an unrelated selection', async () => {
+    const harness = createLegacyCategoryHarness(createSocketHarness, {
+      combineFeedsBalanced: () => { throw new Error('Must not refresh an unrelated selection'); },
+      getSmartPhoto: () => { throw new Error('Must not select an unrelated photo'); }
+    });
+    const beforePhoto = harness.state.activePhoto;
+    await harness.socketHandlers['add-category']({ name: 'New Pool', keywords: 'mist, forest' });
+    assert.deepStrictEqual(harness.events, ['save', 'broadcast', 'crawl', 'broadcast', 'analyze']);
+    assert.deepStrictEqual(harness.collections['New Pool'], []);
+    assert.strictEqual(harness.state.activePhoto, beforePhoto);
+    assert.deepStrictEqual(harness.ioEmits, []);
+    harness.state.searchKeywords['Configured Only'] = ['kept'];
+    await harness.socketHandlers['add-category']({ name: 'New Pool', keywords: ['ignored'] });
+    await harness.socketHandlers['add-category']({ name: 'Configured Only', keywords: ['ignored'] });
+    await harness.socketHandlers['add-category']({ name: 'Invalid', keywords: [] });
+    assert.strictEqual(harness.events.length, 5);
+    assert.deepStrictEqual(harness.state.searchKeywords['New Pool'], ['mist', 'forest']);
+    assert.deepStrictEqual(harness.state.searchKeywords['Configured Only'], ['kept']);
+    assert.deepStrictEqual(harness.errors, []);
+  });
+
+  await assertAsyncTest('legacy add-category retains the initial save and broadcast when crawling fails, without starting analysis', async () => {
+    const harness = createLegacyCategoryHarness(createSocketHarness, {
+      crawl: async () => { throw new Error('crawl unavailable'); }
+    });
+    await harness.socketHandlers['add-category']({ name: 'New Pool', keywords: ['mist'] });
+    assert.deepStrictEqual(harness.events, ['save', 'broadcast', 'crawl']);
+    assert.deepStrictEqual(harness.errors, [['Error crawling new category "New Pool":', 'crawl unavailable']]);
+    assert.deepStrictEqual(harness.collections['New Pool'], []);
+    assert.deepStrictEqual(harness.state.searchKeywords['New Pool'], ['mist']);
+    assert.deepStrictEqual(harness.analysisArgs, []);
+  });
+
+  await assertAsyncTest('legacy add-category reports rejected background analysis separately from crawl failure', async () => {
+    const failure = new Error('analysis unavailable');
+    const harness = createLegacyCategoryHarness(createSocketHarness, {
+      analyze: () => Promise.reject(failure)
+    });
+    await harness.socketHandlers['add-category']({ name: 'New Pool', keywords: ['mist'] });
+    assert.deepStrictEqual(harness.events, ['save', 'broadcast', 'crawl', 'broadcast', 'analyze']);
+    assert.deepStrictEqual(harness.errors, [['Error in background image analysis:', failure]]);
+    assert.deepStrictEqual(harness.analysisArgs, [[]]);
+    assert.strictEqual(harness.saves.length, 1);
+  });
+
+  await assertAsyncTest('legacy add-category keeps synchronous analysis errors inside the existing crawl boundary', async () => {
+    const harness = createLegacyCategoryHarness(createSocketHarness, {
+      analyze: () => { throw new Error('analysis threw'); }
+    });
+    await harness.socketHandlers['add-category']({ name: 'New Pool', keywords: ['mist'] });
+    assert.deepStrictEqual(harness.events, ['save', 'broadcast', 'crawl', 'broadcast', 'analyze']);
+    assert.deepStrictEqual(harness.errors, [['Error crawling new category "New Pool":', 'analysis threw']]);
+  });
+
+  await assertAsyncTest('socket add-category prioritizes dispatcher success and rejection over legacy crawl and analysis', async () => {
+    const commands = [];
+    const failure = new Error('dispatch unavailable');
+    const harness = createLegacyCategoryHarness(createSocketHarness, {
+      dispatchCommand: async command => {
+        commands.push(command);
+        if (commands.length > 1) throw failure;
+      }
+    });
+    const payload = { name: ' New Pool ', keywords: 'mist, forest' };
+    const before = structuredClone({ state: harness.state, collections: harness.collections });
+    await harness.socketHandlers['add-category'](payload);
+    await assert.rejects(harness.socketHandlers['add-category'](payload), error => error === failure);
+    assert.deepStrictEqual(commands, Array.from({ length: 2 }, () => ({
+      type: 'add-pool', payload: { name: 'New Pool', keywords: ['mist', 'forest'] }
+    })));
+    assert.deepStrictEqual(harness.events, []);
+    assert.deepStrictEqual({ state: harness.state, collections: harness.collections }, before);
+    assert.deepStrictEqual(harness.errors, []);
+    assert.ok(!harness.imports.includes('./services/crawler.js'));
   });
 
   const fallbackHarness = createSocketHarness();

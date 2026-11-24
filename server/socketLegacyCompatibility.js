@@ -47,6 +47,7 @@ function createSocketLegacyCompatibility({
   killKioskBrowser,
   setManualOverride,
   triggerWeatherUpdate,
+  triggerImageAnalysisBackground,
   broadcast
 }) {
   const applyGooglePhotoMetadata = ({ url, metadata, afterApply }) => {
@@ -335,7 +336,7 @@ function createSocketLegacyCompatibility({
 
       broadcast();
 
-      const { triggerImageAnalysisBackground } = require('./app.js');
+      // Composition owns analysis; keep it detached from the socket response.
       triggerImageAnalysisBackground().catch((error) => console.error('Error in background image analysis:', error));
     } catch (error) {
       console.error(`Error crawling new category "${name}":`, error.message);

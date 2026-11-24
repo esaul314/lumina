@@ -685,6 +685,7 @@ require('./sockets.js')({
   getLocalIpAddresses,
   port: PORT,
   triggerWeatherUpdate,
+  triggerImageAnalysisBackground,
   dispatchCommand: dispatchRemoteCommand,
   broadcastStateSync,
   getLatestJobs: () => [
