@@ -398,6 +398,9 @@ function createDispatcherHarness(extraEnv = {}) {
   const dispatcher = createDomainDispatcher({
     state,
     collections,
+    // ponytail: explicit test writers avoid hidden test-mode/private-file I/O.
+    persistCollections: () => {},
+    persistEnvVars: () => {},
     io,
     getRuntimeContext: () => runtimeContext,
     ...extraEnv
@@ -10547,16 +10550,17 @@ function createEffectContractHarness(dependencies = {}, mode = 'test', persistEn
   const module = { exports: {} };
   runInNewContext(`${fs.readFileSync(filename, 'utf8')}\nmodule.exports.capture = createEffectHandlers;`, {
     module,
-    require: (name) => name === '../config/env.js'
-      ? { persistEnvVars: (entries) => { persistEnv(entries); calls.push(['persist-env', entries]); } }
-      : name === '../config/collections.js'
-        ? { saveCuratedCollections: () => { calls.push(['persist']); } }
-        : require(require.resolve(name, { paths: [path.dirname(filename)] })),
+    require: (name) => require(require.resolve(name, { paths: [path.dirname(filename)] })),
     process: { env: { NODE_ENV: mode } },
     console: { warn: (...args) => { calls.push(['warn', ...args]); } }
   });
   const state = {};
-  return { state, calls, handlers: module.exports.capture({ state, collections: {}, ...dependencies }) };
+  return { state, calls, handlers: module.exports.capture({
+    state, collections: {},
+    persistCollections: () => { calls.push(['persist']); },
+    persistEnvVars: entries => { const result = persistEnv(entries); calls.push(['persist-env', entries]); return result; },
+    ...dependencies
+  }) };
 }
 
 assertTest('dispatcher dependency contracts name every captured adapter and public method', () => {

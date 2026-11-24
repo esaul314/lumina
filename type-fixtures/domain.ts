@@ -289,3 +289,22 @@ void [effect, result, visible, unique, pending, decodedUnknown, wrongPayload, wr
   handlerResult, unknownHandlerResult, certainHandlerResult, arrayPreviewCommand, normalizedPreview, primitivePreview,
   compatibilityTheme, snapshotTheme, configWithRawTheme, normalizedTheme, normalizedSnapshotTheme,
   configWithRawCrop, compatibilityCrop, snapshotCrop, frameCrop, normalizedCrop, normalizedSnapshotCrop, normalizedFrameCrop];
+
+
+// Concrete persistence belongs to composition, not an implicit I/O import.
+declare const injectedDependencies: DispatcherDependencies;
+const concreteWriters: Pick<DispatcherDependencies, 'persistCollections' | 'persistEnvVars'> = {
+  persistCollections: (collections, legacy) => Promise.resolve({ collections, legacy }),
+  persistEnvVars: entries => entries
+};
+createDomainDispatcher({ ...injectedDependencies, ...concreteWriters });
+// @ts-expect-error collection persistence must remain a callable concrete writer
+createDomainDispatcher({ ...injectedDependencies, persistCollections: 42 });
+// @ts-expect-error environment persistence must remain a callable concrete writer
+createDomainDispatcher({ ...injectedDependencies, persistEnvVars: false });
+const { persistCollections: omittedCollectionWriter, ...missingCollectionWriter } = injectedDependencies;
+// @ts-expect-error an absent collection writer must not silently fall back to module I/O
+createDomainDispatcher(missingCollectionWriter);
+const { persistEnvVars: omittedEnvironmentWriter, ...missingEnvironmentWriter } = injectedDependencies;
+// @ts-expect-error an absent environment writer must not silently fall back to module I/O
+createDomainDispatcher(missingEnvironmentWriter);

@@ -12,7 +12,7 @@ function createApplication() {
   const path = require('path');
   const os = require('os');
   const config = require('./config/configLoader.js');
-  const { readEnvVar } = require('./config/env.js');
+  const { readEnvVar, persistEnvVars } = require('./config/env.js');
   const { createRecrawlJobService, executeRecrawlPass } = require('./jobs/recrawl.js');
   const { createImageAnalysisRunner, createVisionAnalysisJobService } = require('./jobs/visionAnalysis.js');
 
@@ -480,6 +480,8 @@ function createApplication() {
   const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
     state: screensaverState,
     collections: curatedCollections,
+    persistCollections: saveCuratedCollections,
+    persistEnvVars,
     io,
     getRuntimeContext,
     launchKioskBrowser: kioskControlRuntime.launchKioskBrowser,

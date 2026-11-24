@@ -1,7 +1,5 @@
 // @ts-check
 
-const { saveCuratedCollections } = require('../config/collections.js');
-const { persistEnvVars } = require('../config/env.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 const { reduceAsyncSequentially } = require('../utils/asyncReduce.js');
@@ -29,19 +27,22 @@ const { createClosedInterpreter } = require('../utils/fn.js');
  */
 
 /**
- * Mutable shell dependencies. State/collections and io.emit are required.
+ * Mutable shell dependencies. State/collections, io.emit and concrete writers are required.
  * Runtime context is read afresh for reduction/refresh (not awaited); only an
  * omitted/undefined reader receives the default. Optional non-functions are
  * ignored by effect handlers. No adapter validation or rollback is performed.
  * Manual override runs synchronously before launch/kill; its result is ignored,
  * not awaited. Weather completion is discarded and ordinary Error failures are
  * warned/swallowed; nullish failures or warning failures can still reject.
- * runCrawler is suppressed only when NODE_ENV is exactly 'test'. Persistence is
- * module-owned, not an injected dependency; it precedes runtime-flag assignment.
+ * runCrawler is suppressed only when NODE_ENV is exactly 'test'. Concrete writers
+ * are required for their effects, awaited before flags/later effects/events, and
+ * have no hidden module-owned fallback. Their opaque results remain ignored.
  *
  * @typedef {object} DispatcherDependencies
  * @property {LegacyState} state
  * @property {CollectionsState} collections
+ * @property {(collections: CollectionsState, state: LegacyState) => unknown} persistCollections
+ * @property {(entries: Record<string, unknown>) => unknown} persistEnvVars
  * @property {{emit: (event: 'photo-update' | 'state-sync', payload: import('./types').FeedPhoto | LegacyState) => unknown}} io
  * @property {(() => RuntimeOverrides)} [getRuntimeContext]
  * @property {(() => unknown)} [launchKioskBrowser]
@@ -181,9 +182,12 @@ const createEventEmitter = (eventHandlers) => {
   };
 };
 
+/** @param {Omit<DispatcherDependencies, 'io' | 'getRuntimeContext'>} dependencies */
 function createEffectHandlers({
   state,
   collections,
+  persistCollections,
+  persistEnvVars,
   launchKioskBrowser,
   killKioskBrowser,
   setManualOverride,
@@ -196,7 +200,7 @@ function createEffectHandlers({
 }) {
   return {
     persist: async () => {
-      saveCuratedCollections(collections, state);
+      await persistCollections(collections, state);
     },
     'persist-external-photo-metadata': callOptionalPayloadHandler(persistExternalPhotoMetadata),
     'refresh-active-feed': callOptionalPayloadHandler(refreshActiveFeed),
@@ -206,7 +210,7 @@ function createEffectHandlers({
     'persist-env-vars': async (effect) => {
       const { entries, runtimeFlags } = normalizeEnvVarEffectPayload(effect);
 
-      persistEnvVars(entries);
+      await persistEnvVars(entries);
       applyRuntimeFlags(state, runtimeFlags);
 
       return {
@@ -241,6 +245,8 @@ function createEventHandlers({ state, io, broadcastStateSync }) {
 function createDomainDispatcher({
   state,
   collections,
+  persistCollections,
+  persistEnvVars,
   io,
   getRuntimeContext = () => ({}),
   launchKioskBrowser,
@@ -282,6 +288,8 @@ function createDomainDispatcher({
   const effectHandlers = createEffectHandlers({
     state,
     collections,
+    persistCollections,
+    persistEnvVars,
     launchKioskBrowser,
     killKioskBrowser,
     setManualOverride,

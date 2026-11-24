@@ -62,7 +62,7 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
   const dependencies = {
     express: Object.assign(() => app, { json: noop, static: noop }), http: { createServer: () => server },
     'socket.io': { Server: function (_server, options) { if (realTransport) io = new (require('socket.io').Server)(server, options); return io; } }, cors: noop, path, os: { networkInterfaces: () => ({}) },
-    './config/configLoader.js': { port: port ?? (realTransport ? 0 : undefined), sensorHistory: { enabled: historyEnabled } }, './config/env.js': { readEnvVar: () => '' },
+    './config/configLoader.js': { port: port ?? (realTransport ? 0 : undefined), sensorHistory: { enabled: historyEnabled } }, './config/env.js': { readEnvVar: () => '', persistEnvVars: entries => effects.push(['persist-env', entries]) },
     './jobs/recrawl.js': { createRecrawlJobService: capture('recrawl', fakeJob), executeRecrawlPass: capture('recrawlPass', Promise.resolve()) },
     './jobs/visionAnalysis.js': {
       createImageAnalysisRunner: options => { captured.runnerOptions = options; captured.runner = vision.createImageAnalysisRunner(options); return captured.runner; },
@@ -368,4 +368,12 @@ test('a real occupied loopback port uses a cancellable retry and leaves no liste
     await new Promise(resolve => occupied.close(resolve));
     occupied.closeAllConnections();
   }
+});
+
+
+test('composition supplies the real existing collection and environment writers to the dispatcher', () => {
+  const h = appFixture('test'), app = h.exports.createApplication(), entries = Object.freeze({ FIXTURE_KEY: 'fixture' });
+  h.captured.domain.persistCollections(app.curatedCollections, h.state);
+  h.captured.domain.persistEnvVars(entries);
+  assert.deepEqual(h.effects, [['persist', app.curatedCollections, h.state], ['persist-env', entries]]);
 });
