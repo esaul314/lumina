@@ -6681,3 +6681,29 @@ cases. Independent ACCEPT also exercises all7 TV switches, Enter/Space and HTTP5
 without optimistic-state divergence. Browser reload is tested; persistence uses
 the separately accepted codec path, not a claim of a live daemon-restart rehearsal.
 Assets remain unpromoted until final release, and physical-TV/AT review is distinct.
+
+## Bounded rejected-provider work — 2026-11-24
+
+Repeated account-wide rejections used to fan out over query variants and pools.
+The observed Unsplash/Reddit paths now share pure status classification and a
+run-local failure Map in the explicit request shell. Auth/policy/rate/service and
+transport/decoding/deadline failures stop that source for this pass, while404 stays
+query-local and the next crawl can recover. Saved metadata and unrelated sources
+retain existing lifecycle semantics. Native abort deadlines cover headers/body;
+no persistent circuit breaker, retry daemon, credentials or source policy change.
+
+Nested query traversal became a pure input projection plus the existing ordered
+async reducer. Spread preserves legacy iterables before flatMap; Set/string/
+generator ordering and timed metadata were independently checked. Source fetchers
+receive an injected request effect, avoiding global-fetch tests or another module.
+
+Independent review initially REVISE: rejected-body cancellation could replace503
+with transport and discard earlier query photos. Teardown is now best-effort and
+the exact native errored-body regression passes, preserving original HTTP facts
+and accepted partial photos. Revised ACCEPT includes12 offline cases and extra
+native503/body/iterable probes. Full919runtime/13sensor/3compiler plus4launcher/
+12crawler, lint and unchanged strict290core/59transitive pass their stated gates.
+No whole-provider health claim: current access denials and vision remain separate;
+pre-existing JSON/transport exceptions may still drop fresh results inside an
+unfinished Unsplash query. Existing cache survives. Next consume failures through
+both modern and legacy job/status boundaries, not another health state store.

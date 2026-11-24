@@ -449,8 +449,13 @@ design work, not claims that the current behavior has already been changed.
   Preserve cached pools/metadata and manual-operation failure semantics. Cover
   rejected/unavailable providers and recovery with injected transport fixtures.
   Do not add a health daemon/state mirror, silently rotate credentials, enable a
-  model fallback, or change source policy. This is a discovery, not extra work
-  selected during the completed five-step sequence.
+  model fallback, or change source policy.
+  **Second sequence, 2026-11-24:** targeted Unsplash/Reddit run-local bounds and
+  request deadlines are independently accepted;12 offline cases cover rejection,
+  decoding/transport/deadline failure, cache and recovery. Job/daily reporting is
+  next. Other providers and unavailable vision/auth remain open, not claimed
+  repaired. Existing source/lifecycle rules remain; transport/JSON exceptions can
+  still discard fresh results inside an unfinished Unsplash query, not saved cache.
 
 ### Medium priority
 
