@@ -86,9 +86,10 @@ This replaces post-hoc task bookkeeping, not engineering judgment or acceptance.
 2. **Commission once, then queue.** Ground the current roadmap and approved
    scope/exclusions once per batch. Create the meaningful outcomes up front with
    one unique batch label, per-task description, acceptance, spec/evidence links,
-   priority and real prerequisites. Prefer native bulk Markdown creation with
-   per-issue fields, then native dependency edits; verify the returned graph
-   before dispatch. A partial/unknown import needs inspection, not blind replay.
+   priority and real prerequisites. Prefer native graph import to create approved
+   open tasks, edges and stable execution-owner/spec references together; Markdown
+   remains valid for independent tasks. Verify the returned IDs/graph before
+   dispatch. A partial/unknown write needs inspection, not blind replay.
    Don't import the whole backlog, split trivial actions into tasks, or invent
    dependency edges to encode a preferred order. Ideas alone are not tasks.
 3. **Let readiness select.** Use batch-scoped atomic `ready --claim`, restricted
@@ -110,7 +111,10 @@ This replaces post-hoc task bookkeeping, not engineering judgment or acceptance.
    brief, required standing conventions, baseline and execution limits. Beads
    neither launches workers nor interprets tests/reviews. Native sessions own
    execution/result custody; official continuations are required for background
-   progress. Claims are not liveness or an authorization to overlap writers.
+   progress. Each issue links that native owner/spec once at creation; follow the
+   owner for child runs/results instead of copying every phase into task notes.
+   Update the reference for a real handoff or broken link, not routine status.
+   Claims are not liveness or an authorization to overlap writers.
 6. **Reconcile changes, not histories.** Integrate new feedback/discoveries in
    their existing roadmap phase/backlog with origin, rationale, scope impact and
    acceptance; merge duplicates and distinguish proposals/deferrals. Before
@@ -128,8 +132,11 @@ This replaces post-hoc task bookkeeping, not engineering judgment or acceptance.
    satisfy per-step continuity. Update roadmap/checkpoint prose for decisions,
    risks, changed direction and milestone outcomes, not every claim/heartbeat.
    Journal reusable learning, not queue transitions. ACTIVE-TASK/memory are
-   indexes/preferences, not duplicate task ledgers. Report commit subject,
-   roadmap movement, result, checks and exact next work. A drained selected queue
+   indexes/preferences, not duplicate task ledgers. Use scoped native counts for
+   aggregates and native lint for brief structure, not model-recomputed counts or
+   repeated field checks. Lint warnings need inspection even with exit0; presence
+   is not meaningful acceptance. Report commit subject, roadmap movement, result,
+   checks and exact next work. A drained selected queue
    does not finish the roadmap or commission another batch; verify all selected
    outcomes and stop task-owned continuations at acceptance.
 9. **Budget and evaluate.** Retain one orchestrator, checkout and opted-in store;
