@@ -222,11 +222,11 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **3/10 outcomes accepted**. AR-1 callback injection and AR-2 vision ownership remain accepted. **refactor(app): separate construction from owned startup** adds explicit assembly and one lazy, writable/configurable, concretely typed CommonJS facade. Native bare import loads zero adapters;111 non-lifecycle statements/15 exports retain structure/order. Construction may read/normalize snapshots and ensure adapter directories; it is not pure/multi-instance hosting. Owned history/schedules/listening start only through startServer.
+Current checkpoint (2026-11-24): **4/10 outcomes accepted**. AR-1 callback injection, AR-2 vision ownership and AR-3 construction remain accepted. **fix(runtime): make stopped resource work inert and retryable** and **refactor(app): own idempotent startup and unconditional shutdown** complete the selected lifecycle outcome. Start does not duplicate resources; stop attempts all cleanup, joins concurrent calls and retries failures, with stale callback/read/launch protection through existing owners.
 
-Seven new app-boundary regressions, two moved app tests, full930runtime/13sensor/3compiler/61native and clean lint pass. Original construction and focused facade reviews accept their snapshots; precise source guards caught the later typed-facade fix before commit. Final whitespace-only cleanup retains canonical source/comments. Global strict readiness is not claimed.
+Terminal disposal per instance uses a fresh constructor/native service process for restart, not a new reattachment/supervision layer. App resource disposal is not transactional cancellation/rollback of every adapter effect. Small ephemeral owned-handle sets and generation tokens are real added state, not a persistent ledger. Full930runtime/13sensor/3compiler/87native and clean lint/diff pass; independent review and real loopback HTTP/Engine.IO/WebSocket/failure probes accept source. Production remains1.0.2; final rollout must separately qualify candidate-owned shutdown.
 
-**Next: AR-3 lifecycle convergence**, before any rollout. Idempotent start; unconditional stop/partial-start cleanup for owned timers, sensor/history, transport and tracked kiosk; test stale in-flight work and existing adapter limits. AR-4 writers, AR-5 test extraction, Wallhaven/AIC/partial-query resilience and release remain selected. Live release1.0.2/runtime unchanged; physical-TV/security/provider and broader strict-contract debt remain open. The bridge criteria below, not this checkpoint, own detailed acceptance.
+**Next: AR-4 concrete persistence writers through the existing dispatcher dependencies**, preserving ordered effects, aliases, errors and pure boundaries. Then AR-5 rendering-test extraction, Wallhaven/AIC/partial-query resilience and release. Physical-TV, unavailable vision/auth, security and broader strict readiness remain open; the prior strict290core/59transitive baseline is not a current green claim. Detailed bridge criteria below retain acceptance and removal rationale.
 
 Why sixth:
 
@@ -258,7 +258,7 @@ C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
 monolith and functional core; no new services, state manager, DI container or
 framework. These are proposed bounded outcomes, not five automatically authorized
 tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
-AR-1/AR-2 and AR-3 construction are accepted; AR-3 lifecycle and AR-4/AR-5 remain to be implemented and independently accepted.
+AR-1/AR-2/AR-3 are accepted; AR-4/AR-5 remain to be implemented and independently accepted.
 
 ### AR-1 — remove the legacy entrypoint back-reference
 
@@ -289,7 +289,7 @@ wrappers); offline success/partial/failure/progress tests cover all existing cal
 
 ### AR-3 — make owned startup and shutdown explicit
 
-**Construction accepted,2026-11-24; lifecycle still pending:** bare app import is inert and startServer owns resource acquisition. The constructor remains an effectful snapshot/adapter boundary, and default CommonJS behavior/type shape is preserved. Outcome4 owns stop/idempotence/failure qualification; no release before it passes.
+**Construction and lifecycle accepted,2026-11-24:** bare import is inert; startServer owns resource acquisition and stopServer performs unconditional retryable disposal through existing owners. Terminal per-instance lifetime keeps native service restart ownership, not an in-process controller. Constructor snapshot/adapter effects and previously dispatched adapter work retain explicit limits. Default CommonJS behavior/type shape is preserved; source acceptance is separate from final live shutdown qualification.
 
 Separate construction from starting app-owned timers, sensor/history resources
 and listeners, using the existing app/runtime boundaries. Keep the service and

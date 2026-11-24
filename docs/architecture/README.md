@@ -29,7 +29,7 @@ and the intended removal reviewable.
 
 ![Proposed backend responsibilities](diagrams/target-components.svg)
 
-CURRENT describes the source after callback injection, vision extraction and explicit construction (AR-1/AR-2/first AR-3 outcome); deployed release1.0.2 is unchanged until qualified rollout. PROPOSED is not yet fully implemented.
+CURRENT describes the source after callback injection, vision extraction and explicit construction (AR-1/AR-2/AR-3); deployed release1.0.2 is unchanged until qualified rollout. PROPOSED is not yet fully implemented.
 Both component sets share one modeled daemon to make alternatives comparable;
 they do not represent two concurrent backends. The container view is unchanged.
 Arrows describe runtime use/dependency, including injected callbacks; they are not
@@ -51,7 +51,7 @@ The audit found one strongly connected set: `app.js -> sockets.js -> socketLegac
 
 | Responsibility | Actual source and important qualification |
 | --- | --- |
-| Composition and startup | `server.js`, `server/app.js`: app imports 32 relative application modules; bare import defers all app dependencies; explicit createApplication initializes snapshot/state/adapters and startServer opens history and starts schedules/listening. Idempotence/teardown are the second AR-3 outcome. |
+| Composition and startup | `server.js`, `server/app.js`: app imports 32 relative application modules; bare import defers app dependencies; createApplication assembles snapshot/state/adapters. Idempotent startServer acquires resources; retryable stopServer disposes timers/pollers/history/transport/tracked kiosk, and the native entrypoint owns process signals. |
 | Transport | `server/routes.js`, `server/sockets.js`: durable command adapters plus deliberate source-local read/auth/media and telemetry endpoints. |
 | Compatibility | `server/socketLegacyCompatibility.js`: durable fallback when dispatcher is absent; receives the real analysis callback from composition, without importing app. Not dead code. |
 | Command/effect shell | `server/domain/dispatch.js` plus `snapshot.js` helpers `replaceCollections`, `applyDomainState`, `syncLegacySnapshot`: mutate caller-owned collections/legacy state, run ordered effects and emit events. Dispatch directly imports collection/env writers. Folder names do NOT make these helpers pure. |
@@ -69,7 +69,7 @@ The existing scanner's 13,393-line largest-file flag is the test runner.
 Its 22 state-path references include fixtures/pure modules, not 22 demonstrated
 shadow ledgers; its Python-only control-flow score does not analyze JavaScript.
 
-The app module now imports without loading adapters, opening history or scheduling resources. Explicit construction is still effectful: config/environment reads, snapshot normalization and source-adapter directory creation are deferred, not called pure. One lazy default facade preserves existing callers; separate factories are not qualified multi-instance hosting. Startup owns history/polling/listening; unconditional teardown is the next selected outcome.
+The app module now imports without loading adapters, opening history or scheduling resources. Explicit construction is still effectful: config/environment reads, snapshot normalization and source-adapter directory creation are deferred, not called pure. One lazy default facade preserves existing callers; separate factories are not qualified multi-instance hosting. Startup owns history/polling/listening. Stop attempts all owned teardown, joins concurrent calls and permits cleanup retries after errors. Disposal is terminal per constructed instance; a fresh constructor/native process is simpler than an in-process Socket.IO reattachment layer. Small in-memory handle sets/generation tokens prevent stale work; they are not persistent runtime ledgers. Previously dispatched adapter effects are not transactionally cancelled/rolled back; the native process/unit owns final interruption.
 
 Static acyclicity alone is insufficient: injected callbacks, mutation, ambient
 time/randomness and import-time effects require behavior tests and inspection.

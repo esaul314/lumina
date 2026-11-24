@@ -12,7 +12,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             !docs .
             web = container "Web UI" "One bundle with TV and remote roles; browser-local transient effects." "React / Chromium or remote browser"
             daemon = container "Daemon" "One native service; current and proposed components below are alternative views." "Node.js / Express / Socket.IO" {
-                boot = component "Explicit construction and startup" "server/app.js; lazy default facade and createApplication assembly; startServer opens history and starts schedules/listening; teardown remains pending." "CommonJS" "Current"
+                boot = component "Explicit composition and lifecycle" "server/app.js; one lazy default facade; explicit idempotent start and unconditional retryable terminal disposal; native service owns restart." "CommonJS" "Current"
                 transport = component "REST and socket adapters" "server/routes.js; server/sockets.js. Commands plus source-specific endpoints." "Express / Socket.IO" "Current"
                 legacy = component "Legacy socket fallback" "server/socketLegacyCompatibility.js; used without the shared dispatcher." "CommonJS" "Current"
                 dispatch = component "Command/effect shell" "dispatch.js plus snapshot apply/replace/sync helpers; mutates state, runs ordered effects and writers." "JavaScript" "Current"
@@ -57,7 +57,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
         boot -> core "Uses selectors and policy" "In-process call"
         boot -> transport "Registers" "In-process call / reference"
         boot -> dispatch "Constructs" "In-process call / reference"
-        boot -> workflows "Constructs; starts only on explicit startup" "In-process call / reference"
+        boot -> workflows "Constructs and owns explicit start/stop" "In-process call / reference"
         boot -> adapters "Configures and invokes" "In-process call / reference"
         boot -> persistence "Loads and saves" "In-process call / reference"
         boot -> state "Initializes and mutates" "In-process call / reference"
@@ -115,7 +115,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             autoLayout lr
         }
         component daemon "current-components" {
-            title "CURRENT - explicit construction and owned startup; teardown pending"
+            title "CURRENT - explicit composition and owned resource lifecycle"
             include boot transport legacy dispatch core workflows adapters persistence state
             autoLayout lr
         }
