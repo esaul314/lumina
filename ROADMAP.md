@@ -30,19 +30,19 @@ For the code-shaping program that supports this roadmap, see [FUNCTIONAL_REFACTO
 
 ## Living roadmap operation
 
-Apply [roadmap and complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline) to feedback, discoveries, task selection and acceptance. Beads contains only selected executable work, not this whole roadmap. The next maintenance candidate is reducing duplicated current-status instructions before adding factory tooling; product priorities and existing deferrals remain unchanged.
+Apply [roadmap and complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline) to feedback, discoveries, task selection and acceptance. Beads contains only selected executable work, not this whole roadmap. Guide/checkpoint consolidation is accepted; keep current engineering work in the companion rather than adding another status narrative. Product priorities and existing deferrals remain unchanged.
 
 ### Concrete complexity-reduction actions — 2026-11-23
 
 These are bounded maintenance outcomes, not a new platform phase or a mandate to
-rewrite the application. The current selected product slice remains Step 6's
-effect-result builder. Materialize a maintenance action in Beads only when selected.
+rewrite the application. The current engineering result and next selected action live in the companion's
+single Step 6 checkpoint. Materialize a maintenance action in Beads only when selected.
 
 | Action | Deliverable and acceptance | Order |
 | --- | --- | --- |
 | **Shorten the agent guide** | Remove the accumulated per-helper migration history from `AGENTS.md`, retaining the full standing prompt, architecture and operational contracts plus one link to the current engineering checkpoint. Preserve unique rationale in the existing developer journal and an exact original archive. Aim for a guide at most 20 KiB; verify no capability or accepted requirement was lost. | Guide consolidated to18,858bytes with prompt/rationale preservation verified. |
 | **Keep one current engineering checkpoint** | Consolidate competing current/next-seam paragraphs in this roadmap, the companion and the guide. The companion owns one concise current Step 6 result/next action; other documents link to it. Label older diagnostic/tooling audits as history. Verify current tests/counts and deferrals agree, without duplicating a Beads checklist. | Canonical checkpoint consolidation complete; dependent implementation proceeds through Beads. |
-| **Reduce the test-runner hotspot selectively** | Extract the coherent `runClientStateTests` group from the large `run-tests.js` into a domain-owned test module, reusing the existing assertion/log interface and entrypoint. Preserve assertions, execution order, failure exit and runtime. No second framework, duplicated runner or broad test rewrite. | A separate small maintenance slice after the current engineering result is accepted. |
+| **Reduce the test-runner hotspot selectively** | Extract the coherent `runClientStateTests` group from the large `run-tests.js` into a domain-owned test module, reusing the existing assertion/log interface and entrypoint. Preserve assertions, execution order, failure exit and runtime. No second framework, duplicated runner or broad test rewrite. | Accepted: group body byte-exact, shared runner 1,111 lines shorter, same930pass-line inventory/order and verified failure exit. No new framework. |
 | **Keep or retire the tracker on evidence** | This slice observed ready → claim → implementation close → dependent acceptance readiness, with stable task/evidence references. Retain narrow opt-in; manual task translation and short claim-lease renewal remain costs, not an unattended/concurrent-safety proof. No measured productivity uplift. Reassess after the next selected slice; add no dashboard, synchronizer or scheduler to justify the tool. | Evaluated at this acceptance; no fleet-wide promotion. |
 
 The existing state-path gauge includes client modules and fixture/persistence

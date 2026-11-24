@@ -232,10 +232,14 @@ actual Node 24.18 baseline. Strict diagnostics: 290 core / 0 fixture / 68 transi
 0 global, one registry diagnostic removed and no new diagnostic identities.
 Step 6 / Phase 1 remain incomplete; no whole-project compiler-green claim.
 
-**Next selected implementation:** extract the coherent client-state/control
-regression group through the existing runner, preserving inventory, order,
-singleton identity, assertions and failure exit. Runtime/release qualification
-follows its reviewed commit. Fila owns orchestration; Beads owns executable
+**Test-runner hotspot accepted:** **refactor(tests): extract client state and
+control regressions** moves the group byte-for-byte into one root test module.
+The existing runner owns shared reporting and execution; its size fell by 1,111
+lines. All 930 runtime/sensor pass lines retain their order; a deliberate failed
+assertion produced exactly one failure/exit1. No framework or production change.
+
+**Next selected implementation:** qualify the runtime and release through the
+existing native service, with clean committed source, rollback and live checks. Fila owns orchestration; Beads owns executable
 prerequisites/claims, not product priority or process liveness.
 
 **Runtime:** the live service remains Node 24.18.0. Official LTS 26.13.1 is staged

@@ -1,5 +1,23 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-24 — extract client-state/control regressions
+
+Moved the coherent mixed client-selector, REST/Socket.IO and Google Photos boundary
+group into a root test module. The function body is byte-exact; root-relative paths,
+cached service singleton identity and awaited order remain unchanged. Five shared
+harness functions are supplied by the existing runner, which still owns counters,
+reporting and exit. No second framework, helper fleet or application change.
+
+Independent review accepted. The main runner is 13,393 lines, down 1,111; the new
+module is 1,123 lines. All 930 runtime/sensor pass lines match baseline in order;
+full suite 917/13/3 and lint pass on both qualified baseline/candidate runtimes.
+A deliberate one-assertion mutation produced exactly one failure/exit1, then the
+source was restored/hash-checked. An initial string verifier omitted a final
+newline; corrected AST body comparison confirmed exact preservation, not a code
+repair. This is a bounded seam extraction, not a claim the large suite is fully
+modular. Runtime/release qualification is next; strict baseline remains non-green.
+
+
 ## 2026-11-24 — preserve keyed domain-family contracts
 
 The private registry now binds each canonical command key to its own command,
