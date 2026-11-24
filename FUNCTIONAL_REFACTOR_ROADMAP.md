@@ -222,9 +222,11 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **2/10 outcomes accepted**. **refactor(sockets): inject legacy image analysis callback** removed the static entrypoint cycle; **refactor(vision): move analysis workflow into job boundary** directly binds one existing-job runner for all existing callers. Pure projections and explicit sequential effects preserve live photo iteration, metadata identity, progress and failure semantics.38 focused vision checks; full930runtime/13sensor/3compiler/54native and lint pass, independent review with differential baseline checks accepts the final source.
+Current checkpoint (2026-11-24): **3/10 outcomes accepted**. AR-1 callback injection and AR-2 vision ownership remain accepted. **refactor(app): separate construction from owned startup** adds explicit assembly and one lazy, writable/configurable, concretely typed CommonJS facade. Native bare import loads zero adapters;111 non-lifecycle statements/15 exports retain structure/order. Construction may read/normalize snapshots and ensure adapter directories; it is not pure/multi-instance hosting. Owned history/schedules/listening start only through startServer.
 
-**Next: AR-3 construction**, then its lifecycle convergence outcome. Import alone must not create timers/crawls/listeners/history; preserve the public startServer facade and characterize adapter effects honestly. Source inspection found Google adapter directory creation at import, in-flight sensor read handles, kiosk retry and port-recovery timers; do not infer cleanup from a cleared interval. AR-4 writers, AR-5 test extraction, Wallhaven/AIC/partial-query resilience and qualified release remain selected. Current live release1.0.2 and runtime are unchanged; strict290core/59transitive is the old measured baseline, not a new green claim. Physical-TV/security/provider limits remain open.
+Seven new app-boundary regressions, two moved app tests, full930runtime/13sensor/3compiler/61native and clean lint pass. Original construction and focused facade reviews accept their snapshots; precise source guards caught the later typed-facade fix before commit. Final whitespace-only cleanup retains canonical source/comments. Global strict readiness is not claimed.
+
+**Next: AR-3 lifecycle convergence**, before any rollout. Idempotent start; unconditional stop/partial-start cleanup for owned timers, sensor/history, transport and tracked kiosk; test stale in-flight work and existing adapter limits. AR-4 writers, AR-5 test extraction, Wallhaven/AIC/partial-query resilience and release remain selected. Live release1.0.2/runtime unchanged; physical-TV/security/provider and broader strict-contract debt remain open. The bridge criteria below, not this checkpoint, own detailed acceptance.
 
 Why sixth:
 
@@ -256,7 +258,7 @@ C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
 monolith and functional core; no new services, state manager, DI container or
 framework. These are proposed bounded outcomes, not five automatically authorized
 tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
-AR-1/AR-2 are accepted in this sequence; AR-3–AR-5 remain to be implemented and independently accepted.
+AR-1/AR-2 and AR-3 construction are accepted; AR-3 lifecycle and AR-4/AR-5 remain to be implemented and independently accepted.
 
 ### AR-1 — remove the legacy entrypoint back-reference
 
@@ -286,6 +288,8 @@ Acceptance: app loses the workflow body (not replaces it with pass-through
 wrappers); offline success/partial/failure/progress tests cover all existing callers.
 
 ### AR-3 — make owned startup and shutdown explicit
+
+**Construction accepted,2026-11-24; lifecycle still pending:** bare app import is inert and startServer owns resource acquisition. The constructor remains an effectful snapshot/adapter boundary, and default CommonJS behavior/type shape is preserved. Outcome4 owns stop/idempotence/failure qualification; no release before it passes.
 
 Separate construction from starting app-owned timers, sensor/history resources
 and listeners, using the existing app/runtime boundaries. Keep the service and
