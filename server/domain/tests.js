@@ -2534,11 +2534,45 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => stateSyncEventsFor(true), error => error === failure);
   });
 
-  assertTest('private compiler contracts preserve clone, primitives, libraries, pools, patches and photo mutations', () => {
+  assertTest('navigation transport specs capture inputs once without coupling fallback arguments to decoders', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./commands.js'), 'utf8')}\nglobalThis.navigationSpec = createAdvancePhotoTransportSpec;`, sandbox);
+    const reads = [], rawMessage = { legacy: true };
+    const input = Object.fromEntries(Object.entries({ direction: 'prev', socketEvent: 'previous', routePath: '/previous', notFoundMessage: rawMessage })
+      .map(([key, value]) => [key, { get: () => { reads.push(key); return value; }, enumerable: true }]));
+    const spec = sandbox.navigationSpec(Object.defineProperties({}, input));
+    assert.deepStrictEqual(reads, ['direction', 'socketEvent', 'routePath', 'notFoundMessage']);
+    assert.strictEqual(spec.notFoundMessage, rawMessage);
+    assert.notStrictEqual(spec.fallbackArgs, sandbox.navigationSpec({ direction: 'prev' }).fallbackArgs);
+    spec.direction = 'next'; spec.fallbackArgs[0] = 'next';
+    assert.strictEqual(spec.decodeSocket().payload.direction, 'prev');
+    assert.strictEqual(spec.decodeSocket().payload.strategy, 'smart');
+    assert.strictEqual(spec.decodeRest().payload.direction, 'prev');
+    assert.strictEqual(spec.decodeRest().payload.strategy, 'sequence');
+    const first = spec.decodeRest(), second = spec.decodeRest();
+    assert.notStrictEqual(first, second); assert.notStrictEqual(first.payload, second.payload);
+    assert.strictEqual(reads.length, 4); // decoding uses captured values, not later input reads
+  });
+
+  assertTest('navigation specifications preserve raw invalid directions and native accessor failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./commands.js'), 'utf8')}\nglobalThis.navigationSpec = createAdvancePhotoTransportSpec;`, sandbox);
+    const rawDirection = { toString: () => assert.fail('direction was coerced') };
+    const spec = sandbox.navigationSpec(Object.create({ direction: rawDirection, socketEvent: 'raw' }));
+    assert.strictEqual(spec.direction, rawDirection); assert.strictEqual(spec.fallbackArgs[0], rawDirection);
+    assert.strictEqual(spec.decodeSocket(), null); assert.strictEqual(spec.decodeRest(), null);
+    assert.strictEqual(spec.socketEvent, 'raw');
+    const failure = new Error('navigation getter');
+    assert.throws(() => sandbox.navigationSpec({ get direction() { throw failure; } }), error => error === failure);
+    assert.throws(() => sandbox.navigationSpec(null), error => error.name === 'TypeError');
+  });
+
+  assertTest('private compiler contracts preserve domain boundaries and navigation transport descriptors', () => {
     const ts = require('typescript');
     const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
     const selectorFile = require.resolve('./selectors.js'), selectorSource = fs.readFileSync(selectorFile, 'utf8');
     const patchFile = require.resolve('./statePatch.js'), patchSource = fs.readFileSync(patchFile, 'utf8');
+    const commandFile = require.resolve('./commands.js'), commandSource = fs.readFileSync(commandFile, 'utf8');
     const root = path.resolve(__dirname, '../..'), configPath = path.join(root, 'tsconfig.domain.json');
     const { config } = ts.readConfigFile(configPath, ts.sys.readFile);
     const parsed = ts.parseJsonConfigFileContent(config, ts.sys, root);
@@ -2790,10 +2824,50 @@ const coordinateFallbackFixture = normalizeCoordinate(null, coordinateFallbackTo
 // @ts-expect-error primitive-only trimming produces strings, not numbers
 /** @type {number} */ const wrongTrimmedPatchFixture = trimString(1);
 `;
-    // ponytail: one compiler owner injects three modules; no program per helper.
-    const fixtureDiagnostics = (text, selectorText, patchText) => {
+    const commandFixture = `
+const navigationInputFixture = { direction: /** @type {'next' | 'prev'} */ ('next'), socketEvent: 'next', routePath: '/next', notFoundMessage: 'missing' };
+const navigationFixture = createAdvancePhotoTransportSpec(navigationInputFixture);
+/** @type {0 extends (1 & typeof navigationFixture.direction) ? true : false} */ const navigationDirectionIsAny = false;
+/** @type {'next' | 'prev'} */ const navigationDirectionFixture = navigationFixture.direction;
+navigationFixture.direction = 'prev'; navigationFixture.fallbackArgs.push('prev'); // no immutability promise
+/** @type {Command | null} */ const navigationSocketCommandFixture = navigationFixture.decodeSocket();
+const navigationRouteFixture = REST_ADVANCE_PHOTO_ROUTE_SPECS[0];
+/** @type {string} */ const navigationPathFixture = navigationRouteFixture.path;
+/** @type {0 extends (1 & typeof navigationRouteFixture.path) ? true : false} */ const navigationPathIsAny = false;
+/** @type {0 extends (1 & typeof navigationRouteFixture.notFoundMessage) ? true : false} */ const navigationMetadataIsAny = false;
+// @ts-expect-error extra decorator metadata is not promised normalized by this boundary
+/** @type {string} */ const navigationMetadataFixture = navigationRouteFixture.notFoundMessage;
+const navigationRestCommandFixture = navigationRouteFixture.decode();
+/** @type {0 extends (1 & typeof navigationRestCommandFixture) ? true : false} */ const navigationDecodedIsAny = false;
+if (navigationRestCommandFixture?.type === 'advance-photo') {
+  /** @type {'next' | 'prev' | undefined} */ const navigationRestDirectionFixture = navigationRestCommandFixture.payload?.direction;
+}
+// @ts-expect-error the specification input documents supported directions, not raw compatibility values
+createAdvancePhotoTransportSpec({ ...navigationInputFixture, direction: 7 });
+const malformedNavigationInputFixture = { ...navigationInputFixture, direction: 'sideways', metadata: true };
+// @ts-expect-error inferred extra input fields do not erase a malformed known direction
+createAdvancePhotoTransportSpec(malformedNavigationInputFixture);
+// @ts-expect-error fallback arguments retain the navigation direction vocabulary
+navigationFixture.fallbackArgs.push('sideways');
+// @ts-expect-error public REST descriptors have string paths, not arbitrary raw values
+navigationRouteFixture.path = 7;
+// @ts-expect-error navigation decoders read no request payload
+navigationRouteFixture.decode({ direction: 'next' });
+// @ts-expect-error nullable command results require narrowing before payload access
+navigationRestCommandFixture.payload.direction;
+/** @type {unknown} */ const navigationRawMetadataFixture = navigationRouteFixture.notFoundMessage;
+navigationRouteFixture.path = '/supported'; navigationRouteFixture.decode = () => null;
+/** @type {string} */ const navigationPathKeyFixture = 'path';
+// @ts-expect-error dynamic writes must not corrupt a promised string path
+navigationRouteFixture[navigationPathKeyFixture] = 7;
+/** @type {string} */ const navigationDecoderKeyFixture = 'decode';
+// @ts-expect-error dynamic writes must not corrupt a promised decoder
+navigationRouteFixture[navigationDecoderKeyFixture] = 7;
+`;
+    // ponytail: one compiler owner injects four modules; no program per helper.
+    const fixtureDiagnostics = (text, selectorText, patchText, commandText = commandSource) => {
       const modules = new Map([[file, { text, fixture }], [selectorFile, { text: selectorText, fixture: selectorFixture }],
-        [patchFile, { text: patchText, fixture: patchFixture }]]);
+        [patchFile, { text: patchText, fixture: patchFixture }], [commandFile, { text: commandText, fixture: commandFixture }]]);
       const host = ts.createCompilerHost(parsed.options), read = host.getSourceFile;
       host.getSourceFile = (name, version, onError, newFile) => {
         const input = modules.get(path.resolve(name));
@@ -2810,13 +2884,16 @@ const coordinateFallbackFixture = normalizeCoordinate(null, coordinateFallbackTo
       'addPoolState', 'assignPoolKeywords', 'mergePoolSourceConfig', 'assignPoolPolicy', 'removePoolState', 'withUpdatedPhoto',
       'buildDefinedMetadataPatch', 'buildPhotoPersistenceEffects', 'keepUpdatedPhotoState', 'preserveUpdatedPhotoState',
       'reducePhotoLibraryCommand', 'readPhotoCommandUrl', 'buildPhotoCommandReducer']);
-    const reducerTree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-    // Strip all contiguous overload/implementation docs together, not only the last block.
-    const withoutContract = reducerTree.statements.filter(node => node.jsDoc?.length && (
-      ts.isFunctionDeclaration(node) ? contractNames.has(node.name?.text)
-        : ts.isVariableStatement(node) && node.declarationList.declarations.some(item => contractNames.has(item.name.getText(reducerTree)))
-    )).map(node => [node.jsDoc[0].pos, node.getStart(reducerTree)]).sort(([left], [right]) => right - left)
-      .reduce((text, [start, end]) => text.slice(0, start) + text.slice(end), source);
+    // Strip contiguous overload/implementation docs once for every injected boundary.
+    const withoutContracts = (name, text, names) => {
+      const tree = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true);
+      return tree.statements.filter(node => node.jsDoc?.length && (
+        ts.isFunctionDeclaration(node) ? names.has(node.name?.text)
+          : ts.isVariableStatement(node) && node.declarationList.declarations.some(item => names.has(item.name.getText(tree)))
+      )).map(node => [node.jsDoc[0].pos, node.getStart(tree)]).sort(([left], [right]) => right - left)
+        .reduce((input, [start, end]) => input.slice(0, start) + input.slice(end), text);
+    };
+    const withoutContract = withoutContracts(file, source, contractNames);
     const withoutLibraryContracts = ['attachCategory', 'getCategoryPhotos', 'updatePhotoInNamedCollections'].reduce((text, name) => {
       const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
       return text.slice(0, comment) + text.slice(start);
@@ -2825,7 +2902,11 @@ const coordinateFallbackFixture = normalizeCoordinate(null, coordinateFallbackTo
       const start = text.indexOf(`const ${name} =`), comment = text.lastIndexOf('/**', start);
       return text.slice(0, comment) + text.slice(start);
     }, patchSource);
-    const sensitive = fixtureDiagnostics(withoutContract, withoutLibraryContracts, withoutPatchContracts);
+    const withoutNavigationContract = withoutContracts(commandFile, commandSource, new Set(['createAdvancePhotoTransportSpec', 'REST_ADVANCE_PHOTO_ROUTE_SPECS']));
+    const sensitive = fixtureDiagnostics(withoutContract, withoutLibraryContracts, withoutPatchContracts, withoutNavigationContract);
+    const navigationSensitive = sensitive.filter(item => item.file.fileName === commandFile);
+    assert.ok(navigationSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('navigationDirectionIsAny')), 'Navigation direction must not become any');
+    assert.ok(navigationSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('navigationPathIsAny')), 'Public navigation paths must not become any');
     const patchSensitive = sensitive.filter(item => item.file.fileName === patchFile);
     assert.ok(patchSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('generic coordinate fallback')), 'Coordinate contracts must enforce generic fallback correlation');
     assert.ok(patchSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('patchLatitudeIsAny')), 'Location coordinates must retain their non-any leaf contract');

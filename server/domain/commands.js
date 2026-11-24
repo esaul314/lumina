@@ -156,6 +156,13 @@ const createAsyncJobTransportSpec = ({
     missingSubmissionMessage: `${unavailableLabel} job service unavailable.`
   };
 };
+/**
+ * Capture supported navigation inputs once. Socket decoding stays smart; REST
+ * stays sequential. The public fields and fresh fallback array remain mutable,
+ * but editing them does not rebind the decoders' captured direction. This is a
+ * caller contract, not validation: raw invalid directions still decode to null.
+ * @param {{direction: 'next' | 'prev', socketEvent: string, routePath: string, notFoundMessage: string}} spec
+ */
 const createAdvancePhotoTransportSpec = ({
   direction,
   socketEvent,
@@ -885,6 +892,13 @@ const REST_ASYNC_JOB_ROUTE_SPECS = ASYNC_JOB_TRANSPORT_SPECS.map(({
   present: ({ submission }) => buildAcceptedJobResponse(submission)
 }));
 
+/**
+ * Public REST navigation descriptors expose metadata and a zero-input decoder;
+ * results retain the shared nullable Command contract and require narrowing.
+ * Extra metadata stays unknown; dynamic writes cannot bypass known fields.
+ * Named fields remain mutable; the index restriction adds no runtime freezing.
+ * @type {Array<{path: string, decode: () => Command | null, readonly [key: string]: unknown}>}
+ */
 const REST_ADVANCE_PHOTO_ROUTE_SPECS = ADVANCE_PHOTO_TRANSPORT_SPECS.map(({
   routePath,
   decodeRest,
