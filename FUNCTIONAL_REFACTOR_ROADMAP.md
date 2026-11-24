@@ -222,11 +222,11 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **8/10 outcomes accepted; AR-1–AR-5 source/test bridge remains accepted.** **fix(crawler): bound Art Institute failures per crawl** (889fe0c) supplies the existing request capability to its adapter/crawl caller. Shared pass-local classification/skip/reporting needs no new layer. IIIF configured/fallback base, query/limit/fields, title/artist/source/weather defaults and missing-image filtering are unchanged.
+Current checkpoint (2026-11-24): **9/10 outcomes accepted; AR-1–AR-5 and selected provider source/test work accepted.** **fix(crawler): retain accepted photos after later query failure** (396ae41) keeps the existing Unsplash accumulator through its catch and returns the same count-limited projection. Filtering, URL de-duplication, metadata and request order remain unchanged; no new retry/state/validation policy.
 
-12new awaited native cases/38crawler, full124native/13sensor/3compiler plus clean lint/diff pass;49independent offline review scenarios accept exact source. Cache/manual metadata, accepted earlier queries, timed recovery,404 and status/transport/JSON/deadline/null failures are covered. Root930legacy labels retain documented async-test limits; strict279core/36transitive remains non-green and unchanged checked graph was not replayed.
+6new awaited native cases/44crawler and full130native/13sensor/3compiler plus clean lint/diff pass. An independent offline differential probe reproduces the baseline's third-variant JSON loss and accepts preserved results, truthful warning, order, metadata, dedup/filtering and healthy-provider continuation. Root930legacy labels retain documented async-test limits; strict279core/36transitive is non-green and unchanged checked graph was not replayed.
 
-**Next: unfinished Unsplash-query preservation**, then qualified1.0.3 rollout. The release browser fixture's missing required AR-4 writer is reproduced offline and will be corrected at that isolated composition root, not by adding a production fallback. Final acceptance must qualify candidate-owned shutdown after startup; production1.0.2 remains unchanged. Phase1/Step6 and physical-TV/security/vision/auth debt stay open.
+**Next: qualified1.0.3 release.** Correct the independently reproduced browser-fixture missing-writer composition with isolated concrete sinks; full tests/lint/strict/build/headless qualification and supported provenance, fresh state/history backup and named rollback precede promotion. Verify new native startup AND a second candidate-owned shutdown/startup with fresh intent/data each time. Production stays1.0.2 until qualification. This batch is not whole Phase1/Step6, full provider/vision/auth/security or physical-TV acceptance.
 
 Why sixth:
 

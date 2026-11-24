@@ -488,10 +488,12 @@ design work, not claims that the current behavior has already been changed.
   fallback identity/order/full cardinality and next-pass recovery remain covered.
   Art Institute now also receives the existing pass-local policy, preserving IIIF
   identity/base/fallback and display metadata. Both source repairs are independently
-  accepted with awaited offline failures/recovery; live qualification still
-  follows. Next preserve accepted fresh results when transport/JSON/deadline
-  interrupts an unfinished Unsplash query. Other providers and unavailable vision/
-  auth remain open; cache preservation is not a claim of full provider recovery.
+  accepted with awaited offline failures/recovery. Unsplash now retains already
+  accepted fresh results after a later transport/JSON/deadline interruption in
+  the same query, preserving its existing filters/identity/count and truthful
+  warning. Independent differential review confirms the former loss case. Final
+  live qualification still follows. Other providers and unavailable vision/auth
+  remain open; partial/cache preservation is not full provider recovery.
 
 ### Medium priority
 
