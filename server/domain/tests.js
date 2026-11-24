@@ -2059,7 +2059,170 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => sandbox.clone(malformed), error => error.name === 'TypeError' && /map/.test(error.message));
   });
 
-  assertTest('private state-clone compiler contract rejects malformed input and narrowed compatibility output', () => {
+  assertTest('comparison primitives retain strict identity, shallow arrays and asymmetric sparse every semantics', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.compare = { arraysEqual, valuesEqual, shallowEqualObjects };`, sandbox);
+    const { arraysEqual, valuesEqual } = sandbox.compare, shared = {};
+    assert.strictEqual(arraysEqual(), true);
+    assert.strictEqual(arraysEqual(undefined, []), true);
+    assert.strictEqual(arraysEqual([NaN], [NaN]), false);
+    assert.strictEqual(arraysEqual([-0, shared], [0, shared]), true);
+    assert.strictEqual(arraysEqual([shared], [{}]), false);
+    assert.strictEqual(arraysEqual(Array(1), [shared]), true);
+    assert.strictEqual(arraysEqual([shared], Array(1)), false);
+    const inheritedIndex = Array(1);
+    Object.setPrototypeOf(inheritedIndex, Object.assign(Object.create(Array.prototype), { 0: shared }));
+    assert.strictEqual(arraysEqual(inheritedIndex, [shared]), true);
+    assert.strictEqual(arraysEqual(inheritedIndex, [{}]), false);
+    assert.strictEqual(valuesEqual([shared], [shared]), true);
+    assert.strictEqual(valuesEqual([[shared]], [[shared]]), false);
+    assert.strictEqual(valuesEqual([], {}), false);
+    assert.strictEqual(valuesEqual({}, []), false);
+    assert.strictEqual(valuesEqual(NaN, NaN), false);
+    assert.strictEqual(valuesEqual(-0, 0), true);
+    assert.strictEqual(valuesEqual(shared, shared), true);
+    assert.strictEqual(valuesEqual(undefined, undefined), true);
+  });
+
+  assertTest('comparison primitives preserve native key enumeration, asymmetric key lookup and failure order', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.compare = { arraysEqual, valuesEqual, shallowEqualObjects };`, sandbox);
+    const { arraysEqual, valuesEqual, shallowEqualObjects } = sandbox.compare;
+    const calls = [], failure = new Error('native comparison failed');
+    const left = [1, 2], right = [9, 2];
+    Object.defineProperty(left, 0, { get: () => (calls.push('left'), 1) });
+    Object.defineProperty(right, 0, { get: () => (calls.push('right'), 9) });
+    Object.defineProperty(left, 1, { get: () => assert.fail('every short-circuit') });
+    assert.strictEqual(arraysEqual(left, []), false);
+    assert.deepStrictEqual(calls, []);
+    assert.strictEqual(arraysEqual(left, right), false);
+    assert.deepStrictEqual(calls, ['left', 'right']);
+    assert.strictEqual(shallowEqualObjects({ a: undefined }, { b: undefined }), true);
+    const inherited = Object.assign(Object.create({ a: 1 }), { b: 2 });
+    assert.strictEqual(shallowEqualObjects({ a: 1 }, inherited), true);
+    assert.strictEqual(shallowEqualObjects(inherited, { a: 1 }), false);
+    const hidden = Object.defineProperty({ [Symbol('ignored')]: 1 }, 'hidden', { value: 2 });
+    assert.strictEqual(shallowEqualObjects(hidden, Object.create(null)), true);
+    assert.strictEqual(shallowEqualObjects(), true);
+    assert.strictEqual(shallowEqualObjects({ a: [1] }, { a: [1] }), true);
+    assert.strictEqual(shallowEqualObjects({ a: {} }, { a: {} }), false);
+    calls.length = 0;
+    const ordered = Object.fromEntries(['2', '1', 'z'].map(key => [key, 1]));
+    Object.keys(ordered).forEach(key => Object.defineProperty(ordered, key, { get: () => (calls.push(key), 1) }));
+    assert.strictEqual(shallowEqualObjects(ordered, { 1: 1, 2: 1, z: 1 }), true);
+    assert.deepStrictEqual(calls, ['1', '2', 'z']);
+    calls.length = 0;
+    const record = new Proxy({ get a() { calls.push('get left'); throw failure; } }, {
+      ownKeys: target => (calls.push('keys left'), Reflect.ownKeys(target))
+    });
+    const other = new Proxy({ get a() { return assert.fail('right getter after left failure'); } }, {
+      ownKeys: target => (calls.push('keys right'), Reflect.ownKeys(target))
+    });
+    assert.throws(() => shallowEqualObjects(record, other), error => error === failure);
+    assert.deepStrictEqual(calls, ['keys left', 'keys right', 'get left']);
+    assert.strictEqual(shallowEqualObjects(record, {}), false);
+    assert.throws(() => arraysEqual({ length: 0, every: () => { throw failure; } }, []), error => error === failure);
+    assert.throws(() => shallowEqualObjects(new Proxy({}, { ownKeys: () => { throw failure; } }), other), error => error === failure);
+    assert.throws(() => arraysEqual(null), error => error.name === 'TypeError');
+    assert.throws(() => shallowEqualObjects(null), error => error.name === 'TypeError');
+    const revoked = Proxy.revocable([], {}); revoked.revoke();
+    assert.throws(() => valuesEqual(revoked.proxy, []), error => error.name === 'TypeError');
+  });
+
+  assertTest('single-field assignment skips undefined reads and retains strict identity and native write failures', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.assign = assignIfChanged;`, sandbox);
+    const shared = {}, key = Symbol('field'), failure = new Error('native assignment failed');
+    const target = { zero: -0, nan: NaN, item: shared, [key]: false };
+    assert.strictEqual(sandbox.assign(target, 'zero', 0), false);
+    assert.ok(Object.is(target.zero, -0));
+    assert.strictEqual(sandbox.assign(target, 'nan', NaN), true);
+    assert.strictEqual(sandbox.assign(target, 'item', shared), false);
+    const replacement = {};
+    assert.strictEqual(sandbox.assign(target, 'item', replacement), true);
+    assert.strictEqual(target.item, replacement);
+    assert.strictEqual(sandbox.assign(target, key, true), true);
+    assert.strictEqual(target[key], true);
+    Object.defineProperty(target, 'unread', { get: () => { throw failure; } });
+    assert.strictEqual(sandbox.assign(target, 'unread', undefined), false);
+    assert.strictEqual(sandbox.assign(null, key, undefined), false);
+    assert.throws(() => sandbox.assign(target, 'unread', 1), error => error === failure);
+    Object.defineProperty(target, 'unwritten', { get: () => 1, set: () => { throw failure; } });
+    assert.strictEqual(sandbox.assign(target, 'unwritten', 1), false);
+    assert.throws(() => sandbox.assign(target, 'unwritten', 2), error => error === failure);
+  });
+
+  assertTest('field assignment visits every present entry in order, preserving symbols, skips and partial writes on failure', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.assign = assignFields;`, sandbox);
+    const calls = [], key = Symbol('field'), target = { [key]: false }, failure = new Error('tuple iterator failed');
+    let value = 0;
+    Object.defineProperty(target, 'count', { get: () => (calls.push(`read ${value}`), value), set: next => { calls.push(`write ${next}`); value = next; } });
+    Object.defineProperty(target, 'skip', { get: () => assert.fail('undefined read') });
+    const entries = Object.freeze(Object.assign([Object.freeze(['count', 1])], {
+      2: Object.freeze([key, true]), 3: Object.freeze(['count', 2]),
+      4: Object.freeze(['skip', undefined]), 5: Object.freeze(['count', 2])
+    }));
+    assert.strictEqual(sandbox.assign(target, entries), true);
+    assert.deepStrictEqual(calls, ['read 0', 'write 1', 'read 1', 'write 2', 'read 2']);
+    assert.strictEqual(target[key], true);
+    assert.strictEqual(sandbox.assign(target, Array(2)), false);
+    assert.strictEqual(sandbox.assign(target, [['count', 2], [key, true]]), false);
+    const broken = { [Symbol.iterator]: () => { throw failure; } };
+    assert.throws(() => sandbox.assign(target, [['count', 3], broken, ['count', 4]]), error => error === failure);
+    assert.strictEqual(value, 3);
+    assert.throws(() => sandbox.assign(target, { reduce: () => { throw failure; } }), error => error === failure);
+    assert.throws(() => sandbox.assign(target, [null]), error => error.name === 'TypeError');
+  });
+
+  assertTest('event and persistence descriptions copy only outer arrays with fresh records and exact ordering', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.describe = { withPersist, emitStateSync, emitPhotoUpdate, stateSyncEventsFor };`, sandbox);
+    const { withPersist, emitStateSync, emitPhotoUpdate, stateSyncEventsFor } = sandbox.describe;
+    const event = Object.freeze({ type: 'photo-update' }), effect = Object.freeze({ type: 'run-crawler', payload: { categories: ['A'] } });
+    [[withPersist, effect, ['persist', 'run-crawler']], [emitStateSync, event, ['photo-update', 'state-sync']],
+      [emitPhotoUpdate, event, ['photo-update', 'photo-update', 'state-sync']]].forEach(([describe, entry, types]) => {
+      const input = Object.freeze([entry]), first = describe(input), second = describe(input);
+      assert.notStrictEqual(first, input);
+      assert.notStrictEqual(first, second);
+      assert.deepStrictEqual(Array.from(first, item => item.type), types);
+      assert.strictEqual(first[describe === withPersist ? 1 : 0], entry);
+      const added = describe === withPersist ? 0 : 1;
+      assert.notStrictEqual(first[added], second[added]);
+      assert.deepStrictEqual(Array.from(describe(), item => item.type), Array.from(describe(undefined), item => item.type));
+      assert.notStrictEqual(describe(), describe());
+      assert.strictEqual(describe(Array(1))[describe === withPersist ? 1 : 0], undefined);
+    });
+    [false, 0, '', null, undefined, NaN].forEach(value => assert.deepStrictEqual(Array.from(stateSyncEventsFor(value), event => event.type), ['state-sync']));
+    [true, [], {}, 'changed'].forEach(value => assert.deepStrictEqual(Array.from(stateSyncEventsFor(value), event => event.type), ['photo-update', 'state-sync']));
+    const first = stateSyncEventsFor(true), second = stateSyncEventsFor(true);
+    assert.notStrictEqual(first, second);
+    first.forEach((event, index) => assert.notStrictEqual(event, second[index]));
+  });
+
+  assertTest('description primitives preserve native iterator/default failures without inspecting entries or truthy flags', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.describe = { withPersist, emitStateSync, emitPhotoUpdate, stateSyncEventsFor };`, sandbox);
+    const { withPersist, emitStateSync, emitPhotoUpdate, stateSyncEventsFor } = sandbox.describe;
+    const failure = new Error('native iterator failed'), calls = [];
+    const entry = Object.defineProperty({}, 'type', { get: () => assert.fail('entry inspection') });
+    [withPersist, emitStateSync, emitPhotoUpdate].forEach(describe => {
+      const input = { *[Symbol.iterator]() { calls.push('iterate'); yield entry; throw failure; } };
+      assert.throws(() => describe(input), error => error === failure);
+      [null, false, 0].forEach(value => assert.throws(() => describe(value), error => error.name === 'TypeError'));
+      const iteratorGetter = { get [Symbol.iterator]() { throw failure; } };
+      assert.throws(() => describe(iteratorGetter), error => error === failure);
+    });
+    assert.deepStrictEqual(calls, ['iterate', 'iterate', 'iterate']);
+    const flag = { [Symbol.toPrimitive]: () => assert.fail('truthiness coercion') };
+    assert.deepStrictEqual(Array.from(stateSyncEventsFor(flag), event => event.type), ['photo-update', 'state-sync']);
+    sandbox.emitStateSync = () => { throw failure; };
+    assert.throws(() => stateSyncEventsFor(false), error => error === failure);
+    sandbox.emitPhotoUpdate = () => { throw failure; };
+    assert.throws(() => stateSyncEventsFor(true), error => error === failure);
+  });
+
+  assertTest('private reducer compiler contracts preserve clone, keyed assignment and canonical descriptions', () => {
     const ts = require('typescript');
     const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
     const root = path.resolve(__dirname, '../..'), configPath = path.join(root, 'tsconfig.domain.json');
@@ -2078,6 +2241,70 @@ cloneState(null);
 /** @type {string} */ const normalizedCloneUrlFixture = cloneFixture.playback.activePhotoUrl;
 // @ts-expect-error cloned widget values aren't string values
 /** @type {string} */ const wrongCloneWidgetFixture = cloneFixture.config.widgets.clock;
+/** @type {readonly unknown[]} */ const comparisonArrayFixture = [1, 'one', {}];
+/** @type {boolean} */ const arrayComparisonFixture = arraysEqual(comparisonArrayFixture, [null]);
+/** @type {boolean} */ const valueComparisonFixture = valuesEqual(null, { legacy: true });
+/** @type {boolean} */ const objectComparisonFixture = shallowEqualObjects(cloneFixture, {});
+arraysEqual(); shallowEqualObjects(undefined); stateSyncEventsFor({ legacy: true });
+// @ts-expect-error array comparison documents arrays, not a scalar with native failure
+arraysEqual(1, []);
+// @ts-expect-error null is not an undefined default
+arraysEqual(null);
+// @ts-expect-error object comparison does not document null enumeration
+shallowEqualObjects(null, {});
+// @ts-expect-error object comparison documents objects, not boxed primitive enumeration
+shallowEqualObjects(1, {});
+const assignmentSymbolFixture = Symbol('field');
+const assignmentTargetFixture = { count: 1, label: 'old', [assignmentSymbolFixture]: false };
+/** @type {boolean} */ const assignedFixture = assignIfChanged(assignmentTargetFixture, 'count', 2);
+assignIfChanged(assignmentTargetFixture, assignmentSymbolFixture, true);
+assignIfChanged(assignmentTargetFixture, 'count', undefined);
+/** @type {readonly FieldEntry<typeof assignmentTargetFixture>[]} */
+const assignmentEntriesFixture = [['count', 2], ['label', 'new'], [assignmentSymbolFixture, true], ['count', undefined]];
+/** @type {boolean} */ const assignedFieldsFixture = assignFields(assignmentTargetFixture, assignmentEntriesFixture);
+assignIfChanged(cloneFixture.runtime, 'screensaverActive', true);
+assignFields(cloneFixture.playback, [['splitSeed', 2], ['lastDirection', 'prev']]);
+// @ts-expect-error canonical domain fields retain their own types
+assignFields(cloneFixture.runtime, [['screensaverActive', 'active']]);
+/** @type {FieldEntry<typeof assignmentTargetFixture>} */
+const assignmentUnionFixture = Math.random() ? ['count', 3] : ['label', 'next'];
+assignIfChanged(assignmentTargetFixture, ...assignmentUnionFixture);
+/** @type {'count' | 'label'} */ const assignmentUnionKeyFixture = Math.random() ? 'count' : 'label';
+// @ts-expect-error independently unioned keys/values are not correlated entries
+assignIfChanged(assignmentTargetFixture, assignmentUnionKeyFixture, 'wrong for count');
+// @ts-expect-error a count cannot receive the label's value type
+assignIfChanged(assignmentTargetFixture, 'count', 'wrong');
+// @ts-expect-error symbol keys retain their own value type
+assignIfChanged(assignmentTargetFixture, assignmentSymbolFixture, 1);
+// @ts-expect-error unknown keys cannot widen the target
+assignIfChanged(assignmentTargetFixture, 'missing', 1);
+// @ts-expect-error bulk entries retain each key/value relationship, not two independent unions
+assignFields(assignmentTargetFixture, [['count', 'wrong']]);
+// @ts-expect-error entry tuples need a key as well as a value (undefined is allowed explicitly)
+assignFields(assignmentTargetFixture, [['count']]);
+// @ts-expect-error targets are objects, not primitive mutation destinations
+assignIfChanged(null, 'count', 1);
+/** @type {readonly Event[]} */ const eventsInputFixture = [{ type: 'photo-update' }];
+/** @type {readonly Effect[]} */ const effectsInputFixture = [{ type: 'run-crawler', payload: { categories: ['A'] } }];
+const describedEventsFixture = emitPhotoUpdate(emitStateSync(eventsInputFixture));
+const describedEffectsFixture = withPersist(effectsInputFixture);
+/** @type {ReducerResult} */ const primitiveResultFixture = { nextState: cloneFixture, events: describedEventsFixture, effects: describedEffectsFixture };
+/** @type {Event[]} */ const conditionalEventsFixture = stateSyncEventsFor(null);
+withPersist(); withPersist(undefined); emitStateSync(); emitPhotoUpdate(undefined);
+/** @type {0 extends (1 & typeof describedEffectsFixture[number]['type']) ? true : false} */ const describedEffectIsAny = false;
+/** @type {0 extends (1 & typeof describedEventsFixture[number]['type']) ? true : false} */ const describedEventIsAny = false;
+// @ts-expect-error canonical effects with required payloads cannot omit them
+withPersist([{ type: 'run-crawler' }]);
+// @ts-expect-error canonical effect payload fields keep their types
+withPersist([{ type: 'run-crawler', payload: { categories: [1] } }]);
+// @ts-expect-error effect names are not event descriptions
+emitStateSync([{ type: 'persist' }]);
+// @ts-expect-error photo helper accepts canonical events, not arbitrary names
+emitPhotoUpdate([{ type: 'wrong' }]);
+// @ts-expect-error null does not select the undefined-only effect default
+withPersist(null);
+// @ts-expect-error events remain closed descriptions, not strings
+/** @type {string[]} */ const wrongConditionalEventsFixture = stateSyncEventsFor(true);
 `;
     const fixtureDiagnostics = text => {
       const host = ts.createCompilerHost(parsed.options), read = host.getSourceFile;
