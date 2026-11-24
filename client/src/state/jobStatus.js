@@ -3,7 +3,7 @@
 /** @typedef {'recrawl'|'vision-analysis'} JobType */
 /** @typedef {{loadingMessage: string, successMessage: string, failureMessage: string, countKey: 'visibleCount'|'taggedCount'}} JobStatusSpec */
 /** @typedef {{message?: string}} JobProgress */
-/** @typedef {Record<string, number|undefined>} JobResult */
+/** @typedef {Record<string, unknown> & {visibleCount?: number, taggedCount?: number}} JobResult */
 
 /**
  * The server job envelope is deliberately local to the client boundary. The
@@ -18,7 +18,7 @@
  * @property {string=} error
  */
 
-/** @typedef {{success?: boolean, count?: number, error?: string}} LegacyRecrawlCompletion */
+/** @typedef {{success?: boolean, count?: number, error?: string, message?: string}} LegacyRecrawlCompletion */
 /** @typedef {{status: 'loading'|'success'|'error', message: string, count?: number, reset?: boolean}} JobStatusUpdate */
 /** @typedef {{type: JobType|undefined, update: JobStatusUpdate|null}} JobEventProjection */
 
@@ -110,6 +110,7 @@ export function projectJobEvent(event, payload) {
       update: projectJobStatus({
         type: 'recrawl',
         status: completion?.success ? 'succeeded' : 'failed',
+        progress: { message: typeof completion?.message === 'string' ? completion.message : undefined },
         result: { visibleCount: completion?.count },
         error: completion?.error
       })

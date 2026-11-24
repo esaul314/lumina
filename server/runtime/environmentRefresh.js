@@ -188,7 +188,7 @@ function createEnvironmentRefreshRuntime({
       };
     }
 
-    const { updatedCollections, updatedAny } = await crawlCollections(
+    const { updatedCollections, updatedAny, providerFailures = [] } = await crawlCollections(
       collections,
       state.feedConfigs,
       state.searchKeywords,
@@ -196,9 +196,14 @@ function createEnvironmentRefreshRuntime({
       state.poolPolicies
     );
 
+    if (providerFailures.length) {
+      log.warn('Daily feed refresh completed with provider warnings:', providerFailures);
+    }
+
     if (!updatedAny) {
       return {
         skipped: false,
+        ...(providerFailures.length ? { providerFailures } : {}),
         updatedAny: false,
         lastUpdated
       };
@@ -214,6 +219,7 @@ function createEnvironmentRefreshRuntime({
 
     return {
       skipped: false,
+      ...(providerFailures.length ? { providerFailures } : {}),
       updatedAny: true,
       lastUpdated
     };

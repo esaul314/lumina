@@ -42,7 +42,7 @@ function normalizeScopeCategories(requestedCategories, collections, fallbackCate
  *   createJobId?: () => string,
  *   queuedMessage: string,
  *   startingMessage: string,
- *   completeMessage: string,
+ *   completeMessage: string | ((result: any) => string),
  *   failureMessage: string
  * }} options
  */
@@ -122,7 +122,7 @@ function createAsyncJobService({
       buildTerminalJob(job.id, 'succeeded', {
         progress: {
           phase: 'complete',
-          message: completeMessage
+          message: typeof completeMessage === 'function' ? completeMessage(result) : completeMessage
         },
         result
       });

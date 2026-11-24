@@ -30,6 +30,14 @@ function buildCategoryCounts(categories, collections) {
   }));
 }
 
+
+// A completed pass can be degraded without inventing another lifecycle state.
+const buildRecrawlCompleteMessage = ({ providerFailures = [] } = {}) => providerFailures.length
+  ? 'Feed recrawl completed with warnings: ' + providerFailures
+      .map(({ provider, kind, status }) => `${provider} (${kind}${status ? `, HTTP ${status}` : ''})`)
+      .join('; ') + '. Cached photos remain available.'
+  : 'Feed recrawl completed successfully.';
+
 async function executeRecrawlPass({
   state,
   collections,
@@ -54,7 +62,7 @@ async function executeRecrawlPass({
     message: `Recrawling ${scopedCategories.length} feed pool${scopedCategories.length === 1 ? '' : 's'}...`
   });
 
-  const { updatedCollections, updatedAny } = await crawlCollections(
+  const { updatedCollections, updatedAny, providerFailures = [] } = await crawlCollections(
     scopedCollections,
     scopedFeedConfigs,
     scopedKeywords,
@@ -101,6 +109,7 @@ async function executeRecrawlPass({
 
   return {
     categories: scopedCategories,
+    ...(providerFailures.length ? { providerFailures } : {}),
     updatedAny,
     visibleCount: Array.isArray(state.photosList) ? state.photosList.length : 0,
     categoryCounts: buildCategoryCounts(scopedCategories, collections)
@@ -129,13 +138,14 @@ function createRecrawlJobService({
     createJobId,
     queuedMessage: 'Feed recrawl queued.',
     startingMessage: 'Starting feed recrawl job...',
-    completeMessage: 'Feed recrawl completed successfully.',
+    completeMessage: buildRecrawlCompleteMessage,
     failureMessage: 'Feed recrawl failed.',
     emitTerminal: (job) => {
       if (job.status === 'succeeded') {
         io.emit(LEGACY_RECRAWL_COMPLETE_EVENT, {
           success: true,
-          count: job.result?.visibleCount || 0
+          count: job.result?.visibleCount || 0,
+          ...(job.result?.providerFailures?.length ? { message: job.progress.message } : {})
         });
       }
 

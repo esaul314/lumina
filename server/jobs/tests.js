@@ -207,6 +207,71 @@ async function runRecrawlJobTests(assertAsyncTest) {
     });
   });
 
+
+  for (const updatedAny of [false, true]) {
+    await assertAsyncTest(`recrawl retains provider warnings with updatedAny=${updatedAny} and clears them on recovery`, async () => {
+      const state = createState(), collections = createCollections(), emitted = [];
+      const providerFailures = [{ provider: 'reddit', kind: 'policy', status: 403 }];
+      let recovered = false, persisted = 0, sequence = 0;
+      const service = createRecrawlJobService({
+        state, collections, io: { emit: (event, payload) => emitted.push({ event, payload }) },
+        crawlCollections: async () => ({
+          updatedAny, updatedCollections: { 'Scenic Nature': [{ url: 'fresh-safe' }] },
+          ...(recovered ? {} : { providerFailures })
+        }),
+        persistCollections: () => { persisted++; },
+        buildActiveFeed: categories => categories.flatMap(category => collections[category]),
+        getActiveCategories: () => ['Scenic Nature'], broadcastStateSync: () => {},
+        triggerImageAnalysisBackground: async () => {},
+        createJobId: () => `degraded-${++sequence}`
+      });
+      await service.submit({});
+      await service.waitForIdle();
+      const terminal = service.getLatestJob();
+      assert.strictEqual(terminal.status, 'succeeded');
+      assert.deepStrictEqual(terminal.result.providerFailures, providerFailures);
+      assert.match(terminal.progress.message, /warnings: reddit \(policy, HTTP 403\)/);
+      assert.ok(terminal.completedAt);
+      const legacy = emitted.findLast(({ event }) => event === 'recrawl-complete').payload;
+      assert.strictEqual(legacy.success, true);
+      assert.strictEqual(legacy.message, terminal.progress.message);
+      assert.strictEqual(persisted, Number(updatedAny));
+      assert.strictEqual(collections['Scenic Nature'][0].url, updatedAny ? 'fresh-safe' : 'old-1');
+
+      recovered = true;
+      await service.submit({});
+      await service.waitForIdle();
+      assert.strictEqual(service.getLatestJob().result.providerFailures, undefined);
+      assert.strictEqual(service.getLatestJob().progress.message, 'Feed recrawl completed successfully.');
+      assert.strictEqual(emitted.findLast(({ event }) => event === 'recrawl-complete').payload.message, undefined);
+    });
+
+    await assertAsyncTest(`daily feed refresh exposes warnings with updatedAny=${updatedAny} without extra persistence`, async () => {
+      const { createEnvironmentRefreshRuntime } = require('../runtime/environmentRefresh.js');
+      const collections = createCollections(), warnings = [];
+      const providerFailures = [{ provider: 'unsplash', kind: 'authentication', status: 401 }];
+      let persisted = 0;
+      const runtime = createEnvironmentRefreshRuntime({
+        state: createState(), collections, jsonPath: 'unused',
+        crawlCollections: async () => ({
+          updatedAny, updatedCollections: { 'Scenic Nature': [{ url: 'safe-new' }] }, providerFailures
+        }),
+        persistCollections: () => { persisted++; },
+        activeFeedRuntime: { refreshActiveFeed: () => {} },
+        broadcastStateSync: () => {}, triggerImageAnalysisBackground: async () => {},
+        fsImpl: { existsSync: () => false }, now: () => 123,
+        log: { log() {}, warn: (...args) => warnings.push(args), error() {} }
+      });
+      const result = await runtime.updateFeedsDaily();
+      assert.deepStrictEqual(result.providerFailures, providerFailures);
+      assert.strictEqual(result.updatedAny, updatedAny);
+      assert.strictEqual(warnings.length, 1);
+      assert.deepStrictEqual(warnings[0][1], providerFailures);
+      assert.strictEqual(persisted, Number(updatedAny));
+      assert.strictEqual(collections['Scenic Nature'][0].url, updatedAny ? 'safe-new' : 'old-1');
+    });
+  }
+
   await assertAsyncTest('vision-analysis job service emits progress and terminal results for scoped categories', async () => {
     const emitted = [];
     let receivedPayload = null;

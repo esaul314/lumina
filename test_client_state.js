@@ -285,6 +285,22 @@ async function runClientStateTests({
     assert.strictEqual(projectJobStatus(null), null);
   });
 
+
+  assertTest('modern and legacy recrawl completions retain the same degraded meaning', () => {
+    const message = 'Feed recrawl completed with warnings: reddit (policy, HTTP 403). Cached photos remain available.';
+    const modern = projectJobEvent('job-status', {
+      type: 'recrawl', status: 'succeeded', progress: { message }, result: { visibleCount: 3 }
+    });
+    const legacy = projectJobEvent('recrawl-complete', { success: true, count: 3, message });
+    assert.deepStrictEqual(legacy, modern);
+    assert.strictEqual(legacy.update.message, message);
+    assert.strictEqual(legacy.update.status, 'success');
+    assert.strictEqual(legacy.update.count, 3);
+    assert.strictEqual(projectJobEvent('recrawl-complete', {
+      success: true, message: { unsafe: 'not a text message' }
+    }).update.message, 'Feed recrawl completed successfully.');
+  });
+
   assertTest('client job event projection normalizes legacy recrawl completion', () => {
     assert.deepStrictEqual(projectJobEvent('job-status', {
       type: 'vision-analysis',
