@@ -6987,3 +6987,10 @@ Five runtime regressions and the extended existing two-program/three-module comp
 All five commissioned Step6 outcomes are independently accepted with109strict occurrences removed and0added:275→181core,36→21transitive. Full949/13/3/145 and lint pass; executable AST/exports of all three touched production modules remain equivalent to the commissioned and active-release sources after only harmless identifier groups. The compiler fixture stays one owner with two normal programs/three virtual modules rather than one framework per helper; tests/comments grow visibly, not runtime branches or services. Whole Step6 and unrelated product deferrals remain open.
 
 One approved graph, three real edges and five scoped atomic selections eliminated routine child-phase notes and between-task roadmap reconstruction.26tracker calls include9lease renewals and20.717seconds of CLI time; neither is demonstrated time/token savings. Native model turns exceeded several five-minute leases, so retain single-writer/result custody and do not infer unattended/concurrent qualification. A worker timeout was recovered from completed evidence; an exit0 close's array result was recovered rather than replayed after a display assumption failed. Queues compute readiness; reviewers found three contract overclaims. Keep the lean existing workflow, with no new scheduler/reclaimer or automatically commissioned next batch.
+
+
+## Subtract coordination, preserve acceptance (2026-11-24)
+
+**docs(workflow): subtract redundant development coordination** prefers direct capable execution, grounded-session delta briefs and reusable exact-candidate test evidence, with independent review retained. Start contracts with unsafe consumers in existing fixtures; preserve unknown at raw boundaries rather than chasing diagnostic counts. Keep one acceptance record and link it; journal only new lessons or private setup at their owner.
+
+Application inputs are unchanged; accepted application checks are reused, with document/link and independent instruction review for this change. No new harness/controller, lease change, deployment or weaker quality/publication gate.
