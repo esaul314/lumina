@@ -222,7 +222,11 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **Five further Step6 contract outcomes commissioned.** Selected boundaries are comparison/assignment/event-effect primitives, patch normalization, named-library updates, pool/feed mutations and photo-mutation/persistence composition. The approved Beads graph owns readiness/custody; producer contracts precede their dependent pool/photo consumers. Keep one writer, behavior-preserving contracts, existing harness and exact reviewed/tested commits. Source/test only; no deployment or sixth outcome. Capture actual new compatibility/design learning below/in the journal without mirroring every queue transition.
+Current checkpoint (2026-11-24): **Five further Step6 contract outcomes accepted.** Comparison/assignment/event-effect primitives, named-library updates, pool/feed mutations, patch normalization and photo-mutation/persistence composition now have reviewed contracts and regressions. All five selected outcomes are committed; source/test acceptance only, not a deployment or completion of Phase1/Step6.
+
+Full949root/13sensor/3compiler-report/145native and lint pass. Exact strict diagnostic occurrences fall **275→181core and36→21transitive:109removed,0added,0fixture/global**; strict remains non-green. All three touched production modules preserve executable AST/exports against both the commissioned source and active1.0.3 source, normalizing only23new identifier-grouping parentheses needed for JSDoc casts. No runtime validation, schema/API, policy or public-export change.
+
+Review rejected three new type overclaims and the corrected candidates passed fresh focused reviews: a mutable field list makes raw projection unknown-valued, a grouped Effect discriminant needs an explicit payload-free persist member, and a patch spread producer must constrain known Photo fields as well as metadata. Dedicated normalizers remain canonical; raw feed/extra metadata aliases and native failures remain intentional. Existing compiler/runtime owners hold the regressions; no per-helper framework was added.
 
 Accepted source baseline (history): **Two earlier commissioned outcomes accepted.** The private state-clone boundary now takes/returns canonical DomainState and documents selective shallow copying, normalization/defaults and retained nested aliases. Four runtime/compiler regressions, negative-directive/leaf anti-any sensitivity, six independent runtime mutation probes and focused review pass. Executable production AST/exports are unchanged; no new public API, schema, validation or framework.
 
@@ -230,7 +234,9 @@ Accepted source baseline (history): **Two earlier commissioned outcomes accepted
 
 Latest live baseline remains **1.0.3/d6618ee**, with prior AR-1–AR-5/provider bridge and native promotion/candidate-owned stop/start acceptance retained in the developer journal and [product roadmap](./ROADMAP.md). Service/runtime/intent and saved-data preservation from that release stay accepted; this batch does not redeploy or requalify physical-TV, active-kiosk SIGTERM, live-provider recovery or rollback.
 
-**Next: execute only the five selected outcomes through the scoped native queue.** No automatic sixth outcome, project reminder or public push. Existing strict, other-provider/vision/auth/security and physical-TV debt remains. Beads owns the exhausted commissioned queue, not product completion; task tooling is assessed without claiming unmeasured speed/token savings.
+**Next: inspect a separately bounded command-transport specification contract seam before commissioning more work.** commands.js retains118diagnostic occurrences; that concentration is evidence for selection, not authority to type the whole module or force a green count. No sixth outcome, reminder, push or deployment is started. Strict, other-provider/vision/auth/security and physical-TV debt remains explicitly deferred/open as before.
+
+The commissioned Beads graph is exhausted, not the product roadmap. One graph/three genuine prerequisite edges and five scoped atomic claims worked with0routine custody-note updates and no full-roadmap reload for between-outcome selection. Total26tracker calls include9renewals; repeated lease gaps during native model turns mean this is not unattended/concurrent coordination qualification. Recovering a completed worker timeout and successful close output avoided duplicate work. Tests/review, not Beads, found the three contract gaps. Retain the lean queue selectively; net time/token savings remain unproved.
 
 Why sixth:
 

@@ -32,6 +32,8 @@ For the code-shaping program that supports this roadmap, see [FUNCTIONAL_REFACTO
 
 Apply [roadmap and complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline) to feedback, discoveries, task selection and acceptance. Beads contains only selected executable work, not this whole roadmap. Guide/checkpoint consolidation is accepted; keep current engineering work in the companion rather than adding another status narrative. Product priorities and existing deferrals remain unchanged.
 
+The five additional Step6 contract boundaries are accepted at source/test level; the companion owns the current counts and remaining seam. Review sharpened the raw-versus-canonical data and effect/spread contracts without changing runtime behavior. Phase1 remains open. The real dependency queue now avoids routine execution-note mirroring, but lease gaps and unmeasured net savings keep unattended/concurrent orchestration unqualified; no new controller or product scope is authorized.
+
 ### Concrete complexity-reduction actions — 2026-11-23
 
 These are bounded maintenance outcomes, not a new platform phase or a mandate to
