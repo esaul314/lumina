@@ -29,11 +29,11 @@ and the intended removal reviewable.
 
 ![Proposed backend responsibilities](diagrams/target-components.svg)
 
-CURRENT describes the source after callback injection (AR-1); deployed release1.0.2 is unchanged until qualified rollout. PROPOSED is not yet fully implemented.
+CURRENT describes the source after callback injection and vision workflow extraction (AR-1/AR-2); deployed release1.0.2 is unchanged until qualified rollout. PROPOSED is not yet fully implemented.
 Both component sets share one modeled daemon to make alternatives comparable;
 they do not represent two concurrent backends. The container view is unchanged.
 Arrows describe runtime use/dependency, including injected callbacks; they are not
-all static imports. AR-1 removes the fallback static back-reference; its analysis callback still executes in app until AR-2 changes workflow ownership.
+all static imports. AR-1 removes the fallback static back-reference; AR-2 supplies its callback from the existing vision-job module.
 Views deliberately omit some startup wiring/read-model details for readability.
 
 The TV and admin/remote are roles of ONE React bundle in different browsers.
@@ -47,22 +47,22 @@ outside Lumina's runtime: Beads is not an application dependency or state owner.
 Import-scan baseline: documentation HEAD 897783c, before the subsequent documentation-only Spotlight commit; deployed application release 1.0.2.
 A literal-runtime-import scan with the already installed TypeScript AST covers
 91 application JS/JSX files and 169 relative edges. JSDoc imports are excluded.
-The audit found one strongly connected set: `app.js -> sockets.js -> socketLegacyCompatibility.js -> app.js`. AR-1 replaces the last static require with a real analysis callback supplied through existing socket configuration. The lower layer no longer imports the entrypoint; fallback behavior and dispatcher bypass remain covered. Injected callback use remains visible in the model, and app still owns analysis until AR-2. Static acyclicity is not a claim that every runtime callback points in one direction.
+The audit found one strongly connected set: `app.js -> sockets.js -> socketLegacyCompatibility.js -> app.js`. AR-1 replaces the last static require with a real analysis callback supplied through existing socket configuration. The lower layer no longer imports the entrypoint; fallback behavior and dispatcher bypass remain covered. Injected callback use remains visible in the model; AR-2 moves execution to the existing vision-job boundary. Static acyclicity is not a claim that every runtime callback points in one direction.
 
 | Responsibility | Actual source and important qualification |
 | --- | --- |
-| Composition and startup | `server.js`, `server/app.js`: app imports 32 relative application modules; also initializes storage/sensors, tags photos, contains the vision loop and installs timers at import. |
+| Composition and startup | `server.js`, `server/app.js`: app imports 32 relative application modules; still initializes storage/sensors, tags photos and installs timers at import; AR-3 addresses that remaining lifecycle boundary. |
 | Transport | `server/routes.js`, `server/sockets.js`: durable command adapters plus deliberate source-local read/auth/media and telemetry endpoints. |
 | Compatibility | `server/socketLegacyCompatibility.js`: durable fallback when dispatcher is absent; receives the real analysis callback from composition, without importing app. Not dead code. |
 | Command/effect shell | `server/domain/dispatch.js` plus `snapshot.js` helpers `replaceCollections`, `applyDomainState`, `syncLegacySnapshot`: mutate caller-owned collections/legacy state, run ordered effects and emit events. Dispatch directly imports collection/env writers. Folder names do NOT make these helpers pure. |
 | Functional core | Reducers, selectors, deterministic policy/codecs and `snapshot.js` projections `buildDomainState`/`buildSnapshot`, NOT its mutable application helpers. Non-dispatch domain imports stay in domain/utilities; that is an import observation, not a purity proof. Time/RNG defaults and caller callbacks require explicit deterministic inputs. |
-| Workflows | `server/jobs`, `server/runtime`: existing jobs, refresh, idle/kiosk and schedules; image-analysis execution still partly lives in app. |
+| Workflows | `server/jobs`, `server/runtime`: existing jobs, refresh, idle/kiosk and schedules; image-analysis execution now has one home in jobs/visionAnalysis, with concrete effects supplied by app. |
 | External adapters | `server/services` excluding history: network/device/desktop effects. Crawler failure policy currently bounds only Unsplash/Reddit. |
 | Persistence | `server/config` codecs/writers (excluding the state singleton), `server/services/sensorHistory.js`, Google Photos source cache. Keep source-specific formats and atomic merge semantics. |
 | State owner | Existing shell-owned state/collections and necessary runtime caches. Domain snapshots and client snapshots are projections, not new authoritative stores. |
 | Client boundary | `App.jsx` normalizes live snapshots; API/hooks interpret requests; `client/src/state` literal imports stay within that directory. |
 
-Largest application modules (physical lines, including comments/types):
+Audit-baseline application sizes (physical lines, including comments/types; not a current-state mirror):
 reducer 1,794; Google Photos 1,459; Image Feeds tab 1,294; crawler 1,249;
 Dashboard 1,235; routes 1,012; app 742. Size guides review, not mandatory splitting.
 The existing scanner's 13,393-line largest-file flag is the test runner.

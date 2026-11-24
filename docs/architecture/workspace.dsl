@@ -12,12 +12,12 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             !docs .
             web = container "Web UI" "One bundle with TV and remote roles; browser-local transient effects." "React / Chromium or remote browser"
             daemon = container "Daemon" "One native service; current and proposed components below are alternative views." "Node.js / Express / Socket.IO" {
-                boot = component "Bootstrap and mixed workflows" "server/app.js; assembly plus import-time setup, timers and vision workflow." "CommonJS" "Current"
+                boot = component "Bootstrap and startup wiring" "server/app.js; assembly plus import-time setup and timers; vision execution is supplied from jobs." "CommonJS" "Current"
                 transport = component "REST and socket adapters" "server/routes.js; server/sockets.js. Commands plus source-specific endpoints." "Express / Socket.IO" "Current"
                 legacy = component "Legacy socket fallback" "server/socketLegacyCompatibility.js; used without the shared dispatcher." "CommonJS" "Current"
                 dispatch = component "Command/effect shell" "dispatch.js plus snapshot apply/replace/sync helpers; mutates state, runs ordered effects and writers." "JavaScript" "Current"
                 core = component "Functional core" "Reducers, selectors and snapshot build projections; excludes mutable apply helpers. Time/RNG need explicit inputs." "Reducers / selectors / codecs" "Current"
-                workflows = component "Jobs and runtimes" "server/jobs and server/runtime; injected services, timers and shared state." "JavaScript" "Current"
+                workflows = component "Jobs and runtimes" "server/jobs and server/runtime; one vision execution home, injected effects, timers and shared state." "JavaScript" "Current"
                 adapters = component "External adapters" "server/services except history; HTTP, desktop and device effects." "JavaScript" "Current"
                 persistence = component "Persistence and codecs" "server/config and sensorHistory; codecs plus file/SQLite writers." "Files / node:sqlite" "Current"
                 state = component "Shared mutable shell state" "screensaverState, collections and runtime caches; domain snapshots are projections." "In-process data, not a new store" "Current"
@@ -62,7 +62,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
         boot -> persistence "Loads and saves" "In-process call / reference"
         boot -> state "Initializes and mutates" "In-process call / reference"
         transport -> legacy "Fallback without dispatcher" "In-process call / reference"
-        legacy -> boot "Invokes supplied analysis callback; no entrypoint import" "Injected in-process callback"
+        legacy -> workflows "Invokes supplied analysis runner; no entrypoint import" "Injected in-process callback"
         transport -> dispatch "Dispatches decoded commands" "In-process call / reference"
         transport -> core "Decodes and projects" "In-process call / reference"
         transport -> adapters "Source-local queries / compatibility" "In-process call / reference"
@@ -115,7 +115,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             autoLayout lr
         }
         component daemon "current-components" {
-            title "CURRENT - backend responsibilities and injected compatibility callback"
+            title "CURRENT - backend responsibilities after vision workflow extraction"
             include boot transport legacy dispatch core workflows adapters persistence state
             autoLayout lr
         }
@@ -138,10 +138,6 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             }
             element "Proposed" {
                 background #23664a
-            }
-            relationship "BackReference" {
-                color #c0392b
-                thickness 4
             }
         }
     }

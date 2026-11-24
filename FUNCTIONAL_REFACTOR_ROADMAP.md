@@ -222,9 +222,9 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **outcome1/10 AR-1 accepted** in the newly commissioned ten-outcome sequence. Commit **refactor(sockets): inject legacy image analysis callback** removes the lower-layer entrypoint import; offline AST audit91files/169→168edges/static cycles1→0. Six regressions cover legacy effects/errors and dispatcher bypass;930runtime/13sensor/3compiler/16native plus full lint pass, independently accepted. Model/source map now distinguishes the removed static import from the injected runtime callback.
+Current checkpoint (2026-11-24): **2/10 outcomes accepted**. **refactor(sockets): inject legacy image analysis callback** removed the static entrypoint cycle; **refactor(vision): move analysis workflow into job boundary** directly binds one existing-job runner for all existing callers. Pure projections and explicit sequential effects preserve live photo iteration, metadata identity, progress and failure semantics.38 focused vision checks; full930runtime/13sensor/3compiler/54native and lint pass, independent review with differential baseline checks accepts the final source.
 
-**Next: AR-2, move vision execution into its existing job boundary**, preserving scoped sequential work, progress/metadata and failure semantics. Selected later work: AR-3 construction+lifecycle, AR-4 writers, AR-5 rendering-test extraction, Wallhaven/AIC/unfinished-query resilience, qualified release. Only the next outcome becomes executable tracker work. Runtime remains1.0.2; no build/restart yet. Strict290core/59transitive, physical-TV and broader security/provider limits remain open. Detailed acceptance/removal criteria below stay authoritative; historical results remain in DEVELOPER_LOG.
+**Next: AR-3 construction**, then its lifecycle convergence outcome. Import alone must not create timers/crawls/listeners/history; preserve the public startServer facade and characterize adapter effects honestly. Source inspection found Google adapter directory creation at import, in-flight sensor read handles, kiosk retry and port-recovery timers; do not infer cleanup from a cleared interval. AR-4 writers, AR-5 test extraction, Wallhaven/AIC/partial-query resilience and qualified release remain selected. Current live release1.0.2 and runtime are unchanged; strict290core/59transitive is the old measured baseline, not a new green claim. Physical-TV/security/provider limits remain open.
 
 Why sixth:
 
@@ -256,7 +256,7 @@ C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
 monolith and functional core; no new services, state manager, DI container or
 framework. These are proposed bounded outcomes, not five automatically authorized
 tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
-AR-1 is accepted in this sequence; AR-2–AR-5 remain to be implemented and independently accepted.
+AR-1/AR-2 are accepted in this sequence; AR-3–AR-5 remain to be implemented and independently accepted.
 
 ### AR-1 — remove the legacy entrypoint back-reference
 
@@ -272,6 +272,8 @@ drops from one to zero without hiding it behind a dynamic loader. Use the existi
 test harness, not a new graph framework. No new runtime module should be necessary.
 
 ### AR-2 — give vision-workflow execution one home
+
+**Accepted,2026-11-24:** execution lives in the existing job boundary; all callers share the directly bound runner. Native photo iteration deliberately preserves awaited live-array semantics; no new concurrency policy.
 
 Move the existing image-analysis execution out of app into its existing
 jobs/visionAnalysis boundary, with concrete injected analysis/persist/refresh
