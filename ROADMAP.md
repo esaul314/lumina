@@ -142,24 +142,13 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
 - Frontend reads state from REST snapshots and writes state through REST mutations by default.
 - Keep Socket.IO for `state-sync`, playback push events, TV viewport/reporting, and real-time status only.
 - Replace socket-centric action helpers with a typed frontend API client plus a thinner live-sync layer.
-- Current checkpoint:
+- Accepted REST-first milestones (history):
   - Step 1 complete: remote photo-control mutations use REST by default.
   - Step 2 complete: remote durable state/settings mutations use REST by default.
   - Step 3 complete: categories, pools, and feed-config mutations now use REST endpoints and shared domain commands by default.
   - Step 4 complete: manual recrawls are queued through REST-first async jobs with socket-pushed progress/status events.
   - Step 5 complete: manual vision-analysis runs are queued through REST-first async jobs with socket-pushed progress/status events.
-  - Current focus: implementation companion Step 6 is active. The client has pure state-patch builders, declarative REST-first request plans, a shared JSON transport boundary, normalized event projections, and checked contracts across stable client seams; server contracts are extending that coverage.
-  - Latest Step 6 slice: `server/runtime/environmentRefresh.js` now documents the weather snapshot and physical-weather projection contracts, with tests for provider-field projection, reference preservation, temperature rounding, classification, and absent observations.
-  - Latest Step 6 slice: `server/runtime/activeFeed.js` now documents category parsing, normalization, and balanced feed contracts, with tests for external pools, exclusions, and source immutability.
-  - Latest Step 6 slice: `server/runtime/idleDaemon.js` now documents normalized observation, daemon-input, and transition contracts, with tests for the inclusive inactivity threshold, blockers, closed actions, and immutable projections.
-  - Latest Step 6 slice: `server/runtime/kioskControl.js` now documents its closed runtime-context projection while retaining process and timer effects in the runtime shell.
-  - Latest persistence slice: collection snapshot writes and legacy-file cleanup now share first-occurrence URL deduplication across pools, with tests for immutable projection and metadata-preserving migration.
-  - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes the tested status snapshot contract; callers receive detached arrays, and scheduling state/effects remain in the runtime shell.
-  - Latest Step 6 slices: keyword specs and feed-config projections, persisted collection snapshots, and curried photo-list projections now have checked contracts; their configuration, filesystem, state-mutation, and persistence effects remain in their shells.
-  - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
-  - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
-  - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
-  - Latest Step 6 slice (97): `server/services/googlePhotosCache.js` refines read-only nested/flat file-selection contracts. Seven focused tests preserve selected aliases, fresh falsy-row fallbacks, native truthiness, hidden/inherited fields, repeated reads, and exact failures. Keep the pure data-first selector without an algebraic wrapper; leaf reference-idempotence is not global idempotence. Executable production code and exports remain unchanged.
+  - Current engineering work and acceptance live only in [the companion checkpoint](./FUNCTIONAL_REFACTOR_ROADMAP.md#step-6-prepare-the-codebase-for-typescript-without-a-premature-rewrite); the accepted milestones above are not another current queue.
   - Picker identity hardening follow-up: choose a canonical-id policy before changing union matching. Cached deduplication trims comparison keys, but removal/upsert lookup uses raw ids; padded/numeric cached ids can coexist with equivalent incoming rows and earlier padded duplicates can hide an exact match. Preserve metadata and migration behavior through a separately scoped correction.
   - Cached metadata hardening follow-up: choose normalization/write atomicity and metadata validation explicitly; normalization can persist before invalid inputs fail, !== treats NaN and equal-looking objects as changes, and returned unvalidated values may normalize differently on reread. Keep policy changes separate from contract work.
   - Live metadata hardening follow-up: decide identifier normalization and atomicity separately; decoded input ids and row ids trim differently, truthy row ids bypass URLs, and active-frame failures can leave committed list/field updates. Accessor effects are not rolled back.
@@ -243,8 +232,9 @@ selects official LTS/security Node 26.13.1, declared once in `.nvmrc`. It expose
 native Temporal, Map upsert and iterator composition without adding polyfills;
 using these APIs remains a separate, need-driven code choice. Locked-dependency
 suites, native history compatibility and headless/client-build checks pass.
-The existing service/launcher are aligned; final native promotion/live acceptance
-is an explicit owner step, not an implicit effect of editing the pin.
+The existing service/launcher are aligned; native promotion/live acceptance completed
+for release1.0.1. The owner verified process, served assets, HTTP/Socket.IO and
+private-data preservation. Editing the pin alone still does not authorize deployment.
 
 - Compare the current application runtime with the candidate using the locked
   dependencies, native-addon compatibility, full tests, strict diagnostic
@@ -445,6 +435,19 @@ design work, not claims that the current behavior has already been changed.
   request `Host` header. Add a one-time state check and use a configured,
   trusted public origin for callback construction; cover callback mismatch and
   replay behavior with focused tests.
+
+- **Bound failed-provider work and expose degraded capability.** The November24
+  rollout found repeated Unsplash401/Reddit403 responses and aborted background
+  vision analysis; the OLD process journal confirms the same provider failures
+  before the runtime upgrade. Cached playback and saved data remain available.
+  In a separately selected slice, classify auth/policy/rate/capability failures,
+  bound retries per run instead of repeating hundreds of rejected queries, and
+  present a concise degraded result through existing job/status boundaries.
+  Preserve cached pools/metadata and manual-operation failure semantics. Cover
+  rejected/unavailable providers and recovery with injected transport fixtures.
+  Do not add a health daemon/state mirror, silently rotate credentials, enable a
+  model fallback, or change source policy. This is a discovery, not extra work
+  selected during the completed five-step sequence.
 
 ### Medium priority
 

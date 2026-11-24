@@ -21,8 +21,20 @@ Root release metadata is1.0.1; client metadata/locks/dependencies stay unchanged
 The client rebuild is byte-identical, not a new UI claim. Native Temporal, Map
 upsert and Iterator.concat are available for future clear simplifications, not a
 reason to rewrite working code. Browser syntax targets remain separate.
-Independent review accepted source/qualification. Final native promotion/live
-acceptance is pending; retain old runtime/unit/payload and preserve private data.
+Independent review accepted source/qualification. Clean source provenance passed;
+the native service was rebuilt/restarted once for release1.0.1 and verified on the
+pinned runtime. Served assets match the build; real HTTP and Socket.IO snapshots
+work. Config, credentials, active categories and collections are byte-unchanged,
+and history integrity/counts are preserved. The unrelated command node stayed up.
+Old runtime/unit/payload remain; no live rollback rehearsal is claimed.
+
+Startup logs still report provider denials and unavailable vision analysis; the
+OLD process journal confirms those failures predate this change. Existing secret
+filtering also warns about deprecated JSON fields; the environment-owned values
+and private files were not changed. These are explicit degraded-feature findings,
+not new-runtime crashes or an all-features-healthy claim. Capture a bounded
+provider resilience/capability follow-up in the existing product audit, not a
+new monitor or incidental auth/model change.
 
 
 ## 2026-11-24 — extract client-state/control regressions
@@ -6577,3 +6589,19 @@ undefined, so the test now verifies the existing state identity. No production
 logic, export, dependency, live state, or persistence policy changed. Existing
 curried composition and the sequential shell remain appropriate; a new
 Functor/Monad wrapper would neither narrow unknowns nor restore erased types.
+
+## Historical REST-first contract observations — retired November24,2026
+
+These per-helper observations are history, not a current checkpoint or task queue.
+
+  - Latest Step 6 slice: `server/runtime/environmentRefresh.js` now documents the weather snapshot and physical-weather projection contracts, with tests for provider-field projection, reference preservation, temperature rounding, classification, and absent observations.
+  - Latest Step 6 slice: `server/runtime/activeFeed.js` now documents category parsing, normalization, and balanced feed contracts, with tests for external pools, exclusions, and source immutability.
+  - Latest Step 6 slice: `server/runtime/idleDaemon.js` now documents normalized observation, daemon-input, and transition contracts, with tests for the inclusive inactivity threshold, blockers, closed actions, and immutable projections.
+  - Latest Step 6 slice: `server/runtime/kioskControl.js` now documents its closed runtime-context projection while retaining process and timer effects in the runtime shell.
+  - Latest persistence slice: collection snapshot writes and legacy-file cleanup now share first-occurrence URL deduplication across pools, with tests for immutable projection and metadata-preserving migration.
+  - Latest Step 6 slice: `server/runtime/poolSchedule.js` now exposes the tested status snapshot contract; callers receive detached arrays, and scheduling state/effects remain in the runtime shell.
+  - Latest Step 6 slices: keyword specs and feed-config projections, persisted collection snapshots, and curried photo-list projections now have checked contracts; their configuration, filesystem, state-mutation, and persistence effects remain in their shells.
+  - Latest Step 6 slice: `server/config/localSettings.js` now documents the pure partial-merge contract and its distinct Ecowitt-unit versus sensor-history merge depth; filesystem writes remain in `saveLocalConfigPatch(...)`.
+  - Latest Step 6 slice: `server/config/configLoaderProjections.js` now exposes a checked defaults/overrides projection with secret filtering; file access and warnings remain in the loader shell.
+  - Latest Step 6 slice: `collections.js` and `configLoader.js` now document checked input and effect-shell contracts; persistence, file access, logging, and live-state mutation remain explicit.
+  - Latest Step 6 slice (97): `server/services/googlePhotosCache.js` refines read-only nested/flat file-selection contracts. Seven focused tests preserve selected aliases, fresh falsy-row fallbacks, native truthiness, hidden/inherited fields, repeated reads, and exact failures. Keep the pure data-first selector without an algebraic wrapper; leaf reference-idempotence is not global idempotence. Executable production code and exports remain unchanged.

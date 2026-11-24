@@ -243,15 +243,22 @@ existing launch paths** and **chore(release): qualify the Node LTS baseline for
 Lumina 1.0.1** retain one `.nvmrc` authority, existing native service ownership
 and direct-exec fallback. Both runtimes pass 917 runtime / 13 sensor / 3 compiler /
 4 isolated runtime checks; 14 headless checks and the client build pass.
-**Remaining sequence gate:** clean provenance and native promotion/live acceptance,
-with rollback retained. No further product feature is selected by this gate. Fila owns orchestration; Beads owns executable
-prerequisites/claims, not product priority or process liveness.
+**Five-step sequence accepted:** clean provenance passed; native live promotion
+to release1.0.1 completed with matching served assets, HTTP/Socket.IO, private-file
+and history preservation. Old runtime/unit/payload retained; rollback compatibility
+is fixture-tested, not a claimed live rollback rehearsal. Fila owns orchestration;
+Beads owns selected prerequisites/claims, not product priority or process liveness.
 
-**Runtime:** official LTS 26.13.1 is privately staged and fully qualified;
-the live service still uses 24.18 pending the explicit promotion gate. Published
+**Runtime:** official LTS 26.13.1 is active through the existing native service. Published
 integrity is verified, and disposable history reads/writes remain compatible
 24→26→24. Shell defaults and the OpenClaw node runtime stay independent. Client
 assets rebuild identically; no UI feature or browser-language upgrade is implied.
+
+**Next selection boundary:** Step6/Phase1 remain incomplete. Select a new bounded
+outcome from the existing diagnostic/product priorities only when commissioned;
+do not schedule another batch implicitly. Existing provider denials/vision failure
+are recorded in the product audit, not hidden by this rollout's acceptance. The
+optional weather-location display remains a proposal, not an implemented control.
 
 Apply [complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline)
 and preserve [product priorities/deferrals](./ROADMAP.md). Rationale and historical
