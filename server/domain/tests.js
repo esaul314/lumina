@@ -1542,11 +1542,127 @@ function runDomainTests({ logSuite, assertTest }) {
     const updated = selectors.updatePhotoInLibraries(collections, external, 'same', photo => ({ ...photo, rating: 5 }));
     assert.strictEqual(updated.changedInCollections, true);
     assert.strictEqual(updated.changedInExternalCollections, false);
+    assert.strictEqual(updated.changed, true);
     assert.strictEqual(updated.updatedPhoto, last);
+    const externalOnly = selectors.updatePhotoInLibraries({ A: [last] }, { B: [first] }, 'same', photo => ({ ...photo, rating: 5 }));
+    assert.deepStrictEqual([externalOnly.changedInCollections, externalOnly.changedInExternalCollections, externalOnly.changed], [false, true, true]);
+    assert.strictEqual(externalOnly.updatedPhoto, externalOnly.externalCollections.B[0]);
     assert.strictEqual(first.rating, 4);
     assert.strictEqual(selectors.updatePhotoInCollections(collections, 'missing', () => assert.fail('miss must not update')).updatedPhoto, null);
     const failure = new Error('updater');
     assert.throws(() => selectors.updatePhotoInLibraries(collections, external, 'same', () => { throw failure; }), error => error === failure);
+  });
+
+  assertTest('private record equality preserves strict values, own-key asymmetry and native failures', () => {
+    const sandbox = { module: { exports: {} } };
+    runInNewContext(`${fs.readFileSync(require.resolve('./selectors.js'), 'utf8')}\nglobalThis.equal = shallowEqualRecords;`, sandbox);
+    const { equal } = sandbox, symbol = Symbol('ignored'), shared = {};
+    assert.strictEqual(equal(shared, shared), true);
+    assert.strictEqual(equal({ value: NaN }, { value: NaN }), false);
+    assert.strictEqual(equal({ value: -0 }, { value: 0 }), true);
+    assert.strictEqual(equal({ value: shared }, { value: shared }), true);
+    assert.strictEqual(equal({ value: [] }, { value: [] }), false);
+    assert.strictEqual(equal({ [symbol]: 1 }, { [symbol]: 2 }), true);
+    const inherited = Object.assign(Object.create({ a: 1 }), { b: 2 });
+    assert.strictEqual(equal({ a: 1 }, inherited), true);
+    assert.strictEqual(equal(inherited, { a: 1 }), false);
+    assert.strictEqual(equal({ a: undefined }, { b: undefined }), true);
+    assert.strictEqual(equal(null, false), true);
+    assert.strictEqual(equal('ab', { 0: 'a', 1: 'b' }), true);
+    const failure = new Error('read'), reads = [];
+    const left = { get a() { reads.push('left'); return 1; }, get b() { throw failure; } };
+    const right = { get a() { reads.push('right'); return 2; }, b: 0 };
+    assert.strictEqual(equal(left, right), false);
+    assert.deepStrictEqual(reads, ['left', 'right']);
+    assert.throws(() => equal(left, { a: 1, b: 0 }), error => error === failure);
+    assert.throws(() => equal(new Proxy({}, { ownKeys: () => { throw failure; } }), {}), error => error === failure);
+  });
+
+  assertTest('category projections retain shallow metadata and nullish external lookup precedence', () => {
+    const sandbox = { module: { exports: {} } };
+    runInNewContext(`${fs.readFileSync(require.resolve('./selectors.js'), 'utf8')}\nglobalThis.tag = attachCategory; globalThis.lookup = getCategoryPhotos;`, sandbox);
+    const metadata = {}, symbol = Symbol('metadata'), photo = Object.freeze({ url: 'u', category: 'A', metadata, [symbol]: metadata });
+    const tagged = sandbox.tag('B', photo), equal = sandbox.tag('A', photo);
+    assert.notStrictEqual(equal, photo);
+    assert.strictEqual(tagged.category, 'B');
+    assert.strictEqual(tagged.metadata, metadata);
+    assert.strictEqual(tagged[symbol], metadata);
+    const inherited = Object.assign(Object.create({ category: 'A' }), { url: 'u' });
+    assert.strictEqual(Object.hasOwn(sandbox.tag('A', inherited), 'category'), false);
+    let reads = 0;
+    sandbox.tag('A', { url: 'u', get category() { reads += 1; return 'A'; } });
+    assert.strictEqual(reads, 2, 'equality reads category before spread reads it again');
+    const curated = [photo], external = [];
+    assert.strictEqual(sandbox.lookup('A', { A: curated }, { A: external }), external);
+    assert.strictEqual(sandbox.lookup('A', { A: curated }, { A: null }), curated);
+    assert.strictEqual(sandbox.lookup('A', { A: curated }, undefined), curated);
+    assert.strictEqual(sandbox.lookup('A', {}, Object.create({ A: curated })), curated);
+    assert.notStrictEqual(sandbox.lookup('missing', {}), sandbox.lookup('missing', {}));
+    assert.throws(() => sandbox.lookup('A', {}, null), error => error.name === 'TypeError');
+    const failure = new Error('category');
+    assert.throws(() => sandbox.tag('A', { get category() { throw failure; } }), error => error === failure);
+    assert.throws(() => sandbox.lookup('A', {}, { get A() { throw failure; } }), error => error === failure);
+  });
+
+  assertTest('named library traversal copies misses and no-ops, retains holes and last-match aliases', () => {
+    const metadata = {}, symbol = Symbol('pool');
+    const miss = Object.freeze({ url: 'miss', title: 17, metadata });
+    const first = Object.freeze({ url: 'same', category: null, rating: 4, metadata });
+    const last = Object.freeze({ url: 'same', category: 'own', rating: 5, metadata });
+    const rows = Object.freeze(Object.assign(Array(6), { 0: miss, 1: first, 3: null, 4: false, 5: undefined }));
+    const collections = Object.freeze(Object.assign(Object.create({ inherited: [last] }), {
+      B: rows, A: Object.freeze([last]), empty: null, [symbol]: [last]
+    }));
+    const calls = [];
+    const result = selectors.updatePhotoInCollections(collections, 'same', photo => {
+      calls.push(photo);
+      return { ...photo, rating: 5 };
+    });
+    assert.deepStrictEqual(calls.map(photo => photo.category), ['B', 'own']);
+    assert.notStrictEqual(calls[0], first);
+    assert.notStrictEqual(calls[1], last);
+    assert.deepStrictEqual(Object.keys(result.collections), ['B', 'A', 'empty']);
+    assert.deepStrictEqual(Object.getOwnPropertySymbols(result.collections), []);
+    assert.notStrictEqual(result.collections.B, rows);
+    assert.notStrictEqual(result.collections.B[0], miss);
+    assert.strictEqual(result.collections.B[0].title, 17);
+    assert.strictEqual(result.collections.B[0].metadata, metadata);
+    assert.strictEqual(result.collections.B[1].metadata, metadata);
+    assert.strictEqual(2 in result.collections.B, false);
+    assert.deepStrictEqual(result.collections.B.slice(3), [null, false, undefined]);
+    assert.deepStrictEqual(result.collections.empty, []);
+    assert.strictEqual(result.changed, true);
+    assert.strictEqual(result.updatedPhoto, last);
+    assert.notStrictEqual(result.collections.A[0], last);
+    assert.strictEqual(first.category, null);
+    const absent = selectors.updatePhotoInCollections({ A: [last] }, 'miss', () => assert.fail('no callback on miss'));
+    assert.strictEqual(absent.changed, false);
+    assert.strictEqual(absent.updatedPhoto, null);
+    assert.notStrictEqual(absent.collections.A[0], last);
+  });
+
+  assertTest('library callbacks follow enumeration and curated/external order without rollback', () => {
+    const calls = [], metadata = {}, failure = new Error('callback');
+    const first = { url: 'u', category: 'first', metadata }, last = { url: 'u', category: 'last', metadata };
+    const curated = { get 10() { calls.push('enum 10'); return [last]; }, get 2() { calls.push('enum 2'); return [first]; } };
+    const external = { get E() { calls.push('enum external'); return [last]; } };
+    assert.throws(() => selectors.updatePhotoInLibraries(curated, external, 'u', photo => {
+      calls.push(photo.category);
+      photo.metadata.visited = true;
+      if (calls.includes('enum external')) throw failure;
+      return { ...photo, loved: true };
+    }), error => error === failure);
+    assert.deepStrictEqual(calls, ['enum 2', 'enum 10', 'first', 'last', 'enum external', 'last']);
+    assert.strictEqual(metadata.visited, true, 'nested callback effects remain visible on failure');
+    assert.strictEqual(first.loved, undefined);
+    calls.length = 0;
+    const broken = { get A() { calls.push('enum A'); return [first]; }, get B() { throw failure; } };
+    assert.throws(() => selectors.updatePhotoInCollections(broken, 'u', () => calls.push('callback')), error => error === failure);
+    assert.deepStrictEqual(calls, ['enum A'], 'Object.entries reads all pool values before the first callback');
+    const defaulted = selectors.updatePhotoInLibraries({ A: [first] }, undefined, 'u', photo => photo);
+    assert.strictEqual(defaulted.changedInExternalCollections, false);
+    assert.deepStrictEqual(defaulted.externalCollections, {});
+    assert.throws(() => selectors.updatePhotoInLibraries({}, null, 'u', photo => photo), error => error.name === 'TypeError');
   });
 
   assertTest('frame selectors preserve feed-first aliases detached categories and zero crop values', () => {
@@ -2222,9 +2338,10 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => stateSyncEventsFor(true), error => error === failure);
   });
 
-  assertTest('private reducer compiler contracts preserve clone, keyed assignment and canonical descriptions', () => {
+  assertTest('private compiler contracts preserve clone, mutation primitives and named library projections', () => {
     const ts = require('typescript');
     const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
+    const selectorFile = require.resolve('./selectors.js'), selectorSource = fs.readFileSync(selectorFile, 'utf8');
     const root = path.resolve(__dirname, '../..'), configPath = path.join(root, 'tsconfig.domain.json');
     const { config } = ts.readConfigFile(configPath, ts.sys.readFile);
     const parsed = ts.parseJsonConfigFileContent(config, ts.sys, root);
@@ -2306,20 +2423,75 @@ withPersist(null);
 // @ts-expect-error events remain closed descriptions, not strings
 /** @type {string[]} */ const wrongConditionalEventsFixture = stateSyncEventsFor(true);
 `;
-    const fixtureDiagnostics = text => {
+    const selectorFixture = `
+const libraryInputFixture = { A: [{ url: 'u', category: 'A', metadata: { shared: true } }] };
+/** @type {PhotoUpdater} */ const libraryIdentityFixture = photo => photo;
+const namedLibraryFixture = updatePhotoInNamedCollections(libraryInputFixture, 'u', photo => {
+  /** @type {string} */ const copiedUrl = photo.url;
+  /** @type {0 extends (1 & typeof photo.url) ? true : false} */ const updaterUrlIsAny = false;
+  return { ...photo, url: copiedUrl, loved: true };
+});
+/** @type {CollectionUpdate} */ const namedLibraryResultFixture = namedLibraryFixture;
+/** @type {Photo | null} */ const namedLibraryPhotoFixture = namedLibraryFixture.updatedPhoto;
+/** @type {0 extends (1 & typeof namedLibraryFixture.collections.A[number]['url']) ? true : false} */ const namedLibraryUrlIsAny = false;
+/** @type {Photo[]} */ const categoryPhotosFixture = getCategoryPhotos('A', libraryInputFixture, undefined);
+/** @type {Photo} */ const categoryPhotoFixture = attachCategory('B', libraryInputFixture.A[0]);
+/** @type {boolean} */ const recordComparisonFixture = shallowEqualRecords(null, { raw: true });
+const canonicalLibraryStateFixture = /** @type {DomainState} */ ({});
+/** @type {LibraryUpdate} */ const publicLibraryFixture = updatePhotoInLibraries(canonicalLibraryStateFixture.library.collections,
+  canonicalLibraryStateFixture.library.externalCollections, 'u', photo => ({ ...photo, rating: 5 }));
+/** @type {CollectionUpdate} */ const publicCollectionFixture = updatePhotoInCollections(libraryInputFixture, 'u', photo => photo);
+// @ts-expect-error the private traversal needs a canonical URL-bearing row
+updatePhotoInNamedCollections({ A: [{ title: 'no url' }] }, 'u', libraryIdentityFixture);
+// @ts-expect-error updater output must still be a Photo
+updatePhotoInNamedCollections(libraryInputFixture, 'u', () => ({ rating: 5 }));
+// @ts-expect-error callbacks cannot replace a numeric rating with arbitrary compatibility metadata
+updatePhotoInNamedCollections(libraryInputFixture, 'u', () => ({ url: 'u', rating: 'five' }));
+// @ts-expect-error canonical URL lookup inputs are strings, not boxed/unnarrowed values
+updatePhotoInNamedCollections(libraryInputFixture, {}, libraryIdentityFixture);
+// @ts-expect-error no match remains nullable
+/** @type {Photo} */ const missingLibraryPhotoFixture = namedLibraryFixture.updatedPhoto;
+// @ts-expect-error changed is boolean, not a string
+/** @type {string} */ const wrongLibraryChangedFixture = namedLibraryFixture.changed;
+// @ts-expect-error category keys are strings
+attachCategory(1, libraryInputFixture.A[0]);
+// @ts-expect-error category projection cannot claim to normalize an unvalidated feed URL
+attachCategory('A', { url: { raw: true } });
+// @ts-expect-error only undefined uses the external-map default
+getCategoryPhotos('A', libraryInputFixture, null);
+// @ts-expect-error lookup accepts photo lists, not scalar pool contents
+getCategoryPhotos('A', { A: 1 });
+// @ts-expect-error the shallow predicate produces a boolean, not a canonicalized record
+/** @type {Photo} */ const wrongRecordComparisonFixture = shallowEqualRecords({}, {});
+`;
+    // ponytail: one compiler owner injects both modules; no program per helper.
+    const fixtureDiagnostics = (text, selectorText) => {
+      const modules = new Map([[file, { text, fixture }], [selectorFile, { text: selectorText, fixture: selectorFixture }]]);
       const host = ts.createCompilerHost(parsed.options), read = host.getSourceFile;
-      host.getSourceFile = (name, version, onError, newFile) => path.resolve(name) === file
-        ? ts.createSourceFile(name, `${text}\n${fixture}`, version, true)
-        : read(name, version, onError, newFile);
+      host.getSourceFile = (name, version, onError, newFile) => {
+        const input = modules.get(path.resolve(name));
+        return input ? ts.createSourceFile(name, `${input.text}\n${input.fixture}`, version, true) : read(name, version, onError, newFile);
+      };
       const program = ts.createProgram(parsed.fileNames, parsed.options, host);
-      return ts.getPreEmitDiagnostics(program).filter(diagnostic => diagnostic.file?.fileName === file && diagnostic.start > text.length);
+      return ts.getPreEmitDiagnostics(program).filter(diagnostic => {
+        const input = diagnostic.file && modules.get(path.resolve(diagnostic.file.fileName));
+        return input && diagnostic.start > input.text.length;
+      });
     };
-    assert.deepStrictEqual(fixtureDiagnostics(source).map(item => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
+    assert.deepStrictEqual(fixtureDiagnostics(source, selectorSource).map(item => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
     const declaration = source.indexOf('function cloneState(state)'), commentStart = source.lastIndexOf('/**', declaration);
     const withoutContract = source.slice(0, commentStart) + source.slice(declaration);
-    const sensitive = fixtureDiagnostics(withoutContract);
-    assert.ok(sensitive.some(item => item.code === 2578), 'Removing the private contract must invalidate negative compiler assertions');
-    assert.ok(sensitive.some(item => item.code === 2322), 'The anti-any assertion must also reject an untyped clone result');
+    const withoutLibraryContracts = ['attachCategory', 'getCategoryPhotos', 'updatePhotoInNamedCollections'].reduce((text, name) => {
+      const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
+      return text.slice(0, comment) + text.slice(start);
+    }, selectorSource);
+    const sensitive = fixtureDiagnostics(withoutContract, withoutLibraryContracts);
+    const cloneSensitive = sensitive.filter(item => item.file.fileName === file);
+    const librarySensitive = sensitive.filter(item => item.file.fileName === selectorFile);
+    assert.ok(cloneSensitive.some(item => item.code === 2578), 'Removing the private contract must invalidate negative compiler assertions');
+    assert.ok(cloneSensitive.some(item => item.code === 2322), 'The anti-any assertion must also reject an untyped clone result');
+    assert.ok(librarySensitive.some(item => item.code === 2578), 'Removing library contracts must invalidate negative compiler assertions');
+    assert.ok(librarySensitive.some(item => item.code === 2322), 'The anti-any leaf assertion must reject an untyped library result');
   });
 
   assertTest('result envelopes preserve uninspected aliases and undefined-only output defaults', () => {

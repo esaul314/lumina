@@ -143,10 +143,27 @@ function filterVisiblePhotos(photos, excludedKeywords) {
   ));
 }
 
+/**
+ * Fresh shallow row of enumerable own fields, replacing a differing category.
+ * Nested values stay aliased. An equal inherited/non-enumerable category is read but not materialized by spread.
+ * Accessors retain their native reads/failures; this is not metadata validation.
+ * @param {string} category
+ * @param {Photo} photo
+ * @returns {Photo}
+ */
 function attachCategory(category, photo) {
   return photo.category === category ? { ...photo } : { ...photo, category };
 }
 
+/**
+ * External then curated lookup by exact key (including inherited properties).
+ * Empty external arrays win; only nullish entries fall through. Returns the
+ * original list or a fresh empty array. Only undefined selects the default map.
+ * @param {string} category
+ * @param {Readonly<CollectionsState>} collections
+ * @param {Readonly<CollectionsState>} [externalCollections={}]
+ * @returns {Photo[]}
+ */
 function getCategoryPhotos(category, collections, externalCollections = {}) {
   return externalCollections[category] ?? collections[category] ?? [];
 }
@@ -279,6 +296,15 @@ function getPhotoByUrl(collections, url, externalCollections = {}) {
     .find((photo) => photo?.url === url) ?? null;
 }
 
+/**
+ * Strict equality first, else own enumerable string-key counts and left-key
+ * values only. Symbols are ignored; equal counts do not require the same keys
+ * or right-side ownership. Falsy operands enumerate as {}, truthy primitives
+ * are boxed. Property reads/getters retain native order and failures.
+ * @param {unknown} left
+ * @param {unknown} right
+ * @returns {boolean}
+ */
 function shallowEqualRecords(left, right) {
   if (left === right) {
     return true;
@@ -288,10 +314,25 @@ function shallowEqualRecords(left, right) {
   const rightKeys = Object.keys(right || {});
 
   return leftKeys.length === rightKeys.length
-    && leftKeys.every((key) => left[key] === right[key]);
+    && leftKeys.every((key) => /** @type {Record<string, unknown>} */ (left)[key] === /** @type {Record<string, unknown>} */ (right)[key]);
 }
 
+/**
+ * Visit Object.entries order, then native map order/holes; symbols and inherited
+ * pools are omitted. Nullish lists become []; falsy rows pass through at runtime.
+ * Every truthy row is shallow-copied even on a miss/no-op; enumerable extra
+ * fields survive and nested values stay aliased. Exact URL matches receive a copy
+ * with nullish category filled from the pool key (unlike attachCategory, which replaces differing categories).
+ * The last match owns updatedPhoto: updater result if shallow-different, original
+ * row otherwise. changed accumulates without skipping later matches/callbacks.
+ * Native enumeration/getter/callback failures propagate; no rollback/validation.
+ * @param {Readonly<CollectionsState>} collections
+ * @param {string} url Strict equality, no normalization or visibility filtering.
+ * @param {PhotoUpdater} updater
+ * @returns {CollectionUpdate}
+ */
 function updatePhotoInNamedCollections(collections, url, updater) {
+  /** @type {Photo | null} */
   let updatedPhoto = null;
   let changed = false;
 
