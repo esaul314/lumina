@@ -6768,3 +6768,24 @@ Beads holds only the selected graph and evidence; roadmaps retain human feedback
 priorities and discoveries. No new service, dependency, job state, persistent
 breaker, scheduler or synchronizer. Close/back up the existing store and clean
 only task-owned candidate output after release evidence is retained.
+
+### Complexity and tracker closeout
+
+The before/after gauge remainsRED and flags scanned code growth(+317lines);
+do not describe this as zero sprawl. The census includes added offline/browser
+coverage as well as feature/error-boundary code. State refs22, source pins0,
+largest runner13393lines and extra checkouts0 are unchanged. Hot instruction tax
+fell40.9→40.3KiB through existing-guide/operating-note consolidation. No dependency,
+controller, scheduler, synchronizer, persistent breaker or new job state was added.
+The parameter traversal and existing runbook were simplified; don't manufacture
+unrelated deletions merely to make the thermometer green. Future source work must
+continue the existing per-slice architecture budget and genuine seam extraction.
+
+All5 selected Beads outcomes closed only after accepted evidence and commits;
+all16 current store tasks are closed, ready empty, native backup refreshed and
+metrics OFF. No bd worker remains. This demonstrates durable prerequisite/
+review custody, not automatic prioritization, defect discovery or multi-writer
+safety. Retain opt-in because the rejection→correction→acceptance handoff was
+clearer, while roadmaps still own priorities and newly discovered provider debt.
+Task-owned candidate output moved to native Trash; named release/rollback evidence
+is retained, not another application checkout. No further batch was scheduled.
