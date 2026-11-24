@@ -222,13 +222,13 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **All10 commissioned outcomes accepted and live as1.0.3.** AR-1–AR-5 removes the static legacy cycle, gives vision one existing workflow home, separates inert import/construction from owned start/stop, injects concrete persistence writers, and extracts the exact coherent rendering group (shared runner449lines shorter). Selected provider work covers Wallhaven direct/keyless-fallback membership, Art Institute bounds and accepted unfinished-query Unsplash results. Existing source/job policies and metadata are preserved; no new service/framework/scheduler/persistent breaker.
+Current checkpoint (2026-11-24): **Two commissioned source/test outcomes accepted.** The private state-clone boundary now takes/returns canonical DomainState and documents selective shallow copying, normalization/defaults and retained nested aliases. Four runtime/compiler regressions, negative-directive/leaf anti-any sensitivity, six independent runtime mutation probes and focused review pass. Executable production AST/exports are unchanged; no new public API, schema, validation or framework.
 
-Release **chore(release): qualify Lumina 1.0.3 for native rollout** d6618ee follows fixture correction076e013. Full130awaited native/13sensor/3compiler and16headless browser cases, lint/build/provenance pass;930reported legacy root labels retain the separately documented async-test limitation. Strict279core/36transitive,0fixture/global is non-green; entire diagnostic text is unchanged since AR-4 (34removed/0added against that slice's baseline).
+**refactor(types): contract domain state cloning** follows **test(crawler): await offline legacy provider regressions** (32fc531), which replaces eight false asynchronous legacy checks with15genuinely awaited offline cases in the existing native owner. Full926legacy/13sensor/3compiler-report/145native and lint pass. Strict275core/36transitive/0fixture/global remains non-green: four TS7006 occurrences removed, zero new occurrences. The actual npm entrypoint rejects the lateNASA negative control and passes afterward. This is source/test acceptance, not a new release or a whole Phase1/Step6 closeout.
 
-Native promotion and a second candidate-owned stop/start are accepted. Candidate exits0 with no timeout/forced kill/cleanup failure, then healthy HTTP/weather/sensor/history/Socket.IO. All6,948stored photo identities/prior row metadata and3,071history keys survive; automatic/manual intent, native unit/runtime and unrelated node are preserved. Client build bytes are identical, so no unnecessary asset rewrite. Old-process Chromium settlement required read-only follow-up; current owner checks follow fresh activity flags. Natural automatic kiosk dismissal/normal exit was observed. Candidate SIGTERM occurred with kiosk inactive: do not claim active-kiosk SIGTERM or physical-TV visual/pointer/AT acceptance.
+Latest live baseline remains **1.0.3/d6618ee**, with prior AR-1–AR-5/provider bridge and native promotion/candidate-owned stop/start acceptance retained in the developer journal and [product roadmap](./ROADMAP.md). Service/runtime/intent and saved-data preservation from that release stay accepted; this batch does not redeploy or requalify physical-TV, active-kiosk SIGTERM, live-provider recovery or rollback.
 
-**Next: await separately selected scope.** No automatic next batch, project reminder or public push. Phase1/Step6 is not complete; existing strict contracts, other-provider/vision/auth/security and physical-TV debt remains in the product roadmap. Preserve accepted architecture evidence; reference-target components are not a new implementation queue.
+**Next: await separately selected scope.** No third outcome, automatic batch, project reminder or public push. Existing strict, other-provider/vision/auth/security and physical-TV debt remains. Beads owns the exhausted commissioned queue, not product completion; task tooling is assessed without claiming unmeasured speed/token savings.
 
 Why sixth:
 
@@ -336,8 +336,8 @@ responsibility boundary, not a file-size target.
 
 The order above is a recommended learning sequence, not fake dependency edges.
 AR-1 makes a cleaner callback path for AR-2; only add Beads prerequisites when
-source inspection shows a real need. Translate one selected outcome at a time;
-keep proposals here. The existing failed-provider item owns Wallhaven/AIC and
+source inspection shows a real need. Materialize only the commissioned outcomes up front under CONVENTIONS;
+keep unselected proposals here. The existing failed-provider item owns Wallhaven/AIC and
 partial-query recovery. Reuse the tested run-local request policy there; do not
 create another generic integration layer or make it wait for this whole bridge.
 

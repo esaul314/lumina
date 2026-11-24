@@ -36,6 +36,16 @@ const { normalizePoolPolicy } = require('./poolRetention.js');
 
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
 
+/**
+ * Clone the domain-owned containers before mutation, not arbitrary nested data.
+ * Keyword entries are normalized; optional maps default to fresh empty objects,
+ * missing vision config stays undefined and falsy weather becomes null. Nested
+ * metadata, feed-config values, policies and weather subrecords retain aliases.
+ * This intended input contract is not runtime validation; native reads, spreads,
+ * normalization and malformed-input failures keep their existing order.
+ * @param {DomainState} state
+ * @returns {DomainState}
+ */
 function cloneState(state) {
   return {
     config: {

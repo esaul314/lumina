@@ -1995,6 +1995,106 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(result.events.map((event) => event.type), ['photo-update', 'state-sync']);
   });
 
+  assertTest('state cloning owns its shallow containers while retaining nested metadata aliases', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.clone = cloneState;`, sandbox);
+    const shared = Object.freeze({ nested: true });
+    const state = createState({
+      config: { feedConfigs: { A: shared }, poolPolicies: { A: shared }, manualLocation: { detail: shared }, visionConfig: { detail: shared } },
+      runtime: { weather: { location: shared }, newsSentiment: { detail: shared }, physicalWeather: { detail: shared } },
+      library: { collections: { A: [{ url: 'a', metadata: shared }] }, externalCollections: { E: [{ url: 'e', metadata: shared }] }, photosList: [{ url: shared, metadata: shared }] }
+    });
+    const cloned = sandbox.clone(state);
+    const containers = [[], ['config'], ['runtime'], ['library'], ['playback'],
+      ['config', 'widgets'], ['config', 'searchKeywords'], ['config', 'feedConfigs'], ['config', 'poolPolicies'],
+      ['config', 'excludedKeywords'], ['config', 'manualLocation'], ['config', 'visionConfig'],
+      ['runtime', 'weather'], ['runtime', 'newsSentiment'], ['runtime', 'physicalWeather'],
+      ['library', 'collections'], ['library', 'collections', 'A'], ['library', 'collections', 'A', 0],
+      ['library', 'externalCollections'], ['library', 'externalCollections', 'E'], ['library', 'externalCollections', 'E', 0],
+      ['library', 'photosList'], ['library', 'photosList', 0], ['playback', 'selectedCategories'], ['playback', 'poolSequenceCursors']];
+    const at = (value, keys) => keys.reduce((current, key) => current[key], value);
+    containers.forEach(keys => assert.notStrictEqual(at(cloned, keys), at(state, keys), keys.join('.')));
+    [cloned.config.feedConfigs.A, cloned.config.poolPolicies.A, cloned.config.manualLocation.detail,
+      cloned.config.visionConfig.detail, cloned.runtime.weather.location, cloned.runtime.newsSentiment.detail,
+      cloned.runtime.physicalWeather.detail, cloned.library.collections.A[0].metadata,
+      cloned.library.externalCollections.E[0].metadata, cloned.library.photosList[0].metadata,
+      cloned.library.photosList[0].url].forEach(value => assert.strictEqual(value, shared));
+    cloned.library.collections.A[0].url = 'changed';
+    cloned.playback.selectedCategories.push('A');
+    assert.strictEqual(state.library.collections.A[0].url, 'a');
+    assert.deepStrictEqual(state.playback.selectedCategories, ['Liminal Spaces']);
+  });
+
+  assertTest('state cloning normalizes keywords and owns fresh optional defaults without claiming a deep clone', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.clone = cloneState;`, sandbox);
+    const state = createState({
+      config: { searchKeywords: { A: ['  mist  ', '', 'river'] }, poolPolicies: undefined, visionConfig: undefined },
+      library: { externalCollections: undefined }, playback: { poolSequenceCursors: undefined }
+    });
+    const first = sandbox.clone(state), second = sandbox.clone(state);
+    assert.deepStrictEqual(Array.from(first.config.searchKeywords.A), ['mist', 'river']);
+    assert.notStrictEqual(first.config.searchKeywords.A, state.config.searchKeywords.A);
+    assert.strictEqual(first.config.visionConfig, undefined);
+    assert.strictEqual(first.runtime.weather, null);
+    [first.config.poolPolicies, first.library.externalCollections, first.playback.poolSequenceCursors]
+      .forEach(value => assert.deepStrictEqual(Object.keys(value), []));
+    assert.notStrictEqual(first.config.poolPolicies, second.config.poolPolicies);
+    assert.notStrictEqual(first.library.externalCollections, second.library.externalCollections);
+    assert.notStrictEqual(first.playback.poolSequenceCursors, second.playback.poolSequenceCursors);
+    assert.deepStrictEqual(state.config.searchKeywords.A, ['  mist  ', '', 'river']);
+    assert.deepStrictEqual(Object.keys(first), ['config', 'runtime', 'library', 'playback']);
+  });
+
+  assertTest('state cloning propagates native reads and malformed rows without touching later sections', () => {
+    const sandbox = { module: { exports: {} }, require };
+    runInNewContext(`${fs.readFileSync(require.resolve('./reducer.js'), 'utf8')}\nglobalThis.clone = cloneState;`, sandbox);
+    const state = createState(), failure = new Error('config read failed');
+    Object.defineProperty(state.config, 'widgets', { enumerable: true, get: () => { throw failure; } });
+    Object.defineProperty(state, 'runtime', { get: () => assert.fail('later runtime read') });
+    assert.throws(() => sandbox.clone(state), error => error === failure);
+    assert.throws(() => sandbox.clone(null), error => error.name === 'TypeError');
+    const malformed = createState({ library: { collections: { A: {} } } });
+    Object.defineProperty(malformed, 'playback', { get: () => assert.fail('later playback read') });
+    assert.throws(() => sandbox.clone(malformed), error => error.name === 'TypeError' && /map/.test(error.message));
+  });
+
+  assertTest('private state-clone compiler contract rejects malformed input and narrowed compatibility output', () => {
+    const ts = require('typescript');
+    const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
+    const root = path.resolve(__dirname, '../..'), configPath = path.join(root, 'tsconfig.domain.json');
+    const { config } = ts.readConfigFile(configPath, ts.sys.readFile);
+    const parsed = ts.parseJsonConfigFileContent(config, ts.sys, root);
+    const fixture = `
+const cloneFixture = cloneState(/** @type {DomainState} */ ({}));
+/** @type {DomainState} */ const validCloneFixture = cloneFixture;
+/** @type {unknown} */ const rawCloneUrlFixture = cloneFixture.playback.activePhotoUrl;
+/** @type {0 extends (1 & typeof cloneFixture.playback.activePhotoUrl) ? true : false} */ const cloneResultIsAny = false;
+// @ts-expect-error complete domain sections are required
+cloneState({});
+// @ts-expect-error null isn't a documented input, despite retaining native runtime failure
+cloneState(null);
+// @ts-expect-error compatibility playback URL must be narrowed, not assumed normalized
+/** @type {string} */ const normalizedCloneUrlFixture = cloneFixture.playback.activePhotoUrl;
+// @ts-expect-error cloned widget values aren't string values
+/** @type {string} */ const wrongCloneWidgetFixture = cloneFixture.config.widgets.clock;
+`;
+    const fixtureDiagnostics = text => {
+      const host = ts.createCompilerHost(parsed.options), read = host.getSourceFile;
+      host.getSourceFile = (name, version, onError, newFile) => path.resolve(name) === file
+        ? ts.createSourceFile(name, `${text}\n${fixture}`, version, true)
+        : read(name, version, onError, newFile);
+      const program = ts.createProgram(parsed.fileNames, parsed.options, host);
+      return ts.getPreEmitDiagnostics(program).filter(diagnostic => diagnostic.file?.fileName === file && diagnostic.start > text.length);
+    };
+    assert.deepStrictEqual(fixtureDiagnostics(source).map(item => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
+    const declaration = source.indexOf('function cloneState(state)'), commentStart = source.lastIndexOf('/**', declaration);
+    const withoutContract = source.slice(0, commentStart) + source.slice(declaration);
+    const sensitive = fixtureDiagnostics(withoutContract);
+    assert.ok(sensitive.some(item => item.code === 2578), 'Removing the private contract must invalidate negative compiler assertions');
+    assert.ok(sensitive.some(item => item.code === 2322), 'The anti-any assertion must also reject an untyped clone result');
+  });
+
   assertTest('result envelopes preserve uninspected aliases and undefined-only output defaults', () => {
     const sandbox = { module: { exports: {} }, require };
     const source = fs.readFileSync(require.resolve('./reducer.js'), 'utf8');
