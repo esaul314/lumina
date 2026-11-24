@@ -222,13 +222,15 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **Two commissioned source/test outcomes accepted.** The private state-clone boundary now takes/returns canonical DomainState and documents selective shallow copying, normalization/defaults and retained nested aliases. Four runtime/compiler regressions, negative-directive/leaf anti-any sensitivity, six independent runtime mutation probes and focused review pass. Executable production AST/exports are unchanged; no new public API, schema, validation or framework.
+Current checkpoint (2026-11-24): **Five further Step6 contract outcomes commissioned.** Selected boundaries are comparison/assignment/event-effect primitives, patch normalization, named-library updates, pool/feed mutations and photo-mutation/persistence composition. The approved Beads graph owns readiness/custody; producer contracts precede their dependent pool/photo consumers. Keep one writer, behavior-preserving contracts, existing harness and exact reviewed/tested commits. Source/test only; no deployment or sixth outcome. Capture actual new compatibility/design learning below/in the journal without mirroring every queue transition.
+
+Accepted source baseline (history): **Two earlier commissioned outcomes accepted.** The private state-clone boundary now takes/returns canonical DomainState and documents selective shallow copying, normalization/defaults and retained nested aliases. Four runtime/compiler regressions, negative-directive/leaf anti-any sensitivity, six independent runtime mutation probes and focused review pass. Executable production AST/exports are unchanged; no new public API, schema, validation or framework.
 
 **refactor(types): contract domain state cloning** follows **test(crawler): await offline legacy provider regressions** (32fc531), which replaces eight false asynchronous legacy checks with15genuinely awaited offline cases in the existing native owner. Full926legacy/13sensor/3compiler-report/145native and lint pass. Strict275core/36transitive/0fixture/global remains non-green: four TS7006 occurrences removed, zero new occurrences. The actual npm entrypoint rejects the lateNASA negative control and passes afterward. This is source/test acceptance, not a new release or a whole Phase1/Step6 closeout.
 
 Latest live baseline remains **1.0.3/d6618ee**, with prior AR-1–AR-5/provider bridge and native promotion/candidate-owned stop/start acceptance retained in the developer journal and [product roadmap](./ROADMAP.md). Service/runtime/intent and saved-data preservation from that release stay accepted; this batch does not redeploy or requalify physical-TV, active-kiosk SIGTERM, live-provider recovery or rollback.
 
-**Next: await separately selected scope.** No third outcome, automatic batch, project reminder or public push. Existing strict, other-provider/vision/auth/security and physical-TV debt remains. Beads owns the exhausted commissioned queue, not product completion; task tooling is assessed without claiming unmeasured speed/token savings.
+**Next: execute only the five selected outcomes through the scoped native queue.** No automatic sixth outcome, project reminder or public push. Existing strict, other-provider/vision/auth/security and physical-TV debt remains. Beads owns the exhausted commissioned queue, not product completion; task tooling is assessed without claiming unmeasured speed/token savings.
 
 Why sixth:
 
