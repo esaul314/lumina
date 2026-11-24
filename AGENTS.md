@@ -48,19 +48,12 @@ Read [ROADMAP.md](./ROADMAP.md) for product intent, feedback and deferrals, and
 [CONVENTIONS.md](./CONVENTIONS.md#roadmap-and-complexity-discipline) for task/WIP
 and complexity discipline. Do not append per-helper history to this guide.
 
-```mermaid
-graph TD
-    A["📱 Mobile Phone Remote / Link"] <-->|REST API & Socket.IO Events| B["🟢 Node.js / Express Core Server"]
-    C["🖥️ GNOME Mutter Idle Monitor"] -->|DBus Polling 2s| B
-    D["🔊 PulseAudio Monitor (pactl)"] -->|Audio State Check| B
-    B -->|Launches/Kills| E["📺 Chromium Fullscreen Kiosk (TV View)"]
-    B -->|Toggles CPU Governor| F["⚡ System CPU Power scaling_governor"]
-    B -->|Crawl Daily Feeds| G["🖼️ Unsplash Search NAPI"]
-    B -->|Weather Forecast| H["🌦️ Open-Meteo API"]
-    I["🌡️ Active local sensor device"] -->|Protocol adapter polling| B
-    B -->|Logs Hourly Snapshots| J["🗄️ SQLite sensor_history.db"]
-    E <-->|Real-Time State Sync| B
-```
+The source-grounded [C4 architecture record](./docs/architecture/README.md) owns
+current/target views and their single Structurizr DSL model. The target is a
+proposal, not deployed structure. The domain directory includes an effectful
+dispatcher and mutable snapshot-application helpers; pure projections are a
+conceptual boundary, not a promise about every function in that folder.
+
 
 ---
 

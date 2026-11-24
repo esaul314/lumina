@@ -32,16 +32,11 @@ Lumina keeps the browser’s slideshow bounded to at most two slide elements. Th
 
 ## Architecture at a glance
 
-```mermaid
-flowchart LR
-    TV[Chromium TV view] <-->|REST + Socket.IO| Core[Node.js / Express daemon]
-    Remote[Phone or desktop remote] <-->|REST + Socket.IO| Core
-    Core --> Feeds[Image feed crawlers]
-    Core --> Weather[Weather + news sentiment]
-    Core --> Sensors[Ecowitt LAN adapter]
-    Core --> System[GNOME idle + audio + kiosk control]
-    Core --> Data[(Local JSON + SQLite)]
-```
+See the [C4 context, container and current/target component views](docs/architecture/README.md).
+They are generated from one Structurizr model. The deployment stays one daemon
+with the existing browser UI and local stores; proposed internal improvements
+are not an additional runtime or a completed refactor.
+
 
 The control surface is REST-first for durable mutations. Socket.IO remains the live-sync and progress channel, with compatibility handlers retained during the migration. The client keeps snapshot normalization at one boundary so TV and remote views consume the same state shape.
 
@@ -49,7 +44,7 @@ The control surface is REST-first for durable mutations. Socket.IO remains the l
 
 Lumina targets a Linux desktop session with:
 
-- Node.js 18 or newer
+- The Node.js version declared in [`.nvmrc`](.nvmrc); supported launchers validate this pin
 - Chromium or a Chromium-compatible kiosk binary
 - GNOME/Mutter session utilities: `busctl` and a working user D-Bus session
 - PulseAudio or PipeWire’s `pactl` command for the media-playback guard
