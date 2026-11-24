@@ -80,6 +80,28 @@ function createApplication() {
   const getWeatherData = () => serverWeatherData;
   const setWeatherData = (data) => { serverWeatherData = data; };
   const rootDir = path.join(__dirname, '..');
+  /** @type {'constructed' | 'running' | 'stopped'} */
+  let lifecycle = 'constructed';
+  /** @type {Promise<void> | null} */
+  let stopping = null;
+  /** @type {Set<ReturnType<typeof setTimeout>>} */
+  const timeouts = new Set();
+  /** @type {Set<ReturnType<typeof setInterval>>} */
+  const intervals = new Set();
+  const ownedTimeout = (run, delay) => {
+    const handle = setTimeout(() => {
+      timeouts.delete(handle);
+      if (lifecycle === 'running') run();
+    }, delay);
+    timeouts.add(handle);
+    return handle;
+  };
+  const ownedInterval = (run, delay) => {
+    const handle = setInterval(() => { if (lifecycle === 'running') run(); }, delay);
+    intervals.add(handle);
+    return handle;
+  };
+
   let sensorHistoryStore = null;
   const openSensorHistory = () => {
     if (config.sensorHistory?.enabled !== false) {
@@ -560,7 +582,8 @@ function createApplication() {
   });
 
   // Self-healing EADDRINUSE conflict recovery boundary
-  server.on('error', (err) => {
+  const onServerError = (err) => {
+    if (lifecycle !== 'running') return;
     if (err.code === 'EADDRINUSE') {
       const fallbackPort = parseInt(PORT, 10) + 1;
       console.error(`Self-Healing: Port ${PORT} is already bound! Trying fallback port ${fallbackPort}...`);
@@ -569,32 +592,73 @@ function createApplication() {
         `Port collision detected on default port ${PORT}.\n\nAction: Lumina is automatically healing by binding to fallback port ${fallbackPort}.`
       );
       PORT = fallbackPort;
-      setTimeout(() => {
+      ownedTimeout(() => {
         server.listen(PORT, '0.0.0.0');
       }, 1000);
     } else {
       console.error('Core Server Error:', err.message);
+      void stopServer().catch(error => console.error('Server cleanup failed:', error));
+    }
+  };
+  server.on('error', onServerError);
+
+  const closeHttp = () => new Promise((resolve, reject) => {
+    try {
+      server.close(error => error && error.code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve());
+    } finally {
+      server.closeAllConnections();
     }
   });
 
-  // Bootstrapper initialization handler
-  function startServer() {
-    if (process.env.NODE_ENV !== 'test') {
-      openSensorHistory();
-      setInterval(updateServerWeather, 15 * 60 * 1000);
-      setTimeout(updateServerWeather, 3000);
-      setInterval(updateNewsSentiment, 30 * 60 * 1000);
-      setTimeout(updateNewsSentiment, 5000);
+  /** Unconditional, retryable disposal of this constructed lifetime. @returns {Promise<void>} */
+  function stopServer() {
+    lifecycle = 'stopped';
+    if (stopping) return stopping;
+    const release = [
+      ...[...timeouts].map(handle => () => { clearTimeout(handle); timeouts.delete(handle); }),
+      ...[...intervals].map(handle => () => { clearInterval(handle); intervals.delete(handle); }),
+      () => idleDaemonRuntime.stop(),
+      () => poolScheduleRuntime.stop(),
+      () => sensorPlatform.stop(),
+      () => kioskControlRuntime.killKioskBrowser(true),
+      () => { if (sensorHistoryStore) { sensorHistoryStore.close(); sensorHistoryStore = null; } },
+      () => server.removeListener('error', onServerError),
+      () => io.close(),
+      closeHttp
+    ];
+    screensaverState.screensaverActive = false;
+    // Start every teardown even when another rejects. No failed cleanup latch:
+    // a later stop retries remaining handles, and concurrent calls join this one.
+    stopping = Promise.allSettled(release.map(close => Promise.resolve().then(close)))
+      .then(results => {
+        const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+        if (errors.length) throw new AggregateError(errors, 'Application cleanup incomplete.');
+      })
+      .finally(() => { stopping = null; });
+    return stopping;
+  }
 
-      setTimeout(() => {
+  // Native service restart constructs a fresh lifetime; no reattachment layer.
+  function startServer() {
+    if (process.env.NODE_ENV === 'test' || lifecycle === 'running') return;
+    if (lifecycle === 'stopped') throw new Error('Application is stopped; construct a fresh lifetime.');
+    lifecycle = 'running';
+    try {
+      openSensorHistory();
+      ownedInterval(updateServerWeather, 15 * 60 * 1000);
+      ownedTimeout(updateServerWeather, 3000);
+      ownedInterval(updateNewsSentiment, 30 * 60 * 1000);
+      ownedTimeout(updateNewsSentiment, 5000);
+
+      ownedTimeout(() => {
         updateFeedsDaily().catch(err => console.error('Error in initial feed update:', err));
       }, 5000);
 
-      setTimeout(() => {
+      ownedTimeout(() => {
         triggerImageAnalysisBackground().catch(err => console.error('Error in initial background image analysis:', err));
       }, 10000);
 
-      setInterval(() => {
+      ownedInterval(() => {
         updateFeedsDaily().catch(err => console.error('Error in scheduled feed update:', err));
       }, 4 * 60 * 60 * 1000);
       idleDaemonRuntime.start();
@@ -605,6 +669,9 @@ function createApplication() {
         console.log('Mobile Remote accessible at your local network IPs:');
         getLocalIpAddresses().forEach(ip => console.log(`  http://${ip}:${PORT}`));
       });
+    } catch (error) {
+      void stopServer().catch(cleanupError => console.error('Startup cleanup failed:', cleanupError));
+      throw error;
     }
   }
 
@@ -613,6 +680,7 @@ function createApplication() {
     server,
     io,
     startServer,
+    stopServer,
     tagPhotosWithKeywords,
     getSmartPhoto,
     screensaverState,
@@ -630,7 +698,7 @@ function createApplication() {
 // ponytail: preserve the CommonJS facade lazily, with one default application.
 let defaultApplication;
 const getDefaultApplication = () => (defaultApplication ??= createApplication());
-const legacyExports = ['app', 'server', 'io', 'startServer', 'tagPhotosWithKeywords', 'getSmartPhoto', 'screensaverState', 'curatedCollections', 'updateNewsSentiment', 'updateServerWeather', 'triggerImageAnalysisBackground', 'combineFeedsBalanced', 'selectWeightedRandomPhoto', 'isTimeInSchedule', 'getNextScreensaverState'];
+const legacyExports = ['app', 'server', 'io', 'startServer', 'stopServer', 'tagPhotosWithKeywords', 'getSmartPhoto', 'screensaverState', 'curatedCollections', 'updateNewsSentiment', 'updateServerWeather', 'triggerImageAnalysisBackground', 'combineFeedsBalanced', 'selectWeightedRandomPhoto', 'isTimeInSchedule', 'getNextScreensaverState'];
 // Retain the concrete CommonJS shape for typed consumers of lazy properties.
 module.exports = /** @type {ReturnType<typeof createApplication> & { createApplication: typeof createApplication }} */ (
   Object.defineProperties({ createApplication }, Object.fromEntries(
