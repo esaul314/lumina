@@ -236,7 +236,10 @@ database. Tests/review/commit/journal acceptance precede the next outcome.
 Accepted: **feat(weather): persist optional TV location visibility**. New preference
 round-trips through the existing codec;919runtime/13sensor/3compiler/4launcher
 checks pass, lint and independent ACCEPT. Strict290core/59transitive remains
-non-green. Current work: client control and TV rendering; no live setting changed. The physical-TV pointer report, vision
+non-green. **feat(weather): add optional location label controls** is also accepted:16
+headless regressions pass, independent review verifies all7 TV switches and an
+HTTP503 failure. Candidate assets remain private. Current work: bound the observed
+Unsplash/Reddit rejections per crawl, then surface their degraded result in jobs. The physical-TV pointer report, vision
 capability/auth configuration, generic identity and broader TypeScript work remain
 separate; no service, controller or infrastructure expansion is selected.
 

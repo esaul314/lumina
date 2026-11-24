@@ -6664,3 +6664,20 @@ snapshot type, reducing transitive strict diagnostics68→59; core remains290.
 An initial regression wrongly placed the sync EVENT among effects; corrected the
 expectation to the existing persist-effect/state-sync-event contract. No runtime
 change was needed. Client control and live release remain the next boundaries.
+
+## Optional weather location controls — 2026-11-24
+
+The saved preference now drives a direct presentation guard; weather fetches,
+location selection, forecasts and photo selection do not depend on it. Remote
+General settings and TV widget settings use accessible native switches; absent
+legacy preferences remain visible. The TV switchboard now uses the existing REST
+mutation boundary instead of adding another legacy transport branch. Canonical
+snapshots still own live state; no duplicated draft setting or location model.
+
+Reused the existing slideshow/browser fixture with same-origin synthetic weather,
+REST command dispatch and an optional test-only candidate-dist path. Full suite
+919/13/3/4, lint and candidate build pass;16 browser cases include two new weather
+cases. Independent ACCEPT also exercises all7 TV switches, Enter/Space and HTTP503
+without optimistic-state divergence. Browser reload is tested; persistence uses
+the separately accepted codec path, not a claim of a live daemon-restart rehearsal.
+Assets remain unpromoted until final release, and physical-TV/AT review is distinct.

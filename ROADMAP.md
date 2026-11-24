@@ -210,8 +210,9 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   hidden/shown TV layout and unchanged forecast/location-dependent behavior.
   **Selected, 2026-11-24:** the second commissioned sequence implements this
   existing Phase1 item through the current widget/collection boundary. Backend
-  persistence is accepted, with visible-by-default compatibility; client/admin
-  behavior and release acceptance follow in the companion checkpoint.
+  persistence and accessible client/admin controls are accepted, with visible-by-
+  default compatibility. Both hide/show and unchanged forecasts pass headless
+  checks. Live release acceptance follows in the companion checkpoint.
 
 ### Photo source investigation
 
