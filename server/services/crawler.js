@@ -581,6 +581,7 @@ async function fetchBingImageOfTheDay(count = 8) {
  * Fetches high-definition wallpapers from Unsplash NAPI.
  */
 async function fetchUnsplashImages(query, count = 20, request = fetch) {
+  const photos = [];
   try {
     // ponytail: randomize search page to fetch new results and avoid duplicates on subsequent crawls
     const randomPage = Math.floor(Math.random() * 5) + 1;
@@ -590,7 +591,6 @@ async function fetchUnsplashImages(query, count = 20, request = fetch) {
       `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query + ' 4k')}&per_page=20&page=${randomPage}&xp=feedback-loop:control`
     ];
 
-    const photos = [];
     const existingUrls = new Set();
 
     for (const url of queriesToCrawl) {
@@ -657,8 +657,8 @@ async function fetchUnsplashImages(query, count = 20, request = fetch) {
     console.log(`Unsplash Crawler: Successfully loaded ${photos.length} photos.`);
     return photos.slice(0, count);
   } catch (err) {
-    console.error(`Unsplash crawler failed for keyword "${query}":`, err.message);
-    return [];
+    console.error(`Unsplash crawler failed for keyword "${query}":`, err?.message ?? String(err));
+    return photos.slice(0, count);
   }
 }
 

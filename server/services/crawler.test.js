@@ -351,3 +351,78 @@ test('Art Institute concrete request preserves query/count, IIIF base, missing-i
       source: 'artic', isNight: false, isRain: false, isSunny: true, isCloudy: false, isSnowy: false }
   ]);
 });
+
+
+const unsplashOnlyConfigs = () => Object.fromEntries(['A', 'B'].map(category => [category, {
+  unsplash: { enabled: true, keywords: [{ keywords: ['mist', 'rain'], timeStart: '06:00', timeEnd: '10:00' }, 'forest'] }
+}]));
+const partialUnsplashCrawl = (fetchImpl, collections = cached(), options = {}) => crawlAllCollections(
+  collections, unsplashOnlyConfigs(), null, [], null, () => new Date('2026-11-24T00:00:00Z'),
+  { fetchImpl, requestTimeoutMs: 1000, ...options }
+);
+
+for (const [label, failure, kind] of [
+  ['transport', async () => { throw Error('later offline'); }, 'transport'],
+  ['decoding', async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('later bad JSON'); } }), 'decoding'],
+  ['null transport', async () => { throw null; }, 'transport']
+]) {
+  test('accepted Unsplash query photos survive later ' + label + ' with warnings/metadata and next-run recovery', async () => {
+    const input = cached(), before = structuredClone(input); let calls = 0;
+    const result = await partialUnsplashCrawl(async (...args) => ++calls === 1 ? unsplash('accepted-first') : failure(...args), input);
+    assert.equal(calls, 2); assert.equal(result.updatedAny, true);
+    assert.deepEqual(result.providerFailures, [{ provider: 'unsplash', kind }]);
+    assert.deepEqual(input, before); assert.equal(result.updatedCollections.A[0].comment, 'Keep me');
+    assert.deepEqual(result.updatedCollections.B, before.B);
+    const accepted = result.updatedCollections.A.find(photo => photo.url.includes('accepted-first'));
+    assert.equal(accepted.source, 'unsplash'); assert.equal(accepted.author, 'Unsplash Photographer');
+    assert.equal(accepted.queryKeyword, 'mist'); assert.equal(accepted.addedAt, '2026-11-24T00:00:00.000Z');
+    assert.deepEqual(accepted.timeRanges, [{ start: '06:00', end: '10:00' }]);
+    let recoveryCalls = 0;
+    const recovered = await partialUnsplashCrawl(async () => unsplash('recovered-' + ++recoveryCalls));
+    assert.equal(recoveryCalls, 18); assert.deepEqual(recovered.providerFailures, []);
+    assert.ok(recovered.updatedCollections.B.some(photo => photo.url.includes('recovered-')));
+  });
+}
+
+for (const stage of ['headers', 'body']) {
+  test('accepted Unsplash variant survives a later stalled ' + stage + ' deadline without repeating source work', async () => {
+    let hits = 0, calls = 0;
+    const server = http.createServer((_req, res) => { hits++; if (stage === 'body') res.writeHead(200, { 'content-type': 'application/json' }).write('{'); });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const local = 'http://127.0.0.1:' + server.address().port + '/';
+      const result = await partialUnsplashCrawl((_url, options) => ++calls === 1
+        ? Promise.resolve(unsplash('before-timeout')) : fetch(local, options), cached(), { requestTimeoutMs: 80 });
+      assert.equal(calls, 2); assert.equal(hits, 1);
+      assert.deepEqual(result.providerFailures, [{ provider: 'unsplash', kind: 'timeout' }]);
+      assert.ok(result.updatedCollections.A.some(photo => photo.url.includes('before-timeout')));
+      assert.equal(result.updatedCollections.A[0].comment, 'Keep me');
+      assert.deepEqual(result.updatedCollections.B, cached().B);
+    } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  });
+}
+
+test('unfinished Unsplash results keep count/dedup/landscape/premium policy and normalized display metadata', async () => {
+  let calls = 0;
+  const item = (id, extras = {}) => ({
+    width: 1200, height: 800, urls: { raw: 'https://images.unsplash.com/' + id },
+    description: 'l'.repeat(70), user: { name: 'Fixture Author' }, ...extras
+  });
+  const photos = await fetchUnsplashImages('fixture', 2, async () => {
+    calls++;
+    if (calls > 1) throw new Error('later transport');
+    return ok({ results: [
+      item('first?ixid=one'), item('first?ixid=two'), item('portrait', { width: 800, height: 1200 }),
+      item('premium', { premium: true }), item('plus', { plus: true }), item('second'), item('third')
+    ] });
+  });
+  assert.equal(calls, 2); assert.equal(photos.length, 2);
+  assert.deepEqual(photos.map(photo => photo.url), [
+    'https://images.unsplash.com/first?q=80&w=2560&auto=format&fit=crop', 'https://images.unsplash.com/second'
+  ]);
+  assert.equal(photos[0].title, 'L' + 'l'.repeat(51) + '...');
+  assert.deepEqual(photos.map(({ author, source, isNight, isRain, isSunny, isCloudy, isSnowy }) =>
+    ({ author, source, isNight, isRain, isSunny, isCloudy, isSnowy })), Array.from({ length: 2 }, () => ({
+      author: 'Fixture Author', source: 'unsplash', isNight: false, isRain: false, isSunny: true, isCloudy: false, isSnowy: false
+    })));
+});
