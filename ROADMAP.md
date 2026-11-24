@@ -482,7 +482,13 @@ design work, not claims that the current behavior has already been changed.
   candidates, not a new runtime regression or a claim of full provider health.
   Unavailable vision keeps its existing three-failure bound and separate auth/
   capability gate. No extra health service, retry timer or model fallback.
-  Other providers and unavailable vision/auth remain open, not claimed repaired. Existing source/lifecycle rules remain; transport/JSON exceptions can
+  **Third sequence source acceptance, 2026-11-24:** Wallhaven now shares the
+  existing run-local policy across configured queries and keyless AI fallback.
+  Rejections/deadlines stop later Wallhaven work, not Lexica or retained results;
+  fallback identity/order/full cardinality and next-pass recovery remain covered.
+  Independent offline review accepted; live qualification still follows. Art
+  Institute remains the next selected source. Other providers and unavailable
+  vision/auth remain open, not claimed repaired. Transport/JSON exceptions can
   still discard fresh results inside an unfinished Unsplash query, not saved cache.
 
 ### Medium priority
