@@ -133,3 +133,129 @@ test('headers and a stalled JSON body both respect the per-request deadline', as
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+const wallhavenResponse = id => ok({ data: [{ id, path: `https://wallhaven.example.test/${id}.jpg`, uploader: { username: 'Fixture' } }] });
+const wallhavenConfigs = () => Object.fromEntries(['A', 'B'].map(category => [category, {
+  wallhaven: { enabled: true, keywords: ['forest', { keywords: ['mist', 'rain'], timeStart: '06:00', timeEnd: '10:00' }] }
+}]));
+const wallhavenCrawl = (fetchImpl, collections = cached(), options = {}) => crawlAllCollections(
+  collections, wallhavenConfigs(), null, [], null, () => new Date('2026-11-24T00:00:00Z'),
+  { fetchImpl, requestTimeoutMs: 1000, ...options }
+);
+
+// Source-local module fixture: no global fetch/cache/env patches or provider calls.
+function isolatedCrawler(fetchImpl) {
+  const fs = require('node:fs'), path = require('node:path'), { createRequire } = require('node:module');
+  const { compileFunction } = require('node:vm');
+  const filename = path.join(__dirname, 'crawler.js'), localRequire = createRequire(filename), module = { exports: {} };
+  compileFunction(fs.readFileSync(filename, 'utf8'), ['module', 'require', 'fetch', 'console'], { filename })(
+    module, name => name === '../config/env.js' ? { readEnvVar: () => '' } : localRequire(name),
+    fetchImpl, { log() {}, warn() {}, error() {} }
+  );
+  return module.exports;
+}
+
+for (const [status, kind] of [[401, 'authentication'], [403, 'policy'], [429, 'rate-limit'], [503, 'service']]) {
+  test(`Wallhaven HTTP${status} is bounded once across pools/timed queries without losing cached metadata`, async () => {
+    const input = cached(), before = structuredClone(input); let calls = 0;
+    const result = await wallhavenCrawl(async () => { calls++; return denied(status); }, input);
+    assert.equal(calls, 1);
+    assert.deepEqual(result.providerFailures, [{ provider: 'wallhaven', kind, status }]);
+    assert.equal(result.updatedAny, false); assert.deepEqual(result.updatedCollections, before); assert.deepEqual(input, before);
+  });
+}
+
+test('Wallhaven retains accepted earlier queries and a fresh pass recovers with timed metadata/SFW parameters', async () => {
+  let calls = 0;
+  const partial = await wallhavenCrawl(async () => ++calls === 1 ? wallhavenResponse('first') : denied(429));
+  assert.equal(calls, 2); assert.equal(partial.updatedCollections.A[0].comment, 'Keep me');
+  assert.ok(partial.updatedCollections.A.some(photo => photo.url.endsWith('/first.jpg')));
+  assert.deepEqual(partial.updatedCollections.B, cached().B);
+  calls = 0;
+  const recovered = await wallhavenCrawl(async (url, options) => {
+    assert.ok(url.includes('purity=100') && url.includes('ratios=16x9,16x10'));
+    assert.match(options.headers['User-Agent'], /^LuminaScreensaver\//);
+    return wallhavenResponse(`recovered-${++calls}`);
+  });
+  assert.equal(calls, 6); assert.deepEqual(recovered.providerFailures, []);
+  const mist = recovered.updatedCollections.A.find(photo => photo.queryKeyword === 'mist');
+  assert.deepEqual(mist.timeRanges, [{ start: '06:00', end: '10:00' }]);
+  assert.equal(mist.source, 'wallhaven'); assert.equal(mist.addedAt, '2026-11-24T00:00:00.000Z');
+});
+
+test('a Wallhaven query-local404 does not disable healthy later queries', async () => {
+  let calls = 0;
+  const result = await wallhavenCrawl(async () => ++calls === 1 ? denied(404) : wallhavenResponse(String(calls)));
+  assert.equal(calls, 6); assert.deepEqual(result.providerFailures, []); assert.equal(result.updatedAny, true);
+});
+
+for (const [label, failure, kind] of [
+  ['transport', async () => { throw new Error('offline'); }, 'transport'],
+  ['decoding', async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('bad JSON'); } }), 'decoding'],
+  ['null transport', async () => { throw null; }, 'transport']
+]) {
+  test(`Wallhaven ${label} failure stays run-local and preserves saved data`, async () => {
+    let calls = 0; const result = await wallhavenCrawl(async (...args) => { calls++; return failure(...args); });
+    assert.equal(calls, 1); assert.equal(result.providerFailures[0].kind, kind);
+    assert.deepEqual(result.updatedCollections, cached());
+  });
+}
+
+for (const stage of ['headers', 'body']) {
+  test(`Wallhaven stalled ${stage} respects the existing request deadline and stops later work`, async () => {
+    let hits = 0;
+    const server = http.createServer((_req, res) => { hits++; if (stage === 'body') res.writeHead(200, { 'content-type': 'application/json' }).write('{'); });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const url = `http://127.0.0.1:${server.address().port}/`;
+      const result = await wallhavenCrawl((_url, options) => fetch(url, options), cached(), { requestTimeoutMs: 80 });
+      assert.equal(hits, 1); assert.equal(result.providerFailures[0].kind, 'timeout');
+      assert.deepEqual(result.updatedCollections, cached());
+    } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  });
+}
+
+for (const primary of [false, true]) {
+  test(`keyless AI fallback shares the Wallhaven budget with primary enabled=${primary}`, async () => {
+    const urls = [];
+    const fetchImpl = async url => {
+      urls.push(url);
+      return url.includes('wallhaven.cc') ? denied(429)
+        : ok({ images: [{ src: 'https://lexica.example.test/healthy.jpg', prompt: 'Fixture', width: 1200, height: 800 }] });
+    };
+    const service = isolatedCrawler(fetchImpl), input = { 'AI Creations': cached().A };
+    const result = await service.crawlAllCollections(input, { 'AI Creations': {
+      midjourney: { enabled: true }, wallhaven: { enabled: primary, keywords: ['first', 'second'] }
+    } }, null, [], null, () => new Date('2026-11-24T00:00:00Z'), { fetchImpl });
+    assert.equal(urls.filter(url => url.includes('wallhaven.cc')).length, 1);
+    assert.equal(urls.filter(url => url.includes('lexica.art')).length, 1);
+    assert.deepEqual(result.providerFailures, [{ provider: 'wallhaven', kind: 'rate-limit', status: 429 }]);
+    assert.ok(result.updatedCollections['AI Creations'].some(photo => photo.source === 'lexica'));
+    assert.equal(result.updatedCollections['AI Creations'][0].comment, 'Keep me');
+  });
+}
+
+test('healthy keyless fallback keeps Lexica concurrent and preserves round-robin source identity/cardinality', async () => {
+  let release, entered;
+  const blocked = new Promise(resolve => { release = resolve; }), started = new Promise(resolve => { entered = resolve; });
+  const calls = [];
+  const service = isolatedCrawler(async url => {
+    if (url.includes('lexica.art')) {
+      calls.push('lexica');
+      return ok({ images: [1, 2].map(n => ({ src: `https://lexica.example.test/${n}.jpg`, prompt: 'Fixture', width: 1200, height: 800 })) });
+    }
+    const number = calls.filter(value => value.startsWith('wall')).length + 1;
+    calls.push(`wall${number}`);
+    if (number === 1) { entered(); await blocked; }
+    return ok({ data: [1, 2].map(n => ({ id: `${number}-${n}`, path: `https://wallhaven.example.test/${number}-${n}.jpg` })) });
+  });
+  const pending = service.fetchMidjourneyImages(2); await started;
+  assert.deepEqual(calls, ['lexica', 'wall1']); release(); const result = await pending;
+  assert.deepEqual(calls, ['lexica', 'wall1', 'wall2']);
+  assert.deepEqual(result.map(photo => photo.url), [
+    'https://lexica.example.test/1.jpg', 'https://wallhaven.example.test/1-1.jpg', 'https://wallhaven.example.test/2-1.jpg',
+    'https://lexica.example.test/2.jpg', 'https://wallhaven.example.test/1-2.jpg', 'https://wallhaven.example.test/2-2.jpg'
+  ]);
+  assert.deepEqual(result.map(photo => photo.source), ['lexica', 'wallhaven', 'wallhaven', 'lexica', 'wallhaven', 'wallhaven']);
+});

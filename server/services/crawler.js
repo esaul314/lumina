@@ -422,7 +422,7 @@ async function fetchLexicaImages(query, count = 25) {
  * Queries the public Wallhaven API for high-resolution landscape images.
  * Uses keyless, SFW-only filters.
  */
-async function fetchWallhavenImages(query, category, count = 15) {
+async function fetchWallhavenImages(query, category, count = 15, request = fetch) {
   try {
     // ponytail: randomize sorting to prevent static crawl result duplication and fetch fresh wallpapers
     const sortings = ['relevance', 'random', 'date_added', 'views', 'toplist'];
@@ -430,7 +430,7 @@ async function fetchWallhavenImages(query, category, count = 15) {
     console.log(`Wallhaven Crawler: Querying "${query}" with sorting "${chosenSorting}" for category "${category}"...`);
     // SFW only (purity=100), landscape ratio (ratios=16x9,16x10)
     const url = `https://wallhaven.cc/api/v1/search?q=${encodeURIComponent(query)}&purity=100&ratios=16x9,16x10&sorting=${chosenSorting}`;
-    const res = await fetch(url, {
+    const res = await request(url, {
       headers: {
         'User-Agent': CRAWLER_USER_AGENT
       }
@@ -478,7 +478,7 @@ async function fetchWallhavenImages(query, category, count = 15) {
     console.log(`Wallhaven Crawler: Successfully loaded ${photos.length} photos.`);
     return photos;
   } catch (err) {
-    console.error('Wallhaven crawler failed:', err.message);
+    console.error('Wallhaven crawler failed:', err?.message ?? String(err));
     return [];
   }
 }
@@ -667,31 +667,24 @@ async function fetchUnsplashImages(query, count = 20, request = fetch) {
  * Fetches Midjourney generative images via UseAPI.net.
  * Supports token authorization, filters out portraits, extracts prompts, and handles self-healing fallback.
  */
-async function fetchMidjourneyImages(count = 15) {
+async function fetchMidjourneyImages(count = 15, fetchWallhaven = fetchWallhavenImages) {
   const token = readEnvVar('USEAPI_TOKEN');
   if (!token) {
     console.log('UseAPI.net: No USEAPI_TOKEN configured. Using free keyless AI aggregators (Lexica Art + Wallhaven AI)...');
     try {
       const lexicaPromise = fetchLexicaImages('midjourney landscape surreal dreamscape', count);
-      // ponytail: add multiple Wallhaven AI queries to compensate for Lexica being down
-      const wallhavenPromise = fetchWallhavenImages('cyberpunk landscape surreal', 'AI Creations', count);
-      const wallhavenPromise2 = fetchWallhavenImages('surreal digital art dreamscape', 'AI Creations', count);
-      
-      const [lexicaPhotos, wallhavenPhotos, wallhavenPhotos2] = await Promise.all([
-        lexicaPromise,
-        wallhavenPromise,
-        wallhavenPromise2
-      ]);
-      
-      // Combine them alternately (round-robin style)
-      const combined = [];
+      // One concrete callback shares the crawl's run-local Wallhaven budget.
+      // Keep Lexica concurrent, but await each Wallhaven outcome before another.
+      const [wallhavenPhotos, wallhavenPhotos2] = await reduceAsyncSequentially(
+        async (groups, query) => groups.concat([await fetchWallhaven(query, 'AI Creations', count)]),
+        []
+      )(['cyberpunk landscape surreal', 'surreal digital art dreamscape']);
+      const lexicaPhotos = await lexicaPromise;
       const maxLen = Math.max(lexicaPhotos.length, wallhavenPhotos.length, wallhavenPhotos2.length);
-      for (let i = 0; i < maxLen; i++) {
-        if (lexicaPhotos[i]) combined.push(lexicaPhotos[i]);
-        if (wallhavenPhotos[i]) combined.push(wallhavenPhotos[i]);
-        if (wallhavenPhotos2[i]) combined.push(wallhavenPhotos2[i]);
-      }
-      
+      const combined = Array.from({ length: maxLen }, (_, index) =>
+        [lexicaPhotos[index], wallhavenPhotos[index], wallhavenPhotos2[index]].filter(Boolean)
+      ).flat();
+
       console.log(`Free AI Aggregators: Loaded ${combined.length} stunning keyless AI photos successfully.`);
       return combined;
     } catch (err) {
@@ -1076,6 +1069,10 @@ async function crawlAllCollections(
     }
   };
 
+  const fetchWallhavenForPass = (query, category, count = 15) => providerFailures.has('wallhaven')
+    ? Promise.resolve([])
+    : fetchWallhavenImages(query, category, count, requestFor('wallhaven'));
+
   // Declarative scraper definitions
   const scrapers = [
     {
@@ -1099,7 +1096,7 @@ async function crawlAllCollections(
     {
       key: 'wallhaven',
       param: 'keywords',
-      fetcher: async (kw, category) => fetchWallhavenImages(kw, category, 10)
+      fetcher: async (kw, category) => fetchWallhavenForPass(kw, category, 10)
     },
     {
       key: 'tumblr',
@@ -1127,7 +1124,7 @@ async function crawlAllCollections(
     },
     {
       key: 'midjourney',
-      fetcher: async () => fetchMidjourneyImages(15)
+      fetcher: async () => fetchMidjourneyImages(15, fetchWallhavenForPass)
     }
   ];
 
