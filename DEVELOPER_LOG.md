@@ -6729,3 +6729,42 @@ The coherent envelope fix spans6files but only106added/8removed lines; splitting
 it to meet a file-count preference would hide the end-to-end dependency.
 Next: qualify the clean versioned release, publish built assets through the native
 service owner and verify live boundaries; no physical-TV/provider health claim.
+
+## Second five-outcome native release acceptance — 2026-11-24
+
+Committed outcomes: **feat(weather): persist optional TV location visibility**;
+**feat(weather): add optional location label controls**;
+**fix(crawler): bound rejected provider work per crawl**;
+**fix(jobs): preserve degraded provider results across status events**;
+**chore(release): qualify Lumina 1.0.2 for native rollout**.
+Roadmap progression is product intent→existing widget storage/control→pure source
+failure policy with explicit effects→result-derived status→verified native release.
+All code boundaries received independent acceptance; the crawler required one
+substantive correction before acceptance. Rejected work was not marked complete.
+
+Full924 runtime,13 sensor,3 compiler,4 launcher and12 crawler cases pass, with lint
+and16 headless browser cases. The final build matches the browser-accepted assets
+exactly; no unchanged test replay was needed. Strict290core/59transitive remains
+explicit debt. Clean release provenance and an independent136-file artifact/
+rollback preflight pass; existing runtime/unit/dependencies stay unchanged.
+
+The native restart occurred once. Compatible hashed assets/index were published
+first so a new kiosk loads the intended bundle; old assets remain for open clients
+and rollback. Fresh manually-active intent was restored through the existing API.
+Live HTTP/Socket.IO/weather/history, served hashes, all existing history keys and
+private-file preservation pass; the unrelated command node remained uninterrupted.
+
+A cgroup-only kiosk assertion initially failed: GNOME moves the main browser into
+an application scope while descendants remain in the service. Parent PID and TV
+mode URL established exactly one new owned kiosk; this was an observation gap,
+not a reason to repeat restart. Use journal timestamps with an explicit timezone.
+No physical-TV/assistive-technology, live rollback or total-resource-budget claim.
+
+Live targeted-source counts show one Reddit rejection and one Unsplash rejection.
+Other source loops still show Wallhaven429/AIC403 (also in the old process journal);
+vision remains unavailable with its prior bounded abort. Those remain explicit
+roadmap work, not hidden behind success or silently folded into a sixth task.
+Beads holds only the selected graph and evidence; roadmaps retain human feedback,
+priorities and discoveries. No new service, dependency, job state, persistent
+breaker, scheduler or synchronizer. Close/back up the existing store and clean
+only task-owned candidate output after release evidence is retained.

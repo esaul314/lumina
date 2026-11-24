@@ -124,7 +124,9 @@ lumina/
   capability belongs to explicit `?mode=tv`, not an admin preview. Physical-TV
   reports remain unverified unless observed on the real kiosk. Do not confuse a
   DOM/heap bound with measured total RSS/GPU/CPU efficiency.
-- **Desktop shell:** one native service owns the daemon and its Chromium children.
+- **Desktop shell:** one native service owns the daemon and its tracked kiosk.
+  GNOME may move the main browser into an application scope; verify its parent
+  PID and TV-mode URL rather than relying on cgroup membership alone.
   Mutter idle checks and audio activity govern activation; CPU policy and OS calls
   stay in the defensive effect shell. Use existing runtime helpers instead of
   spawning another daemon, killing every node process or changing a shared default.
@@ -179,7 +181,12 @@ systemctl --user status lumina.service
 systemctl --user restart lumina.service
 ```
 
-Build the client before an authorized promotion. The supported installer is
+Build/test a private ignored candidate before promotion; the existing headless
+runner accepts LUMINA_TEST_DIST so validation need not replace live assets.
+Publish compatible hash-named assets and atomically switch the index for rollout;
+an already-open admin page needs a normal refresh to load new code. Capture fresh
+manual/active intent and restore only that intent through the existing API.
+The supported installer is
 `scripts/install-systemd-user-service.sh`; do not run it during read-only tests.
 `launch.sh` is a duplicate-refusing fallback for environments without the service,
 not a second supervisor. Source commits do not implicitly authorize publication.

@@ -209,10 +209,12 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   presentation-setting boundary, not a second location model. Test persistence,
   hidden/shown TV layout and unchanged forecast/location-dependent behavior.
   **Selected, 2026-11-24:** the second commissioned sequence implements this
-  existing Phase1 item through the current widget/collection boundary. Backend
-  persistence and accessible client/admin controls are accepted, with visible-by-
-  default compatibility. Both hide/show and unchanged forecasts pass headless
-  checks. Live release acceptance follows in the companion checkpoint.
+  existing Phase1 item through the current widget/collection boundary.
+  **Delivered in1.0.2:** remote System→General and TV widget settings expose
+  “Show weather location.” Existing/legacy snapshots default visible; hiding
+  persists and forecasts remain enabled. Both layouts and synchronization/reload
+  behavior pass headless checks; the rebuilt native release is live. This is
+  presentation only, not multi-location support or physical-TV visual acceptance.
 
 ### Photo source investigation
 
@@ -454,9 +456,14 @@ design work, not claims that the current behavior has already been changed.
   request deadlines are independently accepted;12 offline cases cover rejection,
   decoding/transport/deadline failure, cache and recovery. Existing job/daily
   reporting now preserves warnings through modern and legacy events, including
-  no-change passes, and clears them on recovery; independently accepted. Live
-  release follows. Other providers and unavailable vision/auth remain open, not claimed
-  repaired. Existing source/lifecycle rules remain; transport/JSON exceptions can
+  no-change passes, and clears them on recovery; independently accepted.
+  **Live1.0.2 acceptance:** this crawl logged one Reddit403 and one Unsplash401,
+  not one per query/pool. Wallhaven429 and AIC403 still repeat; the old process
+  journal confirms both, so they remain the next concrete source-boundary
+  candidates, not a new runtime regression or a claim of full provider health.
+  Unavailable vision keeps its existing three-failure bound and separate auth/
+  capability gate. No extra health service, retry timer or model fallback.
+  Other providers and unavailable vision/auth remain open, not claimed repaired. Existing source/lifecycle rules remain; transport/JSON exceptions can
   still discard fresh results inside an unfinished Unsplash query, not saved cache.
 
 ### Medium priority

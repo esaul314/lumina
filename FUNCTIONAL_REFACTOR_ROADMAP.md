@@ -222,33 +222,30 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): the prior five-step sequence is accepted;
-release1.0.1 is live on the pinned Node26.13.1. Strict baseline remains290core /
-68transitive; Phase1 and Step6 are incomplete.
+Current checkpoint (2026-11-24): **the second commissioned five-outcome sequence
+is accepted and release1.0.2 is running on the existing pinned Node26.13.1.**
+Weather-location presentation persists through the existing widget/collection
+boundary, with accessible remote/TV controls and unchanged forecasts. Targeted
+Unsplash/Reddit failures stop within a crawl; existing modern/legacy job and daily
+results preserve degraded meaning and clear it on recovery. Each outcome has its
+own conventional commit and independent acceptance, with lessons in DEVELOPER_LOG.
 
-**Second commissioned sequence selected:** persist weather-location visibility →
-admin/TV control → bounded rejected-provider work → truthful degraded job status →
-qualified live release. One implementation slice at a time through the existing
-Beads store. The presentation bit reuses widgets and collection storage, not a
-new location model. Provider failure facts are run-local, not a circuit-breaker
-database. Tests/review/commit/journal acceptance precede the next outcome.
+924runtime/13sensor/3compiler/16native checks, lint/build and16headless browser
+cases pass. Strict290core/0fixture/59transitive/0global remains non-green; Phase1/
+Step6 are incomplete. The pure result-shape annotation removed9transitive errors,
+not a TypeScript rewrite. No dependency, supervisor, synchronizer or new job state.
 
-Accepted: **feat(weather): persist optional TV location visibility**. New preference
-round-trips through the existing codec;919runtime/13sensor/3compiler/4launcher
-checks pass, lint and independent ACCEPT. Strict290core/59transitive remains
-non-green. **feat(weather): add optional location label controls** is also accepted:16
-headless regressions pass, independent review verifies all7 TV switches and an
-HTTP503 failure. Candidate assets remain private.
-**fix(crawler): bound rejected provider work per crawl** is accepted after fixing
-a rejected-body cleanup defect found in review.12 offline regressions pass;
-run-local failure facts and native deadlines replace repeated rejected requests.
-**fix(jobs): preserve degraded provider results across status events** is accepted:
-modern/legacy parity, daily no-change warnings and recovery pass independent
-review;924runtime/13sensor/3compiler/16native and16browser checks pass.
-Current work: qualified release1.0.2 and native live acceptance. No new runtime,
-unit, controller or job state is introduced. The physical-TV pointer report, vision
-capability/auth configuration, generic identity and broader TypeScript work remain
-separate; no service, controller or infrastructure expansion is selected.
+Native rollout used one restart with compatible assets published first, preserving
+fresh manually-active intent through the existing API. Served build, HTTP/
+Socket.IO, data/history and unrelated node continuity are verified. GNOME can move
+the main kiosk process into an application scope; confirm PPID and mode URL, not
+just service cgroup membership. Physical-TV experience remains a distinct gate.
+
+**Next selection boundary:** this bounded batch is complete, not the product
+roadmap. Wallhaven429/AIC403 and unavailable vision remain explicit provider debt;
+consider the next narrow failure-bound slice only when commissioned. The physical
+pointer report, media/metadata security, broader contracts and other product
+features retain their existing priorities/deferrals. No next batch is scheduled.
 
 Apply [complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline)
 and preserve [product priorities/deferrals](./ROADMAP.md). Rationale and historical
