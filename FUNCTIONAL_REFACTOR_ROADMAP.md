@@ -222,11 +222,11 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **7/10 outcomes accepted; AR-1–AR-5 source/test bridge remains accepted.** **fix(crawler): bound Wallhaven failures across crawl paths** (6509b35) reuses the pass-local request policy for configured Wallhaven queries and keyless AI fallback. One shared failure budget stops later rejected work; Lexica remains concurrent and successful fallback order/source identity/full cardinality are unchanged. No source-policy/auth change, generic layer or persistent breaker.
+Current checkpoint (2026-11-24): **8/10 outcomes accepted; AR-1–AR-5 source/test bridge remains accepted.** **fix(crawler): bound Art Institute failures per crawl** (889fe0c) supplies the existing request capability to its adapter/crawl caller. Shared pass-local classification/skip/reporting needs no new layer. IIIF configured/fallback base, query/limit/fields, title/artist/source/weather defaults and missing-image filtering are unchanged.
 
-14new awaited native cases plus40independent offline scenarios cover status/transport/JSON/deadline/null failures, previous-query retention, saved metadata, fresh recovery/timed/SFW behavior and both fallback paths. Full112native/13sensor/3compiler plus clean lint/diff pass; root930legacy labels retain the already documented async-test limitation. AR-5's exact extraction/order/failure evidence remains accepted. Strict279core/36transitive is non-green; unchanged checked graph was not replayed.
+12new awaited native cases/38crawler, full124native/13sensor/3compiler plus clean lint/diff pass;49independent offline review scenarios accept exact source. Cache/manual metadata, accepted earlier queries, timed recovery,404 and status/transport/JSON/deadline/null failures are covered. Root930legacy labels retain documented async-test limits; strict279core/36transitive remains non-green and unchanged checked graph was not replayed.
 
-**Next: Art Institute bounds** through the same policy, then unfinished Unsplash-query preservation and qualified rollout. Release preparation found the standalone browser fixture still omits AR-4's required concrete writers: qualify the observed mismatch and inject isolated fixture writers during release work, not a production fallback. Phase1/Step6 and physical-TV/security/vision/auth debt remain open. Production stays1.0.2 until final native startup/candidate-shutdown acceptance.
+**Next: unfinished Unsplash-query preservation**, then qualified1.0.3 rollout. The release browser fixture's missing required AR-4 writer is reproduced offline and will be corrected at that isolated composition root, not by adding a production fallback. Final acceptance must qualify candidate-owned shutdown after startup; production1.0.2 remains unchanged. Phase1/Step6 and physical-TV/security/vision/auth debt stay open.
 
 Why sixth:
 

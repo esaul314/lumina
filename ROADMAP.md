@@ -486,10 +486,12 @@ design work, not claims that the current behavior has already been changed.
   existing run-local policy across configured queries and keyless AI fallback.
   Rejections/deadlines stop later Wallhaven work, not Lexica or retained results;
   fallback identity/order/full cardinality and next-pass recovery remain covered.
-  Independent offline review accepted; live qualification still follows. Art
-  Institute remains the next selected source. Other providers and unavailable
-  vision/auth remain open, not claimed repaired. Transport/JSON exceptions can
-  still discard fresh results inside an unfinished Unsplash query, not saved cache.
+  Art Institute now also receives the existing pass-local policy, preserving IIIF
+  identity/base/fallback and display metadata. Both source repairs are independently
+  accepted with awaited offline failures/recovery; live qualification still
+  follows. Next preserve accepted fresh results when transport/JSON/deadline
+  interrupts an unfinished Unsplash query. Other providers and unavailable vision/
+  auth remain open; cache preservation is not a claim of full provider recovery.
 
 ### Medium priority
 
