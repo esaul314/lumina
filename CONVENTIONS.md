@@ -74,63 +74,75 @@ Before writing complex custom helper functions or widgets:
 
 ## Roadmap and complexity discipline
 
-The living roadmap is a maintained design, not a generated task dump. Apply this
-workflow to each commissioned slice; do not add another synchronizer or planner.
+The living roadmap owns design; Beads drives the commissioned execution queue.
+This replaces post-hoc task bookkeeping, not engineering judgment or acceptance.
 
-1. **One owner per kind of truth.** `ROADMAP.md` owns product intent, priorities,
-   accepted feedback and deferrals. `FUNCTIONAL_REFACTOR_ROADMAP.md` owns the
-   ordered engineering track and its current checkpoint. Beads owns executable
-   tasks, dependencies and claims in the opted-in scope. Git/tests/reviews prove
-   implementation; `DEVELOPER_LOG.md` records generic rationale and lessons.
-   Host paths, tracker commands and local recovery belong only in ignored
-   `.agents/MEMORY.md`. Link these records rather than copying full histories.
-2. **Incorporate feedback and discoveries as they occur.** Before further
-   dependent work, place a new suggestion in its relevant existing phase or
-   backlog section, with its origin/date, intent, rationale, acceptance and scope
-   impact. Merge duplicates; do not quietly replace a prior decision. A worker
-   reports discoveries; the orchestrator integrates them. For a new idea, the
-   roadmap entry is sufficient until it becomes actionable. Mark proposals and
-   deferrals clearly: capture is not implementation authorization.
-3. **Translate only selected work.** Read the current roadmap, then create or
-   update a Beads task for a bounded outcome with a roadmap reference and testable
-   acceptance. Add an edge only for a real prerequisite. Do not bulk-import
-   headings, history or every checklist item. Roadmap changes affecting queued
-   work must update its task/dependencies before another dispatch. If they affect
-   active work, reconcile at the next safe boundary; never silently preempt a
-   writer or wait until closeout to record the change.
-4. **Keep WIP small.** One implementation writer and one active implementation
-   slice per authoritative checkout. Independent review is read-only. Claim and
-   query with native tracker commands; process/session tools, not task labels,
-   determine liveness. Beads is not an execution engine or code-complexity tool.
-5. **Budget the architecture.** Retain one orchestrator, one authoritative source
-   checkout and one project task store. Default net additions per slice: zero
-   supervisors, schedulers, synchronization services, shadow runtime ledgers or
-   wrapper layers. A genuinely necessary new dependency/service needs a concrete
-   unmet need, the simpler alternative, ownership, tests and removal/rollback
-   recorded in the existing plan. Do not grow infrastructure for hypothetical scale.
-6. **Check complexity where it changes.** Compare before/after using the existing
-   gauge plus the actual diff. Its path/size flags are prompts, not proof of bad
-   state management or JavaScript control-flow quality. Review new dependencies,
-   durable state, abstraction depth, largest touched module and duplicated
-   instructions. Prefer pure composition and modern syntax when clearer; no new
-   algebraic layer for a direct data projection. Keep existing small-commit
-   guidance. Avoid duplicating test harnesses or folding more unrelated tests
-   into an already large runner.
-7. **Consolidate before extending the factory.** Before any further tooling
-   expansion, shorten duplicated current-status histories in the agent guide and
-   companion into linked summaries, preserving rationale in the existing journal
-   and archived originals. This is a bounded maintenance candidate, not a new
-   refactoring program. Move a coherent test group out of the large runner only
-   when a touched seam demonstrates a maintenance benefit; preserve the single
-   existing test entrypoint. Reassess Beads after the next real slice; retire it
-   if selection/resumption is not simpler. No new monitoring daemon or audit DB.
-8. **Close with evidence and report meaning.** Update the engineering checkpoint,
-   generic journal and affected task before reporting completion; do not close a
-   phase just because one task is done. Back up the opted-in store and clean only
-   task-owned scratch. Report the commit subject, roadmap step, outcome, tests,
-   complexity delta and next work; hashes are optional secondary traceability.
-   Commit bodies explain why, the roadmap reference and verification. Mixed
-   incumbent documentation edits must not be swept into an unrelated commit.
+1. **One owner per truth.** `ROADMAP.md` owns product priorities, decisions,
+   feedback and deferrals; `FUNCTIONAL_REFACTOR_ROADMAP.md` owns engineering
+   direction and milestone acceptance. Beads owns selected task state, priority,
+   dependencies, claims and next eligible work. Git/tests/reviews prove results;
+   `DEVELOPER_LOG.md` retains generic rationale/lessons. Private entrypoints and
+   recovery stay in ignored `.agents/MEMORY.md`. Link, don't copy, evidence.
+2. **Commission once, then queue.** Ground the current roadmap and approved
+   scope/exclusions once per batch. Create the meaningful outcomes up front with
+   one unique batch label, per-task description, acceptance, spec/evidence links,
+   priority and real prerequisites. Prefer native bulk Markdown creation with
+   per-issue fields, then native dependency edits; verify the returned graph
+   before dispatch. A partial/unknown import needs inspection, not blind replay.
+   Don't import the whole backlog, split trivial actions into tasks, or invent
+   dependency edges to encode a preferred order. Ideas alone are not tasks.
+3. **Let readiness select.** Use batch-scoped atomic `ready --claim`, restricted
+   to the commissioned issue type and one result, under approved priorities and
+   exclusions. Brief bounded listings orient; the claimed full brief plus linked
+   spec supplies execution context. Don't reload the whole roadmap/history or
+   separately query then claim every task. Explicit user order outranks default
+   sorting: use a narrower eligible selection when necessary, not a fake edge.
+   Labels, priority and readiness are not authority to expand the batch.
+4. **Resume before selecting.** On resumption inspect the scoped in-progress
+   queue, exact issue and linked native run/result before any fresh claim. Verify
+   actual process/session ownership; recover an existing result instead of
+   duplicating execution. An expired lease or empty ready list proves neither
+   stopped work nor completion. Renew native leases only for verified work;
+   record a real blocker and its resume condition. No automatic reclaim.
+5. **Keep WIP and authority small.** One implementation writer and active slice
+   per authoritative checkout; independent review is read-only. Fila owns tracker
+   writes, dispatch, product judgment and acceptance; workers receive one bounded
+   brief, required standing conventions, baseline and execution limits. Beads
+   neither launches workers nor interprets tests/reviews. Native sessions own
+   execution/result custody; official continuations are required for background
+   progress. Claims are not liveness or an authorization to overlap writers.
+6. **Reconcile changes, not histories.** Integrate new feedback/discoveries in
+   their existing roadmap phase/backlog with origin, rationale, scope impact and
+   acceptance; merge duplicates and distinguish proposals/deferrals. Before
+   affected dispatch update the queued brief/priority/dependencies. Reconcile
+   active work at a safe boundary without silently preempting it. Reread linked
+   sections when scope, evidence or source changes, not routinely every step.
+7. **Accept, close, consume next.** Keep failed/rejected work open through repair
+   and the required tests/review. Fila accepts exact evidence and commits only
+   owned paths, then uses normal `close --suggest-next` with explicit ID and
+   concise commit/test/review links. Hints may include outside work: the next
+   claim must still be batch-scoped. Never use `batch close`, forced closure or
+   unfiltered `close --claim-next` as a shortcut. Preserve required backup and
+   task-owned cleanup; do not advance on an unconfirmed write or failed gate.
+8. **Capture once, report meaning.** The issue and linked acceptance evidence
+   satisfy per-step continuity. Update roadmap/checkpoint prose for decisions,
+   risks, changed direction and milestone outcomes, not every claim/heartbeat.
+   Journal reusable learning, not queue transitions. ACTIVE-TASK/memory are
+   indexes/preferences, not duplicate task ledgers. Report commit subject,
+   roadmap movement, result, checks and exact next work. A drained selected queue
+   does not finish the roadmap or commission another batch; verify all selected
+   outcomes and stop task-owned continuations at acceptance.
+9. **Budget and evaluate.** Retain one orchestrator, checkout and opted-in store;
+   no new supervisor, scheduler, synchronizer, runtime ledger or wrapper layer.
+   Any necessary addition needs a concrete unmet need, simpler alternative,
+   owner, tests and rollback. Use the existing complexity gauge and actual diff;
+   its path/size flags aren't JavaScript control-flow measurements. Prefer pure
+   composition, small commits and the existing test harness. Consolidate repeated
+   guidance before extending tooling. On the next commissioned batch, record
+   bulk/selection calls, task-context reconstruction, queue mistakes/recovery and
+   duplicate status writing in its existing evidence. Compare with prior work
+   without invented time/token savings or a new monitoring system; simplify or
+   retire Beads if it costs more than it saves. Quick one-step work needn't use it.
 
 ## 🤖 Mandatory AI Agent Behaviors
 

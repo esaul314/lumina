@@ -46,7 +46,9 @@ Current engineering status and next work have one owner:
 [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md#step-6-prepare-the-codebase-for-typescript-without-a-premature-rewrite).
 Read [ROADMAP.md](./ROADMAP.md) for product intent, feedback and deferrals, and
 [CONVENTIONS.md](./CONVENTIONS.md#roadmap-and-complexity-discipline) for task/WIP
-and complexity discipline. Do not append per-helper history to this guide.
+and complexity discipline, including the commissioned Beads queue-first workflow.
+Beads selects eligible work; Fila retains scope/review/acceptance. Do not mirror
+queue transitions or append per-helper history to this guide.
 
 The source-grounded [C4 architecture record](./docs/architecture/README.md) owns
 current/target views and their single Structurizr DSL model. The target is a
