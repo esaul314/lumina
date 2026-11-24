@@ -1,6 +1,6 @@
 {
   "name": "lumina",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lumina Ambient Screensaver & Smart Display",
   "main": "server.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "install-all": "npm install && npm install --prefix client",
     "lint": "eslint . --ext .js,.jsx --ignore-pattern client/dist --ignore-pattern node_modules",
     "lint:fix": "eslint . --ext .js,.jsx --fix --ignore-pattern client/dist --ignore-pattern node_modules",
-    "test": "node run-tests.js && node test_sensor_adapters.js && node tools/typecheck-report.test.js",
+    "test": "node run-tests.js && node test_sensor_adapters.js && node tools/typecheck-report.test.js && node --test tools/runtime.test.js",
     "typecheck:domain": "node tools/typecheck-domain.js",
     "test:integration": "node test_split_sync.js",
     "test:slideshow": "npm run build --prefix client && node test_slideshow.js"
