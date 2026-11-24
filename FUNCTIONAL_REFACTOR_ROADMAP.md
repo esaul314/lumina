@@ -222,11 +222,11 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **5/10 outcomes accepted**. AR-1 callback injection, AR-2 vision ownership and AR-3 construction/lifecycle remain accepted. **refactor(dispatch): inject concrete persistence writers** removes the shell's direct writer imports and supplies concrete required callbacks from app. Writers/thenables finish before flags/later effects/events; input aliases, ignored collection returns, env result copies and state-before-effects/no rollback retain explicit contracts. Dispatcher and mutable snapshot application remain shells, not pure modules.
+Current checkpoint (2026-11-24): **6/10 outcomes accepted; AR-1–AR-5 source bridge accepted.** **refactor(tests): extract the coherent client rendering group** preserves the19,778-byte body and only changes root require/call wiring. Shared runner13,397→12,948lines,449shorter; helper457lines/net8physical wiring lines. Three injected harness callbacks, same root paths/awaited order/report/counter/failure owner; no new framework or application change.
 
-Full930runtime/13sensor/3compiler/98native and clean lint/diff pass; independent runtime/compiler probes ACCEPT. Strict core290→279,transitive59→36,34removed/0added fingerprints and0fixture/global errors; overall still non-green. Private config/env/category hashes preserved. The runtime bridge direction is reflected in current C4 plus a reference-target view, not a misleading queue of new runtime modules.
+Ordered930root legacy PASS labels (943including sensors) match; normal full98native/13sensor/3compiler plus clean lint pass. The actual root runner with exactly one forced rendering assertion exits1 with929pass/1expectedfail; independent review verifies body/dependencies/inventory/failure semantics. Negative-runner copy trashed; evidence retained. Root legacy assertTest does not await returned Promises, affecting eight old crawler checks; this pre-existing debt is now in the product backlog. Extracted rendering callbacks are synchronous; new async behavior is qualified with awaited native fixtures, not inferred from legacy PASS counts.
 
-**Next: AR-5 rendering-test extraction** through the existing runner/harness. Source inspection finds449lines/19,778bodybytes and six outer bindings; assert/fs/path stay module-local, while only logSuite/assertTest/importClientModule are injected. Preserve body bytes, awaited order, pass/fail inventory, root paths and failure exit. Then Wallhaven/AIC/partial-query resilience and qualified release. Production remains1.0.2 until final live startup/shutdown qualification; physical-TV/security/vision/auth and broader strict readiness remain open.
+**Next: observed Wallhaven failure bounds** through the existing run-local policy, including its keyless AI fallback path without changing source identity/metadata; then Art Institute and unfinished Unsplash-query preservation. Final qualified rollout still follows. Current strict279core/36transitive is non-green; Phase1/Step6 and physical-TV/security/vision/auth debt remain open. Production stays1.0.2 until final native startup/candidate-shutdown acceptance.
 
 Why sixth:
 
@@ -258,7 +258,7 @@ C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
 monolith and functional core; no new services, state manager, DI container or
 framework. These are proposed bounded outcomes, not five automatically authorized
 tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
-AR-1–AR-4 are accepted; AR-5 test-navigation work remains to be implemented and independently accepted.
+AR-1–AR-5 are accepted at their documented source/test boundaries; final live qualification remains part of the current commissioned sequence.
 
 ### AR-1 — remove the legacy entrypoint back-reference
 
@@ -319,8 +319,10 @@ entrypoints. Do not rename/move dispatch just for directory cosmetics.
 
 ### AR-5 — reduce a demonstrated navigation hotspot without abstracting it
 
-The 13,393-line runner is a bigger navigation burden than app. Select the coherent
-runClientRenderingTests body for extraction beside the existing client-state test
+**Accepted,2026-11-24:** exact rendering-group extraction, root449lines shorter, preserved inventory/order/paths and deliberate real-runner failure exit. Historical selection/acceptance rationale follows; it is not another pending task.
+
+At the architecture audit baseline, the13,393-line runner was a larger navigation burden than app. The selected coherent
+runClientRenderingTests body was extracted beside the existing client-state test
 module, reusing supplied assertions/import helpers and the same npm test owner.
 Acceptance: function-body behavior, pass/fail inventory, awaited order, root-relative
 paths and failure exit remain equivalent; the runner shrinks by the actual moved

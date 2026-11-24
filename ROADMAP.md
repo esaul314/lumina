@@ -487,6 +487,16 @@ design work, not claims that the current behavior has already been changed.
 
 ### Medium priority
 
+- **Await legacy asynchronous regression checks.** An isolated source probe
+  confirms root assertTest reports PASS before a returned Promise settles; eight
+  old crawler checks supply async callbacks and often swallow provider errors.
+  Those labels are not async-provider acceptance. In a separately selected
+  bounded cleanup, move them to the existing awaited assertAsyncTest/native
+  fixture owner and replace live-provider dependence with injected transports.
+  Preserve reporting/order/failure exit; no new test framework. Current changed
+  provider behavior must use awaited native fixtures. The rendering extraction
+  has no async assertTest callbacks and remains byte-preserving/accepted.
+
 - **Align news-sentiment scope with the product language.** The configured RSS
   URL is Canada-specific (`en-CA` / `CA`), while the remote UI still describes
   the signal as global. Either make the region a deliberate setting with a
