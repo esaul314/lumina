@@ -2004,6 +2004,80 @@ function runDomainTests({ logSuite, assertTest }) {
     }), null);
   });
 
+  assertTest('state patch projection preserves listed order, repeated reads and raw inherited aliases', () => {
+    const { pickStatePatchFields: pick, STATE_PATCH_FIELDS: fields } = require('./statePatch.js');
+    const shared = {}, calls = [], counts = {};
+    const offered = Object.assign(Object.create({ theme: shared }), { scaleMode: 0, splitPortrait: null });
+    const payload = new Proxy(offered, { get: (target, key) => {
+      calls.push(key); counts[key] = (counts[key] || 0) + 1;
+      return key === 'scaleMode' && counts[key] === 2 ? undefined : target[key];
+    } });
+    const result = pick(payload);
+    assert.deepStrictEqual(calls, fields.flatMap(field => ['theme', 'scaleMode', 'splitPortrait'].includes(field) ? [field, field] : [field]));
+    assert.deepStrictEqual(Object.keys(result), ['theme', 'scaleMode', 'splitPortrait']);
+    assert.strictEqual(result.theme, shared);
+    assert.strictEqual(result.splitPortrait, null);
+    assert.strictEqual(Object.hasOwn(result, 'scaleMode'), true);
+    assert.strictEqual(result.scaleMode, undefined, 'the second getter value is copied verbatim');
+    assert.notStrictEqual(pick(null), pick(undefined));
+    assert.deepStrictEqual(pick(1), {});
+    const failure = new Error('second field read'); let reads = 0;
+    assert.throws(() => pick({ get theme() { if (++reads === 2) throw failure; return shared; } }), error => error === failure);
+    assert.strictEqual(reads, 2);
+  });
+
+  assertTest('mutable patch field extensions preserve raw values without normalizing special fields', () => {
+    const sharedFields = require('./statePatch.js').STATE_PATCH_FIELDS, before = [...sharedFields];
+    const sandbox = { module: { exports: {} } };
+    runInNewContext(fs.readFileSync(require.resolve('./statePatch.js'), 'utf8'), sandbox);
+    const { STATE_PATCH_FIELDS: fields, pickStatePatchFields: pick } = sandbox.module.exports;
+    assert.notStrictEqual(fields, sharedFields);
+    fields.push('visionConfig', 'manualLocation');
+    const raw = {}, result = pick({ visionConfig: 7, manualLocation: raw });
+    assert.strictEqual(result.visionConfig, 7);
+    assert.strictEqual(result.manualLocation, raw);
+    assert.throws(() => result.visionConfig.apiUrl.trim(), error => error.name === 'TypeError');
+    assert.deepStrictEqual(sharedFields, before, 'only the isolated VM list may be extended');
+  });
+
+  assertTest('state patch normalizers retain native coercion, exact defaults and unvalidated boundaries', () => {
+    const sandbox = { module: { exports: {} } };
+    runInNewContext(`${fs.readFileSync(require.resolve('./statePatch.js'), 'utf8')}\nglobalThis.helpers = { trimString, normalizeCoordinate };`, sandbox);
+    const { trimString: trim, normalizeCoordinate: coordinate } = sandbox.helpers;
+    const { normalizeManualLocation: location, normalizeVisionConfig: vision } = require('./statePatch.js');
+    const fallback = {};
+    assert.strictEqual(trim({ toString: () => assert.fail('trim must not coerce') }), '');
+    assert.strictEqual(trim('  moon  '), 'moon');
+    assert.strictEqual(coordinate(' 7.5suffix', fallback), 7.5);
+    [undefined, null, Infinity, Symbol('coordinate')].forEach(value => assert.strictEqual(coordinate(value, fallback), fallback));
+    assert.strictEqual(Object.is(coordinate('-0', fallback), -0), true);
+    assert.deepStrictEqual(location({ lat: '999tail', lon: '-999', city: ' City ', regionName: 7 }), {
+      lat: 999, lon: -999, city: 'City', regionName: 'Quebec', country: 'Canada'
+    });
+    assert.deepStrictEqual(location(0), location(undefined));
+    assert.notStrictEqual(location(), location());
+    assert.deepStrictEqual(vision({ apiUrl: ' url ', apiKey: 7, model: new String('boxed'), fallbackUrl: ' next ' }), {
+      apiUrl: 'url', apiKey: '', model: '', fallbackUrl: 'next', fallbackApiKey: '', fallbackModel: ''
+    });
+    assert.deepStrictEqual(vision(false), vision(undefined));
+    assert.notStrictEqual(vision(), vision());
+    [location, vision].forEach(normalize => assert.throws(() => normalize(null), error => error.name === 'TypeError'));
+  });
+
+  assertTest('location destructuring precedes coercion while vision reads stop at the first native failure', () => {
+    const { normalizeManualLocation: location, normalizeVisionConfig: vision } = require('./statePatch.js');
+    const calls = [], failure = new Error('native read/coercion');
+    const lat = { toString: () => { calls.push('coerce lat'); throw failure; } };
+    const input = Object.fromEntries(['lat', 'lon', 'city', 'regionName', 'country'].map(field => [field, undefined]));
+    Object.keys(input).forEach(field => Object.defineProperty(input, field, { get: () => (calls.push(field), field === 'lat' ? lat : undefined) }));
+    assert.throws(() => location(input), error => error === failure);
+    assert.deepStrictEqual(calls, ['lat', 'lon', 'city', 'regionName', 'country', 'coerce lat']);
+    calls.length = 0;
+    assert.throws(() => vision({ get apiUrl() { calls.push('url'); return ' url '; }, get apiKey() { calls.push('key'); throw failure; },
+      get model() { return assert.fail('read after failure'); } }), error => error === failure);
+    assert.deepStrictEqual(calls, ['url', 'key']);
+  });
+
   assertTest('state patch decoder normalizes location, widgets, and vision config payloads', () => {
     assert.deepStrictEqual(decodeStatePatchCommand({
       widgets: { clock: 0 },
@@ -2338,10 +2412,11 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => stateSyncEventsFor(true), error => error === failure);
   });
 
-  assertTest('private compiler contracts preserve clone, primitives, libraries and pool mutations', () => {
+  assertTest('private compiler contracts preserve clone, primitives, libraries, pools and state patches', () => {
     const ts = require('typescript');
     const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
     const selectorFile = require.resolve('./selectors.js'), selectorSource = fs.readFileSync(selectorFile, 'utf8');
+    const patchFile = require.resolve('./statePatch.js'), patchSource = fs.readFileSync(patchFile, 'utf8');
     const root = path.resolve(__dirname, '../..'), configPath = path.join(root, 'tsconfig.domain.json');
     const { config } = ts.readConfigFile(configPath, ts.sys.readFile);
     const parsed = ts.parseJsonConfigFileContent(config, ts.sys, root);
@@ -2500,9 +2575,45 @@ getCategoryPhotos('A', { A: 1 });
 // @ts-expect-error the shallow predicate produces a boolean, not a canonicalized record
 /** @type {Photo} */ const wrongRecordComparisonFixture = shallowEqualRecords({}, {});
 `;
-    // ponytail: one compiler owner injects both modules; no program per helper.
-    const fixtureDiagnostics = (text, selectorText) => {
-      const modules = new Map([[file, { text, fixture }], [selectorFile, { text: selectorText, fixture: selectorFixture }]]);
+    const patchFixture = `
+const rawPatchFixture = pickStatePatchFields(/** @type {unknown} */ ({ theme: { legacy: true } }));
+/** @type {Record<string, unknown>} */ const rawPatchRecordFixture = rawPatchFixture;
+/** @type {0 extends (1 & typeof rawPatchFixture.theme) ? true : false} */ const patchScalarIsAny = false;
+STATE_PATCH_FIELDS.push('visionConfig'); // compile-only public mutation; no shared runtime list is changed
+const mutableVisionFixture = pickStatePatchFields({ visionConfig: 7 }).visionConfig;
+/** @type {0 extends (1 & typeof mutableVisionFixture) ? true : false} */ const mutableVisionIsAny = false;
+if (mutableVisionFixture) {
+  // @ts-expect-error mutable-list raw fields are not normalized vision records
+  /** @type {string} */ const wrongMutableVisionUrlFixture = mutableVisionFixture.apiUrl;
+}
+const patchLocationFixture = normalizeManualLocation(/** @type {unknown} */ ({}));
+/** @type {NonNullable<StatePatchPayload['manualLocation']>} */ const canonicalLocationFixture = patchLocationFixture;
+/** @type {0 extends (1 & typeof patchLocationFixture.lat) ? true : false} */ const patchLatitudeIsAny = false;
+const patchVisionFixture = normalizeVisionConfig(/** @type {unknown} */ ({}));
+/** @type {NonNullable<StatePatchPayload['visionConfig']>} */ const canonicalVisionFixture = patchVisionFixture;
+/** @type {0 extends (1 & typeof patchVisionFixture.apiKey) ? true : false} */ const patchVisionIsAny = false;
+normalizeManualLocation(null); normalizeVisionConfig(false); normalizeVisionConfig(null); // unknown input is not validation
+normalizeManualLocation(); normalizeVisionConfig(); pickStatePatchFields();
+/** @type {string} */ const trimmedPatchFixture = trimString({ unvalidated: true });
+/** @type {number} */ const patchCoordinateFixture = normalizeCoordinate(Symbol('coordinate'), 45);
+const coordinateFallbackTokenFixture = { legacy: true };
+const coordinateFallbackFixture = normalizeCoordinate(null, coordinateFallbackTokenFixture);
+/** @type {number | typeof coordinateFallbackTokenFixture} */ const preservedFallbackFixture = coordinateFallbackFixture;
+// @ts-expect-error generic coordinate fallback is not guaranteed numeric
+/** @type {number} */ const wrongCoordinateFallbackFixture = coordinateFallbackFixture;
+// @ts-expect-error raw scalar patch values must be narrowed, not assumed normalized
+/** @type {string} */ const wrongPatchScalarFixture = rawPatchFixture.theme;
+// @ts-expect-error coordinates are numeric on successful normalization
+/** @type {string} */ const wrongPatchLatitudeFixture = patchLocationFixture.lat;
+// @ts-expect-error vision fields normalize to strings, not numbers
+/** @type {number} */ const wrongPatchVisionFixture = patchVisionFixture.apiKey;
+// @ts-expect-error primitive-only trimming produces strings, not numbers
+/** @type {number} */ const wrongTrimmedPatchFixture = trimString(1);
+`;
+    // ponytail: one compiler owner injects three modules; no program per helper.
+    const fixtureDiagnostics = (text, selectorText, patchText) => {
+      const modules = new Map([[file, { text, fixture }], [selectorFile, { text: selectorText, fixture: selectorFixture }],
+        [patchFile, { text: patchText, fixture: patchFixture }]]);
       const host = ts.createCompilerHost(parsed.options), read = host.getSourceFile;
       host.getSourceFile = (name, version, onError, newFile) => {
         const input = modules.get(path.resolve(name));
@@ -2514,7 +2625,7 @@ getCategoryPhotos('A', { A: 1 });
         return input && diagnostic.start > input.text.length;
       });
     };
-    assert.deepStrictEqual(fixtureDiagnostics(source, selectorSource).map(item => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
+    assert.deepStrictEqual(fixtureDiagnostics(source, selectorSource, patchSource).map(item => ts.flattenDiagnosticMessageText(item.messageText, '\n')), []);
     const withoutContract = ['cloneState', 'normalizeFeedConfigKeywords', 'hasPool', 'normalizePoolName', 'mergePoolFeedConfig',
       'addPoolState', 'assignPoolKeywords', 'mergePoolSourceConfig', 'assignPoolPolicy', 'removePoolState'].reduce((text, name) => {
       const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
@@ -2524,7 +2635,14 @@ getCategoryPhotos('A', { A: 1 });
       const start = text.indexOf(`function ${name}(`), comment = text.lastIndexOf('/**', start);
       return text.slice(0, comment) + text.slice(start);
     }, selectorSource);
-    const sensitive = fixtureDiagnostics(withoutContract, withoutLibraryContracts);
+    const withoutPatchContracts = ['trimString', 'normalizeCoordinate', 'pickStatePatchFields', 'normalizeVisionConfig', 'normalizeManualLocation'].reduce((text, name) => {
+      const start = text.indexOf(`const ${name} =`), comment = text.lastIndexOf('/**', start);
+      return text.slice(0, comment) + text.slice(start);
+    }, patchSource);
+    const sensitive = fixtureDiagnostics(withoutContract, withoutLibraryContracts, withoutPatchContracts);
+    const patchSensitive = sensitive.filter(item => item.file.fileName === patchFile);
+    assert.ok(patchSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('generic coordinate fallback')), 'Coordinate contracts must enforce generic fallback correlation');
+    assert.ok(patchSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('patchLatitudeIsAny')), 'Location coordinates must retain their non-any leaf contract');
     const cloneSensitive = sensitive.filter(item => item.file.fileName === file);
     const librarySensitive = sensitive.filter(item => item.file.fileName === selectorFile);
     assert.ok(cloneSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('complete domain sections')), 'Removing the clone contract must invalidate its negative assertion');
