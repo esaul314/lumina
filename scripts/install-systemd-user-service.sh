@@ -20,11 +20,22 @@ if [[ -z "$NODE_BIN" || ! -x "$NODE_BIN" ]]; then
   exit 1
 fi
 
+# Validate before touching the installed unit; .nvmrc is the version authority.
+NODE_VERSION="$(<"$ROOT_DIR/.nvmrc")"
+ACTUAL_NODE_VERSION="$("$NODE_BIN" --version)"
+if [[ "$ACTUAL_NODE_VERSION" != "v$NODE_VERSION" ]]; then
+  echo "Node runtime mismatch: expected v$NODE_VERSION, got $ACTUAL_NODE_VERSION." >&2
+  exit 1
+fi
+NODE_BIN="$(realpath "$NODE_BIN")"
+NODE_BIN_DIR="$(dirname "$NODE_BIN")"
+
 mkdir -p "$UNIT_DIR"
 
 sed \
   -e "s|__ROOT_DIR__|$ROOT_DIR|g" \
   -e "s|__NODE_BIN__|$NODE_BIN|g" \
+  -e "s|__NODE_BIN_DIR__|$NODE_BIN_DIR|g" \
   -e "s|__HOME_DIR__|$HOME|g" \
   -e "s|__USER_NAME__|$USER_NAME|g" \
   -e "s|__USER_UID__|$USER_UID|g" \

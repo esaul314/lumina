@@ -19,7 +19,7 @@ Environment=NODE_ENV=production
 Environment=HOME=__HOME_DIR__
 Environment=USER=__USER_NAME__
 Environment=LOGNAME=__USER_NAME__
-Environment=PATH=__USER_BIN_DIR__:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=__NODE_BIN_DIR__:__USER_BIN_DIR__:/usr/local/bin:/usr/bin:/bin
 Environment=XDG_RUNTIME_DIR=/run/user/__USER_UID__
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__USER_UID__/bus
 Environment=DISPLAY=:0
