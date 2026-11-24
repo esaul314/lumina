@@ -29,11 +29,11 @@ and the intended removal reviewable.
 
 ![Proposed backend responsibilities](diagrams/target-components.svg)
 
-CURRENT describes source at the audit baseline. PROPOSED is not implemented.
+CURRENT describes the source after callback injection (AR-1); deployed release1.0.2 is unchanged until qualified rollout. PROPOSED is not yet fully implemented.
 Both component sets share one modeled daemon to make alternatives comparable;
 they do not represent two concurrent backends. The container view is unchanged.
 Arrows describe runtime use/dependency, including injected callbacks; they are not
-all static imports. The highlighted fallback back-reference IS a static import.
+all static imports. AR-1 removes the fallback static back-reference; its analysis callback still executes in app until AR-2 changes workflow ownership.
 Views deliberately omit some startup wiring/read-model details for readability.
 
 The TV and admin/remote are roles of ONE React bundle in different browsers.
@@ -47,20 +47,13 @@ outside Lumina's runtime: Beads is not an application dependency or state owner.
 Import-scan baseline: documentation HEAD 897783c, before the subsequent documentation-only Spotlight commit; deployed application release 1.0.2.
 A literal-runtime-import scan with the already installed TypeScript AST covers
 91 application JS/JSX files and 169 relative edges. JSDoc imports are excluded.
-It finds one strongly connected set:
-
-`app.js -> sockets.js -> socketLegacyCompatibility.js -> app.js`
-
-The last edge is a lazy require inside the add-category fallback to trigger
-background image analysis. Normal dispatcher use bypasses that fallback; this is
-structural debt, not proof of a current production failure. Preserve fallback
-behavior until caller/compatibility evidence supports its removal.
+The audit found one strongly connected set: `app.js -> sockets.js -> socketLegacyCompatibility.js -> app.js`. AR-1 replaces the last static require with a real analysis callback supplied through existing socket configuration. The lower layer no longer imports the entrypoint; fallback behavior and dispatcher bypass remain covered. Injected callback use remains visible in the model, and app still owns analysis until AR-2. Static acyclicity is not a claim that every runtime callback points in one direction.
 
 | Responsibility | Actual source and important qualification |
 | --- | --- |
 | Composition and startup | `server.js`, `server/app.js`: app imports 32 relative application modules; also initializes storage/sensors, tags photos, contains the vision loop and installs timers at import. |
 | Transport | `server/routes.js`, `server/sockets.js`: durable command adapters plus deliberate source-local read/auth/media and telemetry endpoints. |
-| Compatibility | `server/socketLegacyCompatibility.js`: durable fallback when dispatcher is absent; requires app for image analysis. Not proven dead code. |
+| Compatibility | `server/socketLegacyCompatibility.js`: durable fallback when dispatcher is absent; receives the real analysis callback from composition, without importing app. Not dead code. |
 | Command/effect shell | `server/domain/dispatch.js` plus `snapshot.js` helpers `replaceCollections`, `applyDomainState`, `syncLegacySnapshot`: mutate caller-owned collections/legacy state, run ordered effects and emit events. Dispatch directly imports collection/env writers. Folder names do NOT make these helpers pure. |
 | Functional core | Reducers, selectors, deterministic policy/codecs and `snapshot.js` projections `buildDomainState`/`buildSnapshot`, NOT its mutable application helpers. Non-dispatch domain imports stay in domain/utilities; that is an import observation, not a purity proof. Time/RNG defaults and caller callbacks require explicit deterministic inputs. |
 | Workflows | `server/jobs`, `server/runtime`: existing jobs, refresh, idle/kiosk and schedules; image-analysis execution still partly lives in app. |

@@ -6839,3 +6839,11 @@ safety. Retain opt-in because the rejection→correction→acceptance handoff wa
 clearer, while roadmaps still own priorities and newly discovered provider debt.
 Task-owned candidate output moved to native Trash; named release/rollback evidence
 is retained, not another application checkout. No further batch was scheduled.
+
+## Architecture bridge AR-1 — callback ownership (2026-11-24)
+
+Accepted **refactor(sockets): inject legacy image analysis callback**. Repeated pressure: optional legacy socket behavior imported the assembly entrypoint. Pass the real async callback through existing configuration instead; no wrapper/service/module or removed compatibility. Preserve ordered save/crawl/refresh/emission effects, detached analysis errors and dispatcher precedence. Six offline regressions use the existing test owner and a closed local effect map, not global require-cache mutation.
+
+Native930runtime/13sensor/3compiler/16native and lint pass; independent review accepts exact source. Installed-compiler AST audit observes169→168relative edges/static cycles1→0. C4 retains the supplied runtime callback to app until AR-2; static acyclicity does not prove inert imports or global purity. DSL validation/export passes; generated architecture docs are a separate coherent documentation commit before the next implementation. Source commit touches five existing paths because the three-module boundary and existing two-file test owner cannot be honestly compressed to four.
+
+Ordinary daemon collection writes continued during development; use a fresh release snapshot, never restore an old baseline to manufacture hash equality. No rollout/provider/vision/physical-TV acceptance is claimed. Next: put vision execution at its existing workflow boundary.

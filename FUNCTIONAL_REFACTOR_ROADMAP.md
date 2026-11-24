@@ -222,24 +222,9 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **release 1.0.2 and the second five-outcome batch
-remain accepted.** The subsequent architecture audit documents the current system,
-proposes a simpler internal design, and defines the [bridge below](#architecture-bridge--2026-11-24).
-Architecture documentation is not implementation of that bridge or Phase 1 completion.
+Current checkpoint (2026-11-24): **outcome1/10 AR-1 accepted** in the newly commissioned ten-outcome sequence. Commit **refactor(sockets): inject legacy image analysis callback** removes the lower-layer entrypoint import; offline AST audit91files/169→168edges/static cycles1→0. Six regressions cover legacy effects/errors and dispatcher bypass;930runtime/13sensor/3compiler/16native plus full lint pass, independently accepted. Model/source map now distinguishes the removed static import from the injected runtime callback.
 
-Native regressions still pass: 924 runtime assertions, 13 sensor regressions,
-3 compiler tests and 16 native tests. Strict baseline remains 290 core / 59
-transitive, non-green. The audit changes documentation only: same runtime, native
-service, application code, wire/data formats and existing state owners. Physical-TV,
-provider/security and broader contract debt retain their product-roadmap priority.
-
-**Next selection boundary:** the design/audit is complete. AR-1 is the recommended
-first structural slice when implementation is commissioned. Provider repair or
-other already-prioritized product work can still be selected first; AR-1 is not an
-invented blocker for those independent changes. No implementation batch is
-automatically queued or scheduled. Rationale/source map and generated C4 views
-live in [docs/architecture](./docs/architecture/README.md); historical release
-evidence stays in DEVELOPER_LOG rather than growing this checkpoint.
+**Next: AR-2, move vision execution into its existing job boundary**, preserving scoped sequential work, progress/metadata and failure semantics. Selected later work: AR-3 construction+lifecycle, AR-4 writers, AR-5 rendering-test extraction, Wallhaven/AIC/unfinished-query resilience, qualified release. Only the next outcome becomes executable tracker work. Runtime remains1.0.2; no build/restart yet. Strict290core/59transitive, physical-TV and broader security/provider limits remain open. Detailed acceptance/removal criteria below stay authoritative; historical results remain in DEVELOPER_LOG.
 
 Why sixth:
 
@@ -271,9 +256,11 @@ C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
 monolith and functional core; no new services, state manager, DI container or
 framework. These are proposed bounded outcomes, not five automatically authorized
 tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
-AR-1–AR-5 below are not implemented.
+AR-1 is accepted in this sequence; AR-2–AR-5 remain to be implemented and independently accepted.
 
 ### AR-1 — remove the legacy entrypoint back-reference
+
+**Accepted,2026-11-24:** real callback injection, static cycle1→0 and preserved compatibility behavior; see the current checkpoint. Criteria below retain the intended contract.
 
 Inventory fallback callers, then supply the existing image-analysis callback
 through socket/legacy configuration instead of requiring app from lower layers.

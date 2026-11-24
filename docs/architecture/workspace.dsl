@@ -62,9 +62,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
         boot -> persistence "Loads and saves" "In-process call / reference"
         boot -> state "Initializes and mutates" "In-process call / reference"
         transport -> legacy "Fallback without dispatcher" "In-process call / reference"
-        legacy -> boot "Lazy require for image-analysis callback" "In-process call / reference" {
-            tags "BackReference"
-        }
+        legacy -> boot "Invokes supplied analysis callback; no entrypoint import" "Injected in-process callback"
         transport -> dispatch "Dispatches decoded commands" "In-process call / reference"
         transport -> core "Decodes and projects" "In-process call / reference"
         transport -> adapters "Source-local queries / compatibility" "In-process call / reference"
@@ -117,7 +115,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             autoLayout lr
         }
         component daemon "current-components" {
-            title "CURRENT - backend responsibilities and legacy back-reference"
+            title "CURRENT - backend responsibilities and injected compatibility callback"
             include boot transport legacy dispatch core workflows adapters persistence state
             autoLayout lr
         }
