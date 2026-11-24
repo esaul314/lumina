@@ -7,7 +7,7 @@ const os = require('os');
 const config = require('./config/configLoader.js');
 const { readEnvVar } = require('./config/env.js');
 const { createRecrawlJobService, executeRecrawlPass } = require('./jobs/recrawl.js');
-const { createVisionAnalysisJobService } = require('./jobs/visionAnalysis.js');
+const { createImageAnalysisRunner, createVisionAnalysisJobService } = require('./jobs/visionAnalysis.js');
 
 // Modular config and service imports
 const { sendEmailAlert } = require('./services/notifier.js');
@@ -126,7 +126,6 @@ const updateEcowittSettings = (payload) => {
   saveLocalConfigPatch({ configPath: path.join(rootDir, 'config.json'), patch: { ecowitt: config.ecowitt } });
   return { valid: true, settings: config.ecowitt };
 };
-const ANALYSIS_PROGRESS_INTERVAL = 25;
 
 const app = express();
 const server = http.createServer(app);
@@ -338,132 +337,14 @@ function getSmartPhoto(direction = 'next') {
 
 const { analyzeImageContent } = require('./services/vision.js');
 
-function applyVisionTags(photo, analysis) {
-  const nextPatch = {
-    isNight: analysis.isNight,
-    isRain: analysis.isRain,
-    isSunny: analysis.isSunny,
-    isCloudy: analysis.isCloudy,
-    isSnowy: analysis.isSnowy
-  };
-  const changed = Object.entries(nextPatch).some(([key, value]) => photo[key] !== value);
-  Object.assign(photo, nextPatch);
-  return changed;
-}
-
-async function triggerImageAnalysisBackground({
-  categories = [],
-  emitProgress = () => {},
-  requireConfigured = false
-} = {}) {
-  if (process.env.NODE_ENV === 'test') return;
-  console.log('[Vision Service] Starting background content analysis for curated collections...');
-
-  const scopedCategories = Array.isArray(categories) && categories.length > 0
-    ? categories.filter((category) => Array.isArray(curatedCollections[category]))
-    : Object.keys(curatedCollections);
-  let consecutiveFailures = 0;
-  const isConfigured = Boolean(screensaverState.visionConfig?.apiUrl);
-  if (!isConfigured) {
-    const message = 'Vision API is not configured.';
-    if (requireConfigured) {
-      throw new Error(message);
-    }
-    console.warn(`[Vision Service] ${message} Skipping background content analysis.`);
-    return {
-      categories: scopedCategories,
-      processedCount: 0,
-      taggedCount: 0,
-      changedCount: 0,
-      categoryCounts: []
-    };
-  }
-
-  const categoryCounts = scopedCategories.map((category) => ({
-    name: category,
-    photoCount: Array.isArray(curatedCollections[category]) ? curatedCollections[category].length : 0
-  }));
-  const candidatePhotos = scopedCategories.flatMap((category) =>
-    (Array.isArray(curatedCollections[category]) ? curatedCollections[category] : [])
-      .filter((photo) => photo.rating !== 1 && !photo.isBroken)
-  );
-  const totalCandidates = candidatePhotos.length;
-  let processedCount = 0;
-  let taggedCount = 0;
-  let changedCount = 0;
-
-  emitProgress({
-    phase: 'scanning',
-    message: totalCandidates > 0
-      ? `Scanning ${totalCandidates} photo${totalCandidates === 1 ? '' : 's'} for vision analysis...`
-      : 'No eligible photos found for vision analysis.',
-    processedCount,
-    totalCount: totalCandidates
-  });
-
-  for (const category of scopedCategories) {
-    const photos = curatedCollections[category];
-    if (!Array.isArray(photos)) continue;
-
-    for (const photo of photos) {
-      if (photo.rating === 1 || photo.isBroken) continue;
-
-      const analysis = await analyzeImageContent(photo.url, photo.title);
-      processedCount += 1;
-      if (analysis) {
-        if (applyVisionTags(photo, analysis)) {
-          changedCount += 1;
-        }
-        taggedCount += 1;
-        consecutiveFailures = 0;
-      } else if (isConfigured) {
-        consecutiveFailures++;
-        if (consecutiveFailures >= 3) {
-          const message = 'Aborting background analysis after 3 consecutive API failures. The Vision API server is likely offline or misconfigured.';
-          console.warn(`[Vision Service] ${message}`);
-          throw new Error(message);
-        }
-      }
-
-      if (
-        processedCount === totalCandidates
-        || processedCount === 1
-        || processedCount % ANALYSIS_PROGRESS_INTERVAL === 0
-      ) {
-        emitProgress({
-          phase: 'analyzing',
-          message: `Processed ${processedCount} of ${totalCandidates} photo${totalCandidates === 1 ? '' : 's'}...`,
-          processedCount,
-          totalCount: totalCandidates,
-          taggedCount,
-          changedCount
-        });
-      }
-    }
-  }
-
-  if (taggedCount > 0) {
-    console.log(`[Vision Service] Finished background image analysis. Tagged ${taggedCount} images across ${scopedCategories.length} categories.`);
-    saveCuratedCollections(curatedCollections, screensaverState);
-    activeFeedRuntime.refreshActiveFeedIfIncluded(scopedCategories);
-
-    emitProgress({
-      phase: 'persisting',
-      message: 'Persisting refreshed vision metadata...'
-    });
-    emitStateSync();
-  } else {
-    console.log('[Vision Service] All active images are already precisely analyzed.');
-  }
-
-  return {
-    categories: scopedCategories,
-    processedCount,
-    taggedCount,
-    changedCount,
-    categoryCounts
-  };
-}
+const triggerImageAnalysisBackground = createImageAnalysisRunner({
+  collections: curatedCollections,
+  analyzeImageContent,
+  persistCollections: (collections) => saveCuratedCollections(collections, screensaverState),
+  refreshActiveFeedIfIncluded: activeFeedRuntime.refreshActiveFeedIfIncluded,
+  broadcastStateSync: emitStateSync,
+  getVisionConfig: () => screensaverState.visionConfig
+});
 
 // Subprocess State Management helpers for Sockets
 let PORT = config.port ?? 5000;
