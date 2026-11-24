@@ -213,6 +213,14 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   card independently of the weather widget. Hiding the label must not disable
   location selection, forecasts, or weather-based photo selection; keep the
   location available where needed in the admin UI.
+  **Feedback clarified by Alex, 2026-11-24:** for a single current location the
+  label is usually redundant; make its screensaver-side display optional. A
+  future multi-location forecast may make explicit labels useful again, but this
+  option does not commission multi-location tracking. Reuse one existing
+  presentation-setting boundary, not a second location model. Test persistence,
+  hidden/shown TV layout and unchanged forecast/location-dependent behavior.
+  Keep this in Phase 1's backlog; it is not added to the current engineering
+  sequence or silently materialized as another active Beads task.
 
 ### Photo source investigation
 

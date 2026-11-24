@@ -1,5 +1,16 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-24 — optional weather-location label feedback
+
+Enriched the existing Phase 1 location-label item rather than duplicating it.
+For one current forecast location, the city/region display is usually redundant;
+a persistent screensaver presentation option should hide it independently of
+weather or location selection. Future multi-location forecasts may still benefit
+from labels. This is a roadmap proposal, not implementation or a new active task.
+Keep one presentation flag and preserve forecast behavior; no new location state
+model or multi-location feature is commissioned by this feedback.
+
+
 ## 2026-11-23 — canonicalize roadmap status and history
 
 Product direction and accepted feedback remain in ROADMAP; ordered engineering
