@@ -9,7 +9,7 @@ const { Server } = require('socket.io');
 const { chromium, expect } = require('@playwright/test');
 const { createDomainDispatcher } = require('./server/domain/dispatch.js');
 const { buildDomainState, buildSnapshot } = require('./server/domain/snapshot.js');
-const { SOCKET_DURABLE_COMMAND_SPECS } = require('./server/domain/commands.js');
+const { SOCKET_DURABLE_COMMAND_SPECS, decodeStatePatchCommand } = require('./server/domain/commands.js');
 
 const INTERVAL = 120000;
 const RETRY_DELAYS = [1000, 2000, 4000, 8000];
@@ -20,7 +20,7 @@ const photo = (id, orientation = 'landscape') => ({
 const landscapePhotos = () => ['a', 'b', 'c', 'broken'].map(id => photo(id));
 const portraitPhotos = () => ['p1', 'p2', 'p3', 'broken'].map(id => photo(id, 'portrait'));
 
-async function createFixture(photos, { screensaverActive = false } = {}) {
+async function createFixture(photos, { screensaverActive = false, widgets = {} } = {}) {
   const app = express();
   const server = http.createServer(app);
   // Clock jumps must not simulate Socket.IO heartbeat failure.
@@ -28,7 +28,7 @@ async function createFixture(photos, { screensaverActive = false } = {}) {
   const state = {
     currentCategory: 'Fixture', activePhoto: photos[0], photosList: photos,
     theme: 'Zen Retreat', scaleMode: 'cover', splitPortrait: true, splitCropPercent: 50,
-    widgets: {}, slideshowInterval: INTERVAL, inactivityTimeout: 600000,
+    widgets: { ...widgets }, slideshowInterval: INTERVAL, inactivityTimeout: 600000,
     alignTimeOfDay: false, alignWeather: false, nightPercentage: 50,
     searchKeywords: {}, feedConfigs: {}, poolPolicies: {}, excludedKeywords: [],
     autoLocation: false, manualLocation: {}, screensaverActive, splitSeed: 1
@@ -41,7 +41,27 @@ async function createFixture(photos, { screensaverActive = false } = {}) {
   const dispatch = command => dispatcher.dispatchCommand(command, { rng: () => 0.5 });
   let slowResponse;
 
+  const weather = {
+    location: { city: 'Fixture City', regionName: 'Fixture Region' },
+    current: { temperature_2m: 21, weather_code: 0, relative_humidity_2m: 50 },
+    daily: {
+      time: ['2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27'],
+      temperature_2m_max: [21, 22, 23, 24], temperature_2m_min: [11, 12, 13, 14],
+      weather_code: [0, 0, 1, 2]
+    }
+  };
+  app.use(express.json());
   app.head('/', (_req, res) => res.sendStatus(200));
+  app.get('/api/weather', (_req, res) => res.json(weather));
+  app.patch('/api/state', async (req, res, next) => {
+    try {
+      events.push({ event: 'patch-state', payload: req.body });
+      await dispatch(decodeStatePatchCommand(req.body));
+      res.json(dispatcher.refreshSnapshot());
+    } catch (error) {
+      next(error);
+    }
+  });
   app.get('/api/state', (_req, res) => res.json(dispatcher.refreshSnapshot()));
   app.get('/api/pools', (_req, res) => res.json([]));
   app.get('/api/*', (_req, res) => res.json({}));
@@ -54,7 +74,7 @@ async function createFixture(photos, { screensaverActive = false } = {}) {
     if (req.params.id === 'slow') slowResponse = respond;
     else respond();
   });
-  app.use(express.static(path.join(__dirname, 'client/dist')));
+  app.use(express.static(process.env.LUMINA_TEST_DIST || path.join(__dirname, 'client/dist')));
   io.on('connection', socket => {
     const supported = new Set(['next-photo', 'mark-photo-broken', 'report-photo-metadata']);
     SOCKET_DURABLE_COMMAND_SPECS.filter(spec => supported.has(spec.event)).forEach(spec => {
@@ -68,7 +88,7 @@ async function createFixture(photos, { screensaverActive = false } = {}) {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
-    state, collections, events, errors, logs, dispatch, ...dispatcher,
+    state, collections, weather, events, errors, logs, dispatch, ...dispatcher,
     url: `http://127.0.0.1:${server.address().port}`,
     get slowPending() { return Boolean(slowResponse); },
     releaseSlow: () => slowResponse(),
@@ -314,6 +334,52 @@ const cursorCases = [
   }, { screensaverActive: true, preview: true }]
 ];
 
+
+const weatherCases = [
+  ['legacy snapshots show the location by default and keep weather visible', async ({ page }) => {
+    await expect(page.locator('.weather-city')).toHaveText(/Fixture City, Fixture Region/);
+    await expect(page.locator('.weather-temp')).toHaveText('21°C');
+    await expect(page.locator('.forecast-day')).toHaveCount(3);
+  }, { widgets: { weather: true } }],
+  ['admin toggles sync to the TV and survive a fresh page load without changing weather data', async ({ page, fixture }) => {
+    const before = JSON.stringify({ weather: fixture.weather, location: fixture.state.manualLocation, photos: fixture.state.photosList });
+    const remote = await page.context().newPage();
+    remote.on('pageerror', error => fixture.errors.push(error));
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'System', exact: true }).click();
+    const control = remote.getByRole('switch', { name: 'Show weather location', exact: true });
+    await expect(control).toHaveAttribute('aria-checked', 'true');
+    await control.focus();
+    await control.press('Space');
+    await expect(control).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('.weather-city')).toHaveCount(0);
+    await expect(page.locator('.weather-temp')).toHaveText('21°C');
+    await expect(page.locator('.forecast-day')).toHaveCount(3);
+    assert.deepStrictEqual(fixture.events.filter(({ event }) => event === 'patch-state').at(-1).payload, { widgets: { weatherLocation: false } });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.weather-temp')).toHaveText('21°C');
+    await expect(page.locator('.weather-city')).toHaveCount(0);
+    await remote.reload({ waitUntil: 'domcontentloaded' });
+    await remote.getByRole('button', { name: 'System', exact: true }).click();
+    await expect(control).toHaveAttribute('aria-checked', 'false');
+    await control.click();
+    await expect(page.locator('.weather-city')).toHaveText(/Fixture City, Fixture Region/);
+    // TV settings use the same REST mutation boundary, not a second state owner.
+    await page.locator('.desktop-settings-btn').evaluate(button => button.click());
+    const tvControl = page.getByRole('switch', { name: 'Show weather location', exact: true });
+    await tvControl.press('Enter');
+    await expect(control).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('.weather-city')).toHaveCount(0);
+    await fixture.dispatch({ type: 'patch-state', payload: { widgets: { weather: false } } });
+    await expect(page.locator('.weather-widget')).toHaveCount(0);
+    await fixture.dispatch({ type: 'patch-state', payload: { widgets: { weather: true } } });
+    await expect(page.locator('.weather-temp')).toHaveText('21°C');
+    await expect(page.locator('.weather-city')).toHaveCount(0);
+    assert.strictEqual(JSON.stringify({ weather: fixture.weather, location: fixture.state.manualLocation, photos: fixture.state.photosList }), before);
+    await remote.close();
+  }, { widgets: { weather: true, weatherLocation: true } }]
+];
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
@@ -330,6 +396,11 @@ async function main() {
       console.log(`PASS: ${name}`);
     }
     console.log(`${cursorCases.length} cursor browser regressions passed.`);
+    for (const [name, run, options] of weatherCases) {
+      await withFixture(browser, run, landscapePhotos(), options);
+      console.log(`PASS: ${name}`);
+    }
+    console.log(`${weatherCases.length} weather-location browser regressions passed.`);
   } finally {
     await browser.close();
   }

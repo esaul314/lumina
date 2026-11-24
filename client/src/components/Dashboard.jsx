@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sun, Cloud, CloudRain, CloudSnow, MapPin, Settings, X, Check, RefreshCw, Droplets } from 'lucide-react';
 import { readJson } from '../api/jsonClient.js';
-import { selectCategories, setScreensaverActive as requestScreensaverState } from '../api/luminaClient';
+import { patchState, selectCategories, setScreensaverActive as requestScreensaverState } from '../api/luminaClient';
 import {
   isCategorySelected,
   serializeCategorySelection,
@@ -921,10 +921,12 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
                   <Droplets size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle', opacity: 0.8 }} />
                   {weather.current.relative_humidity_2m}% Humidity
                 </div>
-                <div className="weather-city">
-                  <MapPin size={10} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                  {weather.location.city}, {weather.location.regionName}
-                </div>
+                {state.widgets.weatherLocation !== false && (
+                  <div className="weather-city">
+                    <MapPin size={10} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                    {weather.location.city}, {weather.location.regionName}
+                  </div>
+                )}
                 {state.widgets.indoorEnvironment && environment?.enabled && environment.indoor && (
                   <div className={`indoor-environment ${environment.stale ? 'stale' : ''}`}>
                     <span>Indoor</span>
@@ -1097,21 +1099,29 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
                 {[
                   { label: 'Cinematic Clock', name: 'clock' },
                   { label: 'Live Weather Info', name: 'weather' },
+                  { label: 'Show weather location', name: 'weatherLocation' },
                   { label: 'QR & IP Badge', name: 'qrcode' },
                   { label: 'Particles Engine', name: 'particles' },
                   { label: 'Atmospheric Aura Glow', name: 'auraglow' },
                   { label: 'Cinematic Pan & Zoom', name: 'animations' }
                 ].map((widget) => {
-                  const visible = state.widgets[widget.name];
+                  const visible = widget.name === 'weatherLocation'
+                    ? state.widgets.weatherLocation !== false
+                    : state.widgets[widget.name];
                   return (
-                    <div
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-label={widget.label}
+                      aria-checked={Boolean(visible)}
                       key={widget.name}
-                      onClick={() => socket.emit('toggle-widget', { widgetName: widget.name, visible: !visible })}
+                      onClick={() => patchState({ widgets: { [widget.name]: !visible } })
+                        .catch(error => console.error('Failed to update widget visibility', error))}
                       className={`desktop-settings-item ${visible ? 'active' : ''}`}
                     >
                       <span>{widget.label}</span>
                       <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{visible ? 'ON' : 'OFF'}</span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>

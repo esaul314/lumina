@@ -92,6 +92,28 @@ function GeneralSettingsTab({
             </div>
           </div>
 
+
+          <div className="widget-toggle-item">
+            <div className="toggle-info">
+              <MapPin size={18} style={{ color: '#fbbf24' }} />
+              <div>
+                <div className="toggle-label">Show weather location</div>
+                <div className="toggle-desc">City and region on the TV; forecasts stay enabled</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Show weather location"
+              aria-checked={state.widgets.weatherLocation !== false}
+              className="switch-wrapper"
+              style={{ padding: 0, border: 0, background: 'transparent' }}
+              onClick={() => handleToggleWidget('weatherLocation', state.widgets.weatherLocation !== false)}
+            >
+              <span className={`switch-slider ${state.widgets.weatherLocation !== false ? 'checked' : ''}`}></span>
+            </button>
+          </div>
+
           <div className="widget-toggle-item">
             <div className="toggle-info">
               <QrCode size={18} style={{ color: '#38bdf8' }} />
