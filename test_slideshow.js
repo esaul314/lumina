@@ -37,7 +37,15 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   const events = [];
   const errors = [];
   const logs = [];
-  const dispatcher = createDomainDispatcher({ state, collections, io });
+  // Explicit fixture-owned sinks; production persistence is never imported.
+  const persistence = { collections: [], env: [] };
+  const dispatcher = createDomainDispatcher({
+    state, collections, io,
+    persistCollections: (savedCollections, savedState) => persistence.collections.push(
+      structuredClone({ collections: savedCollections, state: savedState })
+    ),
+    persistEnvVars: entries => persistence.env.push(structuredClone(entries))
+  });
   const dispatch = command => dispatcher.dispatchCommand(command, { rng: () => 0.5 });
   let slowResponse;
 
@@ -88,7 +96,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
-    state, collections, weather, events, errors, logs, dispatch, ...dispatcher,
+    state, collections, weather, events, errors, logs, persistence, dispatch, ...dispatcher,
     url: `http://127.0.0.1:${server.address().port}`,
     get slowPending() { return Boolean(slowResponse); },
     releaseSlow: () => slowResponse(),
@@ -356,6 +364,9 @@ const weatherCases = [
     await expect(page.locator('.weather-temp')).toHaveText('21°C');
     await expect(page.locator('.forecast-day')).toHaveCount(3);
     assert.deepStrictEqual(fixture.events.filter(({ event }) => event === 'patch-state').at(-1).payload, { widgets: { weatherLocation: false } });
+    const firstSaved = fixture.persistence.collections.at(-1);
+    assert.strictEqual(firstSaved.state.widgets.weatherLocation, false);
+    assert.deepStrictEqual(fixture.persistence.env, []);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('.weather-temp')).toHaveText('21°C');
     await expect(page.locator('.weather-city')).toHaveCount(0);
@@ -376,6 +387,8 @@ const weatherCases = [
     await expect(page.locator('.weather-temp')).toHaveText('21°C');
     await expect(page.locator('.weather-city')).toHaveCount(0);
     assert.strictEqual(JSON.stringify({ weather: fixture.weather, location: fixture.state.manualLocation, photos: fixture.state.photosList }), before);
+    assert.strictEqual(firstSaved.state.widgets.weatherLocation, false);
+    assert.strictEqual(fixture.persistence.collections.at(-1).state.widgets.weatherLocation, false);
     await remote.close();
   }, { widgets: { weather: true, weatherLocation: true } }]
 ];
