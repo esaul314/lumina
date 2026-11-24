@@ -833,11 +833,11 @@ async function fetchMetMuseumImages(query, count = 10) {
  * 🎨 fetchAicImages
  * Fetches artworks from the Art Institute of Chicago IIIF API.
  */
-async function fetchAicImages(query, count = 10) {
+async function fetchAicImages(query, count = 10, request = fetch) {
   try {
     console.log(`AIC Crawler: Searching for "${query}"...`);
     const searchUrl = `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(query)}&limit=${count}&fields=id,title,image_id,artist_title`;
-    const res = await fetch(searchUrl, {
+    const res = await request(searchUrl, {
       headers: {
         'User-Agent': CRAWLER_USER_AGENT
       }
@@ -873,7 +873,7 @@ async function fetchAicImages(query, count = 10) {
     console.log(`AIC Crawler: Successfully loaded ${photos.length} artworks.`);
     return photos;
   } catch (err) {
-    console.error(`AIC crawler failed for query "${query}":`, err.message);
+    console.error(`AIC crawler failed for query "${query}":`, err?.message ?? String(err));
     return [];
   }
 }
@@ -1116,7 +1116,7 @@ async function crawlAllCollections(
     {
       key: 'artic',
       param: 'keywords',
-      fetcher: async (kw) => fetchAicImages(kw, 10)
+      fetcher: async (kw) => fetchAicImages(kw, 10, requestFor('artic'))
     },
     {
       key: 'nasaApod',

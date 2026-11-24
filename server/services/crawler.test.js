@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
-const { crawlAllCollections, fetchUnsplashImages } = require('./crawler.js');
+const { crawlAllCollections, fetchUnsplashImages, fetchAicImages } = require('./crawler.js');
 
 const ok = (data) => ({ ok: true, status: 200, json: async () => data });
 const denied = (status) => ({ ok: false, status, json: async () => { throw Error('Must not decode a rejected response'); } });
@@ -258,4 +258,96 @@ test('healthy keyless fallback keeps Lexica concurrent and preserves round-robin
     'https://lexica.example.test/2.jpg', 'https://wallhaven.example.test/1-2.jpg', 'https://wallhaven.example.test/2-2.jpg'
   ]);
   assert.deepEqual(result.map(photo => photo.source), ['lexica', 'wallhaven', 'wallhaven', 'lexica', 'wallhaven', 'wallhaven']);
+});
+
+
+const aicResponse = id => ok({ data: [{ image_id: id, title: 'Fixture art', artist_title: 'Fixture Artist' }] });
+const aicConfigs = () => Object.fromEntries(['A', 'B'].map(category => [category, {
+  artic: { enabled: true, keywords: ['forest', { keywords: ['mist', 'rain'], timeStart: '06:00', timeEnd: '10:00' }] }
+}]));
+const aicCrawl = (fetchImpl, collections = cached(), options = {}) => crawlAllCollections(
+  collections, aicConfigs(), null, [], null, () => new Date('2026-11-24T00:00:00Z'),
+  { fetchImpl, requestTimeoutMs: 1000, ...options }
+);
+
+for (const [status, kind] of [[401, 'authentication'], [403, 'policy'], [429, 'rate-limit'], [503, 'service']]) {
+  test('Art Institute HTTP' + status + ' stops once across pools/timed queries and preserves human metadata', async () => {
+    const input = cached(), before = structuredClone(input); let calls = 0;
+    const result = await aicCrawl(async () => { calls++; return denied(status); }, input);
+    assert.equal(calls, 1);
+    assert.deepEqual(result.providerFailures, [{ provider: 'artic', kind, status }]);
+    assert.equal(result.updatedAny, false); assert.deepEqual(result.updatedCollections, before); assert.deepEqual(input, before);
+  });
+}
+
+test('Art Institute keeps earlier accepted queries and recovers with timed IIIF metadata on the next run', async () => {
+  let calls = 0;
+  const partial = await aicCrawl(async () => ++calls === 1 ? aicResponse('first') : denied(403));
+  assert.equal(calls, 2); assert.equal(partial.updatedCollections.A[0].comment, 'Keep me');
+  assert.ok(partial.updatedCollections.A.some(photo => photo.url.includes('/first/full/843,/0/default.jpg')));
+  assert.deepEqual(partial.updatedCollections.B, cached().B);
+  calls = 0;
+  const recovered = await aicCrawl(async (url, options) => {
+    const target = new URL(url);
+    assert.equal(target.hostname, 'api.artic.edu'); assert.equal(target.searchParams.get('limit'), '10');
+    assert.equal(target.searchParams.get('fields'), 'id,title,image_id,artist_title');
+    assert.match(options.headers['User-Agent'], /^LuminaScreensaver\//);
+    return aicResponse('recovered-' + ++calls);
+  });
+  assert.equal(calls, 6); assert.deepEqual(recovered.providerFailures, []);
+  const mist = recovered.updatedCollections.A.find(photo => photo.queryKeyword === 'mist');
+  assert.deepEqual(mist.timeRanges, [{ start: '06:00', end: '10:00' }]);
+  assert.equal(mist.source, 'artic'); assert.equal(mist.author, 'Fixture Artist');
+  assert.equal(mist.addedAt, '2026-11-24T00:00:00.000Z');
+  assert.ok(mist.url.startsWith('https://www.artic.edu/iiif/2/'));
+});
+
+test('an Art Institute query-local404 permits healthy later queries', async () => {
+  let calls = 0;
+  const result = await aicCrawl(async () => ++calls === 1 ? denied(404) : aicResponse(String(calls)));
+  assert.equal(calls, 6); assert.deepEqual(result.providerFailures, []); assert.equal(result.updatedAny, true);
+});
+
+for (const [label, failure, kind] of [
+  ['transport', async () => { throw Error('offline'); }, 'transport'],
+  ['decoding', async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('bad JSON'); } }), 'decoding'],
+  ['null transport', async () => { throw null; }, 'transport']
+]) {
+  test('Art Institute ' + label + ' is bounded without losing the saved collection', async () => {
+    let calls = 0; const result = await aicCrawl(async (...args) => { calls++; return failure(...args); });
+    assert.equal(calls, 1); assert.equal(result.providerFailures[0].kind, kind);
+    assert.deepEqual(result.updatedCollections, cached());
+  });
+}
+
+for (const stage of ['headers', 'body']) {
+  test('Art Institute stalled ' + stage + ' observes the existing deadline and stops later queries', async () => {
+    let hits = 0;
+    const server = http.createServer((_req, res) => { hits++; if (stage === 'body') res.writeHead(200, { 'content-type': 'application/json' }).write('{'); });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const url = 'http://127.0.0.1:' + server.address().port + '/';
+      const result = await aicCrawl((_url, options) => fetch(url, options), cached(), { requestTimeoutMs: 80 });
+      assert.equal(hits, 1); assert.equal(result.providerFailures[0].kind, 'timeout');
+      assert.deepEqual(result.updatedCollections, cached());
+    } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  });
+}
+
+test('Art Institute concrete request preserves query/count, IIIF base, missing-image filtering and display defaults', async () => {
+  const title = 'A'.repeat(60);
+  const photos = await fetchAicImages('mist & rain', 3, async (url, options) => {
+    const target = new URL(url);
+    assert.equal(target.searchParams.get('q'), 'mist & rain'); assert.equal(target.searchParams.get('limit'), '3');
+    assert.match(options.headers['User-Agent'], /^LuminaScreensaver\//);
+    return ok({ config: { iiif_url: 'https://iiif.example.test/base' }, data: [
+      { image_id: 'one', title, artist_title: 'Author' }, { title: 'No image' }, { image_id: 'two' }
+    ] });
+  });
+  assert.deepEqual(photos, [
+    { url: 'https://iiif.example.test/base/one/full/843,/0/default.jpg', title: 'A'.repeat(52) + '...', author: 'Author',
+      source: 'artic', isNight: false, isRain: false, isSunny: true, isCloudy: false, isSnowy: false },
+    { url: 'https://iiif.example.test/base/two/full/843,/0/default.jpg', title: 'mist & rain Artwork', author: 'Unknown Artist',
+      source: 'artic', isNight: false, isRain: false, isSunny: true, isCloudy: false, isSnowy: false }
+  ]);
 });
