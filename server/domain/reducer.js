@@ -300,7 +300,8 @@ function reduceCommandMutation(state, command, {
  * entry reader. The reader receives the original command, clone and selected
  * target. Only a nonempty array is assigned; unchanged entries retain the
  * original state. Option spreading and native callback failures are unguarded.
- * @template C, T
+ * @template C
+ * @template {object} T
  * @param {(nextState: DomainState) => T} selectTarget
  * @param {ReadonlyArray<readonly [PropertyKey, unknown]> | null | undefined | false | ((command: C, nextState: DomainState, target: T) => unknown)} readEntries
  * @param {Omit<CommandMutationOptions<C>, 'apply'>} [options]
@@ -327,7 +328,8 @@ function buildEntriesCommandReducer(selectTarget, readEntries, options = {}) {
  * The reader receives the original command and cloned state; its value is
  * assigned without validation. Field lookup/coercion, no-op identity, options
  * and failures follow the entries reducer's native behavior.
- * @template C, T, V
+ * @template C, V
+ * @template {object} T
  * @param {(nextState: DomainState) => T} selectTarget
  * @param {PropertyKey} field
  * @param {(command: C, nextState: DomainState) => V} readValue
@@ -404,6 +406,12 @@ function reduceFeedMutation(state, options, env) {
   ));
 }
 
+/**
+ * Describe photo update then sync for a truthy change, otherwise sync alone.
+ * Each call owns a fresh outer array and event records; no effects are executed.
+ * @param {unknown} photoChanged Truthiness, not boolean validation.
+ * @returns {Event[]}
+ */
 function stateSyncEventsFor(photoChanged) {
   return photoChanged ? emitPhotoUpdate() : emitStateSync();
 }
@@ -478,14 +486,33 @@ function buildEffectResultReducer({
   };
 }
 
+/**
+ * Prepend a fresh persistence description to a copied outer array, retaining
+ * original effect entries/order. Only undefined defaults; native iteration and
+ * its failures are unguarded. This describes work without performing it.
+ * @param {readonly Effect[]} [effects]
+ * @returns {Effect[]}
+ */
 function withPersist(effects = []) {
   return [{ type: 'persist' }, ...effects];
 }
 
+/**
+ * Append a fresh sync description after the original event entries. Copy only
+ * the outer array; default only undefined and propagate native iterator failures.
+ * @param {readonly Event[]} [events]
+ * @returns {Event[]}
+ */
 function emitStateSync(events = []) {
   return [...events, { type: 'state-sync' }];
 }
 
+/**
+ * Append fresh photo-update then sync descriptions, retaining original entries
+ * in order. Outer copying, undefined-only defaults and failures follow sync.
+ * @param {readonly Event[]} [events]
+ * @returns {Event[]}
+ */
 function emitPhotoUpdate(events = []) {
   return [...events, { type: 'photo-update' }, { type: 'state-sync' }];
 }
@@ -1046,6 +1073,33 @@ function mergePoolFeedConfig(existingConfig, source, patch) {
   };
 }
 
+/**
+ * A keyed entry keeps each string/number/symbol key paired with its value type.
+ * Undefined is always accepted as a skip, including for required fields.
+ * @template {object} T
+ * @typedef {{[K in keyof T]-?: readonly [K, T[K] | undefined]}[keyof T]} FieldEntry
+ */
+
+/**
+ * @template {object} T
+ * @overload
+ * @param {T} target
+ * @param {...FieldEntry<NoInfer<T>>} entry Correlated key/value arguments.
+ * @returns {boolean}
+ */
+/**
+ * Skip undefined before reading the target; otherwise use strict equality and
+ * write the original value only on change. NaN changes; signed zeros do not.
+ * No cloning or validation occurs; native reads/writes and failures propagate.
+ * The keyed overload preserves union correlations; this implementation's
+ * generic indexed access is the same write for each member of that union.
+ * @template {object} Target
+ * @template {keyof Target} Key
+ * @param {Target} target
+ * @param {Key} key
+ * @param {Target[Key] | undefined} value
+ * @returns {boolean}
+ */
 function assignIfChanged(target, key, value) {
   if (value === undefined || target[key] === value) {
     return false;
@@ -1055,6 +1109,16 @@ function assignIfChanged(target, key, value) {
   return true;
 }
 
+/**
+ * Reduce present entries in native array order, calling assignment for every
+ * visited entry even after a change. Holes are skipped; duplicate keys observe
+ * earlier writes. Undefined skips and native callback/iterator failures remain
+ * those of reduce, tuple destructuring and assignIfChanged, without rollback.
+ * @template {object} T
+ * @param {T} target
+ * @param {ReadonlyArray<FieldEntry<NoInfer<T>>>} entries
+ * @returns {boolean}
+ */
 function assignFields(target, entries) {
   return entries.reduce((changed, [key, value]) => (
     assignIfChanged(target, key, value) || changed
@@ -1158,10 +1222,27 @@ function reducePoolMutation(state, name, options = {}) {
   });
 }
 
+/**
+ * Compare length then present left entries with strict equality. Native every
+ * skips left holes (asymmetrically); nested arrays/objects compare by identity,
+ * NaN differs and signed zeros match. Only undefined defaults to an empty array;
+ * reads/callbacks and their failures retain native order, without validation.
+ * @param {readonly unknown[]} [left]
+ * @param {readonly unknown[]} [right]
+ * @returns {boolean}
+ */
 function arraysEqual(left = [], right = []) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+/**
+ * Compare two arrays via arraysEqual, reject an array/non-array pair, otherwise
+ * use strict equality. This is shallow comparison, not structural validation;
+ * native array checks, callbacks and failures are not intercepted.
+ * @param {unknown} left
+ * @param {unknown} right
+ * @returns {boolean}
+ */
 function valuesEqual(left, right) {
   if (Array.isArray(left) || Array.isArray(right)) {
     return Array.isArray(left) && Array.isArray(right) && arraysEqual(left, right);
@@ -1170,12 +1251,22 @@ function valuesEqual(left, right) {
   return left === right;
 }
 
+/**
+ * Enumerate own string keys on both sides, compare counts, then compare values
+ * at left keys only. Symbols/non-enumerables are ignored; right values may be
+ * inherited or absent, so equal counts do not imply equal key sets. Only
+ * undefined defaults. Getters, key enumeration and comparison failures propagate.
+ * Indexed assertions expose native property reads, not validated own-key maps.
+ * @param {object} [left]
+ * @param {object} [right]
+ * @returns {boolean}
+ */
 function shallowEqualObjects(left = {}, right = {}) {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
 
   return leftKeys.length === rightKeys.length
-    && leftKeys.every((key) => valuesEqual(left[key], right[key]));
+    && leftKeys.every((key) => valuesEqual(/** @type {Record<string, unknown>} */ (left)[key], /** @type {Record<string, unknown>} */ (right)[key]));
 }
 
 const PATCH_SKIP = Symbol('patch-skip');
