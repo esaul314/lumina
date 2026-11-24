@@ -333,21 +333,32 @@ function createEcowittRuntime({
   });
 
   const start = () => {
-    if (!activeSettings.enabled || intervalId) return;
-    intervalId = setIntervalImpl(() => { readEnvironment(); }, activeSettings.pollIntervalMs);
+    if (!activeSettings.enabled || intervalId !== null) return;
+    const generation = settingsGeneration;
+    intervalId = setIntervalImpl(() => { if (generation === settingsGeneration) void readEnvironment(); }, activeSettings.pollIntervalMs);
+  };
+
+  const stopPolling = () => {
+    if (intervalId === null) return;
+    clearIntervalImpl(intervalId);
+    intervalId = null;
   };
 
   const stop = () => {
-    if (!intervalId) return;
-    clearIntervalImpl(intervalId);
-    intervalId = null;
+    settingsGeneration += 1;
+    try {
+      stopPolling();
+    } finally {
+      inFlightRequests.forEach(request => request.abort());
+      inFlightRequests.clear();
+    }
   };
 
   const updateSettings = (nextSettings) => {
     const result = validateEcowittSettings(nextSettings);
     if (!result.valid) return result;
     const sourceChanged = activeSourceKey(activeSettings) !== activeSourceKey(result.settings);
-    stop();
+    stopPolling();
     if (sourceChanged) {
       settingsGeneration += 1;
       inFlightRequests.forEach(request => request.abort());

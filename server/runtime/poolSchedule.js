@@ -54,6 +54,7 @@ function createPoolScheduleRuntime({
   log = console
 }) {
   let intervalId = null;
+  let generation = 0;
   let transitionInProgress = false;
   let activeIdentity = null;
   let scheduledCategories = [];
@@ -135,11 +136,14 @@ function createPoolScheduleRuntime({
 
   const start = () => {
     if (intervalId !== null) return;
+    const startedGeneration = generation;
     void tick();
-    intervalId = setIntervalImpl(() => { void tick(); }, intervalMs);
+    if (startedGeneration !== generation) return;
+    intervalId = setIntervalImpl(() => { if (startedGeneration === generation) void tick(); }, intervalMs);
   };
 
   const stop = () => {
+    generation += 1;
     if (intervalId === null) return;
     clearIntervalImpl(intervalId);
     intervalId = null;

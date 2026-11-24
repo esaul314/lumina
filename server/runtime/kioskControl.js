@@ -40,6 +40,10 @@ function createKioskControlRuntime({
   let pendingLaunchRetry = null;
   let kioskProcess = null;
   let expectedExit = false;
+  let launchGeneration = 0;
+
+  /** @param {unknown} error */
+  const warnCpuRestore = error => log.warn('CPU policy restore failed:', error instanceof Error ? error.message : String(error));
 
   const readPort = () => typeof getPort === 'function' ? getPort() : getPort;
   const getRuntimeContext = () => projectKioskRuntimeContext(runtimeState);
@@ -99,17 +103,23 @@ function createKioskControlRuntime({
     }
 
     log.warn(`System Service: Deferring kiosk browser launch because server is not listening on port ${readPort()} yet.`);
+    const generation = launchGeneration;
     pendingLaunchRetry = setTimeoutImpl(() => {
+      if (generation !== launchGeneration) return;
       pendingLaunchRetry = null;
       launchKioskBrowser(forceManual);
     }, retryDelayMs);
     return pendingLaunchRetry;
   };
-  const relaunchChromiumKiosk = () => Promise.resolve(setCpuGovernor?.('performance'))
-    .then(() => {
-      kioskProcess = launchChromiumKiosk?.(readPort(), 'tv', handleUnexpectedExit) ?? null;
+  const relaunchChromiumKiosk = () => {
+    const generation = launchGeneration;
+    return Promise.resolve(setCpuGovernor?.('performance')).then(() => {
+      if (generation !== launchGeneration || !runtimeState.browserRunning) return null;
+      const onExit = () => { if (generation === launchGeneration) handleUnexpectedExit(); };
+      kioskProcess = launchChromiumKiosk?.(readPort(), 'tv', onExit) ?? null;
       return kioskProcess;
     });
+  };
 
   function launchKioskBrowser(forceManual = false) {
     if (forceManual) {
@@ -119,7 +129,7 @@ function createKioskControlRuntime({
       cooldownUntil = 0;
     }
 
-    if (runtimeState.browserRunning) {
+    if (runtimeState.browserRunning || kioskProcess) {
       return false;
     }
 
@@ -136,6 +146,7 @@ function createKioskControlRuntime({
     clearLaunchRetry();
     log.log('Lumina System Idle: Spawning Fullscreen Kiosk Screensaver...');
     setBrowserRunning(true);
+    expectedExit = false;
     void relaunchChromiumKiosk();
     return true;
   }
@@ -147,18 +158,25 @@ function createKioskControlRuntime({
     }
 
     clearLaunchRetry();
+    launchGeneration += 1;
     runtimeState.launchBlocked = false;
     consecutiveFailures = 0;
     cooldownUntil = 0;
-    if (!runtimeState.browserRunning) {
+    if (!runtimeState.browserRunning && !kioskProcess) {
       return false;
     }
 
     log.log('Lumina System Active: Dismissing Kiosk Browser...');
     expectedExit = true;
     setBrowserRunning(false);
-    void Promise.resolve(setCpuGovernor?.('schedutil'))
-      .then(() => kioskProcess?.kill?.('SIGTERM'));
+    // ponytail: CPU policy failure must never forbid stopping the owned child.
+    try {
+      void Promise.resolve(setCpuGovernor?.('schedutil')).catch(warnCpuRestore);
+    } catch (error) {
+      warnCpuRestore(error);
+    }
+    kioskProcess?.kill?.('SIGTERM');
+    kioskProcess = null;
     return true;
   }
 

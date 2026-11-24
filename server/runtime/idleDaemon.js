@@ -104,6 +104,7 @@ function createIdleDaemonRuntime({
   let idleCounter = 0;
   let activitySuppressed = false;
   let intervalId = null;
+  let generation = 0;
 
   const notifyActivity = () => {
     idleCounter = 0;
@@ -122,14 +123,18 @@ function createIdleDaemonRuntime({
   };
 
   const tick = async () => {
+    const tickGeneration = generation;
     try {
       const { browserRunning = false, manualOverride = false, launchBlocked = false } = getRuntimeContext() ?? {};
       const idleMs = await getIdleTime();
+      if (tickGeneration !== generation) return null;
       if (manualOverride || idleMs < state.inactivityTimeout) {
         activitySuppressed = false;
       }
       const audioPlaying = await isAudioPlaying();
+      if (tickGeneration !== generation) return null;
       const sessionInhibited = browserRunning ? false : await isSessionInhibited();
+      if (tickGeneration !== generation) return null;
       const inputs = buildDaemonInputs({
         idleMs,
         inactivityTimeout: state.inactivityTimeout,
@@ -164,13 +169,15 @@ function createIdleDaemonRuntime({
       return intervalId;
     }
 
+    const startedGeneration = generation;
     intervalId = setIntervalImpl(() => {
-      void tick();
+      if (startedGeneration === generation) void tick();
     }, pollIntervalMs);
     return intervalId;
   };
 
   const stop = () => {
+    generation += 1;
     if (intervalId === null) {
       return false;
     }
