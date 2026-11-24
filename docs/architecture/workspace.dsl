@@ -1,4 +1,4 @@
-workspace "Lumina architecture" "Current observations and proposed internal boundaries; not two running backends." {
+workspace "Lumina architecture" "Current and reference responsibility views; not two running backends." {
     !impliedRelationships false
     model {
         user = person "Operator / viewer" "Uses the remote controls and ambient display."
@@ -11,7 +11,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
         lumina = softwareSystem "Lumina" "Ambient display and exemplar functional/declarative application." {
             !docs .
             web = container "Web UI" "One bundle with TV and remote roles; browser-local transient effects." "React / Chromium or remote browser"
-            daemon = container "Daemon" "One native service; current and proposed components below are alternative views." "Node.js / Express / Socket.IO" {
+            daemon = container "Daemon" "One native service; current and target components below are alternative views." "Node.js / Express / Socket.IO" {
                 boot = component "Explicit composition and lifecycle" "server/app.js; one lazy default facade; explicit idempotent start and unconditional retryable terminal disposal; native service owns restart." "CommonJS" "Current"
                 transport = component "REST and socket adapters" "server/routes.js; server/sockets.js. Commands plus source-specific endpoints." "Express / Socket.IO" "Current"
                 legacy = component "Legacy socket fallback" "server/socketLegacyCompatibility.js; used without the shared dispatcher." "CommonJS" "Current"
@@ -22,13 +22,13 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
                 persistence = component "Persistence and codecs" "server/config and sensorHistory; codecs plus file/SQLite writers." "Files / node:sqlite" "Current"
                 state = component "Shared mutable shell state" "screensaverState, collections and runtime caches; domain snapshots are projections." "In-process data, not a new store" "Current"
 
-                targetBoot = component "PROPOSED: composition root" "Same service; explicit start/stop and injected dependencies; no import-time scheduling." "CommonJS" "Proposed"
-                targetTransport = component "PROPOSED: boundary adapters" "Existing REST/socket contracts; fallback receives callbacks instead of requiring app." "Express / Socket.IO" "Proposed"
-                targetDispatch = component "PROPOSED: command/effect shell" "Same shared state, mutable snapshot application and ordered effects; writers supplied by composition." "JavaScript" "Proposed"
-                targetCore = component "PROPOSED: functional core" "Keep reducers/selectors and pure projections; exclude mutable application and I/O." "Pure functions + explicit time/RNG" "Proposed"
-                targetWorkflows = component "PROPOSED: bounded workflows" "Existing jobs/runtimes own vision and refresh work; one lifecycle, run-local failure facts." "JavaScript" "Proposed"
-                targetAdapters = component "PROPOSED: external adapters" "Existing providers/OS/device boundaries; extend proved request policy only where needed." "JavaScript" "Proposed"
-                targetPersistence = component "PROPOSED: persistence adapters" "Existing JSON/SQLite formats and atomic merge behavior; no migration or new database." "Files / node:sqlite" "Proposed"
+                targetBoot = component "TARGET: composition root" "Same service; explicit start/stop and injected dependencies; no import-time scheduling." "CommonJS" "Target"
+                targetTransport = component "TARGET: boundary adapters" "Existing REST/socket contracts; fallback receives callbacks instead of requiring app." "Express / Socket.IO" "Target"
+                targetDispatch = component "TARGET: command/effect shell" "Same shared state, mutable snapshot application and ordered effects; writers supplied by composition." "JavaScript" "Target"
+                targetCore = component "TARGET: functional core" "Keep reducers/selectors and pure projections; exclude mutable application and I/O." "Pure functions + explicit time/RNG" "Target"
+                targetWorkflows = component "TARGET: bounded workflows" "Existing jobs/runtimes own vision and refresh work; one lifecycle, run-local failure facts." "JavaScript" "Target"
+                targetAdapters = component "TARGET: external adapters" "Existing providers/OS/device boundaries; extend proved request policy only where needed." "JavaScript" "Target"
+                targetPersistence = component "TARGET: persistence adapters" "Existing JSON/SQLite formats and atomic merge behavior; no migration or new database." "Files / node:sqlite" "Target"
             }
             json = container "Local files" "Settings, collections, active categories and source metadata; existing formats." "JSON / private environment files" "Store"
             history = container "Sensor history" "Existing local telemetry database; no separate database server." "SQLite file" "Store"
@@ -70,7 +70,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
         legacy -> adapters "Legacy crawl / source operations" "In-process call / reference"
         dispatch -> core "Reduces and projects" "In-process call / reference"
         dispatch -> state "Applies snapshot" "In-process call / reference"
-        dispatch -> persistence "Imports collection/env writers" "In-process call / reference"
+        dispatch -> persistence "Invokes concrete writers supplied by composition" "In-process call / reference"
         dispatch -> workflows "Invokes injected effect callbacks" "In-process call / reference"
         workflows -> core "Derives policy and selection" "In-process call / reference"
         workflows -> state "Updates feeds and runtime values" "In-process call / reference"
@@ -120,7 +120,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             autoLayout lr
         }
         component daemon "target-components" {
-            title "PROPOSED - same daemon, one-way internal dependencies"
+            title "REFERENCE TARGET - same daemon, one-way internal responsibilities"
             include targetBoot targetTransport targetDispatch targetCore targetWorkflows targetAdapters targetPersistence
             autoLayout lr
         }
@@ -136,7 +136,7 @@ workspace "Lumina architecture" "Current observations and proposed internal boun
             element "Store" {
                 shape Cylinder
             }
-            element "Proposed" {
+            element "Target" {
                 background #23664a
             }
         }

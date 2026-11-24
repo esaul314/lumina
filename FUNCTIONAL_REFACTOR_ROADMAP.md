@@ -222,11 +222,11 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **4/10 outcomes accepted**. AR-1 callback injection, AR-2 vision ownership and AR-3 construction remain accepted. **fix(runtime): make stopped resource work inert and retryable** and **refactor(app): own idempotent startup and unconditional shutdown** complete the selected lifecycle outcome. Start does not duplicate resources; stop attempts all cleanup, joins concurrent calls and retries failures, with stale callback/read/launch protection through existing owners.
+Current checkpoint (2026-11-24): **5/10 outcomes accepted**. AR-1 callback injection, AR-2 vision ownership and AR-3 construction/lifecycle remain accepted. **refactor(dispatch): inject concrete persistence writers** removes the shell's direct writer imports and supplies concrete required callbacks from app. Writers/thenables finish before flags/later effects/events; input aliases, ignored collection returns, env result copies and state-before-effects/no rollback retain explicit contracts. Dispatcher and mutable snapshot application remain shells, not pure modules.
 
-Terminal disposal per instance uses a fresh constructor/native service process for restart, not a new reattachment/supervision layer. App resource disposal is not transactional cancellation/rollback of every adapter effect. Small ephemeral owned-handle sets and generation tokens are real added state, not a persistent ledger. Full930runtime/13sensor/3compiler/87native and clean lint/diff pass; independent review and real loopback HTTP/Engine.IO/WebSocket/failure probes accept source. Production remains1.0.2; final rollout must separately qualify candidate-owned shutdown.
+Full930runtime/13sensor/3compiler/98native and clean lint/diff pass; independent runtime/compiler probes ACCEPT. Strict core290→279,transitive59→36,34removed/0added fingerprints and0fixture/global errors; overall still non-green. Private config/env/category hashes preserved. The runtime bridge direction is reflected in current C4 plus a reference-target view, not a misleading queue of new runtime modules.
 
-**Next: AR-4 concrete persistence writers through the existing dispatcher dependencies**, preserving ordered effects, aliases, errors and pure boundaries. Then AR-5 rendering-test extraction, Wallhaven/AIC/partial-query resilience and release. Physical-TV, unavailable vision/auth, security and broader strict readiness remain open; the prior strict290core/59transitive baseline is not a current green claim. Detailed bridge criteria below retain acceptance and removal rationale.
+**Next: AR-5 rendering-test extraction** through the existing runner/harness. Source inspection finds449lines/19,778bodybytes and six outer bindings; assert/fs/path stay module-local, while only logSuite/assertTest/importClientModule are injected. Preserve body bytes, awaited order, pass/fail inventory, root paths and failure exit. Then Wallhaven/AIC/partial-query resilience and qualified release. Production remains1.0.2 until final live startup/shutdown qualification; physical-TV/security/vision/auth and broader strict readiness remain open.
 
 Why sixth:
 
@@ -258,7 +258,7 @@ C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
 monolith and functional core; no new services, state manager, DI container or
 framework. These are proposed bounded outcomes, not five automatically authorized
 tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
-AR-1/AR-2/AR-3 are accepted; AR-4/AR-5 remain to be implemented and independently accepted.
+AR-1–AR-4 are accepted; AR-5 test-navigation work remains to be implemented and independently accepted.
 
 ### AR-1 — remove the legacy entrypoint back-reference
 
@@ -302,6 +302,8 @@ Use injected native handles/test doubles; no lifecycle daemon, persistent latch
 or custom supervisor. Characterize scheduling/legacy semantics before changing them.
 
 ### AR-4 — keep persistence at the effect boundary, protect the pure core
+
+**Accepted,2026-11-24:** concrete required writers are supplied through existing dependencies, with awaited completion/failure and ordered flags/effects/events. Module-import boundaries are tested, while mutable dispatcher/snapshot application remains explicitly in the shell. No generic repository or new state owner.
 
 The dispatcher and snapshot apply/replace/sync helpers are already effectful shell
 code despite their domain paths; only snapshot build/projection helpers belong to

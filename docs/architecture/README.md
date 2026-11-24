@@ -23,14 +23,14 @@ and the intended removal reviewable.
 | [System context](diagrams/context.svg) | What does Lumina interact with? |
 | [Containers](diagrams/containers.svg) | What executes/stores data? The target is unchanged. |
 | [Current components](diagrams/current-components.svg) | Where are responsibilities mixed or pointing backwards? |
-| [Proposed components](diagrams/target-components.svg) | What should depend on what after bounded simplifications? |
+| [Reference target components](diagrams/target-components.svg) | What should depend on what after bounded simplifications? |
 
 ![Current backend responsibilities](diagrams/current-components.svg)
 
-![Proposed backend responsibilities](diagrams/target-components.svg)
+![Reference target responsibilities](diagrams/target-components.svg)
 
-CURRENT describes the source after callback injection, vision extraction and explicit construction (AR-1/AR-2/AR-3); deployed release1.0.2 is unchanged until qualified rollout. PROPOSED is not yet fully implemented.
-Both component sets share one modeled daemon to make alternatives comparable;
+CURRENT describes the source after callback injection, vision extraction, lifecycle and concrete writer injection (AR-1–AR-4); deployed release1.0.2 is unchanged until qualified rollout. The target is a reference responsibility view, not another runtime module queue; AR-1–AR-4 runtime bridge work is accepted at the documented source boundary.
+Both component sets share one modeled daemon to make responsibility views comparable;
 they do not represent two concurrent backends. The container view is unchanged.
 Arrows describe runtime use/dependency, including injected callbacks; they are not
 all static imports. AR-1 removes the fallback static back-reference; AR-2 supplies its callback from the existing vision-job module.
@@ -54,7 +54,7 @@ The audit found one strongly connected set: `app.js -> sockets.js -> socketLegac
 | Composition and startup | `server.js`, `server/app.js`: app imports 32 relative application modules; bare import defers app dependencies; createApplication assembles snapshot/state/adapters. Idempotent startServer acquires resources; retryable stopServer disposes timers/pollers/history/transport/tracked kiosk, and the native entrypoint owns process signals. |
 | Transport | `server/routes.js`, `server/sockets.js`: durable command adapters plus deliberate source-local read/auth/media and telemetry endpoints. |
 | Compatibility | `server/socketLegacyCompatibility.js`: durable fallback when dispatcher is absent; receives the real analysis callback from composition, without importing app. Not dead code. |
-| Command/effect shell | `server/domain/dispatch.js` plus `snapshot.js` helpers `replaceCollections`, `applyDomainState`, `syncLegacySnapshot`: mutate caller-owned collections/legacy state, run ordered effects and emit events. Dispatch directly imports collection/env writers. Folder names do NOT make these helpers pure. |
+| Command/effect shell | `server/domain/dispatch.js` plus `snapshot.js` helpers `replaceCollections`, `applyDomainState`, `syncLegacySnapshot`: mutate caller-owned collections/legacy state, run ordered effects and emit events. Dispatch receives concrete collection/env writers through existing dependencies; it still mutates, awaits effects and emits. No direct I/O import does NOT make these helpers pure. |
 | Functional core | Reducers, selectors, deterministic policy/codecs and `snapshot.js` projections `buildDomainState`/`buildSnapshot`, NOT its mutable application helpers. Non-dispatch domain imports stay in domain/utilities; that is an import observation, not a purity proof. Time/RNG defaults and caller callbacks require explicit deterministic inputs. |
 | Workflows | `server/jobs`, `server/runtime`: existing jobs, refresh, idle/kiosk and schedules; image-analysis execution now has one home in jobs/visionAnalysis, with concrete effects supplied by app. |
 | External adapters | `server/services` excluding history: network/device/desktop effects. Crawler failure policy currently bounds only Unsplash/Reddit. |
@@ -70,6 +70,8 @@ Its 22 state-path references include fixtures/pure modules, not 22 demonstrated
 shadow ledgers; its Python-only control-flow score does not analyze JavaScript.
 
 The app module now imports without loading adapters, opening history or scheduling resources. Explicit construction is still effectful: config/environment reads, snapshot normalization and source-adapter directory creation are deferred, not called pure. One lazy default facade preserves existing callers; separate factories are not qualified multi-instance hosting. Startup owns history/polling/listening. Stop attempts all owned teardown, joins concurrent calls and permits cleanup retries after errors. Disposal is terminal per constructed instance; a fresh constructor/native process is simpler than an in-process Socket.IO reattachment layer. Small in-memory handle sets/generation tokens prevent stale work; they are not persistent runtime ledgers. Previously dispatched adapter effects are not transactionally cancelled/rolled back; the native process/unit owns final interruption.
+
+Concrete persistence is now supplied by composition, not hidden dispatcher imports. Writers/thenables finish before flags/later effects/events; callers await completed dispatch rather than rely on mid-flight microtiming. The dispatcher and snapshot application helpers remain effectful shells despite their domain paths and bounded import dependencies.
 
 Static acyclicity alone is insufficient: injected callbacks, mutation, ambient
 time/randomness and import-time effects require behavior tests and inspection.

@@ -255,8 +255,8 @@
 <title>14&#45;&gt;18</title>
 <path fill="none" stroke="#444444" stroke-dasharray="5,2" d="M1827.6,-1387.29C1921.12,-1387.3 2035.89,-1384.08 2138.05,-1372 2469.57,-1332.8 2547.4,-1290.32 2872.15,-1213 2884.35,-1210.1 2896.89,-1207.04 2909.52,-1203.91"/>
 <polygon fill="#444444" stroke="#444444" points="2910.32,-1207.32 2919.17,-1201.51 2908.63,-1200.53 2910.32,-1207.32"/>
-<text xml:space="preserve" text-anchor="start" x="2242.6" y="-1411.95" font-family="Arial" font-size="24.00" fill="#444444">Imports collection/env</text>
-<text xml:space="preserve" text-anchor="start" x="2323.98" y="-1387.95" font-family="Arial" font-size="24.00" fill="#444444">writers</text>
+<text xml:space="preserve" text-anchor="start" x="2229.1" y="-1411.95" font-family="Arial" font-size="24.00" fill="#444444">Invokes concrete writers</text>
+<text xml:space="preserve" text-anchor="start" x="2230.6" y="-1387.95" font-family="Arial" font-size="24.00" fill="#444444">supplied by composition</text>
 <text xml:space="preserve" text-anchor="start" x="2245.23" y="-1368.7" font-family="Arial" font-size="19.00" fill="#444444">[In&#45;process call / reference]</text>
 </g>
 <!-- 14&#45;&gt;19 -->
