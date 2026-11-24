@@ -222,34 +222,24 @@ Acceptance criteria:
 
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
-Current checkpoint (2026-11-24): **the second commissioned five-outcome sequence
-is accepted and release1.0.2 is running on the existing pinned Node26.13.1.**
-Weather-location presentation persists through the existing widget/collection
-boundary, with accessible remote/TV controls and unchanged forecasts. Targeted
-Unsplash/Reddit failures stop within a crawl; existing modern/legacy job and daily
-results preserve degraded meaning and clear it on recovery. Each outcome has its
-own conventional commit and independent acceptance, with lessons in DEVELOPER_LOG.
+Current checkpoint (2026-11-24): **release 1.0.2 and the second five-outcome batch
+remain accepted.** The subsequent architecture audit documents the current system,
+proposes a simpler internal design, and defines the [bridge below](#architecture-bridge--2026-11-24).
+Architecture documentation is not implementation of that bridge or Phase 1 completion.
 
-924runtime/13sensor/3compiler/16native checks, lint/build and16headless browser
-cases pass. Strict290core/0fixture/59transitive/0global remains non-green; Phase1/
-Step6 are incomplete. The pure result-shape annotation removed9transitive errors,
-not a TypeScript rewrite. No dependency, supervisor, synchronizer or new job state.
+Native regressions still pass: 924 runtime assertions, 13 sensor regressions,
+3 compiler tests and 16 native tests. Strict baseline remains 290 core / 59
+transitive, non-green. The audit changes documentation only: same runtime, native
+service, application code, wire/data formats and existing state owners. Physical-TV,
+provider/security and broader contract debt retain their product-roadmap priority.
 
-Native rollout used one restart with compatible assets published first, preserving
-fresh manually-active intent through the existing API. Served build, HTTP/
-Socket.IO, data/history and unrelated node continuity are verified. GNOME can move
-the main kiosk process into an application scope; confirm PPID and mode URL, not
-just service cgroup membership. Physical-TV experience remains a distinct gate.
-
-**Next selection boundary:** this bounded batch is complete, not the product
-roadmap. Wallhaven429/AIC403 and unavailable vision remain explicit provider debt;
-consider the next narrow failure-bound slice only when commissioned. The physical
-pointer report, media/metadata security, broader contracts and other product
-features retain their existing priorities/deferrals. No next batch is scheduled.
-
-Apply [complexity discipline](./CONVENTIONS.md#roadmap-and-complexity-discipline)
-and preserve [product priorities/deferrals](./ROADMAP.md). Rationale and historical
-results belong in DEVELOPER_LOG; keep this checkpoint concise.
+**Next selection boundary:** the design/audit is complete. AR-1 is the recommended
+first structural slice when implementation is commissioned. Provider repair or
+other already-prioritized product work can still be selected first; AR-1 is not an
+invented blocker for those independent changes. No implementation batch is
+automatically queued or scheduled. Rationale/source map and generated C4 views
+live in [docs/architecture](./docs/architecture/README.md); historical release
+evidence stays in DEVELOPER_LOG rather than growing this checkpoint.
 
 Why sixth:
 
@@ -272,6 +262,94 @@ The October25/26 audits and subsequent per-helper observations are preserved in
 [DEVELOPER_LOG.md](./DEVELOPER_LOG.md#historical-roadmap-checkpoints--2026-11-23).
 They explain earlier gaps and decisions, not the present compiler/tool inventory.
 The current checkpoint above and the acceptance criteria remain authoritative.
+
+## Architecture bridge — 2026-11-24
+
+Origin: Alex's request to control complexity through good architecture. Current
+C1/C2/C3 and proposed C3 diagrams, source mapping and trade-offs are in
+[the architecture record](./docs/architecture/README.md). Keep the existing modular
+monolith and functional core; no new services, state manager, DI container or
+framework. These are proposed bounded outcomes, not five automatically authorized
+tasks or a replacement product phase. AR-0 (investigation/model) is accepted;
+AR-1–AR-5 below are not implemented.
+
+### AR-1 — remove the legacy entrypoint back-reference
+
+Inventory fallback callers, then supply the existing image-analysis callback
+through socket/legacy configuration instead of requiring app from lower layers.
+Preserve add-category crawl, persistence, broadcast and analysis/failure behavior;
+do not delete compatibility or silently replace analysis with a no-op.
+Acceptance: legacy and dispatcher-path regression tests pass; no lower-layer
+import of app/server entrypoint; the observed static app/socket/fallback cycle
+drops from one to zero without hiding it behind a dynamic loader. Use the existing
+test harness, not a new graph framework. No new runtime module should be necessary.
+
+### AR-2 — give vision-workflow execution one home
+
+Move the existing image-analysis execution out of app into its existing
+jobs/visionAnalysis boundary, with concrete injected analysis/persist/refresh
+capabilities. Separate deterministic candidate/tag projections from sequential
+network effects. Preserve scoped categories, broken/banned skips, progress,
+three-consecutive-failure behavior, metadata identity and manual-vs-background
+error semantics. Inventory overlapping startup/crawl/job callers before changing
+concurrency; do not introduce a second scheduler or a speculative job framework.
+Acceptance: app loses the workflow body (not replaces it with pass-through
+wrappers); offline success/partial/failure/progress tests cover all existing callers.
+
+### AR-3 — make owned startup and shutdown explicit
+
+Separate construction from starting app-owned timers, sensor/history resources
+and listeners, using the existing app/runtime boundaries. Keep the service and
+startServer facade compatible. Adapter/config imports may still read defaults:
+audit and state those effects rather than calling the whole graph pure.
+Acceptance: import alone does not start owned timers/crawls/listeners or open the
+history store; repeated start cannot duplicate resources; stop after partial
+startup or failure releases every owned handle and remains unconditional.
+Use injected native handles/test doubles; no lifecycle daemon, persistent latch
+or custom supervisor. Characterize scheduling/legacy semantics before changing them.
+
+### AR-4 — keep persistence at the effect boundary, protect the pure core
+
+The dispatcher and snapshot apply/replace/sync helpers are already effectful shell
+code despite their domain paths; only snapshot build/projection helpers belong to
+the pure conceptual core. Preserve this distinction without a cosmetic file move. Where
+direct collection/env-writer imports couple tests to test-mode switches, pass
+concrete writers through its existing dependency object from composition instead.
+Preserve sequential order, aliases, rejection propagation, state-before-effects
+and events-after-effects behavior. No universal repository interface or new
+state owner. Acceptance: failure/ordering tests exercise injected writers; pure
+reducers/selectors/codecs do not acquire I/O/transport imports; client/state keeps
+its pure dependency boundary. Add narrow assertions through existing npm test
+entrypoints. Do not rename/move dispatch just for directory cosmetics.
+
+### AR-5 — reduce a demonstrated navigation hotspot without abstracting it
+
+The 13,393-line runner is a bigger navigation burden than app. Select the coherent
+runClientRenderingTests body for extraction beside the existing client-state test
+module, reusing supplied assertions/import helpers and the same npm test owner.
+Acceptance: function-body behavior, pass/fail inventory, awaited order, root-relative
+paths and failure exit remain equivalent; the runner shrinks by the actual moved
+body; no duplicated framework or assertions. Reassess before splitting the
+1,794-line reducer or large UI panels: require repeated change friction and a real
+responsibility boundary, not a file-size target.
+
+### Selection, guardrails and acceptance
+
+The order above is a recommended learning sequence, not fake dependency edges.
+AR-1 makes a cleaner callback path for AR-2; only add Beads prerequisites when
+source inspection shows a real need. Translate one selected outcome at a time;
+keep proposals here. The existing failed-provider item owns Wallhaven/AIC and
+partial-query recovery. Reuse the tested run-local request policy there; do not
+create another generic integration layer or make it wait for this whole bridge.
+
+Each selected slice records removed coupling/branches/duplicate ownership, actual
+diff and tests, retained compatibility and a simple Git rollback. Tests/diagrams
+are evidence, not runtime controllers. Enforce zero unneeded services, dependencies,
+persistent stores and wrappers; fewer lines alone is not sufficient. Retain strict
+diagnostics honestly, preserve functional clarity and existing product deferrals.
+Update current/target DSL views in the same change when a boundary actually moves;
+keep task history out of the model. Stop or redesign a slice that merely relocates
+complexity or adds more concepts than it removes.
 
 ## Testing and Verification Strategy
 

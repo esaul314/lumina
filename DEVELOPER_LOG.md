@@ -1,5 +1,46 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-24 — architecture review: a smaller conceptual model, not more services
+
+Existing Mermaid sketches had no tracked Structurizr counterpart or DSL Git
+history. Added one model with current context/containers/components and a separate
+proposed component view. No Code-level/function graph, hosted service or runtime
+dependency. Generated SVGs are derivatives; the engineering companion owns the
+AR-1–AR-5 bridge, product roadmap owns priorities, and Beads holds only this audit.
+
+The installed TypeScript AST identified one literal-runtime import cycle:
+app -> sockets -> legacy compatibility -> app. The lazy add-category fallback
+loads app for image analysis; normal dispatcher use avoids that path. It is a
+structural simplification opportunity, not a demonstrated new runtime defect.
+Non-dispatch domain imports stay in domain/utilities, and client/state imports
+stay within its boundary; imports alone do not prove purity. Independent review
+caught an overbroad mapping: snapshot apply/replace/sync helpers mutate caller
+state and belong conceptually to the shell, while build projections remain core.
+Corrected the descriptions/diagrams, not source layout. Dispatch itself also owns
+effects and direct persistence imports; never call the entire folder/module pure.
+
+Architecture choices: retain one daemon/state/stores; inject the fallback callback,
+place vision execution at the existing job boundary, make owned start/stop explicit,
+decouple persistence effects where useful, and extract one coherent rendering-test
+group using the existing harness. No DI container, plugin framework, event bus,
+generic repositories or cosmetic mass renames. Static graph acyclicity cannot prove
+purity, callback behavior or lifecycle cleanup; each bridge slice needs real tests.
+Existing provider/security/physical-TV priorities are not blocked by this design.
+
+Independent re-review accepts the corrected boundaries and bridge. All123 baseline
+non-Markdown tracked files are byte-unchanged. The four SVGs load and preview
+controls pass in quiet headless Chromium; requesting-viewer frame is unverified.
+Existing guide sketches now link the model and stale Node minimum wording now
+links the runtime pin. Gauge remainsRED: scanned code/state/pins/checkout axes
+unchanged; hot instructions40.3→39.9KiB. New design documentation and generated
+views still have a maintenance cost; retain only the single source and four views.
+
+Official Structurizr parser/export and native npm test pass. The optional inspector
+has one known metadata recommendation: decisions are recorded in the architecture
+README, not a separate ADR-index format recognized by the CLI. No extra duplicate
+decision file was invented to quiet that recommendation. No application/runtime or
+wire/data-format changes, browser build, deployment or public push.
+
 ## 2026-11-24 — capture a deferred Beautiful Code Spotlight
 
 User feedback adds a later AI-curated code spotlight: one dedicated prompt selects
