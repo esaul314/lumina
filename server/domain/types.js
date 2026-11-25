@@ -181,6 +181,7 @@
  *   'update-excluded-keywords': {keywords: unknown[]},
  *   'set-active-photo': {url: string, photo?: ActivePhotoPreview},
  *   'advance-photo': {direction?: 'next' | 'prev', strategy?: AdvanceStrategy},
+ *   'set-photo-comment': {url: string, comment: string},
  *   'rate-photo': {url: string, rating: number},
  *   'mark-photo-broken': {url: string},
  *   'set-photo-crop': {url: string, cropPercent?: number, cropPositionY?: number},
@@ -241,6 +242,8 @@
  *   payload: CategoryEffectPayload
  * } | {
  *   type: 'persist-env-vars', payload: EnvVarsEffectPayload
+ * } | {
+ *   type: 'save-photo-comment', payload: {url: string, comment: string}
  * }} Effect
  */
 

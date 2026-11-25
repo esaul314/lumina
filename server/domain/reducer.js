@@ -1790,6 +1790,10 @@ const selectConfig = (nextState) => nextState.config;
 const selectRuntime = (nextState) => nextState.runtime;
 
 const reduceSimpleCommand = {
+  'set-photo-comment': buildEffectResultReducer({
+    effectType: 'save-photo-comment',
+    buildPayload: (command) => command.payload
+  }),
   'set-split-portrait': buildFieldCommandReducer(
     selectConfig,
     'splitPortrait',

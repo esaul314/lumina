@@ -51,6 +51,7 @@ const { createClosedInterpreter } = require('../utils/fn.js');
  * @property {PayloadAdapter<ExternalPhotoMetadataPayload>} [persistExternalPhotoMetadata]
  * @property {PayloadAdapter<CategoryEffectPayload>} [refreshActiveFeed]
  * @property {PayloadAdapter<CategoryEffectPayload>} [runCrawler]
+ * @property {PayloadAdapter<{url: string, comment: string}>} [savePhotoComment]
  * @property {PayloadAdapter<CategoryEffectPayload>} [startRecrawlJob]
  * @property {PayloadAdapter<CategoryEffectPayload>} [startVisionAnalysisJob]
  * @property {(() => unknown)} [triggerWeatherUpdate]
@@ -194,6 +195,7 @@ function createEffectHandlers({
   persistExternalPhotoMetadata,
   refreshActiveFeed,
   runCrawler,
+  savePhotoComment,
   startRecrawlJob,
   startVisionAnalysisJob,
   triggerWeatherUpdate
@@ -218,6 +220,7 @@ function createEffectHandlers({
         runtimeFlags: { ...runtimeFlags }
       };
     },
+    'save-photo-comment': callOptionalPayloadHandler(savePhotoComment),
     'start-recrawl-job': callOptionalPayloadHandler(startRecrawlJob),
     'start-vision-analysis-job': callOptionalPayloadHandler(startVisionAnalysisJob),
     'refresh-weather': createWeatherRefreshEffect(triggerWeatherUpdate)
@@ -255,6 +258,7 @@ function createDomainDispatcher({
   persistExternalPhotoMetadata,
   refreshActiveFeed,
   runCrawler,
+  savePhotoComment,
   startRecrawlJob,
   startVisionAnalysisJob,
   triggerWeatherUpdate
@@ -296,6 +300,7 @@ function createDomainDispatcher({
     persistExternalPhotoMetadata,
     refreshActiveFeed,
     runCrawler,
+    savePhotoComment,
     startRecrawlJob,
     startVisionAnalysisJob,
     triggerWeatherUpdate

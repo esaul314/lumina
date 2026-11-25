@@ -11,6 +11,7 @@
 // to Result values. Native access/coercion failures still propagate. Scalar
 // state patches and excluded-keyword entries intentionally remain unvalidated.
 
+const { normalizePhotoComment } = require('./photoComments.js');
 const { curry } = require('../utils/fn.js');
 const {
   normalizeManualLocation,
@@ -920,7 +921,18 @@ const SOCKET_COMMAND_LISTENER_SPECS = [
   ...SOCKET_SECRET_COMMAND_SPECS.map(createSocketListenerSpec('secret-save'))
 ];
 
+/** Strict private-text boundary; no coercion of URLs or comment values.
+ * @param {unknown} input
+ * @returns {{type: 'set-photo-comment', payload: {url: string, comment: string}} | null}
+ */
+function decodePhotoCommentCommand(input) {
+  if (!isPlainObject(input) || typeof input.url !== 'string' || !input.url.trim()) return null;
+  const comment = normalizePhotoComment(input.comment);
+  return comment === null ? null : { type: 'set-photo-comment', payload: { url: input.url, comment } };
+}
+
 module.exports = {
+  decodePhotoCommentCommand,
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
   decodeAdvancePhotoCommand,
