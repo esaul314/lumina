@@ -6998,3 +6998,14 @@ Application inputs are unchanged; accepted application checks are reused, with d
 ## 2026-11-24 — navigation descriptors are data, not live decoder settings
 
 A descriptor's mutable direction/fallback arguments are separate from the value captured by its decoder closure. Contract and test those semantics independently; don't imply immutability or rebinding. For the [shared navigation boundary](./server/domain/commands.js), expose the proven path/decoder contract while leaving generic decorator extras unknown. An unknown-valued writable index still permits dynamic keys to corrupt named typed fields; a readonly index prevents that typed write without freezing runtime data or named fields. Test both unsafe writes and supported named edits. Reuse the [existing compiler/runtime fixtures](./server/domain/tests.js) and one AST annotation-removal path instead of inventing a spread-typing abstraction or per-helper harness.
+
+
+## 2026-11-25 — preserve consumer semantics and freeze passing candidates
+
+**refactor(commands): narrow rating and broken decoder contracts** exposes two exact nullable canonical variants without claiming required payloads. Consumers still guard command and payload before composing discriminants. **test(transports): preserve rating and broken photo composition** extends the existing compiler owner and registered offline transport fixtures, not a new harness or runtime layer.
+
+Trace the consumer before defining parity: REST PATCH trims URLs before the shared decoder, while Socket keeps raw spelling. Both preserve coercive numeric parsing. Shared spec order determines awaited rating-before-broken dispatch and response rating1 precedence; eager optional decoding means a later native accessor error can supersede an earlier ordinary invalid-rating failure. Compatibility tests should retain these semantics, not normalize them away.
+
+The pilot caught two test-design mistakes: a spelling-only annotation guard rejected a valid narrower contract, and an overbroad parity assertion assumed identical URL preprocessing. Use semantic compiler assignability/anti-any and unsafe consumers, then characterize each adapter. Four strict diagnostic messages changed rendering at existing failures without changing counts: compare occurrence content as well as locations/totals.
+
+Pass required checks, freeze the exact candidate, then request independent review. Early review overlapped a repair and correctly rejected the stale candidate; the rejected evidence was retained. Revised candidates reused unchanged evidence and received fresh affected review. Real insights refined the existing task/spec at safe boundaries, and resumption recovered the same IDs rather than regenerating tasks. Queue receipts measure administration, not net productivity. No automatic follow-on outcome or release is implied.
