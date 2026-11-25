@@ -117,14 +117,17 @@ for (const [label, failure, kind] of [
 
 test('headers and a stalled JSON body both respect the per-request deadline', async () => {
   let hits = 0;
-  const server = http.createServer((_req, res) => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/ready') return res.end('ready');
     hits++;
     if (hits === 1) res.writeHead(200, { 'content-type': 'application/json' }).write('{');
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   try {
     const local = `http://127.0.0.1:${server.address().port}/`;
-    const result = await crawl((_url, options) => fetch(local, options), cached(), { requestTimeoutMs: 80 });
+    // Warm native fetch outside the deadline; test stalls, not cold-start scheduling.
+    await (await fetch(local + 'ready')).text();
+    const result = await crawl((_url, options) => fetch(local, options), cached(), { requestTimeoutMs: 500 });
     assert.equal(hits, 2);
     assert.deepEqual(result.providerFailures.map(({ kind }) => kind), ['timeout', 'timeout']);
     assert.deepEqual(result.updatedCollections, cached());
