@@ -173,7 +173,8 @@ for (const stage of ['headers', 'body']) {
   test(`native fetch cancels a stalled ${stage} through the whole-operation deadline`, { timeout: 3000 }, async t => {
     let sawRequest;
     const requested = new Promise(resolve => { sawRequest = resolve; });
-    const server = http.createServer((_request, response) => {
+    const server = http.createServer((request, response) => {
+      if (request.url === '/ready') return response.end('ready');
       if (stage === 'body') {
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.write('{');
@@ -181,14 +182,17 @@ for (const stage of ['headers', 'body']) {
       sawRequest();
     });
     t.after(async () => {
+      const closed = new Promise(resolve => server.close(resolve));
       server.closeAllConnections();
-      await new Promise(resolve => server.close(resolve));
+      await closed;
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const { port } = server.address();
+    // Qualify the stalled phase, not a cold connection's admission scheduling.
+    await (await fetch(`http://127.0.0.1:${port}/ready`)).text();
     const f = fixture((_url, options) => fetch(`http://127.0.0.1:${port}/fixture`, options), true);
-    const result = f.getIpLocation({ timeoutMs: 150 });
-    await requested;
+    const result = f.getIpLocation({ timeoutMs: 500 });
+    await Promise.race([requested, result.then(() => { throw new Error('Deadline won before fixture request arrival'); })]);
     assert.equal(await result, fallback);
     assertReleased(f);
   });
