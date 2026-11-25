@@ -157,3 +157,12 @@ export function saveTumblrApiKey(token, { socket } = {}) {
 export function startVisionAnalysisJob(body = {}, { socket } = {}) {
   return runMutationPlan(visionAnalysisMutation, body, { socket });
 }
+
+
+export function getPhotoComment(url) {
+  return readJson(`/api/admin/photo-comment?url=${encodeURIComponent(url)}`);
+}
+
+export function setPhotoComment(url, comment) {
+  return requestJson('/api/admin/photo-comment', { method: 'PATCH', body: { url, comment } });
+}

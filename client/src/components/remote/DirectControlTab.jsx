@@ -1,3 +1,4 @@
+import PhotoCommentEditor from './PhotoCommentEditor';
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import {
   DEFAULT_COVER_CROP_PERCENT,
@@ -103,7 +104,13 @@ function DirectControlTab({
                 }}>
                   {isSplitLayoutActive ? (
                     <div style={{ display: 'flex', width: '100%', height: '100%', gap: '6px', padding: '6px', boxSizing: 'border-box' }}>
-                      <div 
+                      <div role="button" tabIndex={0} aria-label="Select left photo"
+                        onKeyDown={event => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setSelectedPhotoSide('left');
+                          }
+                        }}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedPhotoSide('left');
@@ -132,7 +139,13 @@ function DirectControlTab({
                           ...getSplitPreviewStyle(state.activePhoto.url, false)
                         }} 
                       />
-                      <div 
+                      <div role="button" tabIndex={0} aria-label="Select right photo"
+                        onKeyDown={event => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setSelectedPhotoSide('right');
+                          }
+                        }}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedPhotoSide('right');
@@ -344,6 +357,8 @@ function DirectControlTab({
             </div>
           </div>
         )}
+
+        {selectedPhoto?.url && <PhotoCommentEditor url={selectedPhoto.url} />}
 
         <div className="manual-controls-row">
           <button className="remote-btn" onClick={triggerPrev}>
