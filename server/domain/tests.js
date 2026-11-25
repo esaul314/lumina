@@ -2884,6 +2884,28 @@ if (ratingDecoderFixture?.payload) {
 /** @type {number} */ const uncheckedRatingFixture = ratingDecoderFixture.payload.rating;
 // @ts-expect-error broken-photo commands do not promise a rating payload
 const wrongBrokenRatingFixture = brokenDecoderFixture?.payload?.rating;
+if (ratingDecoderFixture) {
+  // @ts-expect-error a non-null command alone does not prove the canonical optional payload
+  const resultOnlyRatingFixture = ratingDecoderFixture.payload.rating;
+}
+if (brokenDecoderFixture) {
+  // @ts-expect-error the broken command also requires a payload guard after null narrowing
+  const resultOnlyBrokenFixture = brokenDecoderFixture.payload.url;
+}
+const photoMutationCommandsFixture = [ratingDecoderFixture, brokenDecoderFixture].filter(command => command !== null);
+const photoMutationLabelsFixture = photoMutationCommandsFixture.map(command => {
+  if (!command.payload) return command.type;
+  if (command.type === 'rate-photo') {
+    /** @type {number} */ const rating = command.payload.rating;
+    return command.payload.url + ':' + rating;
+  }
+  /** @type {string} */ const brokenUrl = command.payload.url;
+  // @ts-expect-error composed broken variants do not inherit the rating variant's fields
+  const invalidBrokenRating = command.payload.rating;
+  return brokenUrl;
+});
+/** @type {string[]} */ const photoMutationConsumerFixture = photoMutationLabelsFixture;
+/** @type {0 extends (1 & typeof photoMutationLabelsFixture[number]) ? true : false} */ const photoMutationLabelIsAny = false;
 const navigationInputFixture = { direction: /** @type {'next' | 'prev'} */ ('next'), socketEvent: 'next', routePath: '/next', notFoundMessage: 'missing' };
 const navigationFixture = createAdvancePhotoTransportSpec(navigationInputFixture);
 /** @type {0 extends (1 & typeof navigationFixture.direction) ? true : false} */ const navigationDirectionIsAny = false;

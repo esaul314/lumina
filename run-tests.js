@@ -12206,6 +12206,114 @@ async function runIntegrationTests() {
     }]);
   });
 
+  await assertAsyncTest('combined rating/broken patches preserve awaited spec order, response precedence and socket parity', async () => {
+    const dispatched = [], completed = [];
+    const app = buildConfiguredRoutesApp({
+      dispatchCommand: async (command) => {
+        assert.strictEqual(completed.length, dispatched.length, 'Each prior command must settle before the next starts');
+        dispatched.push(command);
+        await Promise.resolve();
+        completed.push(command.type);
+        return { reducerResult: { events: [{ type: 'state-sync' }], effects: [] } };
+      }
+    });
+    // Request key order must not replace the shared specification's execution order.
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: { isBroken: true, rating: '7legacy', url: ' land-1 ' }
+    });
+    assert.deepStrictEqual(response, {
+      status: 200, body: { success: true, photo: { url: 'land-1', rating: 1, isBroken: true } }
+    });
+    assert.deepStrictEqual(dispatched, [
+      { type: 'rate-photo', payload: { url: 'land-1', rating: 7 } },
+      { type: 'mark-photo-broken', payload: { url: 'land-1' } }
+    ]);
+    assert.deepStrictEqual(completed, ['rate-photo', 'mark-photo-broken']);
+    const socketCommands = [];
+    const { socketHandlers } = createSocketHarness({ dispatchCommand: async command => socketCommands.push(command) });
+    await socketHandlers['rate-photo']({ url: 'land-1', rating: '7legacy' });
+    await socketHandlers['mark-photo-broken']({ url: 'land-1' });
+    assert.deepStrictEqual(socketCommands, dispatched);
+    // Socket decoding preserves raw spelling; only the REST batch trims upstream.
+    await socketHandlers['rate-photo']({ url: ' land-1 ', rating: '7legacy' });
+    await socketHandlers['mark-photo-broken']({ url: ' land-1 ' });
+    assert.deepStrictEqual(socketCommands.slice(2), dispatched.map(command => ({
+      ...command, payload: { ...command.payload, url: ' land-1 ' }
+    })));
+  });
+
+  await assertAsyncTest('individual rating/broken patches retain socket parity without activating absent or false fields', async () => {
+    const cases = [
+      { body: { rating: '10.9', isBroken: false }, event: 'rate-photo', patch: { rating: 10 } },
+      { body: { isBroken: true }, event: 'mark-photo-broken', patch: { isBroken: true, rating: 1 } }
+    ];
+    await reduceAsyncSequentially(async (_previous, { body, event, patch }) => {
+      const rest = [], socket = [];
+      const app = buildConfiguredRoutesApp({ dispatchCommand: async command => {
+        rest.push(command);
+        return { reducerResult: { events: [{ type: 'state-sync' }] } };
+      } });
+      const response = await invokeRoute(app, 'patch', '/api/photos', { body: { url: 'land-1', ...body } });
+      const { socketHandlers } = createSocketHarness({ dispatchCommand: async command => socket.push(command) });
+      await socketHandlers[event]({ url: 'land-1', ...body });
+      assert.deepStrictEqual(response, { status: 200, body: { success: true, photo: { url: 'land-1', ...patch } } });
+      assert.strictEqual(rest.length, 1);
+      assert.deepStrictEqual(socket, rest);
+    }, null)(cases);
+  });
+
+  await assertAsyncTest('invalid combined rating decodes later fields eagerly but dispatches no command', async () => {
+    const dispatched = [], reads = [];
+    const app = buildConfiguredRoutesApp({ dispatchCommand: async command => dispatched.push(command) });
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: { url: 'land-1', rating: 11, get isBroken() { reads.push('broken'); return true; } }
+    });
+    assert.deepStrictEqual(response, { status: 400, body: { error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' } });
+    assert.deepStrictEqual(reads, ['broken']);
+    assert.deepStrictEqual(dispatched, []);
+    const { socketHandlers } = createSocketHarness({ dispatchCommand: async command => dispatched.push(command) });
+    await socketHandlers['rate-photo']({ url: 'land-1', rating: 11 });
+    await socketHandlers['mark-photo-broken']({ url: ' ' });
+    assert.deepStrictEqual(dispatched, []);
+  });
+
+  await assertAsyncTest('later native decode failures retain precedence over an earlier invalid rating without dispatch', async () => {
+    const dispatched = [];
+    const app = buildConfiguredRoutesApp({ dispatchCommand: async command => dispatched.push(command) });
+    const response = await invokeRoute(app, 'patch', '/api/photos', {
+      body: { url: 'land-1', rating: 11, get isBroken() { throw new Error('broken accessor failed'); } }
+    });
+    assert.deepStrictEqual(response, { status: 500, body: { error: 'broken accessor failed' } });
+    assert.deepStrictEqual(dispatched, []);
+  });
+
+  await assertAsyncTest('combined rating/broken guards and unchanged results keep the existing not-found boundary', async () => {
+    const dispatched = [];
+    const app = buildConfiguredRoutesApp({ dispatchCommand: async command => { dispatched.push(command); return null; } });
+    const invoke = url => invokeRoute(app, 'patch', '/api/photos', { body: { url, rating: 8, isBroken: true } });
+    const missing = await invoke('missing-photo');
+    assert.deepStrictEqual(dispatched, []);
+    const unchanged = await invoke('land-1');
+    assert.deepStrictEqual(dispatched.map(command => command.type), ['rate-photo', 'mark-photo-broken']);
+    const expected = { status: 404, body: { error: 'Photo URL not found in available photo collections.' } };
+    assert.deepStrictEqual(missing, expected);
+    assert.deepStrictEqual(unchanged, expected);
+  });
+
+  await assertAsyncTest('rejected rating dispatch stops the combined broken command and preserves REST/socket error boundaries', async () => {
+    const dispatched = [];
+    const failure = new Error('rating dispatch failed');
+    const dispatchCommand = async command => { dispatched.push(command); throw failure; };
+    const response = await invokeRoute(buildConfiguredRoutesApp({ dispatchCommand }), 'patch', '/api/photos', {
+      body: { url: 'land-1', rating: 8, isBroken: true }
+    });
+    assert.deepStrictEqual(response, { status: 500, body: { error: failure.message } });
+    assert.deepStrictEqual(dispatched, [{ type: 'rate-photo', payload: { url: 'land-1', rating: 8 } }]);
+    const { socketHandlers } = createSocketHarness({ dispatchCommand });
+    await assert.rejects(socketHandlers['rate-photo']({ url: 'land-1', rating: 8 }), error => error === failure);
+    assert.deepStrictEqual(dispatched.map(command => command.type), ['rate-photo', 'rate-photo']);
+  });
+
   await assertAsyncTest('PATCH /api/photos rejects an empty url before dispatching the shared photo batch route', async () => {
     let dispatched = false;
     const app = buildConfiguredRoutesApp({
