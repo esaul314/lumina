@@ -17,37 +17,65 @@ const config = require('../config/configLoader.js');
  */
 
 /**
- * 📍 getIpLocation
- * Resolves local IP coordinates. Falls back to configured location to guarantee correct screensaver telemetry.
+ * @typedef {{lat: number, lon: number, city: string, regionName: string, country: string}} IpLocation
+ * @typedef {{fetchImpl?: typeof fetch, timeoutMs?: number, log?: Pick<Console, 'log' | 'warn'>}} LocationLookupOptions
  */
-async function getIpLocation() {
+
+/** Pure projection: an incomplete/invalid provider record is not a location.
+ * @param {unknown} data
+ * @returns {IpLocation | null}
+ */
+const projectIpLocation = data => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const { latitude: lat, longitude: lon, city, region: regionName, country, success } =
+    /** @type {Record<string, unknown>} */ (data);
+  return success !== true
+    || typeof lat !== 'number' || !Number.isFinite(lat) || Math.abs(lat) > 90
+    || typeof lon !== 'number' || !Number.isFinite(lon) || Math.abs(lon) > 180
+    || typeof city !== 'string' || !city.trim()
+    || typeof regionName !== 'string' || !regionName.trim()
+    || typeof country !== 'string' || !country.trim()
+    ? null
+    : { lat, lon, city: city.trim(), regionName: regionName.trim(), country: country.trim() };
+};
+
+/** Resolve automatic coordinates through ipwho.is's HTTPS caller-IP endpoint.
+ * The deadline covers fetch AND JSON consumption, even if a transport ignores
+ * cancellation. One attempt; every failure preserves the configured fallback.
+ * @param {LocationLookupOptions} [options]
+ */
+async function getIpLocation({ fetchImpl = fetch, timeoutMs = 3_000, log = console } = {}) {
   const fallbackLocation = config.location;
-
+  const controller = new AbortController();
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
   try {
-    console.log('IP Geolocation: Querying live IP coordinates...');
-    const res = await fetch('http://ip-api.com/json/');
-    if (!res.ok) {
-      console.warn(`IP Geolocation: Query failed with status ${res.status}. Falling back to default coordinates.`);
-      return fallbackLocation;
-    }
-
-    const data = await res.json();
-    if (data && data.status === 'success' && data.lat !== undefined && data.lon !== undefined) {
-      console.log(`IP Geolocation: Located successfully to ${data.city}, ${data.regionName}, ${data.country}.`);
-      return {
-        lat: data.lat,
-        lon: data.lon,
-        city: data.city || 'Verdun',
-        regionName: data.regionName || 'Quebec',
-        country: data.country || 'Canada'
-      };
-    }
-
-    console.warn('IP Geolocation: API responded with unsuccessful status, falling back.');
+    /** @type {Promise<never>} */
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error('IP location deadline exceeded'));
+      }, timeoutMs);
+    });
+    const lookup = async () => {
+      const response = await fetchImpl('https://ipwho.is/', {
+        signal: controller.signal, redirect: 'error', headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error('IP location request rejected');
+      const location = projectIpLocation(await response.json());
+      if (!location) throw new Error('Invalid IP location response');
+      return location;
+    };
+    const location = await Promise.race([lookup(), deadline]);
+    log.log('IP Geolocation: Automatic location resolved.');
+    return location;
+  } catch {
+    log.warn('IP Geolocation: Lookup unavailable; using configured location.');
     return fallbackLocation;
-  } catch (err) {
-    console.warn('IP Geolocation: Service failed or request timed out:', err.message);
-    return fallbackLocation;
+  } finally {
+    clearTimeout(timer);
+    // ponytail: one request owns its timer and body; no retry service or cache.
+    controller.abort();
   }
 }
 
@@ -111,13 +139,14 @@ async function fetchWeatherForecast(lat, lon) {
 /**
  * 📍 resolveActiveLocation
  * Resolves active location coordinates based on central state settings.
+ * @param {LocationLookupOptions} [options]
  */
-async function resolveActiveLocation(state) {
+async function resolveActiveLocation(state, options) {
   if (state && state.autoLocation === false && state.manualLocation) {
-    console.log('IP Geolocation: Using manual coordinates overrides:', state.manualLocation.city);
+    (options?.log ?? console).log('IP Geolocation: Using configured manual location.');
     return state.manualLocation;
   }
-  return await getIpLocation();
+  return getIpLocation(options);
 }
 
 module.exports = {
