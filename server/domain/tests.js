@@ -1018,7 +1018,7 @@ function runDomainTests({ logSuite, assertTest }) {
     const payloads = types.match(/@typedef \{\{([^]*?)\}\} CommandPayloads/)[1];
     const declared = [...payloads.matchAll(/^ \* {3}'([^']+)':/gm)].map(([, name]) => name);
     const handled = [...reducer.matchAll(/^ {2}(?: {4})?'([^']+)':/gm)].map(([, name]) => name);
-    assert.strictEqual(declared.length, 25);
+    assert.strictEqual(declared.length, 26);
     assert.deepStrictEqual(declared.sort(), handled.sort());
     assert.match(types, /payload\?: CommandPayloads\[K\]/);
     assert.match(types, /keywords: unknown\[\]/);
@@ -2868,6 +2868,19 @@ ${Object.keys(commands).filter(name => name.startsWith('decode')).map(name => `
 /** @type {import('./types').CommandDecoder} */ const ${name}ContractFixture = ${name};
 /** @type {0 extends (1 & typeof ${name}) ? true : false} */ const ${name}ContractIsAny = false;
 `).join('')}
+const commentDecoderFixture = decodePhotoCommentCommand(/** @type {unknown} */ ({}));
+/** @type {Extract<Command, {type: 'set-photo-comment'}> | null} */ const exactCommentFixture = commentDecoderFixture;
+/** @type {0 extends (1 & typeof commentDecoderFixture) ? true : false} */ const commentDecoderIsAny = false;
+if (commentDecoderFixture) {
+  /** @type {string} */ const commentTextFixture = commentDecoderFixture.payload.comment;
+  // @ts-expect-error a validated private comment remains text, not a rating
+  /** @type {number} */ const wrongCommentTextFixture = commentDecoderFixture.payload.comment;
+}
+/** @type {import('./types').Effect} */ const commentEffectFixture = { type: 'save-photo-comment', payload: {url: 'photo', comment: ''} };
+// @ts-expect-error durable private effects require their payload
+/** @type {import('./types').Effect} */ const missingCommentEffectFixture = { type: 'save-photo-comment' };
+// @ts-expect-error canonical private payloads cannot carry non-text comments
+/** @type {import('./types').Effect} */ const wrongCommentEffectFixture = { type: 'save-photo-comment', payload: {url: 'photo', comment: 7} };
 const ratingDecoderFixture = decodePhotoRatingCommand(/** @type {unknown} */ ({}));
 const brokenDecoderFixture = decodeBrokenPhotoCommand(/** @type {unknown} */ ({}));
 /** @type {Extract<Command, {type: 'rate-photo'}> | null} */ const exactRatingDecoderFixture = ratingDecoderFixture;
