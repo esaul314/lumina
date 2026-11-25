@@ -10,32 +10,35 @@ const { createRequire } = require('node:module');
 const { createDomainDispatcher } = require('../domain/dispatch.js');
 const { decodePhotoCommentCommand } = require('../domain/commands.js');
 const { createPhotoCommentStore } = require('./photoComments.js');
-const { buildGooglePhotoProxyUrl } = require('./googlePhotosCache.js');
+const { buildGooglePhotoProxyUrl, mergeSyncedMediaItems } = require('./googlePhotosCache.js');
+const { loadCollectionsSnapshot, saveCollectionsSnapshot } = require('../config/collectionsCodec.js');
 
 const a = { url: 'https://images.example.test/a.jpg', title: 'Caption', rating: 7 };
 const g = { id: 'picker-id', url: buildGooglePhotoProxyUrl('picker-id'), googleBaseUrl: 'signed', rating: 6 };
 const routesPath = path.join(__dirname, '../routes.js');
-function loadRoutes() {
+function loadRoutes(googleRows) {
   const module = { exports: {} }, nativeRequire = createRequire(routesPath);
   compileFunction(fs.readFileSync(routesPath, 'utf8'), ['module', 'require'], { filename: routesPath })(
     module, name => name === './services/googlePhotos.js'
-      ? { getCachedMediaItems: () => [structuredClone(g)] }
+      ? { getCachedMediaItems: () => structuredClone(googleRows) }
       : name === './services/weather.js' ? {} : nativeRequire(name)
   );
   return module.exports;
 }
-async function withHttp(run, { missingWriter = false, missingReader = false, failWrite = false } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-comments-http-'));
-  const jsonPath = path.join(dir, 'collections.json');
-  const collections = { A: [structuredClone(a)], B: [structuredClone(a)] };
+async function withHttp(run, { missingWriter = false, missingReader = false, failWrite = false, snapshotPath = null, googleRows = [structuredClone(g)] } = {}) {
+  const dir = snapshotPath ? null : fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-comments-http-'));
+  const jsonPath = snapshotPath ?? path.join(dir, 'collections.json');
+  const collections = fs.existsSync(jsonPath)
+    ? loadCollectionsSnapshot({ jsonPath, defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).collections
+    : { A: [structuredClone(a)], B: [structuredClone(a)] };
   const state = { currentCategory: 'A', photosList: [structuredClone(a)], activePhoto: structuredClone(a), widgets: {},
     searchKeywords: {}, feedConfigs: {}, poolPolicies: {}, excludedKeywords: [], manualLocation: {} };
-  fs.writeFileSync(jsonPath, JSON.stringify({ feeds: collections }));
+  if (!fs.existsSync(jsonPath)) fs.writeFileSync(jsonPath, JSON.stringify({ feeds: collections }));
   const store = createPhotoCommentStore({ jsonPath });
   const events = [], saved = [];
   const io = { emit: (...args) => events.push(args) };
   const dispatcher = createDomainDispatcher({
-    state, collections, io, getRuntimeContext: () => ({ externalCollections: { 'Google Photos': [g] } }),
+    state, collections, io, getRuntimeContext: () => ({ externalCollections: { 'Google Photos': googleRows } }),
     persistCollections() { throw new Error('Must not persist normal collections for a comment'); },
     persistEnvVars() { throw new Error('Must not persist secrets'); },
     ...(!missingWriter ? { savePhotoComment: ({ url, comment }) => {
@@ -45,7 +48,7 @@ async function withHttp(run, { missingWriter = false, missingReader = false, fai
     } } : {})
   });
   const app = require('express')(); app.use(require('express').json());
-  loadRoutes()({ app, state, collections, io, port: 0, getWeatherData: () => null, setWeatherData() {},
+  loadRoutes(googleRows)({ app, state, collections, io, port: 0, getWeatherData: () => null, setWeatherData() {},
     dispatchCommand: dispatcher.dispatchCommand,
     ...(!missingReader ? { readPhotoComment: photo => store.read(photo) } : {})
   });
@@ -59,11 +62,11 @@ async function withHttp(run, { missingWriter = false, missingReader = false, fai
       });
       return { status: response.status, body: await response.json() };
     };
-    await run({ request, state, collections, store, jsonPath, events, saved, dispatcher, origin });
+    await run({ request, state, collections, store, jsonPath, events, saved, dispatcher, origin, googleRows });
   } finally {
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
-    fs.rmSync(dir, { recursive: true, force: true });
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -131,3 +134,60 @@ test('persistence rejection returns failure and preserves private text and norma
   assert.equal(f.state.activePhoto.rating, 7);
   assert.deepEqual(f.events, []);
 }, { failWrite: true }));
+
+
+test('assembled comments survive real crawl/save, Google refresh and HTTP application reconstruction', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-comments-reconstruction-'));
+  const snapshotPath = path.join(dir, 'collections.json');
+  const googleRows = [structuredClone(g)];
+  let privateBefore;
+  try {
+    await withHttp(async f => {
+      for (const url of [a.url, g.url]) assert.equal((await f.request('PATCH', { url, comment: 'PRIVATE_INTEGRATED' })).status, 200);
+      // Closed credential adapter; real crawler with an offline provider response.
+      const filename = require.resolve('./crawler.js'), module = { exports: {} }, native = createRequire(filename);
+      compileFunction(fs.readFileSync(filename, 'utf8'), ['require', 'module', 'exports'], { filename })(
+        name => name === '../config/env.js' ? { readEnvVar: (_name, fallback = '') => fallback } : native(name), module, module.exports
+      );
+      let calls = 0;
+      const crawled = await module.exports.crawlAllCollections(f.collections, { A: { unsplash: { enabled: true, keywords: ['forest'] } } },
+        null, [], null, () => new Date('2026-11-25T00:00:00Z'), {
+          fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ results: ++calls === 1
+            ? [{ width: 1200, height: 800, urls: { raw: 'https://images.unsplash.com/new-fixture' }, description: 'New fixture' }] : [] }) })
+        });
+      assert.equal(crawled.updatedAny, true);
+      assert.ok(crawled.updatedCollections.A.some(row => row.url.includes('new-fixture')));
+      saveCollectionsSnapshot({ jsonPath: f.jsonPath, collections: crawled.updatedCollections, state: f.state });
+      // Seed legacy duplication AFTER normal serialization, which already deduplicates.
+      const persisted = JSON.parse(fs.readFileSync(f.jsonPath, 'utf8'));
+      assert.equal(persisted.feeds.A.filter(row => row.url === a.url).length, 1);
+      privateBefore = structuredClone(persisted.privatePhotoComments);
+      persisted.feeds.A.push(structuredClone(persisted.feeds.A.find(row => row.url === a.url)));
+      fs.writeFileSync(f.jsonPath, JSON.stringify(persisted));
+      assert.equal(JSON.parse(fs.readFileSync(f.jsonPath, 'utf8')).feeds.A.filter(row => row.url === a.url).length, 2);
+      const refreshed = mergeSyncedMediaItems([{ ...g, url: buildGooglePhotoProxyUrl(g.id, { width: 400 }), googleBaseUrl: 'fresh-signed' }], googleRows);
+      googleRows.splice(0, googleRows.length, ...refreshed);
+      assert.equal((await f.request('GET', { url: googleRows[0].url })).body.comment, 'PRIVATE_INTEGRATED');
+      assert.equal((await f.request('GET', { url: g.url })).status, 404);
+    }, { snapshotPath, googleRows }); // closes first listener and discards its dispatcher/store
+    await withHttp(async f => {
+      assert.equal((await f.request('GET', { url: a.url })).body.comment, 'PRIVATE_INTEGRATED');
+      assert.equal((await f.request('GET', { url: googleRows[0].url })).body.comment, 'PRIVATE_INTEGRATED');
+      assert.equal(f.collections.A.filter(row => row.url === a.url).length, 1);
+      const persisted = JSON.parse(fs.readFileSync(f.jsonPath, 'utf8'));
+      assert.equal(persisted.feeds.A.filter(row => row.url === a.url).length, 1);
+      assert.deepEqual(persisted.privatePhotoComments, privateBefore);
+      assert.equal(f.collections.A.find(row => row.url === a.url).rating, 7);
+      for (const route of ['/api/state', '/api/photos', '/api/pools', '/api/pools/A/photos']) {
+        assert.ok(!(await (await fetch(f.origin + route)).text()).includes('PRIVATE_INTEGRATED'));
+      }
+      for (const pool of Object.keys(f.collections)) f.collections[pool] = f.collections[pool].filter(row => row.url !== a.url);
+      saveCollectionsSnapshot({ jsonPath: f.jsonPath, collections: f.collections, state: f.state });
+      assert.equal((await f.request('GET', { url: a.url })).status, 404);
+      assert.equal(f.store.read(a).comment, 'PRIVATE_INTEGRATED');
+      f.collections.A.push({ ...a, url: a.url + '?new-identity=1' });
+      assert.equal((await f.request('GET', { url: a.url + '?new-identity=1' })).body.comment, '');
+      assert.equal((await f.request('PATCH', { url: googleRows[0].url, comment: '' })).status, 200);
+    }, { snapshotPath, googleRows }); // same durable path, reconstructed real HTTP app
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

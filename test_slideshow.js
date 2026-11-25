@@ -430,6 +430,10 @@ const commentCases = [
     }
     assert.equal(await remote.evaluate(() => window.commentInjected), undefined);
     assert.ok(!JSON.stringify(fixture.refreshSnapshot()).includes('Edited private note'));
+    fixture.state.splitSeed += 1;
+    fixture.broadcastStateSync();
+    await expect.poll(() => page.evaluate(() => window.__state.splitSeed)).toBe(fixture.state.splitSeed);
+    assert.ok(!(await page.evaluate(() => JSON.stringify(window.__state))).includes('Edited private note'));
     assert.ok(!(await page.locator('body').innerText()).includes('Edited private note'));
     assert.equal(JSON.stringify(fixture.collections), before);
     await remote.getByRole('button', { name: 'Clear comment', exact: true }).click();
