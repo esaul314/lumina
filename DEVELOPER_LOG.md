@@ -1,5 +1,38 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-25 — bounded weather location and provider suitability
+
+The automatic-location milestone uses a pure unknown-to-location projection and
+one localized async shell. Require literal provider success, finite bounded
+coordinates and complete labels; otherwise preserve the exact configured fallback.
+Do not combine provider coordinates with guessed configured names. Manual
+selection bypasses lookup entirely. One referenced deadline races fetch PLUS JSON;
+finally clears the timer and aborts on every outcome, including rejected response
+bodies. Losing promises remain observed. This bounds async completion, not CPU
+that blocks the event loop or resources owned by an abort-ignoring fake transport.
+
+Provider suitability includes use terms, quota and privacy, not just schema/TLS.
+The first passing candidate chose a development-only free service; retaining its
+rejected evidence and substituting production-permitted ipwho.is required real
+rework. The revised boundary validates success===true and country. Documentation
+can qualify eligibility, not prove live availability/accuracy. Configured fallback
+contains quota/outage failures; no retry/cache/controller abstraction is needed.
+
+The [service regressions](./server/services/weather.test.js) run through the existing
+native harness and real loopback stalled-header/body fixtures, with unconditional
+cleanup. Independent in-memory mutations additionally verify the provider schema,
+late settlement, request isolation, redirect rejection and actual forecast/cache
+composition. Pass checks, freeze inputs, then review; reuse unchanged mechanics
+and full-suite evidence only after exact-input readback. Source-only acceptance
+is not deployment; broader strict diagnostics remain unchanged and non-green.
+
+One coherent service boundary used one plan/session, with no Beads administration.
+The existing queue procedure still informed deliberate amendment and acceptance;
+its tracker is optional. Provider-policy rework and two review rounds are real
+costs, not evidence of net productivity gains. Capture such decisions in the
+[living roadmap](./ROADMAP.md#backlog--audit-findings-2026-10-04), not another coordinator or
+mirrored task ledger. Forecast lifetime remains a separate follow-up.
+
 ## 2026-11-24 — architecture review: a smaller conceptual model, not more services
 
 Existing Mermaid sketches had no tracked Structurizr counterpart or DSL Git

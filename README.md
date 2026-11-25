@@ -134,7 +134,22 @@ The adapter boundary currently covers temperature, humidity, pressure, and the r
 
 ### Weather and location
 
-Lumina uses Open-Meteo for outdoor conditions and daily forecasts. The configured location is the normal source; the weather service can fall back to IP geolocation when automatic location is enabled. Weather alignment and time-of-day alignment are independently configurable from the remote.
+Lumina uses Open-Meteo for outdoor conditions and daily forecasts. Explicit manual
+location selection takes priority and bypasses IP lookup. Otherwise automatic
+location makes one server-side HTTPS request to `https://ipwho.is/`, with a
+three-second deadline covering both the request and JSON body. Failed, denied,
+rate-limited, timed-out or incomplete responses use the configured `location`
+from `config.json`, without borrowing labels from a different location.
+
+Automatic lookup exposes the server's public egress IP to the provider and gives
+an approximate location, which can reflect a VPN or ISP rather than the display.
+Use manual selection to avoid that IP-lookup request. The provider's
+[documented free endpoint](https://ipwhois.io/documentation) needs no API key,
+permits commercial use and allows 1,000 requests/day per client IP, with no uptime
+SLA (terms checked November 2026). Availability and quota remain external limits;
+there is no retry loop. Manual selection bypasses IP lookup, not the subsequent
+Open-Meteo forecast request. Weather and time-of-day alignment are independently
+configurable from the remote.
 
 ### Google Photos
 

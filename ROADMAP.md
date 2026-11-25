@@ -526,10 +526,31 @@ design work, not claims that the current behavior has already been changed.
   server RSS, GPU allocation where observable, idle/active CPU, and image-swap
   behavior on the reference device; then set a reproducible budget and update
   the existing sub-80MB aspiration from that evidence.
-- **Harden automatic IP geolocation.** `getIpLocation()` calls the provider over
-  plain HTTP and has no request timeout. Select a TLS-protected provider or
-  transport, bound the request duration, document the location lookup, and
-  retain the configured-location fallback.
+- **Automatic IP geolocation — delivered source-only, 2026-11-25.**
+  `fix(weather): bound and validate automatic location lookup` replaces insecure,
+  unbounded lookup with one HTTPS request, a three-second fetch-plus-body deadline,
+  finite geographic validation, exact configured fallback and manual bypass.
+  Native offline service/composition tests and independent adversarial review
+  verify failure, cancellation, cleanup, fresh recovery and weather/cache updates.
+  **Design learning:** a headers-only timeout leaves stalled body reads unbounded;
+  partial provider labels must fall back as one coherent location, never attach
+  guessed names to unrelated coordinates. Keep pure unknown-to-location projection
+  separate from the local async/abort shell; no new request framework or retry loop.
+  **Provider decision:** ipapi.co free access is development-only, so use keyless
+  HTTPS ipwho.is instead. Its [documented free tier](https://ipwhois.io/documentation)
+  permits commercial use,1,000/day per client IP and no SLA. Require explicit
+  success and canonical country. Check deployment terms, quota and privacy with
+  schema before implementation; the late policy check caused avoidable rework.
+  **Limits:** IP lookup exposes server egress IP and is approximate; manual
+  selection avoids that lookup, not forecasts. No live-provider probe, deployment
+  or physical-TV acceptance; source delivery does not change the running release.
+  See [weather/location behavior](./README.md#weather-and-location) and the
+  [design lesson](./DEVELOPER_LOG.md#2026-11-25--bounded-weather-location-and-provider-suitability).
+- **Bound forecast transport separately (follow-up, not selected).** Open-Meteo's
+  forecast request is unchanged and still has no whole-operation deadline. Before
+  selecting that work, define failure/cache semantics and test stalled headers
+  AND body through the existing weather composition. Reuse the simple boundary
+  pattern if it fits; don't extract a generic framework merely for symmetry.
 
 ### Backlog maintenance
 
