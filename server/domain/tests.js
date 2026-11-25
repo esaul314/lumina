@@ -1026,7 +1026,7 @@ function runDomainTests({ logSuite, assertTest }) {
       const position = source.search(new RegExp(`(?:function|const) ${name}\\b`));
       const prefix = source.slice(0, position);
       const contract = prefix.slice(prefix.lastIndexOf('/**'));
-      assert.match(contract, /@(?:type \{CommandDecoder\}|returns \{(?:Command|ScreensaverActiveCommand|CategorySelectionCommand) \| null\})/, name);
+      assert.match(contract, /@(?:type|returns)\b/, name); // Compiler fixtures check assignability, not annotation spelling.
       assert.ok(contract.endsWith('*/\n'), name);
     });
   });
@@ -2567,6 +2567,45 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.throws(() => sandbox.navigationSpec(null), error => error.name === 'TypeError');
   });
 
+  assertTest('rating and broken decoders preserve coercive ratings and fresh raw-url command envelopes', () => {
+    const input = { url: ' raw-photo ', rating: '8suffix' };
+    const expected = { type: 'rate-photo', payload: { url: input.url, rating: 8 } };
+    assert.deepStrictEqual(decodePhotoRatingCommand(input), expected);
+    const first = decodePhotoRatingCommand(input), second = decodePhotoRatingCommand(input);
+    assert.notStrictEqual(first, second);
+    assert.notStrictEqual(first.payload, second.payload);
+    assert.deepStrictEqual(input, { url: ' raw-photo ', rating: '8suffix' });
+    assert.deepStrictEqual(decodeBrokenPhotoCommand(input), {
+      type: 'mark-photo-broken', payload: { url: input.url }
+    });
+    [0, 11, null, undefined, NaN, 'invalid'].forEach(rating => {
+      assert.strictEqual(decodePhotoRatingCommand({ url: 'photo', rating }), null);
+    });
+    [null, undefined, false, {}, { url: '   ' }].forEach(payload => {
+      assert.strictEqual(decodePhotoRatingCommand(payload), null);
+      assert.strictEqual(decodeBrokenPhotoCommand(payload), null);
+    });
+  });
+
+  assertTest('rating decoders retain inherited input lookup order and native accessor/coercion failures', () => {
+    const calls = [], failure = new Error('rating coercion');
+    const input = Object.create({
+      get url() { calls.push('url'); return ' inherited '; },
+      get rating() { calls.push('rating'); return { toString() { calls.push('coerce'); return '6tail'; } }; }
+    });
+    assert.deepStrictEqual(decodePhotoRatingCommand(input), {
+      type: 'rate-photo', payload: { url: ' inherited ', rating: 6 }
+    });
+    assert.deepStrictEqual(calls, ['url', 'rating', 'coerce']);
+    assert.strictEqual(decodePhotoRatingCommand({ url: '', get rating() { throw failure; } }), null);
+    assert.throws(() => decodePhotoRatingCommand({ url: 'photo', get rating() { throw failure; } }), error => error === failure);
+    assert.throws(() => decodePhotoRatingCommand({ url: 'photo', rating: { toString() { throw failure; } } }), error => error === failure);
+    assert.throws(() => decodePhotoRatingCommand({ url: 'photo', rating: Symbol('rating') }), TypeError);
+    [decodePhotoRatingCommand, decodeBrokenPhotoCommand].forEach(decode => {
+      assert.throws(() => decode({ get url() { throw failure; } }), error => error === failure);
+    });
+  });
+
   assertTest('private compiler contracts preserve domain boundaries and navigation transport descriptors', () => {
     const ts = require('typescript');
     const file = require.resolve('./reducer.js'), source = fs.readFileSync(file, 'utf8');
@@ -2825,6 +2864,26 @@ const coordinateFallbackFixture = normalizeCoordinate(null, coordinateFallbackTo
 /** @type {number} */ const wrongTrimmedPatchFixture = trimString(1);
 `;
     const commandFixture = `
+${Object.keys(commands).filter(name => name.startsWith('decode')).map(name => `
+/** @type {import('./types').CommandDecoder} */ const ${name}ContractFixture = ${name};
+/** @type {0 extends (1 & typeof ${name}) ? true : false} */ const ${name}ContractIsAny = false;
+`).join('')}
+const ratingDecoderFixture = decodePhotoRatingCommand(/** @type {unknown} */ ({}));
+const brokenDecoderFixture = decodeBrokenPhotoCommand(/** @type {unknown} */ ({}));
+/** @type {Extract<Command, {type: 'rate-photo'}> | null} */ const exactRatingDecoderFixture = ratingDecoderFixture;
+/** @type {Extract<Command, {type: 'mark-photo-broken'}> | null} */ const exactBrokenDecoderFixture = brokenDecoderFixture;
+/** @type {0 extends (1 & typeof ratingDecoderFixture) ? true : false} */ const ratingDecoderIsAny = false;
+/** @type {0 extends (1 & typeof brokenDecoderFixture) ? true : false} */ const brokenDecoderIsAny = false;
+if (ratingDecoderFixture?.payload) {
+  /** @type {number} */ const decodedRatingNumberFixture = ratingDecoderFixture.payload.rating;
+  /** @type {string} */ const decodedRatingUrlFixture = ratingDecoderFixture.payload.url;
+  // @ts-expect-error canonical ratings are numeric, not strings
+  /** @type {string} */ const wrongDecodedRatingFixture = ratingDecoderFixture.payload.rating;
+}
+// @ts-expect-error the decoder may reject input; the canonical payload also stays optional
+/** @type {number} */ const uncheckedRatingFixture = ratingDecoderFixture.payload.rating;
+// @ts-expect-error broken-photo commands do not promise a rating payload
+const wrongBrokenRatingFixture = brokenDecoderFixture?.payload?.rating;
 const navigationInputFixture = { direction: /** @type {'next' | 'prev'} */ ('next'), socketEvent: 'next', routePath: '/next', notFoundMessage: 'missing' };
 const navigationFixture = createAdvancePhotoTransportSpec(navigationInputFixture);
 /** @type {0 extends (1 & typeof navigationFixture.direction) ? true : false} */ const navigationDirectionIsAny = false;
@@ -2902,11 +2961,13 @@ navigationRouteFixture[navigationDecoderKeyFixture] = 7;
       const start = text.indexOf(`const ${name} =`), comment = text.lastIndexOf('/**', start);
       return text.slice(0, comment) + text.slice(start);
     }, patchSource);
-    const withoutNavigationContract = withoutContracts(commandFile, commandSource, new Set(['createAdvancePhotoTransportSpec', 'REST_ADVANCE_PHOTO_ROUTE_SPECS']));
+    const withoutNavigationContract = withoutContracts(commandFile, commandSource, new Set(['createAdvancePhotoTransportSpec', 'REST_ADVANCE_PHOTO_ROUTE_SPECS', 'decodePhotoRatingCommand', 'decodeBrokenPhotoCommand']));
     const sensitive = fixtureDiagnostics(withoutContract, withoutLibraryContracts, withoutPatchContracts, withoutNavigationContract);
     const navigationSensitive = sensitive.filter(item => item.file.fileName === commandFile);
     assert.ok(navigationSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('navigationDirectionIsAny')), 'Navigation direction must not become any');
     assert.ok(navigationSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('navigationPathIsAny')), 'Public navigation paths must not become any');
+    assert.ok(navigationSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('ratingDecoderIsAny')), 'Rating decoder result must not become any');
+    assert.ok(navigationSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('brokenDecoderIsAny')), 'Broken decoder result must not become any');
     const patchSensitive = sensitive.filter(item => item.file.fileName === patchFile);
     assert.ok(patchSensitive.some(item => item.code === 2578 && item.file.text.slice(item.start, item.start + 100).includes('generic coordinate fallback')), 'Coordinate contracts must enforce generic fallback correlation');
     assert.ok(patchSensitive.some(item => item.code === 2322 && item.file.text.slice(item.start, item.start + 100).includes('patchLatitudeIsAny')), 'Location coordinates must retain their non-any leaf contract');

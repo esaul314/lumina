@@ -216,7 +216,7 @@ function decodeCategorySelectionFromSocket(category) {
   });
 }
 
-/** @type {CommandDecoder} */
+/** @type {(input: unknown) => Extract<Command, {type: 'rate-photo'}> | null} */
 const decodePhotoRatingCommand = createPhotoCommandDecoder('rate-photo', (url, payload) => {
   const rating = validateRating(payload.rating);
   return rating === null ? null : { url, rating };
@@ -251,7 +251,7 @@ const decodePhotoLovedCommand = createPhotoCommandDecoder(
   })
 );
 
-/** @type {CommandDecoder} */
+/** @type {(input: unknown) => Extract<Command, {type: 'mark-photo-broken'}> | null} */
 const decodeBrokenPhotoCommand = createPhotoCommandDecoder(
   'mark-photo-broken',
   (url) => ({ url })
