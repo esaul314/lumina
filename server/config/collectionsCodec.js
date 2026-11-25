@@ -345,6 +345,22 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
   return payload;
 }
 
+/** Replace a snapshot only after its complete temporary write succeeds.
+ * @param {string} jsonPath @param {string} serialized
+ * @param {typeof import('node:fs')} [fsImpl]
+ */
+function writeCollectionsFile(jsonPath, serialized, fsImpl = fs) {
+  const temporaryPath = `${jsonPath}.tmp`;
+  try {
+    fsImpl.writeFileSync(temporaryPath, serialized, { encoding: 'utf8', mode: 0o600 });
+    fsImpl.renameSync(temporaryPath, jsonPath);
+  } catch (error) {
+    // Preserve the write failure even if cleanup is also unavailable.
+    try { fsImpl.rmSync(temporaryPath, { force: true }); } catch { /* original error wins */ }
+    throw error;
+  }
+}
+
 function loadCollectionsSnapshot({ jsonPath, defaultCollections, defaultState, buildFeedConfigsFromKeywords }) {
   if (!fs.existsSync(jsonPath)) {
     const snapshot = normalizePersistedSnapshot({}, {
@@ -353,7 +369,7 @@ function loadCollectionsSnapshot({ jsonPath, defaultCollections, defaultState, b
       buildFeedConfigsFromKeywords
     });
 
-    fs.writeFileSync(jsonPath, JSON.stringify(buildPersistedSnapshot(snapshot.collections, snapshot.persistedState, 0), null, 2), 'utf8');
+    writeCollectionsFile(jsonPath, JSON.stringify(buildPersistedSnapshot(snapshot.collections, snapshot.persistedState, 0), null, 2));
     return {
       ...snapshot,
       createdFile: true
@@ -374,7 +390,7 @@ function loadCollectionsSnapshot({ jsonPath, defaultCollections, defaultState, b
 
     if (persistedDuplicatesRemoved) {
       try {
-        fs.writeFileSync(jsonPath, JSON.stringify({ ...rawData, feeds: persistedFeeds }, null, 2), 'utf8');
+        writeCollectionsFile(jsonPath, JSON.stringify({ ...rawData, feeds: persistedFeeds }, null, 2));
       } catch (error) {
         console.warn('Collections Config: Failed to persist duplicate-feed cleanup:', error.message);
       }
@@ -398,19 +414,15 @@ function saveCollectionsSnapshot({ jsonPath, collections, state, lastFeedUpdated
     return;
   }
 
-  const persistedFeedTimestamp = lastFeedUpdated ?? (() => {
-    if (!fs.existsSync(jsonPath)) return 0;
-    try {
-      return JSON.parse(fs.readFileSync(jsonPath, 'utf8')).lastFeedUpdated ?? 0;
-    } catch {
-      return 0;
-    }
-  })();
+  // ponytail: retain private annotations in this existing store, not state/rows.
+  const current = fs.existsSync(jsonPath) ? JSON.parse(fs.readFileSync(jsonPath, 'utf8')) : {};
+  const persistedFeedTimestamp = lastFeedUpdated ?? current.lastFeedUpdated ?? 0;
+  const privateMetadata = Object.hasOwn(current, 'privatePhotoComments')
+    ? { privatePhotoComments: current.privatePhotoComments } : {};
 
-  fs.writeFileSync(
+  writeCollectionsFile(
     jsonPath,
-    JSON.stringify(buildPersistedSnapshot(collections, stateWithFeedTimestamp(state, persistedFeedTimestamp)), null, 2),
-    'utf8'
+    JSON.stringify({ ...buildPersistedSnapshot(collections, stateWithFeedTimestamp(state, persistedFeedTimestamp)), ...privateMetadata }, null, 2)
   );
 }
 
@@ -425,6 +437,7 @@ function stateWithFeedTimestamp(state = {}, lastFeedUpdated) {
 
 module.exports = {
   buildPersistedSnapshot,
+  writeCollectionsFile,
   loadCollectionsSnapshot,
   normalizePersistedSnapshot,
   saveCollectionsSnapshot
