@@ -10,6 +10,7 @@ const {
   decodeDeletePoolCommand,
   decodePoolFeedConfigCommand,
   decodePoolKeywordsCommand,
+  decodePhotoCommentCommand,
   decodePhotoRatingCommand,
   decodePoolScopedRecrawlCommand,
   PHOTO_PATCH_COMMAND_ROUTE_SPECS,
@@ -78,6 +79,7 @@ const buildWeatherResponse = (location, weatherData) => ({
  *   io: { emit: (event: string, payload: any) => void },
  *   port: number,
  *   dispatchCommand?: (command: Record<string, any>) => Promise<DispatchResult | null>,
+ *   readPhotoComment?: (photo: Record<string, unknown>) => {key: string, comment: string},
  *   broadcastStateSync?: () => void
  * }} RoutesEnvironment
  */
@@ -132,7 +134,8 @@ module.exports = function configureRoutes({
   io,
   port,
   dispatchCommand,
-  broadcastStateSync
+  broadcastStateSync,
+  readPhotoComment
 }) {
   const sendSuccess = (res, status, body = {}) => res.status(status).json({
     success: true,
@@ -819,6 +822,26 @@ module.exports = function configureRoutes({
   });
   registerRouteSpecs(REST_ADMIN_SECRET_ROUTE_SPECS, createAdminSecretRoute);
   registerRouteSpecs(REST_ASYNC_JOB_ROUTE_SPECS, createAsyncJobRoute);
+
+  // Comments are private admin reads/effects, never additions to shared snapshots.
+  const knownCommentPhoto = url => getPhotoByUrl(collections, url, buildExternalCollections());
+  app.get('/api/admin/photo-comment', createAsyncRoute(async (req, res) => {
+    const url = req.query.url;
+    if (typeof url !== 'string' || !url.trim()) return sendError(res, 400, 'A photo URL is required.');
+    const photo = knownCommentPhoto(url);
+    if (!photo) return sendError(res, 404, 'Photo URL not found.');
+    if (typeof readPhotoComment !== 'function') return sendError(res, 503, 'Comment reader unavailable.');
+    return res.json(await readPhotoComment(photo));
+  }));
+  app.patch('/api/admin/photo-comment', createEffectSubmissionRoute({
+    decode: req => decodePhotoCommentCommand(req.body),
+    effectType: 'save-photo-comment',
+    status: 200,
+    guards: [({ command }) => knownCommentPhoto(command.payload.url) ? null : createRouteFailure(404, 'Photo URL not found.')],
+    isSubmitted: submission => typeof submission?.comment === 'string',
+    missingSubmissionMessage: 'Comment writer unavailable.',
+    present: ({ submission }) => submission
+  }));
 
   app.get('/api/pools', (_req, res) => {
     res.json([...Object.keys(collections), GOOGLE_PHOTOS_CATEGORY].map(buildPoolResponse));

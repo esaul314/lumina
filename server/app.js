@@ -27,10 +27,12 @@ function createApplication() {
     normalizeActiveCategories,
     saveActiveCategories
   } = require('./config/activeCategories.js');
+  const { createPhotoCommentStore } = require('./services/photoComments.js');
   const { createDomainDispatcher } = require('./domain/dispatch.js');
   const { applyPoolPolicy } = require('./domain/poolRetention.js');
   const {
     buildBalancedFeed,
+    getPhotoByUrl,
     selectSmartPhotoFromFeed,
     isTimeInSchedule
   } = require('./domain/selectors.js');
@@ -175,6 +177,7 @@ function createApplication() {
 
   // Curated collections persistence loader
   const jsonPath = path.join(rootDir, 'curated_collections.json');
+  const photoComments = createPhotoCommentStore({ jsonPath });
   const loadedCollectionsSnapshot = loadCollectionsSnapshot({
     jsonPath,
     defaultCollections: defaultCuratedCollections,
@@ -490,6 +493,11 @@ function createApplication() {
     persistExternalPhotoMetadata,
     refreshActiveFeed: ({ categories } = {}) => activeFeedRuntime.refreshActiveFeedIfIncluded(categories),
     runCrawler,
+    savePhotoComment: ({ url, comment }) => {
+      const photo = getPhotoByUrl(curatedCollections, url, { 'Google Photos': googlePhotos.getCachedMediaItems() });
+      if (!photo) throw new Error('Photo identity no longer available.');
+      return photoComments.write(photo, comment);
+    },
     startRecrawlJob: (payload) => recrawlJobService?.submit(payload),
     startVisionAnalysisJob: (payload) => visionAnalysisJobService?.submit(payload),
     triggerWeatherUpdate
@@ -548,6 +556,7 @@ function createApplication() {
     app,
     state: screensaverState,
     collections: curatedCollections,
+    readPhotoComment: (photo) => photoComments.read(photo),
     getWeatherData,
     setWeatherData,
     getEnvironmentData: () => sensorPlatform.read('ecowitt-gw1200'),

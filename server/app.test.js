@@ -68,13 +68,14 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
       createImageAnalysisRunner: options => { captured.runnerOptions = options; captured.runner = vision.createImageAnalysisRunner(options); return captured.runner; },
       createVisionAnalysisJobService: capture('manual', fakeJob)
     },
+    './services/photoComments.js': { createPhotoCommentStore: capture('comments', { read: () => ({ key: 'url:fixture', comment: '' }), write: (_photo, comment) => ({ key: 'url:fixture', comment }) }) },
     './services/notifier.js': { sendEmailAlert: () => hit('email') }, './config/state.js': { screensaverState: state },
     './config/collections.js': { saveCuratedCollections: (...args) => effects.push(['persist', ...args]) },
     './config/collectionsCodec.js': { loadCollectionsSnapshot: () => ({ collections, persistedState: { visionConfig: { apiUrl: 'https://vision.example.test' } } }) },
     './config/activeCategories.js': { loadActiveCategories: () => ['A'], createActiveCategoryDispatcher: ({ dispatchCommand }) => dispatchCommand },
     './domain/dispatch.js': { createDomainDispatcher: capture('domain', dispatcher) },
     './domain/poolRetention.js': { applyPoolPolicy: () => values => values },
-    './domain/selectors.js': { buildBalancedFeed: ({ collections: values }) => values.A },
+    './domain/selectors.js': { getPhotoByUrl: require('./domain/selectors.js').getPhotoByUrl, buildBalancedFeed: ({ collections: values }) => values.A },
     './domain/snapshot.js': { syncLegacySnapshot: (...args) => effects.push(['snapshot', ...args]) },
     './runtime/activeFeed.js': { createActiveFeedRuntime: () => activeFeed },
     './runtime/poolSchedule.js': { createPoolScheduleRuntime: () => ({ start: () => hit('pool.start'), stop: () => hit('pool.stop') }) },
@@ -87,7 +88,7 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
     './domain/environmentSettings.js': { normalizeEnvironmentSettings: () => ({}), toRuntimeSettings: () => ({}) },
     './services/crawler.js': {}, './utils/fn.js': require('./utils/fn.js'),
     './services/vision.js': { analyzeImageContent: async (...args) => { effects.push(['analyze', ...args]); return tags; } },
-    './routes.js': noop, './sockets.js': capture('sockets')
+    './routes.js': capture('routes'), './sockets.js': capture('sockets')
   };
   const exports = loadIsolated(path.join(__dirname, 'app.js'), dependencies, {
     process: processFixture, console: quiet, __dirname,
@@ -376,4 +377,15 @@ test('composition supplies the real existing collection and environment writers 
   h.captured.domain.persistCollections(app.curatedCollections, h.state);
   h.captured.domain.persistEnvVars(entries);
   assert.deepEqual(h.effects, [['persist', app.curatedCollections, h.state], ['persist-env', entries]]);
+});
+
+
+test('composition binds private comments to the existing file and known-photo effect only', () => {
+  const h = appFixture('test');
+  h.exports.createApplication();
+  assert.equal(h.captured.comments.jsonPath, path.join(__dirname, '../curated_collections.json'));
+  assert.deepEqual(h.captured.domain.savePhotoComment({ url: 'photo-0', comment: 'Note' }), { key: 'url:fixture', comment: 'Note' });
+  assert.throws(() => h.captured.domain.savePhotoComment({ url: 'unknown', comment: 'Note' }), /identity no longer available/);
+  assert.deepEqual(h.captured.routes.readPhotoComment({ url: 'photo-0' }), { key: 'url:fixture', comment: '' });
+  assert.deepEqual(h.effects, []);
 });
