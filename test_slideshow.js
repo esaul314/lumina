@@ -3,6 +3,11 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert/strict');
 const http = require('http');
+const fs = require('node:fs');
+const os = require('node:os');
+const { compileFunction } = require('node:vm');
+const { createRequire } = require('node:module');
+const { createPhotoCommentStore } = require('./server/services/photoComments.js');
 const path = require('path');
 const express = require('express');
 const { Server } = require('socket.io');
@@ -34,6 +39,10 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
     autoLocation: false, manualLocation: {}, screensaverActive, splitSeed: 1
   };
   const collections = { Fixture: photos.map(row => ({ ...row })) };
+  const commentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-browser-comments-'));
+  const commentPath = path.join(commentDir, 'collections.json');
+  fs.writeFileSync(commentPath, JSON.stringify({ feeds: collections }));
+  const commentStore = createPhotoCommentStore({ jsonPath: commentPath });
   const events = [];
   const errors = [];
   const logs = [];
@@ -41,6 +50,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   const persistence = { collections: [], env: [] };
   const dispatcher = createDomainDispatcher({
     state, collections, io,
+    savePhotoComment: ({ url, comment }) => commentStore.write({ url }, comment),
     persistCollections: (savedCollections, savedState) => persistence.collections.push(
       structuredClone({ collections: savedCollections, state: savedState })
     ),
@@ -72,6 +82,15 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   });
   app.get('/api/state', (_req, res) => res.json(dispatcher.refreshSnapshot()));
   app.get('/api/pools', (_req, res) => res.json([]));
+  // Compile only the real route module with closed external-service adapters.
+  const routesPath = path.join(__dirname, 'server/routes.js');
+  const routeModule = { exports: {} }, nativeRequire = createRequire(routesPath);
+  compileFunction(fs.readFileSync(routesPath, 'utf8'), ['module', 'require'], { filename: routesPath })(
+    routeModule, name => name === './services/googlePhotos.js' ? { getCachedMediaItems: () => [] }
+      : name === './services/weather.js' ? {} : nativeRequire(name)
+  );
+  routeModule.exports({ app, state, collections, io, port: 0, dispatchCommand: dispatch,
+    readPhotoComment: row => commentStore.read(row), getWeatherData: () => weather, setWeatherData() {} });
   app.get('/api/*', (_req, res) => res.json({}));
   app.get('/fixtures/:id.svg', (req, res) => {
     if (req.params.id === 'broken') return res.sendStatus(404);
@@ -96,13 +115,13 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
-    state, collections, weather, events, errors, logs, persistence, dispatch, ...dispatcher,
+    state, collections, weather, events, errors, logs, persistence, dispatch, commentStore, ...dispatcher,
     url: `http://127.0.0.1:${server.address().port}`,
     get slowPending() { return Boolean(slowResponse); },
     releaseSlow: () => slowResponse(),
     select: id => dispatch({ type: 'set-active-photo', payload: { url: `/fixtures/${id}.svg` } }),
     count: event => events.filter(entry => entry.event === event).length,
-    close: () => new Promise(resolve => io.close(resolve))
+    close: () => new Promise(resolve => io.close(() => { fs.rmSync(commentDir, { recursive: true, force: true }); resolve(); }))
   };
 }
 
@@ -113,9 +132,9 @@ const activeBackground = () => document.querySelector(
 async function withFixture(browser, run, photos = landscapePhotos(), options = {}) {
   const fixture = await createFixture(photos, options);
   const context = await browser.newContext();
+  context.on('page', opened => opened.on('pageerror', error => fixture.errors.push(error)));
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
-  page.on('pageerror', error => fixture.errors.push(error));
   page.on('console', message => fixture.logs.push(message.text()));
   try {
     // No third-party telemetry, fonts, weather, or image requests in this suite.
@@ -393,6 +412,121 @@ const weatherCases = [
   }, { widgets: { weather: true, weatherLocation: true } }]
 ];
 
+// The same real REST/interpreter/store path is used by the isolated browser fixture.
+const commentCases = [
+  ['private comment create/edit/clear is durable plain text and absent from TV/state', async ({ page, fixture }) => {
+    const remote = await page.context().newPage();
+    await remote.goto(fixture.url + '/?mode=remote');
+    const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
+    await expect(text).toBeEnabled();
+    const before = JSON.stringify(fixture.collections);
+    for (const comment of ['<script>window.commentInjected = true</script>\nPrivate note', 'Edited private note']) {
+      await text.fill(comment);
+      await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
+      await expect(remote.getByRole('status')).toHaveText('Comment saved');
+      await remote.reload();
+      await expect(text).toHaveValue(comment);
+      assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, comment);
+    }
+    assert.equal(await remote.evaluate(() => window.commentInjected), undefined);
+    assert.ok(!JSON.stringify(fixture.refreshSnapshot()).includes('Edited private note'));
+    assert.ok(!(await page.locator('body').innerText()).includes('Edited private note'));
+    assert.equal(JSON.stringify(fixture.collections), before);
+    await remote.getByRole('button', { name: 'Clear comment', exact: true }).click();
+    await expect(text).toHaveValue('');
+    await remote.reload();
+    await expect(text).toHaveValue('');
+    assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, '');
+    await remote.close();
+  }],
+  ['comment read/save errors retain drafts and allow retry without false success', async ({ page, fixture }) => {
+    const remote = await page.context().newPage();
+    let failRead = true, failSave = true;
+    await remote.route('**/api/admin/photo-comment**', route => {
+      const method = route.request().method();
+      return (method === 'GET' ? failRead : failSave)
+        ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Injected comment failure"}' })
+        : route.continue();
+    });
+    await remote.goto(fixture.url + '/?mode=remote');
+    const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
+    await expect(remote.getByRole('alert')).toHaveText('Injected comment failure');
+    await expect(text).toBeDisabled();
+    failRead = false;
+    await remote.getByRole('button', { name: 'Retry loading comment' }).click();
+    await expect(text).toBeEnabled();
+    await text.fill('Unsaved private draft');
+    await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
+    await expect(remote.getByRole('alert')).toHaveText('Injected comment failure');
+    await expect(text).toHaveValue('Unsaved private draft');
+    assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, '');
+    failSave = false;
+    await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
+    await expect(remote.getByRole('status')).toHaveText('Comment saved');
+    await text.fill('Draft after saved comment');
+    failSave = true;
+    await remote.getByRole('button', { name: 'Clear comment', exact: true }).click();
+    await expect(remote.getByRole('alert')).toHaveText('Injected comment failure');
+    await expect(text).toHaveValue('Draft after saved comment');
+    assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, 'Unsaved private draft');
+    await remote.close();
+  }],
+  ['left/right selection keeps separate drafts and isolates delayed save responses', async ({ page, fixture }) => {
+    const remote = await page.context().newPage();
+    await remote.goto(fixture.url + '/?mode=remote');
+    const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
+    await expect(text).toBeEnabled();
+    await text.fill('Left draft');
+    await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
+    await expect(text).toHaveValue('');
+    await expect(text).toBeEnabled();
+    await text.fill('Right draft');
+    await remote.getByRole('button', { name: 'Select left photo', exact: true }).press('Enter');
+    await expect(text).toHaveValue('Left draft');
+    let release;
+    await remote.route('**/api/admin/photo-comment', async route => {
+      if (route.request().method() !== 'PATCH') return route.continue();
+      await new Promise(resolve => { release = resolve; });
+      await route.continue();
+    });
+    await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
+    await expect(text).toBeDisabled();
+    await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
+    await expect(text).toHaveValue('Right draft');
+    await expect.poll(() => typeof release).toBe('function');
+    release();
+    await expect.poll(() => fixture.commentStore.read(fixture.collections.Fixture[0]).comment).toBe('Left draft');
+    await expect(text).toHaveValue('Right draft');
+    await remote.getByRole('button', { name: 'Select left photo', exact: true }).click();
+    await expect(text).toHaveValue('Left draft');
+    await expect(remote.getByRole('button', { name: 'Save comment', exact: true })).toBeDisabled();
+    await remote.close();
+  }, portraitPhotos().filter(row => !row.url.includes('broken'))],
+  ['a delayed read cannot overwrite the newly selected portrait comment', async ({ page, fixture }) => {
+    const remote = await page.context().newPage();
+    let first = true, release;
+    await remote.route('**/api/admin/photo-comment?*', async route => {
+      if (!first) return route.continue();
+      first = false;
+      await new Promise(resolve => { release = resolve; });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"comment":"Old delayed response"}' });
+    });
+    await remote.goto(fixture.url + '/?mode=remote');
+    const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
+    await expect(text).toBeDisabled();
+    await expect.poll(() => typeof release).toBe('function');
+    await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
+    await expect(text).toBeEnabled();
+    await text.fill('New portrait draft');
+    // Register before releasing so a fast response cannot race the observer.
+    const settled = remote.waitForResponse(response => response.url().includes('photo-comment') && response.status() === 200);
+    release();
+    await settled;
+    await expect(text).toHaveValue('New portrait draft');
+    await remote.close();
+  }, portraitPhotos().filter(row => !row.url.includes('broken'))]
+];
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
@@ -414,6 +548,11 @@ async function main() {
       console.log(`PASS: ${name}`);
     }
     console.log(`${weatherCases.length} weather-location browser regressions passed.`);
+    for (const [name, run, photos] of commentCases) {
+      await withFixture(browser, run, photos || landscapePhotos());
+      console.log(`PASS: ${name}`);
+    }
+    console.log(`${commentCases.length} private comment browser regressions passed.`);
   } finally {
     await browser.close();
   }
