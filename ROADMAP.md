@@ -2,7 +2,20 @@
 
 Last updated: 2026-11-26
 
-## Current release — 1.1.1
+## Current release — 1.1.2
+
+Released2026-11-26 from accepted local Google Photos media containment.
+Native restart, exact source/runtime/served artifacts, existing cached-media
+bytes and invalid-ID rejection, read-only API/socket/admin checks, and retained
+photos/comments/history passed. Automatic intent remained automatic; activation
+was not forced. Frontend bytes are identical to1.1.1, so no asset rewrite or
+admin refresh is needed for this backend fix. Private configuration is unchanged.
+Rollback1.1.1 data compatibility is qualified in disposable files; it would lose
+the new containment enforcement. No live downgrade, Google account operation or
+physical-TV acceptance is claimed. Configured ancestry/local-writer trust limits
+and existing strict/security deferrals remain. No further milestone is selected.
+
+## Previous release — 1.1.1
 
 Released2026-11-26 from the accepted curation, pool-lifecycle, OAuth callback and
 bounded-forecast milestones. Native restart and exact served-asset matching,
@@ -218,7 +231,9 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
     configured strict debt203/expanded893 unchanged, direct service debt36→35.
     Configured ancestry replacement by local code stays excluded; no claim of
     hostile same-user isolation. No identity migration or transactional cache
-    promise. Source-only: no provider/config/live data/deploy/restart/push change.
+    promise. Source acceptance itself was source-only; the separately authorized
+    1.1.2 rollout is recorded above. No broader security or next-sprint work is
+    selected automatically.
   - Media retrieval hardening follow-up: choose bounded network/decoding failure recovery, refreshed-token reuse, consistent empty-byte handling, validated MIME values, and thrown-value normalization explicitly. Current retries retain the original token/hint, and prior cache/byte writes survive later failures; keep policy changes separate from contract-only work.
   - Step 6 acceptance audit (2026-10-25): the shared Effect vocabulary now includes the already-emitted/handled `refresh-active-feed`; four regressions cover vocabulary parity, payload/result aliases, absent adapters, and rejected refresh ordering. Core contracts remain incomplete; this is not a TypeScript compilation claim or Phase 1 closeout.
   - Done: Step 6 reducer/dispatcher execution and result contracts are explicit, with seven regressions and no executable production changes. Defaults, identity, ordered effects, and pre-effect snapshots remain unchanged.

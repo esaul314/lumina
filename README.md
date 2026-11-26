@@ -252,7 +252,7 @@ configurable from the remote.
 
 ### Google Photos
 
-Local cached media accepts only nonempty opaque IDs made of ASCII letters,
+From1.1.2, local cached media accepts only nonempty opaque IDs made of ASCII letters,
 digits, `_` and `-`; it never coerces, trims or decodes a service input. Valid
 IDs keep their existing `<id>.jpg` names. The HTTP router's normal single URL
 decoding is followed by the same validation; encoded/double-encoded path
