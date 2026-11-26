@@ -71,6 +71,16 @@ Before writing complex custom helper functions or widgets:
 
 ---
 
+## Interaction design and progressive disclosure
+
+Design the common journey before the exceptional action: establish interaction
+frequency, visual hierarchy and the compact default before implementing controls.
+Occasional editing should not dominate browsing. Use discoverable progressive
+disclosure with visible saved/draft/error cues, accessible focus and no silent
+loss of work. Review both compact and expanded layouts on narrow screens and
+portrait pairs, not just functional success. Record rationale and acceptance in
+the product roadmap; tests alone do not establish a good interaction design.
+
 ## Roadmap and complexity discipline
 
 Roadmaps own design; Beads owns only the commissioned queue. Fila retains scope

@@ -1,5 +1,16 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-26 — prioritize the common interaction, not the new feature
+
+A tested editor can still have poor visual priority. Most photos need no comment;
+an always-visible textarea consumes attention and space during ordinary browsing.
+Start UI design with task frequency and the default journey, then use compact,
+discoverable disclosure for occasional actions. Existing content, drafts and
+errors must remain visible as cues, and folding must not lose work. Review the
+collapsed state on narrow screens and portrait pairs as deliberately as the edit
+flow. The [roadmap follow-up](./ROADMAP.md#photo-comment-editor-progressive-disclosure--feedback-2026-11-26)
+captures acceptance; this documentation change does not implement the control.
+
 ## 2026-11-26 — data-compatible release and non-destructive live acceptance
 
 Release 1.1.0 promotes the accepted comments capability and prior source work.

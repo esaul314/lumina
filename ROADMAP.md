@@ -1,6 +1,6 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-11-24
+Last updated: 2026-11-26
 
 - Screensaver cursor correction (2026-10-25): the active TV kiosk restarts its three-second inactivity timer when screensaver state changes and hides the pointer across the page, including over settings panels.
 - Reported TV pointer regression (2026-11-13; unverified): the pointer is again
@@ -249,6 +249,30 @@ off-host recovery. See [comment and rollback limits](./README.md#private-photo-c
 comment synchronization/conflict detection and persistent draft recovery should
 be selected only when real operator needs justify their added state/complexity.
 No automatic next milestone or task-specific reminder is commissioned.
+
+### Photo comment editor: progressive disclosure — feedback 2026-11-26
+
+**Planned UX follow-up, not yet implemented.** Most images will never receive a
+comment. The always-visible large textarea in 1.1.0 gives an occasional action
+too much space; prioritize photo browsing and ratings in the normal view.
+
+- Collapse the editor by default behind a compact, discoverable "Add comment"
+  control for an uncommented image; explicitly expand or roll it back up.
+- For saved comments, show a compact existing-comment cue or short preview with
+  a view/edit action. Distinguish unsaved drafts and failed saves without needing
+  to leave the full editor open; do not mistake a failed read for no comment.
+- Folding/unfolding must never save, clear or discard text. Preserve per-photo
+  drafts and delayed-response isolation, including left/right portrait changes.
+- Use a keyboard-operable disclosure with a clear expanded state and predictable
+  focus. Verify touch targets and compact/narrow layouts as well as desktop.
+- Acceptance: uncommented photos need no large editing area; existing comments
+  remain discoverable; expand/edit/collapse/reopen retains the draft; saving,
+  clearing, error recovery and portrait switching retain their existing behavior.
+  Compare collapsed and expanded views for visual hierarchy and layout movement.
+
+Prefer a small local disclosure over new settings, persistence or API state.
+This captures the follow-up only; it does not reopen the accepted release or
+commission implementation/deployment. See [interaction design guidance](./CONVENTIONS.md#interaction-design-and-progressive-disclosure).
 
 ### Metadata foundation
 
