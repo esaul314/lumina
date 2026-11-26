@@ -235,7 +235,15 @@ Existing compiler/runtime owners preserve coercive ratings, inherited/accessor/n
 
 The bounded roadmap-to-queue pilot populated two outcomes once, amended the existing consumer brief from real findings, and resumed the same IDs without duplicate tasks or repeated accepted work. Both outcomes are independently accepted and atomically committed. [Retained pilot acceptance](./.agents/instruction-archives/roadmap-pilot-20261125/implementation_plan.md) owns exact tests/reviews/diagnostic deltas, rejected candidates, queue/backup evidence and coordination costs. The [developer journal](./DEVELOPER_LOG.md#2026-11-25--preserve-consumer-semantics-and-freeze-passing-candidates) retains reusable design/process lessons, not a second queue. Previous navigation, clone/crawler and five-boundary outcomes remain accepted history.
 
-Latest live baseline remains **1.0.3/d6618ee**. Production executable AST/exports are unchanged; no deployment, version/runtime/dependency/config/schema/policy change or public push. Strict checking remains non-green at the retained acceptance boundary; unchanged counts must not hide diagnostic-text churn. Physical-TV/pointer/active-kiosk shutdown, live-provider recovery, rollback, security and other explicit deferrals remain outside this source-only pilot. Phase1/Step6 remains open.
+The transport-contract pilot above was accepted source-only against 1.0.3,
+preserving its executable AST/exports. **Current live baseline is now 1.1.0/b1a2c30**,
+promoted separately with the [private-comments milestone](./ROADMAP.md#selected-milestone-private-photo-comments--2026-11-25)
+and earlier accepted work. Its release qualifies native restart, served assets,
+read-only admin/Socket/local APIs, retained data and isolated legacy-data handoff;
+it does not qualify physical-TV/pointer/active-kiosk shutdown, live downgrade,
+off-host recovery or broad security/provider recovery. Runtime/dependencies/config
+remain unchanged. Strict debt remains 177 core / 26 transitive; Phase1/Step6 stays
+open, not closed by deployment.
 
 **Next:** await a separately selected coherent outcome, not an automatic next slice or diagnostic-count target. Use Beads selectively where dependencies/amendments/resumption justify it; tiny linear work can remain direct. Required checks precede candidate freeze and independent review. No task-owned reminder/continuation remains; no unattended/concurrent qualification.
 
