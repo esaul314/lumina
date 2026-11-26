@@ -1090,14 +1090,14 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * Resolve and return image bytes for a Google Photos media item.
  *
  * A non-empty local file is returned immediately, using cached MIME metadata
- * or `image/jpeg`; an empty file is removed and fetched again. Cache lookup
+ * or `image/jpeg`; an empty file is a cache miss and fetched again. Cache lookup
  * and any normalization write follow id/path safety checks but precede ordinary
  * file existence checks, even on a local hit. A missing metadata row does not block a local
  * read. Non-empty hits return the original Buffer without reading render
  * options, authenticating, checking base-URL age, or fetching remote content.
  * MIME selection uses truthiness, not validation. Repeated calls read anew.
  *
- * Empty-file deletion follows its warning; read or unlink failures warn and
+ * Empty files remain cache misses after a warning; read failures warn and
  * continue to the authenticated fetch path. Cache lookup, path construction,
  * and existence-check failures instead reject before authentication, outside
  * the local-file catch. Failures in its catch's warning handler also reject,
@@ -1129,15 +1129,15 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * next candidate; their bodies are not read. Thrown fetch, arrayBuffer,
  * Buffer conversion, write, and header-access failures reject immediately,
  * without another candidate or final refresh. Successful responses decode via
- * Buffer.from, write non-empty real-item bytes, then read the content-type
- * header. Empty buffers still succeed. MIME selection uses truthiness without
+ * Buffer.from, reject empty bytes, write real-item bytes, then read the content-type
+ * header. Each content attempt owns a15s headers-plus-body deadline. MIME selection uses truthiness without
  * validation: response header, original cached MIME, then image/jpeg.
  *
  * After all HTTP failures, a truthy cached Picker session permits one final
  * refresh and one retry only for an exact URL not already tried. The retry
  * reuses the initially resolved token and original MIME hint, even if refresh
- * replaces service tokens or persists new metadata. Unlike the candidate loop,
- * this retry writes even empty real-item buffers before reading the header.
+ * replaces service tokens or persists new metadata. Both attempts reject empty
+ * content before any file write.
  * Synthetic ids skip content authentication and byte writes, not necessarily
  * Picker authentication or metadata persistence.
  *
@@ -1169,8 +1169,7 @@ async function fetchMediaItemBytes(mediaItemIdInput, renderOptions = {}) {
           contentType: cachedItem?.mimeType || 'image/jpeg'
         };
       }
-      console.warn(`Google Photos Service: Local cached file for item ${mediaItemId} is 0 bytes, deleting and re-fetching.`);
-      fs.unlinkSync(localFilePath);
+      console.warn(`Google Photos Service: Local cached file for item ${mediaItemId} is empty, re-fetching.`);
     } catch (err) {
       if (mediaErrorCode(err) === 'UNSAFE_GOOGLE_MEDIA_PATH') throw err;
       console.warn(`Google Photos Service: Failed to read local cached file for item ${mediaItemId}, falling back to fetch:`, err.message);
@@ -1212,46 +1211,25 @@ async function fetchMediaItemBytes(mediaItemIdInput, renderOptions = {}) {
   let lastError = null;
 
   for (const candidateUrl of candidates) {
-    const res = await fetch(candidateUrl, {
-      headers: requiresAuth ? { 'Authorization': `Bearer ${token}` } : {}
-    });
-
-    if (res.ok) {
-      const buffer = Buffer.from(await res.arrayBuffer());
-      if (!mediaItemId.startsWith('MOCK_') && buffer.length > 0) {
-        writeLocalMediaFile(localFilePath, buffer);
-      }
-      return {
-        buffer,
-        contentType: res.headers.get('content-type') || contentTypeHint
-      };
+    const media = await fetchMediaContent(candidateUrl, requiresAuth ? { Authorization: `Bearer ${token}` } : {});
+    if (media.ok) {
+      if (requiresAuth) writeLocalMediaFile(localFilePath, media.buffer);
+      return { buffer: media.buffer, contentType: media.response.headers.get('content-type') || contentTypeHint };
     }
-
-    lastError = new Error(`Google Photos media fetch failed (${res.status})`);
+    lastError = new Error(`Google Photos media fetch failed (${media.status})`);
   }
 
   if (cachedItem?.googlePickerSessionId) {
     try {
       const refreshedItem = await refreshCachedMediaItem(mediaItemId, cachedItem.googlePickerSessionId);
       const refreshedUrl = buildGooglePhotoContentUrl(refreshedItem?.googleBaseUrl, renderOptions);
-
       if (refreshedUrl && !seenCandidates.has(refreshedUrl)) {
-        const retryRes = await fetch(refreshedUrl, {
-          headers: requiresAuth ? { 'Authorization': `Bearer ${token}` } : {}
-        });
-
-        if (retryRes.ok) {
-          const buffer = Buffer.from(await retryRes.arrayBuffer());
-          if (!mediaItemId.startsWith('MOCK_')) {
-            writeLocalMediaFile(localFilePath, buffer);
-          }
-          return {
-            buffer,
-            contentType: retryRes.headers.get('content-type') || contentTypeHint
-          };
+        const media = await fetchMediaContent(refreshedUrl, requiresAuth ? { Authorization: `Bearer ${token}` } : {});
+        if (media.ok) {
+          if (requiresAuth) writeLocalMediaFile(localFilePath, media.buffer);
+          return { buffer: media.buffer, contentType: media.response.headers.get('content-type') || contentTypeHint };
         }
-
-        lastError = new Error(`Google Photos media fetch failed after picker refresh (${retryRes.status})`);
+        lastError = new Error(`Google Photos media fetch failed after picker refresh (${media.status})`);
       }
     } catch (err) {
       lastError = err;
@@ -1410,11 +1388,46 @@ const cleanOrphanedMediaFiles = (newItems) => {
   }
 };
 
+const MEDIA_CONTENT_TIMEOUT_MS = 15_000;
+
+// Content only: existing token/Picker control-plane calls retain their contracts.
+// Race bounds abort-ignoring transports; late reads have no file/cache effects.
+/** @typedef {{ok: false, status: number} | {ok: true, buffer: Buffer, response: Response}} MediaContentResult */
+/** @param {string} url @param {Record<string, string>} [headers] @returns {Promise<MediaContentResult>} */
+async function fetchMediaContent(url, headers = {}) {
+  const controller = new AbortController();
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  try {
+    /** @type {Promise<never>} */
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error('Google Photos media content deadline exceeded'));
+        controller.abort();
+      }, MEDIA_CONTENT_TIMEOUT_MS);
+    });
+    /** @returns {Promise<MediaContentResult>} */
+    const read = async () => {
+      const response = await fetch(url, { headers, signal: controller.signal });
+      controller.signal.throwIfAborted();
+      if (!response.ok) return { ok: false, status: response.status };
+      const buffer = Buffer.from(await response.arrayBuffer());
+      controller.signal.throwIfAborted();
+      if (!buffer.length) throw new Error('Empty Google Photos media content');
+      return { ok: true, buffer, response };
+    };
+    return await Promise.race([read(), deadline]);
+  } finally {
+    clearTimeout(timer);
+    // ponytail: this attempt owns cancellation; no retry queue or shared controller.
+    controller.abort();
+  }
+}
+
 /**
  * Pre-download selected media into the local image cache in input order.
  *
- * Test mode is a no-op. Existing safe regular files are skipped regardless of
- * their size; missing files use the supplied base URL with the default render dimensions.
+ * Test mode is a no-op. Nonempty safe regular files are skipped; empty or missing files use the supplied base URL with the default render dimensions.
  * A missing base URL or non-OK response is silently skipped. URL construction,
  * fetching, body reads, and file writes are caught and warned per item so later
  * items still run. Id/path safety and existence checks are inside that catch;
@@ -1438,12 +1451,12 @@ const downloadSyncMediaItems = async (items) => {
       const id = item?.id;
       const filePath = getLocalMediaFilePath(id);
       assertLocalMediaPath(filePath);
-      if (fs.existsSync(filePath)) continue;
+      if (fs.existsSync(filePath) && withLocalMediaFile(filePath, fs.constants.O_RDONLY, fd => fs.fstatSync(fd).size > 0)) continue;
       const url = buildGooglePhotoContentUrl(item?.googleBaseUrl);
       if (!url) continue;
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      writeLocalMediaFile(filePath, Buffer.from(await res.arrayBuffer()));
+      const media = await fetchMediaContent(url);
+      if (!media.ok) continue;
+      writeLocalMediaFile(filePath, media.buffer);
       console.log(`Google Photos Service: Successfully pre-downloaded item: ${id}`);
     } catch (err) {
       // Do not interpolate a rejected unknown id or let it terminate the batch.

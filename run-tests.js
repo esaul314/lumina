@@ -1188,20 +1188,20 @@ assertTest('Google Photos media-byte fetch documents its result and effect bound
   assert.match(source, /@param \{unknown\} mediaItemIdInput Untrusted opaque Google Photos media-item id/);
   assert.match(source, /@param \{GooglePhotoRenderOptions\} \[renderOptions=\{\}\]/);
   assert.match(source, /@returns \{Promise<GooglePhotoMediaBytes>\}/);
-  assert.match(source, /non-empty local file is returned immediately[\s\S]*empty file is removed and fetched again/);
-  assert.match(source, /Local cached file for item \$\{mediaItemId\} is 0 bytes, deleting and re-fetching/);
-  assert.match(source, /fs\.unlinkSync\(localFilePath\);/);
+  assert.match(source, /non-empty local file is returned immediately[\s\S]*empty file is a cache miss and fetched again/);
+  assert.match(source, /Local cached file for item \$\{mediaItemId\} is empty, re-fetching/);
+  assert.doesNotMatch(source, /fs\.unlinkSync\(localFilePath\);/);
   assert.match(source, /deduplicated content-URL candidates[\s\S]*one final\s+\* refresh and one retry/);
   assert.match(source, /Authentication, requests, file access, persistence, and logging remain in\s+\* this effectful service boundary/);
   [/Only HTTP non-ok responses advance/, /their bodies are not read/, /reject immediately/,
-    /write non-empty real-item bytes/, /original cached MIME, then image\/jpeg/,
+    /reject empty bytes, write real-item bytes/, /original cached MIME, then image\/jpeg/,
     /exact URL not already tried/, /initially resolved token and original MIME hint/,
-    /writes even empty real-item buffers/, /truthy last error verbatim/,
+    /Both attempts reject empty/, /truthy last error verbatim/,
     /falsy caught values/, /no rollback/, /no additional logging/
   ].forEach(pattern => assert.match(source, pattern));
   assert.match(source, /async function fetchMediaItemBytes\(mediaItemIdInput, renderOptions = \{\}\)/);
   assert.match(source, /contentType: cachedItem\?\.mimeType \|\| 'image\/jpeg'/);
-  assert.match(source, /res\.headers\.get\('content-type'\) \|\| contentTypeHint/);
+  assert.match(source, /media\.response\.headers\.get\('content-type'\) \|\| contentTypeHint/);
   assert.match(source, /throw lastError \|\| new Error\(`Google Photos Service: Failed to fetch media bytes/);
 });
 
@@ -1230,7 +1230,7 @@ assertTest('Google Photos pre-download documents its sequential cache and failur
 
   assert.match(source, /@param \{ReadonlyArray<\{id\?: unknown, googleBaseUrl\?: string\} \| null \| undefined>\} items/);
   assert.match(source, /@returns \{Promise<void>\} Resolves after the sequential download attempts/);
-  assert.match(source, /Existing safe regular files are skipped regardless of/);
+  assert.match(source, /Nonempty safe regular files are skipped/);
   assert.match(source, /Id\/path safety and existence checks are inside that catch/);
   assert.match(source, /Completion does not guarantee every item was saved/);
 });
@@ -1267,7 +1267,7 @@ const createGooglePhotosServiceFixture = ({
         isFile: () => file.endsWith('.jpg'), nlink: 1
       }),
       openSync: file => file,
-      fstatSync: () => ({ isFile: () => true, nlink: 1 }),
+      fstatSync: () => ({ isFile: () => true, nlink: 1, size: 1 }),
       closeSync() {},
       ftruncateSync() {},
       existsSync: file => file.endsWith('.jpg') ? exists(file)
@@ -1297,6 +1297,7 @@ const createGooglePhotosServiceFixture = ({
     __dirname: path.dirname(filename),
     process: { env: { NODE_ENV: nodeEnv } },
     Buffer,
+    AbortController, setTimeout, clearTimeout,
     URLSearchParams,
     initialTokens,
     Date: class extends Date {
@@ -1350,7 +1351,7 @@ assertTest('Google Photos local-byte contract distinguishes cache hits, fallback
   const contract = source.slice(source.indexOf(' * Resolve and return image bytes'), source.indexOf('async function fetchMediaItemBytes'));
   [/normalization write follow/, /missing metadata row does not block/, /original Buffer/,
     /without reading render/, /MIME selection uses truthiness/, /Repeated calls read anew/,
-    /read or unlink failures warn/, /reject before authentication/, /not rolled back/,
+    /read failures warn/, /reject before authentication/, /not rolled back/,
     /Invalid ids and unsafe targets reject/, /@throws \{unknown\}/
   ].forEach(pattern => assert.match(contract, pattern));
 });
@@ -1405,7 +1406,7 @@ assertAsyncTest('Google Photos local-byte hits normalize metadata before reading
 });
 
 assertAsyncTest('Google Photos local-byte misses and handled file failures continue through authenticated retrieval', async () => {
-  await Promise.all(['missing', 'empty', 'read failure', 'unlink failure'].map(async mode => {
+  await Promise.all(['missing', 'empty', 'read failure'].map(async mode => {
     const events = [];
     const failure = new Error(mode);
     const bytes = Buffer.from('remote fixture');
@@ -1423,7 +1424,7 @@ assertAsyncTest('Google Photos local-byte misses and handled file failures conti
         return Buffer.alloc(0);
       },
       warn: () => events.push('warn'),
-      unlink: () => { events.push('unlink'); if (mode === 'unlink failure') throw failure; },
+      unlink: () => assert.fail('Cache misses must not preemptively unlink'),
       fetchResponse: async (url, options) => {
         events.push('fetch');
         assert.strictEqual(url, 'https://fixture.invalid/photo=w640-h480-c');
@@ -1436,13 +1437,13 @@ assertAsyncTest('Google Photos local-byte misses and handled file failures conti
     assert.deepStrictEqual(result.buffer, bytes);
     assert.strictEqual(result.contentType, 'image/png');
     const localEffects = {
-      missing: [], empty: ['read', 'warn', 'unlink'],
-      'read failure': ['read', 'warn'], 'unlink failure': ['read', 'warn', 'unlink', 'warn']
+      missing: [], empty: ['read', 'warn'],
+      'read failure': ['read', 'warn']
     }[mode];
     assert.deepStrictEqual(events, ['exists', ...localEffects, 'authenticate', 'fetch', 'write']);
     assert.strictEqual(fixture.writes.length, 1);
     assert.ok(fixture.writes[0].file.endsWith('/local.jpg'));
-    if (mode.endsWith('failure')) assert.strictEqual(fixture.warnings.at(-1)[1], failure.message);
+    if (mode === 'read failure') assert.strictEqual(fixture.warnings.at(-1)[1], failure.message);
   }));
 });
 
@@ -1455,7 +1456,7 @@ assertAsyncTest('Google Photos local-byte fallback preserves prior effects when 
     unlink: () => events.push('unlink')
   });
   await assert.rejects(fixture.fetchBytes('local'), /Not authenticated/);
-  assert.deepStrictEqual(events, ['warn', 'unlink']);
+  assert.deepStrictEqual(events, ['warn']);
   assert.deepStrictEqual(fixture.writes, []);
 });
 
@@ -1735,6 +1736,12 @@ assertAsyncTest('Google Photos remote bytes decode before writing and select MIM
           headers: { get: key => { assert.strictEqual(key, 'content-type'); events.push('header'); return header; } } };
       }
     });
+    if (empty) {
+      await assert.rejects(fixture.fetchBytes(id), /Empty Google Photos media content/);
+      assert.deepStrictEqual(events, ['decode']);
+      assert.strictEqual(fixture.writes.length, 0);
+      return;
+    }
     const result = await fixture.fetchBytes(id);
     assert.deepStrictEqual(result.buffer, bytes);
     assert.notStrictEqual(result.buffer, bytes);
@@ -1803,7 +1810,7 @@ assertAsyncTest('Google Photos initial retrieval failures reject without another
   }));
 });
 
-assertAsyncTest('Google Photos final retry retains the original token and MIME hint and writes even empty bytes', async () => {
+assertAsyncTest('Google Photos final retry retains token/MIME compatibility but rejects empty content', async () => {
   await Promise.all([0, 7].map(async length => {
     let clocks = 0;
     const events = [];
@@ -1828,6 +1835,12 @@ assertAsyncTest('Google Photos final retry retains the original token and MIME h
           headers: { get: () => { events.push('header'); return ''; } } };
       }
     });
+    if (!length) {
+      await assert.rejects(fixture.fetchBytes('photo', Object.freeze({ width: 640, height: 480, crop: true })), /Empty Google Photos media content/);
+      assert.deepStrictEqual(events, ['initial', 'oauth', 'picker', 'cache', 'retry', 'decode']);
+      assert.strictEqual(fixture.writes.length, 1, 'Only existing Picker metadata persistence, no byte cache');
+      return;
+    }
     const result = await fixture.fetchBytes('photo', Object.freeze({ width: 640, height: 480, crop: true }));
     assert.strictEqual(result.buffer.length, length);
     assert.strictEqual(result.contentType, 'image/webp');
@@ -1849,7 +1862,7 @@ assertAsyncTest('Google Photos synthetic final retry omits content authenticatio
         : { ok: true, arrayBuffer: async () => Buffer.alloc(0), headers: { get: () => null } };
     }
   });
-  assert.strictEqual((await fixture.fetchBytes('MOCK_MEDIA_ITEM_10')).buffer.length, 0);
+  await assert.rejects(fixture.fetchBytes('MOCK_MEDIA_ITEM_10'), /Empty Google Photos media content/);
   assert.deepStrictEqual(requests, ['https://fixture.invalid/original=w2560-h1440', 'https://picsum.photos/id/10/2560/1440=w2560-h1440']);
   assert.strictEqual(fixture.writes.length, 1);
   assert.ok(fixture.writes[0].file.endsWith('.json'));
