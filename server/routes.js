@@ -4,6 +4,7 @@ const os = require('os');
 const { randomBytes, timingSafeEqual } = require('crypto');
 const { resolveActiveLocation, fetchWeatherForecast } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
+const { buildWeatherDataSnapshot, weatherLocationKey } = require('./runtime/environmentRefresh.js');
 const {
   decodeAddPoolCommand,
   decodeActivePhotoCommand,
@@ -91,11 +92,8 @@ const googleStateCookie = (state, redirectUri, maxAge) => [
   'SameSite=Lax',
   ...(redirectUri.startsWith('https:') ? ['Secure'] : [])
 ].join('; ');
-const buildWeatherResponse = (location, weatherData) => ({
-  location,
-  current: weatherData.current,
-  daily: weatherData.daily
-});
+// ponytail: the route and periodic refresh publish the same three-field projection.
+const buildWeatherResponse = buildWeatherDataSnapshot;
 
 /**
  * @typedef {{
@@ -358,8 +356,11 @@ module.exports = function configureRoutes({
       return cached;
     }
 
+    const selection = weatherLocationKey(state);
     const location = await resolveWeatherLocation(state);
+    if (selection !== weatherLocationKey(state)) throw new Error('Weather location changed during refresh');
     const weatherData = await fetchWeather(location.lat, location.lon);
+    if (selection !== weatherLocationKey(state)) throw new Error('Weather location changed during refresh');
     const finalData = buildWeatherResponse(location, weatherData);
 
     setWeatherData(finalData);

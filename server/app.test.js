@@ -24,7 +24,7 @@ function loadIsolated(filename, dependencies, globals = {}, onImport = () => {},
 }
 // App is executed with closed fixture imports, fake timers and the actual vision
 // job module. No private config load, history DB, provider or service is touched.
-function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port, collectionWriter } = {}) {
+function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port, collectionWriter, weatherService = {}, environmentRefreshFactory } = {}) {
   const captured = {}, timers = [], intervals = [], effects = [], calls = [], imports = [], history = [];
   const hit = name => { calls.push(name); failAt[name]?.(); };
   const state = {};
@@ -79,10 +79,14 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
     './domain/snapshot.js': { syncLegacySnapshot: (...args) => effects.push(['snapshot', ...args]) },
     './runtime/activeFeed.js': { createActiveFeedRuntime: () => activeFeed },
     './runtime/poolSchedule.js': { createPoolScheduleRuntime: () => ({ start: () => hit('pool.start'), stop: () => hit('pool.stop') }) },
-    './runtime/environmentRefresh.js': { createEnvironmentRefreshRuntime: capture('daily', { updateFeedsDaily: async () => {}, updateServerWeather: noop, updateNewsSentiment: noop }) },
+    './runtime/environmentRefresh.js': { createEnvironmentRefreshRuntime: options => {
+      captured.daily = options;
+      return environmentRefreshFactory ? environmentRefreshFactory(options)
+        : { updateFeedsDaily: async () => {}, updateServerWeather: noop, updateNewsSentiment: noop };
+    } },
     './runtime/idleDaemon.js': { createIdleDaemonRuntime: () => ({ notifyActivity: noop, start: () => hit('idle.start'), stop: () => hit('idle.stop') }) },
     './runtime/kioskControl.js': { createKioskControlRuntime: () => ({ getRuntimeContext: () => ({}), killKioskBrowser: () => hit('kiosk.stop') }) },
-    './services/system.js': {}, './services/weather.js': {}, './services/googlePhotos.js': { getCachedMediaItems: () => [] },
+    './services/system.js': {}, './services/weather.js': weatherService, './services/googlePhotos.js': { getCachedMediaItems: () => [] },
     './services/sentiment.js': {}, './services/ecowitt.js': { createEcowittRuntime: capture('ecowitt', {}) }, './services/sensorHistory.js': { createSensorHistoryStore: options => { hit('history.open'); history.push(options); return { close: () => hit('history.close'), record: () => hit('history.record') }; } },
     './config/localSettings.js': {}, './services/sensorPlatform.js': { createSensorPlatform: () => ({ start: () => hit('sensor.start'), stop: () => hit('sensor.stop') }) },
     './domain/environmentSettings.js': { normalizeEnvironmentSettings: () => ({}), toRuntimeSettings: () => ({}) },
@@ -502,4 +506,116 @@ test('actual socket registration contains ignored listener promises; old boundar
   const negative = spawnSync(process.execPath, ['--unhandled-rejections=strict', '-e', script, 'dispatch', 'old'], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', timeout: 10000 });
   assert.equal(negative.status, 1); assert.match(negative.stderr, /Fixture socket failure/);
   assert.equal(negative.stdout, '', 'old registration demonstrably fails the survival oracle');
+});
+
+test('actual weather composition retains periodic cache, cold HTTP fails/retries, and location edits discard obsolete work', async t => {
+  const { createRequire } = require('node:module');
+  const { createEnvironmentRefreshRuntime } = require('./runtime/environmentRefresh.js');
+  const locationA = { lat: 12, lon: 34, city: 'Fixture A', regionName: 'Region', country: 'Country' };
+  const locationB = { ...locationA, lat: 13, city: 'Fixture B' };
+  const forecast = { current: { temperature_2m: 22.4, weather_code: 61 }, daily: { weather_code: [61] } };
+  let respond = async () => ({ ok: true, json: async () => forecast });
+  const weatherService = loadIsolated(path.join(__dirname, 'services/weather.js'),
+    { '../config/configLoader.js': { location: locationA } },
+    { fetch: (...args) => respond(...args), AbortController, setTimeout, clearTimeout, console: quiet });
+  const h = appFixture('test', { weatherService, environmentRefreshFactory: createEnvironmentRefreshRuntime });
+  const app = h.exports.createApplication();
+  Object.assign(h.state, { autoLocation: false, manualLocation: locationA });
+  await app.updateServerWeather();
+  const prior = h.captured.routes.getWeatherData(), physical = h.state.physicalWeather;
+  const broadcasts = () => h.effects.filter(([kind, event]) => kind === 'emit' && event === 'state-sync').length;
+  const count = broadcasts();
+  respond = async () => { throw null; };
+  assert.equal(await app.updateServerWeather(), null);
+  assert.equal(h.captured.routes.getWeatherData(), prior);
+  assert.equal(h.state.physicalWeather, physical);
+  assert.equal(broadcasts(), count);
+
+  // Actual registered route on a private loopback Express fixture, no production listener.
+  const file = path.join(__dirname, 'routes.js'), nativeRequire = createRequire(file), moduleFixture = { exports: {} };
+  compileFunction(fs.readFileSync(file, 'utf8'), ['module', 'require', 'console'], { filename: file })(
+    moduleFixture, name => name === './services/weather.js' ? weatherService
+      : name === './services/googlePhotos.js' ? { getCachedMediaItems: () => [] } : nativeRequire(name), quiet);
+  const express = require('express'), http = require('node:http'), routeApp = express();
+  moduleFixture.exports({ ...h.captured.routes, app: routeApp });
+  const server = http.createServer(routeApp);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { const closed = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await closed; });
+  const request = () => fetch('http://127.0.0.1:' + server.address().port + '/api/weather');
+  // A populated cache never fetches, even during provider outage.
+  assert.deepEqual(await (await request()).json(), prior);
+  h.captured.routes.setWeatherData(null);
+  const failed = await request();
+  assert.equal(failed.status, 500);
+  assert.equal((await failed.json()).error, 'Failed to fetch weather data');
+  assert.equal(h.captured.routes.getWeatherData(), null);
+  let releaseBody, bodyEntered, requestSignal;
+  const bodyStarted = new Promise(resolve => { bodyEntered = resolve; });
+  const stalledBody = new Promise(resolve => { releaseBody = resolve; });
+  respond = async (_url, { signal }) => {
+    requestSignal = signal;
+    return { ok: true, json: () => { bodyEntered(); return stalledBody; } };
+  };
+  const stalledHttp = request(); await bodyStarted;
+  const began = Date.now();
+  const timedOut = await stalledHttp;
+  assert.equal(timedOut.status, 500);
+  assert.match((await timedOut.json()).message, /forecast deadline exceeded/);
+  assert.ok(Date.now() - began < 8000, 'cold HTTP completes within finite forecast budget plus scheduling allowance');
+  assert.equal(requestSignal.aborted, true);
+  assert.equal(h.captured.routes.getWeatherData(), null);
+  releaseBody(forecast); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.captured.routes.getWeatherData(), null, 'late body cannot poison cache');
+  for (const invalid of [
+    { ok: false, status: 503 },
+    { ok: true, json: async () => { throw new SyntaxError('Fixture invalid JSON'); } },
+    { ok: true, json: async () => ({ current: { temperature_2m: null, weather_code: 61 } }) }
+  ]) {
+    respond = async () => invalid;
+    assert.equal((await request()).status, 500);
+    assert.equal(h.captured.routes.getWeatherData(), null);
+    assert.equal(h.state.physicalWeather, physical);
+    assert.equal(broadcasts(), count);
+  }
+  respond = async () => ({ ok: true, json: async () => forecast });
+  assert.equal((await request()).status, 200);
+  assert.equal(h.captured.routes.getWeatherData().location.city, locationA.city);
+
+  // Hold an old periodic refresh, invalidate through the actual location trigger,
+  // and recover B before releasing A. A must not overwrite B or broadcast success.
+  let release, entered;
+  const started = new Promise(resolve => { entered = resolve; });
+  const held = new Promise(resolve => { release = resolve; });
+  respond = async () => { entered(); await held; return { ok: true, json: async () => forecast }; };
+  const old = app.updateServerWeather(); await started;
+  h.state.manualLocation = locationB;
+  respond = async () => { throw new Error('Fixture unavailable'); };
+  await h.captured.domain.triggerWeatherUpdate();
+  assert.equal(h.captured.routes.getWeatherData(), null, 'location edits invalidate old cache even if refresh fails');
+  respond = async () => ({ ok: true, json: async () => forecast });
+  await app.updateServerWeather();
+  const fresh = h.captured.routes.getWeatherData(), beforeLate = broadcasts();
+  release(); assert.equal(await old, null);
+  assert.equal(h.captured.routes.getWeatherData(), fresh);
+  assert.equal(fresh.location.city, locationB.city);
+  assert.equal(broadcasts(), beforeLate);
+
+  // The cold route has the same stale-selection boundary as periodic refresh.
+  h.captured.routes.setWeatherData(null);
+  h.state.manualLocation = locationA;
+  let routeEntered, routeRelease;
+  const routeStarted = new Promise(resolve => { routeEntered = resolve; });
+  const routeHeld = new Promise(resolve => { routeRelease = resolve; });
+  respond = async () => { routeEntered(); await routeHeld; return { ok: true, json: async () => forecast }; };
+  const oldHttp = request(); await routeStarted;
+  h.state.manualLocation = locationB;
+  respond = async () => ({ ok: true, json: async () => forecast });
+  await h.captured.domain.triggerWeatherUpdate();
+  const latest = h.captured.routes.getWeatherData();
+  routeRelease();
+  const obsolete = await oldHttp;
+  assert.equal(obsolete.status, 500);
+  assert.match((await obsolete.json()).message, /location changed/);
+  assert.equal(h.captured.routes.getWeatherData(), latest);
+  assert.equal(latest.location.city, locationB.city);
 });

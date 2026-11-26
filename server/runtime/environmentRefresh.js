@@ -101,6 +101,17 @@ function buildPhysicalWeatherSnapshot(currentWeather, classifyWeatherCode) {
   };
 }
 
+/** Pure selection fingerprint, not a request generation or freshness policy.
+ * Ignore inactive manual settings; include labels to prevent stale attribution.
+ * @param {{autoLocation?: unknown, manualLocation?: Record<string, unknown> | null}} state
+ */
+const weatherLocationKey = (state) => JSON.stringify([
+  state.autoLocation !== false,
+  ...(state.autoLocation === false
+    ? ['lat', 'lon', 'city', 'regionName', 'country'].map(key => state.manualLocation?.[key])
+    : [])
+]);
+
 function mergeUpdatedCollections(collections, updatedCollections = {}) {
   Object.entries(updatedCollections).forEach(([category, photos = []]) => {
     collections[category] = photos.map(withCategory(category));
@@ -146,17 +157,19 @@ function createEnvironmentRefreshRuntime({
   };
 
   const updateServerWeather = async () => {
+    const selection = weatherLocationKey(state);
     try {
       const location = await resolveActiveLocation(state);
+      if (selection !== weatherLocationKey(state)) return null;
       const weatherData = await fetchWeatherForecast(location.lat, location.lon);
-      if (!weatherData || weatherData.error) {
+      if (selection !== weatherLocationKey(state) || !weatherData || weatherData.error) {
         return null;
       }
 
       const nextWeatherData = buildWeatherDataSnapshot(location, weatherData);
-      setWeatherData(nextWeatherData);
-
       const nextPhysicalWeather = buildPhysicalWeatherSnapshot(weatherData.current, classifyWeatherCode);
+      // Prepare both projections before publishing either; failure retains prior state.
+      setWeatherData(nextWeatherData);
       if (nextPhysicalWeather) {
         state.physicalWeather = nextPhysicalWeather;
       }
@@ -165,7 +178,7 @@ function createEnvironmentRefreshRuntime({
       broadcastStateSync();
       return nextWeatherData;
     } catch (error) {
-      log.error('Failed to update server weather cache:', error.message);
+      log.error('Failed to update server weather cache:', error instanceof Error ? error.message : String(error));
       return null;
     }
   };
@@ -241,5 +254,6 @@ module.exports = {
   createNewsRssFetcher,
   mergeUpdatedCollections,
   readLastUpdatedTimestamp,
-  shouldSkipDailyFeedUpdate
+  shouldSkipDailyFeedUpdate,
+  weatherLocationKey
 };
