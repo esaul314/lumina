@@ -157,6 +157,12 @@ collection-file replacements use the same temporary-write/rename boundary;
 ordinary write/rename failure preserves the original, without promising power-loss
 transactions or multi-process locking. Include this existing file in backups.
 
+Before a future rollout/rollback, explicitly protect the new private section:
+legacy collection writers do not preserve it on save. Keep the current data and
+qualify the rollback target/retention plan; do not blindly restore an older whole
+collection file over newer curation. Legacy-version rollback is not qualified by
+this source-only change.
+
 “Private” means local curation metadata excluded from shared snapshots, not
 new authentication, encryption or network-access control. Existing trusted-local
 admin access remains the boundary. Do not expose this API as a public service.

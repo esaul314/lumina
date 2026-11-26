@@ -235,7 +235,10 @@ and twenty browser journeys pass; independent review verified the repaired
 disabled-cleanup oracle. Existing strict checking remains non-green, with five
 newly reachable existing Google-cache diagnostics (177 core / 26 transitive).
 This is not production restart, full Google-service recovery, physical-TV or
-hostile-client security qualification. No rollout was performed.
+hostile-client security qualification. No rollout was performed. Legacy-version
+writers can discard the new private section on save; any future rollout/rollback
+plan must explicitly protect new annotations. That release gate is not qualified
+by this source-only milestone.
 
 **Future decisions, not this milestone:** public-URL identity migration, live
 comment synchronization/conflict detection and persistent draft recovery should
