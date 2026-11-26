@@ -10,7 +10,7 @@
     "install-all": "npm install && npm install --prefix client",
     "lint": "eslint . --ext .js,.jsx --ignore-pattern client/dist --ignore-pattern node_modules",
     "lint:fix": "eslint . --ext .js,.jsx --fix --ignore-pattern client/dist --ignore-pattern node_modules",
-    "test": "node run-tests.js && node test_sensor_adapters.js && node tools/typecheck-report.test.js && node --test tools/candidate-evidence.test.js tools/runtime.test.js server/routes.auth.test.js server/services/crawler.test.js server/jobs/visionAnalysis.test.js server/app.test.js server/runtime/lifecycle.test.js server/domain/dispatch.test.js server/services/weather.test.js server/services/photoComments.test.js server/services/photoComments.http.test.js",
+    "test": "node run-tests.js && node test_sensor_adapters.js && node tools/typecheck-report.test.js && node --test tools/candidate-evidence.test.js tools/runtime.test.js server/routes.auth.test.js server/services/crawler.test.js server/jobs/visionAnalysis.test.js server/app.test.js server/runtime/lifecycle.test.js server/domain/dispatch.test.js server/services/weather.test.js server/services/googlePhotos.media.test.js server/services/photoComments.test.js server/services/photoComments.http.test.js",
     "typecheck:domain": "node tools/typecheck-domain.js",
     "test:integration": "node test_split_sync.js",
     "test:slideshow": "npm run build --prefix client && node test_slideshow.js"
