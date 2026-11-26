@@ -190,12 +190,13 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
 
 ### Selected milestone: private photo comments — 2026-11-25
 
-**Accepted, source-only.** Delivered a complete local curation workflow, not a single small
+**Accepted; released in 1.1.0 on 2026-11-26.** Delivered a complete local curation workflow, not a single small
 roadmap step: (1) stable comment identity and durable private metadata;
 (2) validated shared command/REST access; (3) accessible admin create/read/edit/
 clear controls beside ratings; (4) integrated refresh, reconstruction and privacy
 qualification. All four outcomes and the assembled workflow are independently
-accepted; the live release is unchanged.
+accepted. Initial source-only acceptance was followed by a separately authorized
+build and native service promotion.
 
 **Design decisions:** one comment per image across pools, independent of ratings,
 captions and AI text. Google proxy media IDs survive signed-URL refresh; other
@@ -234,11 +235,15 @@ portrait draft isolation and a fresh real Socket privacy receipt. Full tests, li
 and twenty browser journeys pass; independent review verified the repaired
 disabled-cleanup oracle. Existing strict checking remains non-green, with five
 newly reachable existing Google-cache diagnostics (177 core / 26 transitive).
-This is not production restart, full Google-service recovery, physical-TV or
-hostile-client security qualification. No rollout was performed. Legacy-version
-writers can discard the new private section on save; any future rollout/rollback
-plan must explicitly protect new annotations. That release gate is not qualified
-by this source-only milestone.
+Original source acceptance did not qualify production restart, full Google-service
+recovery, physical-TV or hostile-client security. The subsequent 1.1.0 rollout
+qualifies native restart, exact served assets, real admin reads/editor, Socket
+privacy and retained collection/history data. Successful comment writes remain
+qualified by isolated real-route/file and browser tests, not a live resave that
+could overwrite a concurrent edit. Legacy writers discard the private section;
+the release qualifies separate export and conflict-refusing merge into latest
+legacy data with the actual old codec. It does not claim live downgrade or
+off-host recovery. See [comment and rollback limits](./README.md#private-photo-comments).
 
 **Future decisions, not this milestone:** public-URL identity migration, live
 comment synchronization/conflict detection and persistent draft recovery should
@@ -258,7 +263,7 @@ No automatic next milestone or task-specific reminder is commissioned.
   - optional description or caption
   - provenance and source flags
   - visibility and share eligibility
-- **Delivered source-only:** admin-authored comments alongside image ratings,
+- **Delivered in 1.1.0:** admin-authored comments alongside image ratings,
   distinct from captions and AI descriptions and private by default. One comment
   follows the same identity across pools and supported refresh/reconstruction;
   see the [accepted milestone and explicit limits](#selected-milestone-private-photo-comments--2026-11-25).
@@ -581,7 +586,7 @@ design work, not claims that the current behavior has already been changed.
   server RSS, GPU allocation where observable, idle/active CPU, and image-swap
   behavior on the reference device; then set a reproducible budget and update
   the existing sub-80MB aspiration from that evidence.
-- **Automatic IP geolocation — delivered source-only, 2026-11-25.**
+- **Automatic IP geolocation — accepted 2026-11-25; released in 1.1.0.**
   `fix(weather): bound and validate automatic location lookup` replaces insecure,
   unbounded lookup with one HTTPS request, a three-second fetch-plus-body deadline,
   finite geographic validation, exact configured fallback and manual bypass.
@@ -597,8 +602,11 @@ design work, not claims that the current behavior has already been changed.
   success and canonical country. Check deployment terms, quota and privacy with
   schema before implementation; the late policy check caused avoidable rework.
   **Limits:** IP lookup exposes server egress IP and is approximate; manual
-  selection avoids that lookup, not forecasts. No live-provider probe, deployment
-  or physical-TV acceptance; source delivery does not change the running release.
+  selection avoids that lookup, not forecasts. Original source acceptance made
+  no live-provider or physical-TV claim. At 1.1.0 promotion an upstream forecast 503
+  was diagnosed against byte-identical old/new forecast code and request inputs;
+  direct provider and live weather then recovered 200 without another restart.
+  Provider availability remains external; physical-TV acceptance is still open.
   See [weather/location behavior](./README.md#weather-and-location) and the
   [design lesson](./DEVELOPER_LOG.md#2026-11-25--bounded-weather-location-and-provider-suitability).
 - **Bound forecast transport separately (follow-up, not selected).** Open-Meteo's

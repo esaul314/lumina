@@ -1,5 +1,28 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-26 — data-compatible release and non-destructive live acceptance
+
+Release 1.1.0 promotes the accepted comments capability and prior source work.
+A code rollback is also a data-contract handoff: the previous collection writer
+silently discards private comments. Qualify the actual legacy codec with a separate
+validated export, newer legacy edits, atomic merge into the latest document,
+idempotence and conflict refusal. Preserve current data; an old whole-file restore
+is not a safe shortcut. Isolated handoff is not a live downgrade or off-host test.
+
+Read-then-unconditional-write is not an idempotent production probe when another
+admin may edit between requests. Live acceptance uses reads and invalid-input
+rejection; actual durable writes remain qualified in isolated real-route/file and
+browser journeys. A helper's independent-review gate must read an exact verdict
+bound to reviewed identities, never search prose for an incidental affirmative.
+
+The first post-restart weather check received an upstream 503. Retain the failed
+receipt, compare old/new request generation and inputs, and observe recovery
+without replaying a consumed restart. Subsequent live weather and local APIs
+passed. Build/tests, served-byte verification and read-only headless admin checks
+are distinct from physical-TV validation. Keep the old assets and named payload;
+record the native receipt before requesting a service transition.
+
+
 ## 2026-11-25 — private photo comments as an integrated milestone
 
 A milestone delivers a user capability through multiple substantive outcomes,

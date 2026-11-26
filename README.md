@@ -132,7 +132,8 @@ In **Remote → Direct Control**, select the image (left/right for a portrait pa
 and use **Private photo comment** beside its rating. Read, create, edit, save or
 clear plain text independently of ratings, loved status, captions and AI text.
 Comments are not included in normal REST photo/state responses or Socket/TV
-snapshots. This capability is implemented in source; this work did not deploy it.
+snapshots. Available from **1.1.0**; refresh an already-open admin page to load
+the new editor.
 
 `GET /api/admin/photo-comment?url=<encoded-current-photo-url>` returns
 `{key, comment}`. `PATCH /api/admin/photo-comment` takes `{url, comment}` and returns
@@ -157,11 +158,14 @@ collection-file replacements use the same temporary-write/rename boundary;
 ordinary write/rename failure preserves the original, without promising power-loss
 transactions or multi-process locking. Include this existing file in backups.
 
-Before a future rollout/rollback, explicitly protect the new private section:
-legacy collection writers do not preserve it on save. Keep the current data and
-qualify the rollback target/retention plan; do not blindly restore an older whole
-collection file over newer curation. Legacy-version rollback is not qualified by
-this source-only change.
+Before rolling back to an older collection writer, stop the writer and back up
+LATEST data plus a validated, separately protected private comment section.
+Legacy writers discard this section on save. Before returning forward, stop the
+legacy writer and atomically merge protected comments into the LATEST document,
+preserving newer ratings/settings and refusing conflicting newer comments.
+Never restore an older whole collection file over newer curation. Release 1.1.0
+qualifies this handoff with the actual previous codec in disposable files;
+it is not a live downgrade or off-host recovery guarantee.
 
 “Private” means local curation metadata excluded from shared snapshots, not
 new authentication, encryption or network-access control. Existing trusted-local
