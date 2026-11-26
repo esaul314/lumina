@@ -1,6 +1,7 @@
 // @ts-check
 
 const os = require('os');
+const { randomBytes, timingSafeEqual } = require('crypto');
 const { resolveActiveLocation, fetchWeatherForecast } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
 const {
@@ -45,6 +46,51 @@ const DEFAULT_CATEGORY = 'Scenic Nature';
 const GOOGLE_PHOTOS_CATEGORY = 'Google Photos';
 const DEFAULT_GOOGLE_WIDTH = 2560;
 const DEFAULT_GOOGLE_HEIGHT = 1440;
+const GOOGLE_AUTH_ORIGIN = 'https://accounts.google.com';
+const GOOGLE_CALLBACK_PATH = '/api/auth/google/callback';
+const GOOGLE_STATE_COOKIE = 'lumina_google_oauth_state';
+const GOOGLE_STATE_TTL_SECONDS = 600;
+const GOOGLE_STATE_MAX_PENDING = 256;
+const isGoogleRedirectUri = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+
+  try {
+    const uri = new URL(value.trim());
+    const loopbackHost = uri.hostname === 'localhost'
+      || uri.hostname === '[::1]'
+      || /^127(?:\.\d{1,3}){3}$/.test(uri.hostname);
+    return (uri.protocol === 'https:' || (uri.protocol === 'http:' && loopbackHost))
+      && uri.pathname === GOOGLE_CALLBACK_PATH
+      && !uri.search
+      && !uri.hash
+      && !uri.username
+      && !uri.password
+      ? uri.toString()
+      : null;
+  } catch {
+    return null;
+  }
+};
+const readGoogleStateCookie = (request) => (request.headers.cookie || '')
+  .split(';')
+  .map((cookie) => cookie.trim())
+  .find((cookie) => cookie.startsWith(`${GOOGLE_STATE_COOKIE}=`))
+  ?.slice(GOOGLE_STATE_COOKIE.length + 1) || null;
+const isMatchingGoogleState = (state, cookieState) => (
+  typeof state === 'string'
+  && typeof cookieState === 'string'
+  && /^[a-f\d]{64}$/.test(state)
+  && /^[a-f\d]{64}$/.test(cookieState)
+  && timingSafeEqual(Buffer.from(state, 'hex'), Buffer.from(cookieState, 'hex'))
+);
+const googleStateCookie = (state, redirectUri, maxAge) => [
+  `${GOOGLE_STATE_COOKIE}=${state}`,
+  `Max-Age=${maxAge}`,
+  `Path=${GOOGLE_CALLBACK_PATH}`,
+  'HttpOnly',
+  'SameSite=Lax',
+  ...(redirectUri.startsWith('https:') ? ['Secure'] : [])
+].join('; ');
 const buildWeatherResponse = (location, weatherData) => ({
   location,
   current: weatherData.current,
@@ -133,10 +179,16 @@ module.exports = function configureRoutes({
   getEnvironmentAdapters = () => [],
   io,
   port,
+  googleRedirectUri = process.env.GOOGLE_REDIRECT_URI,
+  now = Date.now,
   dispatchCommand,
   broadcastStateSync,
   readPhotoComment
 }) {
+  const pendingGoogleOAuthStates = new Map();
+  const expireGoogleOAuthStates = (currentTime) => [...pendingGoogleOAuthStates]
+    .filter(([, expiresAt]) => expiresAt <= currentTime)
+    .forEach(([state]) => pendingGoogleOAuthStates.delete(state));
   const sendSuccess = (res, status, body = {}) => res.status(status).json({
     success: true,
     ...body
@@ -736,24 +788,75 @@ module.exports = function configureRoutes({
     });
   }));
 
-  app.get('/api/auth/google/login', (req, res) => {
-    const host = req.headers.host || `localhost:${port}`;
-    const redirectUri = `http://${host}/api/auth/google/callback`;
-    res.redirect(googlePhotos.getGoogleAuthUrl(redirectUri));
+  app.get('/api/auth/google/login', (_req, res) => {
+    const redirectUri = isGoogleRedirectUri(googleRedirectUri);
+    const state = randomBytes(32).toString('hex');
+    const authUrl = googlePhotos.getGoogleAuthUrl(redirectUri || '', state);
+    let authOrigin;
+
+    try {
+      authOrigin = new URL(authUrl, 'https://lumina.invalid').origin;
+    } catch {
+      res.status(500).send('Google Photos authorization URL is invalid.');
+      return;
+    }
+
+    if (authOrigin === GOOGLE_AUTH_ORIGIN) {
+      if (!redirectUri) {
+        res.status(503).send('Google Photos OAuth callback URI is not configured.');
+        return;
+      }
+
+      const currentTime = now();
+      expireGoogleOAuthStates(currentTime);
+      if (pendingGoogleOAuthStates.size >= GOOGLE_STATE_MAX_PENDING) {
+        res.status(503).send('Google Photos authorization is temporarily busy.');
+        return;
+      }
+
+      pendingGoogleOAuthStates.set(state, currentTime + GOOGLE_STATE_TTL_SECONDS * 1000);
+      res.setHeader('Set-Cookie', googleStateCookie(state, redirectUri, GOOGLE_STATE_TTL_SECONDS));
+    } else if (!authUrl.startsWith('/api/auth/google/sandbox-callback?')) {
+      res.status(500).send('Google Photos authorization URL is invalid.');
+      return;
+    }
+
+    res.redirect(authUrl);
   });
 
   app.get('/api/auth/google/callback', createGoogleAuthRoute(
     'Google Photos Auth Callback error',
     'Google Photos Link Failed',
     async (req, res) => {
+      const redirectUri = isGoogleRedirectUri(googleRedirectUri);
+      const cookieState = readGoogleStateCookie(req);
+      res.setHeader('Set-Cookie', googleStateCookie('', redirectUri || 'http://localhost', 0));
+
+      if (!redirectUri) {
+        res.status(503).send('Google Photos OAuth callback URI is not configured.');
+        return;
+      }
+
+      const state = req.query.state;
+      const stateMatchesBrowser = isMatchingGoogleState(state, cookieState);
+      const expiresAt = stateMatchesBrowser ? pendingGoogleOAuthStates.get(state) : undefined;
+      if (stateMatchesBrowser) pendingGoogleOAuthStates.delete(state);
+      if (expiresAt === undefined || expiresAt <= now()) {
+        res.status(400).send('Google Photos authorization state is invalid, expired, or already used.');
+        return;
+      }
+
+      if (req.query.error) {
+        res.status(400).send('Google Photos authorization was not completed.');
+        return;
+      }
+
       const { code } = req.query;
-      if (!code) {
+      if (typeof code !== 'string' || !code) {
         res.status(400).send('Authentication code is missing from Google redirect.');
         return;
       }
 
-      const host = req.headers.host || `localhost:${port}`;
-      const redirectUri = `http://${host}/api/auth/google/callback`;
       await googlePhotos.exchangeGoogleCode(code, redirectUri);
 
       const session = await googlePhotos.createPickerSession();
@@ -778,8 +881,7 @@ module.exports = function configureRoutes({
       }
       broadcast();
 
-      const host = req.headers.host || `localhost:${port}`;
-      res.redirect(`http://${host}/?mode=remote&googleAuth=success`);
+      res.redirect('/?mode=remote&googleAuth=success');
     }
   ));
 

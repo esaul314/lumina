@@ -489,13 +489,14 @@ function saveGoogleCredentials(clientId, clientSecret) {
 }
 
 /**
- * Build an authorization URL from the callback URI and current client ID.
+ * Build an authorization URL from the callback URI, state challenge and client ID.
  *
  * A falsy client ID logs and returns a relative sandbox-callback URL, encoding
- * the URI with encodeURIComponent. A truthy ID returns Google's absolute OAuth
- * URL with URLSearchParams encoding, offline access, authorization-code response,
- * consent prompt, and only the Picker media-items readonly scope. Neither branch
- * checks the client secret, validates the callback, or adds OAuth state.
+ * the URI with encodeURIComponent; the sandbox does not use OAuth state. A truthy
+ * ID returns Google's absolute OAuth URL with URLSearchParams encoding, offline
+ * access, authorization-code response, optional caller-supplied state, consent
+ * prompt, and only the Picker media-items readonly scope. This builder does not
+ * validate the callback URI or check the client secret; the route validates its trusted configuration.
  *
  * Native input coercion is preserved, not a supported non-string interface.
  * In particular, lone UTF-16 surrogates throw in the sandbox branch after logging,
@@ -505,11 +506,12 @@ function saveGoogleCredentials(clientId, clientSecret) {
  * sandbox log keep this boundary in the service shell, not a pure projection.
  *
  * @param {string} redirectUri Callback URI, encoded without validation.
+ * @param {string} [state] Browser-bound OAuth state included only for Google OAuth.
  * @returns {string} Relative sandbox URL or absolute Google authorization URL.
  * @throws {URIError} Sandbox encoding rejects malformed UTF-16 input.
  * @throws {TypeError} Native encoding rejects unsupported coercion inputs.
  */
-function getGoogleAuthUrl(redirectUri) {
+function getGoogleAuthUrl(redirectUri, state) {
   if (!credentials.clientId) {
     console.log('Google Photos Service: Client ID not configured. Generating developmental sandbox auth URL.');
     return `/api/auth/google/sandbox-callback?redirect_uri=${encodeURIComponent(redirectUri)}`;
@@ -521,6 +523,7 @@ function getGoogleAuthUrl(redirectUri) {
     client_id: credentials.clientId,
     access_type: 'offline',
     response_type: 'code',
+    ...(state ? { state } : {}),
     prompt: 'consent',
     scope: [
       'https://www.googleapis.com/auth/photospicker.mediaitems.readonly'
