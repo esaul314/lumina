@@ -916,7 +916,7 @@ module.exports = function configureRoutes({
       method: 'post',
       path: '/api/photos/rate',
       decode: (req) => decodePhotoRatingCommand(req.body),
-      invalidMessage: 'Invalid parameter: "url" must be a non-empty string and "rating" must be an integer between 1 and 10.',
+      invalidMessage: 'Invalid parameter: "url" must be a non-empty string and "rating" must be null (unrated) or an integer between 1 and 10.',
       notFoundMessage: 'Photo URL not found in curated collections.',
       present: ({ command }) => ({
         url: command.payload.url,

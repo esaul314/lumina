@@ -317,7 +317,7 @@ function extractLegacyBaseUrl(url) {
  * dimensions. Session uses truthy supplied/cached precedence. A truthy resolved
  * base reads Date.now() again for fetched-at; otherwise retain the cached value.
  * MIME selects the trimmed Picker hint, truthy cached hint verbatim, or JPEG.
- * Rating defaults only on undefined; crop, pairing, and loved values come only
+ * Unrated null defaults only on undefined; crop, pairing, and loved values come only
  * from existing metadata, without normalization. Creation time is omitted when
  * empty; other named fields remain present even when undefined. Unknown fields
  * and symbols are not copied. Inherited/hidden named fields are still read,
@@ -360,7 +360,7 @@ function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now
     mimeType: getPickerItemMimeType(item) || existing.mimeType || 'image/jpeg',
     width,
     height,
-    rating: existing.rating !== undefined ? existing.rating : 10,
+    rating: existing.rating !== undefined ? existing.rating : null,
     cropPercent: existing.cropPercent,
     cropPositionY: existing.cropPositionY,
     preventPairing: existing.preventPairing,
@@ -383,7 +383,7 @@ function buildCachedMediaItem(item, sessionId, existing = {}, addedAt = Date.now
  * Spread own enumerable fields (including symbols) into a fresh plain object,
  * retaining shallow metadata aliases, then override source, proxy URL, base,
  * dimensions, rating, and loved. The proxy uses default render dimensions, not
- * the parsed row dimensions. Only undefined ratings become 10; loved is true
+ * the parsed row dimensions. Only undefined ratings become null; loved is true
  * only for literal true. Inherited/hidden metadata is not spread, but named reads
  * still see it. Accessors may run repeatedly: id at guard/spread/proxy stages,
  * and a defined rating at spread/check/value stages when enumerable.
@@ -421,7 +421,7 @@ function normalizeCachedMediaItem(item) {
     googleBaseUrl: googleBaseUrl || undefined,
     width: safeWidth,
     height: safeHeight,
-    rating: item.rating !== undefined ? item.rating : 10,
+    rating: item.rating !== undefined ? item.rating : null,
     loved: item.loved === true
   };
 }

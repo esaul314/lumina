@@ -264,7 +264,7 @@ function createApplication() {
   const tagSinglePhoto = curry((defaultIsNight, photo) => ({
     ...photo,
     source: photo.source || 'curated',
-    rating: photo.rating ?? 10,
+    rating: photo.rating === undefined ? null : photo.rating,
     isBroken: photo.isBroken ?? false,
     ...classifyAtmosphere(defaultIsNight, photo)
   }));

@@ -16,7 +16,7 @@ import {
  * @property {string=} orientation
  * @property {boolean=} loved
  * @property {boolean=} preventPairing
- * @property {number=} rating
+ * @property {(number | null)=} rating
  */
 
 /**
