@@ -261,6 +261,7 @@ function buildConfiguredRoutesApp(extraEnv = {}) {
     setWeatherData: () => {},
     io: { emit: () => {} },
     port: 0,
+    googleRedirectUri: '', // Fixture owns unconfigured OAuth, never inherits private .env.
     ...extraEnv
   });
 
@@ -1184,7 +1185,7 @@ assertTest('Google Photos media-byte fetch documents its result and effect bound
   assert.match(source, /@property \{Buffer\} buffer Image content as a Node\.js buffer/);
   assert.match(source, /@property \{string\} contentType Response media type or the cached\/default hint/);
   assert.match(source, /Resolve and return image bytes for a Google Photos media item/);
-  assert.match(source, /@param \{string\} mediaItemId Stable Google Photos media-item id/);
+  assert.match(source, /@param \{unknown\} mediaItemIdInput Untrusted opaque Google Photos media-item id/);
   assert.match(source, /@param \{GooglePhotoRenderOptions\} \[renderOptions=\{\}\]/);
   assert.match(source, /@returns \{Promise<GooglePhotoMediaBytes>\}/);
   assert.match(source, /non-empty local file is returned immediately[\s\S]*empty file is removed and fetched again/);
@@ -1198,7 +1199,7 @@ assertTest('Google Photos media-byte fetch documents its result and effect bound
     /writes even empty real-item buffers/, /truthy last error verbatim/,
     /falsy caught values/, /no rollback/, /no additional logging/
   ].forEach(pattern => assert.match(source, pattern));
-  assert.match(source, /async function fetchMediaItemBytes\(mediaItemId, renderOptions = \{\}\)/);
+  assert.match(source, /async function fetchMediaItemBytes\(mediaItemIdInput, renderOptions = \{\}\)/);
   assert.match(source, /contentType: cachedItem\?\.mimeType \|\| 'image\/jpeg'/);
   assert.match(source, /res\.headers\.get\('content-type'\) \|\| contentTypeHint/);
   assert.match(source, /throw lastError \|\| new Error\(`Google Photos Service: Failed to fetch media bytes/);
@@ -1227,10 +1228,10 @@ assertAsyncTest('Google Photos URL refresh resolves synthetic media without netw
 assertTest('Google Photos pre-download documents its sequential cache and failure contract', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
 
-  assert.match(source, /@param \{ReadonlyArray<\{id: string, googleBaseUrl\?: string\}>\} items/);
+  assert.match(source, /@param \{ReadonlyArray<\{id\?: unknown, googleBaseUrl\?: string\} \| null \| undefined>\} items/);
   assert.match(source, /@returns \{Promise<void>\} Resolves after the sequential download attempts/);
-  assert.match(source, /Existing files are skipped regardless of their size/);
-  assert.match(source, /Path resolution and existence checks are outside that catch/);
+  assert.match(source, /Existing safe regular files are skipped regardless of/);
+  assert.match(source, /Id\/path safety and existence checks are inside that catch/);
   assert.match(source, /Completion does not guarantee every item was saved/);
 });
 
@@ -1260,6 +1261,15 @@ const createGooglePhotosServiceFixture = ({
   const module = { exports: {} };
   const adapters = {
     fs: {
+      constants: fs.constants,
+      lstatSync: file => ({
+        isDirectory: () => !file.endsWith('.jpg'), isSymbolicLink: () => false,
+        isFile: () => file.endsWith('.jpg'), nlink: 1
+      }),
+      openSync: file => file,
+      fstatSync: () => ({ isFile: () => true, nlink: 1 }),
+      closeSync() {},
+      ftruncateSync() {},
       existsSync: file => file.endsWith('.jpg') ? exists(file)
         : file.endsWith('google_photos_cache.json') ? cacheExists(file) : true,
       readFileSync: read,
@@ -1338,10 +1348,10 @@ const createGooglePhotosServiceFixture = ({
 assertTest('Google Photos local-byte contract distinguishes cache hits, fallback, and pre-authentication failures', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
   const contract = source.slice(source.indexOf(' * Resolve and return image bytes'), source.indexOf('async function fetchMediaItemBytes'));
-  [/normalization write precede/, /missing metadata row does not block/, /original Buffer/,
+  [/normalization write follow/, /missing metadata row does not block/, /original Buffer/,
     /without reading render/, /MIME selection uses truthiness/, /Repeated calls read anew/,
     /read or unlink failures warn/, /reject before authentication/, /not rolled back/,
-    /does not validate ids or enforce\s+\* containment/, /@throws \{unknown\}/
+    /Invalid ids and unsafe targets reject/, /@throws \{unknown\}/
   ].forEach(pattern => assert.match(contract, pattern));
 });
 
@@ -1455,7 +1465,7 @@ assertAsyncTest('Google Photos local-byte cache, path, and existence failures re
     { cacheExists: () => { throw failure; } },
     { cacheExists: () => true, read: () => '{}', native: true },
     { cacheExists: () => true, read: () => '[{"id":"local"}]', write: () => { throw failure; } },
-    { id: Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } }) },
+    { id: Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } }), native: true },
     { exists: () => { throw failure; } }
   ];
   await Promise.all(cases.map(async ({ id = 'local', native = false, ...adapters }) => {
@@ -1923,90 +1933,45 @@ assertAsyncTest('Google Photos thrown falsy values survive initial retrieval but
   })));
 });
 
-assertTest('Google Photos local path documents unknown input, normalized result, and native failures', () => {
+assertTest('Google Photos local path documents pure opaque-id validation and confined output', () => {
   const source = fs.readFileSync(require.resolve('./server/services/googlePhotos.js'), 'utf8');
-  const contract = source.slice(source.indexOf(' * Project an id to a local JPG path'), source.indexOf('const getLocalMediaFilePath ='));
-  [/@param \{unknown\} mediaItemId/, /@returns \{string\}/, /@throws \{unknown\}/,
-    /without accessing the filesystem/, /containment validation/,
-    /Percent escapes remain literal/, /coercion hooks can have effects/,
-    /propagate unchanged/
+  const contract = source.slice(source.indexOf(' * Project a safe opaque Google/fixture id'), source.indexOf('const getLocalMediaFilePath ='));
+  [/@param \{unknown\} mediaItemId/, /@returns \{string\}/, /@throws \{TypeError\}/,
+    /No coercion, trimming or percent decoding/, /no filesystem access/
   ].forEach(pattern => assert.match(contract, pattern));
-  assert.ok(source.includes('const getLocalMediaFilePath = (mediaItemId) => path.join(MEDIA_DIR, `${mediaItemId}.jpg`);'));
 });
 
-assertTest('Google Photos local path preserves native scalar coercion and unconditional JPG suffixes', () => {
+assertTest('Google Photos local path preserves valid opaque filenames without coercion', () => {
   const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
   const directory = path.join(path.dirname(require.resolve('./server/services/googlePhotos.js')), '..', 'config', 'google_photos_media');
-  [
-    [undefined, 'undefined.jpg'], [null, 'null.jpg'], [false, 'false.jpg'],
-    [0, '0.jpg'], [-0, '0.jpg'], [NaN, 'NaN.jpg'], [Infinity, 'Infinity.jpg'],
-    [7n, '7.jpg'], ['', '.jpg'], ['photo', 'photo.jpg'],
-    ['photo.jpg', 'photo.jpg.jpg'], [' photo ', ' photo .jpg'],
-    ['café 🖼', 'café 🖼.jpg'], ['%2F%2E%2E', '%2F%2E%2E.jpg'],
-    ['id?x=1#fragment', 'id?x=1#fragment.jpg']
-  ].forEach(([input, filename]) => assert.strictEqual(project(input), path.join(directory, filename)));
+  ['photo', 'A0_-z', 'MOCK_MEDIA_ITEM_42'].forEach(id =>
+    assert.strictEqual(project(id), path.join(directory, id + '.jpg')));
+  [undefined, null, false, 0, 7n, '', 'photo.jpg', ' photo ', 'café', '%2F', 'a/b',
+    '../photo', '/photo', 'a\\b', 'nul\0id', Symbol('fixture')]
+    .forEach(id => assert.throws(() => project(id), error => error.name === 'TypeError'));
 });
 
-assertTest('Google Photos local path normalizes segments after suffixing without enforcing containment', () => {
+assertTest('Google Photos local path rejects objects without invoking coercion hooks', () => {
   const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
-  const directory = path.dirname(project('fixture'));
-  [
-    ['.', '..jpg'], ['..', '...jpg'], ['nested/../photo', 'photo.jpg'],
-    ['nested//photo', 'nested/photo.jpg'], ['nested/', 'nested/.jpg'],
-    ['/photo', 'photo.jpg'], ['../photo', '../photo.jpg'],
-    ['../../photo', '../../photo.jpg'], ['../', '../.jpg']
-  ].forEach(([input, suffix]) => assert.strictEqual(project(input), path.join(directory, suffix)));
-  assert.strictEqual(path.relative(directory, project('../photo')), '../photo.jpg');
-  assert.strictEqual(project('a\\b'), path.join(directory, 'a\\b.jpg'));
-  assert.strictEqual(project('nul\0id'), path.join(directory, 'nul\0id.jpg'));
-});
-
-assertTest('Google Photos local path preserves frozen inputs and native string-hint hook ordering', () => {
-  const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
-  const events = [];
-  const value = Object.freeze({
-    [Symbol.toPrimitive]: hint => { events.push(hint); return 'fixture'; },
-    toString: () => assert.fail('primitive hook takes precedence')
-  });
-  assert.strictEqual(project(value), project('fixture'));
-  assert.deepStrictEqual(events, ['string']);
-  const fallback = Object.freeze({
-    toString: () => { events.push('toString'); return {}; },
-    valueOf: () => { events.push('valueOf'); return 42; }
-  });
-  assert.strictEqual(project(fallback), project(42));
-  assert.deepStrictEqual(events, ['string', 'toString', 'valueOf']);
-  assert.strictEqual(project(Object.freeze(['a', 'b'])), project('a,b'));
-  assert.strictEqual(project(Object.freeze({})), project('[object Object]'));
-});
-
-assertTest('Google Photos local path propagates coercion failures without stringifying Symbols', () => {
-  const { getLocalMediaFilePath: project } = createGooglePhotosServiceFixture();
-  [Symbol('fixture'), Object(Symbol('fixture')), Object.create(null),
-    Object.freeze({ [Symbol.toPrimitive]: () => ({}) })
-  ].forEach(input => assert.throws(() => project(input), error => error.name === 'TypeError'));
-  [new Error('fixture coercion'), null, undefined].forEach(failure => {
-    const value = Object.freeze({ [Symbol.toPrimitive]: () => { throw failure; } });
-    assert.throws(() => project(value), error => error === failure);
-  });
+  const input = Object.freeze({ [Symbol.toPrimitive]: () => assert.fail('Unknown id coerced') });
+  [input, [], {}, Object.create(null)].forEach(id =>
+    assert.throws(() => project(id), error => error.name === 'TypeError'));
 });
 
 assertTest('Google Photos local path is repeatable without service state or filesystem effects in either mode', () => {
   const failIfCalled = () => assert.fail('Unexpected local-path projection effect');
-  ['production', 'test'].flatMap(nodeEnv => [{}, { accessToken: 'fixture-access', expiry: 123 }]
-    .map(initialTokens => ({ nodeEnv, initialTokens })))
-    .forEach(options => {
-      const fixture = createGooglePhotosServiceFixture({
-        ...options, exists: failIfCalled, cacheExists: failIfCalled, read: failIfCalled,
-        write: failIfCalled, persist: failIfCalled, now: failIfCalled, fetchResponse: failIfCalled
-      });
-      const before = { tokens: fixture.readTokens(), credentials: fixture.readCredentials() };
-      const results = ['fixture', 'fixture', 'fixture'].map(fixture.getLocalMediaFilePath);
-      assert.ok(results.every(result => result === results[0]));
-      assert.deepStrictEqual({ tokens: fixture.readTokens(), credentials: fixture.readCredentials() }, before);
-      [fixture.writes, fixture.persisted, fixture.logs, fixture.warnings, fixture.errors]
-        .forEach(records => assert.deepStrictEqual(records, []));
+  ['production', 'test'].forEach(nodeEnv => {
+    const fixture = createGooglePhotosServiceFixture({
+      nodeEnv, exists: failIfCalled, cacheExists: failIfCalled, read: failIfCalled,
+      write: failIfCalled, persist: failIfCalled, now: failIfCalled, fetchResponse: failIfCalled
     });
+    const before = { tokens: fixture.readTokens(), credentials: fixture.readCredentials() };
+    const results = ['fixture', 'fixture', 'fixture'].map(fixture.getLocalMediaFilePath);
+    assert.ok(results.every(result => result === results[0]));
+    assert.deepStrictEqual({ tokens: fixture.readTokens(), credentials: fixture.readCredentials() }, before);
+    [fixture.writes, fixture.persisted, fixture.logs, fixture.warnings, fixture.errors]
+      .forEach(records => assert.deepStrictEqual(records, []));
+  });
 });
 
 assertTest('Google Photos proxy predicate documents its composed unknown-input and failure contract', () => {
@@ -3887,7 +3852,7 @@ const googlePhotosExchangeChecks = [
   })
 ];
 
-const googlePhotosDownloadNoopCheck = assertAsyncTest('Google Photos pre-download keeps test/empty batches inert and exposes existence failures', async () => {
+const googlePhotosDownloadNoopCheck = assertAsyncTest('Google Photos pre-download keeps test/empty batches inert and contains per-item existence failures', async () => {
   const failIfCalled = () => { throw new Error('Unexpected effect'); };
   const testFixture = createGooglePhotosServiceFixture({
     nodeEnv: 'test', exists: failIfCalled, fetchResponse: failIfCalled, write: failIfCalled
@@ -3902,8 +3867,9 @@ const googlePhotosDownloadNoopCheck = assertAsyncTest('Google Photos pre-downloa
 
   const failure = new Error('Existence check failed');
   const failedFixture = createGooglePhotosServiceFixture({ exists: () => { throw failure; } });
-  await assert.rejects(failedFixture.download([{ id: 'unreadable' }]), err => err === failure);
-  assert.deepStrictEqual(failedFixture.warnings, []);
+  await assert.doesNotReject(failedFixture.download([{ id: 'unreadable' }]));
+  assert.strictEqual(failedFixture.warnings.length, 1);
+  assert.strictEqual(failedFixture.warnings[0][1], failure.message);
 });
 
 const googlePhotosDownloadOrderCheck = assertAsyncTest('Google Photos pre-download skips cached files and completes each write before the next fetch', async () => {
@@ -3968,7 +3934,7 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
   assert.deepStrictEqual(fixture.warnings.map(([, message]) => message), [
     'Network unavailable', 'Body unavailable', 'Disk unavailable'
   ]);
-  ['network', 'body', 'disk'].forEach((id, index) => assert.ok(fixture.warnings[index][0].includes(id)));
+  fixture.warnings.forEach(([label]) => assert.strictEqual(label, 'Google Photos Service: Failed to pre-download media item:'));
 });
 
 assertTest('Google Photos cache upsert documents row identity, replacement, and ordered persistence', () => {

@@ -1091,8 +1091,8 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  *
  * A non-empty local file is returned immediately, using cached MIME metadata
  * or `image/jpeg`; an empty file is removed and fetched again. Cache lookup
- * and any normalization write precede path construction and file existence
- * checks, even on a local hit. A missing metadata row does not block a local
+ * and any normalization write follow id/path safety checks but precede ordinary
+ * file existence checks, even on a local hit. A missing metadata row does not block a local
  * read. Non-empty hits return the original Buffer without reading render
  * options, authenticating, checking base-URL age, or fetching remote content.
  * MIME selection uses truthiness, not validation. Repeated calls read anew.
@@ -1102,8 +1102,11 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * and existence-check failures instead reject before authentication, outside
  * the local-file catch. Failures in its catch's warning handler also reject,
  * including a nullish caught value failing at err.message. Prior effects are
- * not rolled back. Path construction does not validate ids or enforce
- * containment.
+ * not rolled back. Invalid ids and unsafe targets reject before cache or
+ * network effects; unsafe-path failures never fall through to remote retrieval.
+ * Descriptor access rejects links/nonregular/multiply-linked files and rechecks
+ * after network awaits. Configured ancestry must remain trusted against local
+ * directory replacement; this is not a concurrent local-attacker sandbox.
  *
  * Otherwise await authentication before preparing deduplicated content-URL candidates.
  * A truthy Picker session triggers refresh only when its base URL is absent
@@ -1147,17 +1150,19 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * Authentication, requests, file access, persistence, and logging remain in
  * this effectful service boundary, separate from pure cache/URL projections.
  *
- * @param {string} mediaItemId Stable Google Photos media-item id.
+ * @param {unknown} mediaItemIdInput Untrusted opaque Google Photos media-item id.
  * @param {GooglePhotoRenderOptions} [renderOptions={}] Optional content dimensions and crop directive.
  * @returns {Promise<GooglePhotoMediaBytes>} The fetched bytes and content type.
  * @throws {unknown} Rejects on unhandled cache, path, existence, warning, authentication, or retrieval failure.
  */
-async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
-  const cachedItem = findCachedMediaItem(mediaItemId);
+async function fetchMediaItemBytes(mediaItemIdInput, renderOptions = {}) {
+  const mediaItemId = requireLocalMediaId(mediaItemIdInput);
   const localFilePath = getLocalMediaFilePath(mediaItemId);
+  assertLocalMediaPath(localFilePath);
+  const cachedItem = findCachedMediaItem(mediaItemId);
   if (fs.existsSync(localFilePath)) {
     try {
-      const buffer = fs.readFileSync(localFilePath);
+      const buffer = withLocalMediaFile(localFilePath, fs.constants.O_RDONLY, fd => fs.readFileSync(fd));
       if (buffer.length > 0) {
         return {
           buffer,
@@ -1167,6 +1172,7 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
       console.warn(`Google Photos Service: Local cached file for item ${mediaItemId} is 0 bytes, deleting and re-fetching.`);
       fs.unlinkSync(localFilePath);
     } catch (err) {
+      if (mediaErrorCode(err) === 'UNSAFE_GOOGLE_MEDIA_PATH') throw err;
       console.warn(`Google Photos Service: Failed to read local cached file for item ${mediaItemId}, falling back to fetch:`, err.message);
     }
   }
@@ -1213,7 +1219,7 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
     if (res.ok) {
       const buffer = Buffer.from(await res.arrayBuffer());
       if (!mediaItemId.startsWith('MOCK_') && buffer.length > 0) {
-        fs.writeFileSync(localFilePath, buffer);
+        writeLocalMediaFile(localFilePath, buffer);
       }
       return {
         buffer,
@@ -1237,7 +1243,7 @@ async function fetchMediaItemBytes(mediaItemId, renderOptions = {}) {
         if (retryRes.ok) {
           const buffer = Buffer.from(await retryRes.arrayBuffer());
           if (!mediaItemId.startsWith('MOCK_')) {
-            fs.writeFileSync(localFilePath, buffer);
+            writeLocalMediaFile(localFilePath, buffer);
           }
           return {
             buffer,
@@ -1293,24 +1299,88 @@ const getOrphanedFiles = (allFiles, activeIds) => {
   return allFiles.filter(file => orphans.has(path.parse(file).name));
 };
 
-/**
- * Project an id to a local JPG path without accessing the filesystem.
- *
- * Native template interpolation appends .jpg before path.join normalizes the
- * result against the module's fixed media directory. No trimming, encoding,
- * decoding, id validation, or containment validation is performed: dot segments
- * and separators can resolve outside that directory, and existing extensions
- * receive another .jpg suffix. Percent escapes remain literal path characters.
- *
- * This data-first projection reads no service state, clock, cache, or transport
- * and performs no persistence or logging. Native coercion hooks can have effects;
- * thrown values and coercion TypeErrors (including Symbols) propagate unchanged.
- *
- * @param {unknown} mediaItemId Value interpolated with the native string hint.
- * @returns {string} Normalized platform path, not a verified or confined file.
- * @throws {unknown} Native input coercion failure.
+/** Pure unknown-to-ID boundary; never run input coercion hooks.
+ * @param {unknown} value
+ * @returns {string}
  */
-const getLocalMediaFilePath = (mediaItemId) => path.join(MEDIA_DIR, `${mediaItemId}.jpg`);
+const requireLocalMediaId = (value) => {
+  if (typeof value !== 'string' || !value || /[^A-Za-z0-9_-]/.test(value)) {
+    throw new TypeError('Invalid Google Photos media id');
+  }
+  return value;
+};
+
+/**
+ * Project a safe opaque Google/fixture id to its unchanged local JPG filename.
+ * No coercion, trimming or percent decoding; reject path/URL/control vocabulary.
+ * The projection performs no filesystem access; I/O validates the actual target.
+ * @param {unknown} mediaItemId Untrusted identifier.
+ * @returns {string} Lexically confined local JPG path.
+ * @throws {TypeError} Invalid Google Photos media id.
+ */
+const getLocalMediaFilePath = (mediaItemId) => {
+  const id = requireLocalMediaId(mediaItemId);
+  const filePath = path.join(MEDIA_DIR, `${id}.jpg`);
+  if (path.dirname(path.resolve(filePath)) !== path.resolve(MEDIA_DIR)) {
+    throw new TypeError('Invalid Google Photos media id');
+  }
+  return filePath;
+};
+
+const unsafeLocalMediaPath = () => Object.assign(new Error('Unsafe Google Photos local media path'), { code: 'UNSAFE_GOOGLE_MEDIA_PATH' });
+/** @param {unknown} error */
+const mediaErrorCode = error => error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+/** @param {import('fs').Stats} stat */
+const isSingleMediaFile = stat => stat.isFile() && stat.nlink === 1;
+
+// The configured ancestry is trusted against concurrent local replacement.
+// Reject observed root links; no claim of an openat sandbox against local code.
+const assertLocalMediaDirectory = () => {
+  const root = fs.lstatSync(MEDIA_DIR);
+  if (!root.isDirectory() || root.isSymbolicLink()) throw unsafeLocalMediaPath();
+};
+/** @param {string} filePath */
+const assertLocalMediaPath = (filePath) => {
+  assertLocalMediaDirectory();
+  if (path.dirname(path.resolve(filePath)) !== path.resolve(MEDIA_DIR)) throw unsafeLocalMediaPath();
+  try {
+    if (!isSingleMediaFile(fs.lstatSync(filePath))) throw unsafeLocalMediaPath();
+  } catch (error) {
+    if (mediaErrorCode(error) !== 'ENOENT') throw error;
+  }
+};
+
+/** Own one no-follow descriptor; validate before any read/truncation/write.
+ * O_NONBLOCK prevents a planted FIFO from blocking before fstat can reject it.
+ * @template T
+ * @param {string} filePath
+ * @param {number} flags
+ * @param {(fd: number) => T} operate
+ * @returns {T}
+ */
+const withLocalMediaFile = (filePath, flags, operate) => {
+  assertLocalMediaPath(filePath);
+  let fd;
+  try {
+    fd = fs.openSync(filePath, flags | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK, 0o600);
+    if (!isSingleMediaFile(fs.fstatSync(fd))) throw unsafeLocalMediaPath();
+    return operate(fd);
+  } catch (error) {
+    if (mediaErrorCode(error) === 'ELOOP') throw unsafeLocalMediaPath();
+    throw error;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+};
+/** @param {string} filePath @param {Buffer} buffer */
+const writeLocalMediaFile = (filePath, buffer) => withLocalMediaFile(
+  filePath, fs.constants.O_WRONLY | fs.constants.O_CREAT,
+  fd => {
+    // ponytail: validate descriptor before truncating, including multiply-linked files.
+    fs.ftruncateSync(fd, 0);
+    fs.writeFileSync(fd, buffer);
+  }
+);
 
 /**
  * Remove locally cached files that are not represented by the supplied items.
@@ -1327,6 +1397,7 @@ const cleanOrphanedMediaFiles = (newItems) => {
     return;
   }
   try {
+    assertLocalMediaDirectory();
     const files = fs.readdirSync(MEDIA_DIR);
     const activeIds = newItems.map(item => item.id);
     const orphans = getOrphanedFiles(files, activeIds);
@@ -1342,18 +1413,19 @@ const cleanOrphanedMediaFiles = (newItems) => {
 /**
  * Pre-download selected media into the local image cache in input order.
  *
- * Test mode is a no-op. Existing files are skipped regardless of their size;
- * missing files use the supplied base URL with the default render dimensions.
+ * Test mode is a no-op. Existing safe regular files are skipped regardless of
+ * their size; missing files use the supplied base URL with the default render dimensions.
  * A missing base URL or non-OK response is silently skipped. URL construction,
  * fetching, body reads, and file writes are caught and warned per item so later
- * items still run. Path resolution and existence checks are outside that catch
- * and can reject the batch. Completion does not guarantee every item was saved.
+ * items still run. Id/path safety and existence checks are inside that catch;
+ * initially rejected items perform no request and do not reject the batch.
+ * Completion does not guarantee every item was saved.
  *
  * URL construction stays pure; sequential network requests, synchronous file
  * access, and logging remain in this service shell. No Picker refresh or
  * authentication is performed here.
  *
- * @param {ReadonlyArray<{id: string, googleBaseUrl?: string}>} items Selected media with stable ids and optional base URLs.
+ * @param {ReadonlyArray<{id?: unknown, googleBaseUrl?: string} | null | undefined>} items Untrusted selected media; valid later items still run.
  * @returns {Promise<void>} Resolves after the sequential download attempts.
  */
 const downloadSyncMediaItems = async (items) => {
@@ -1362,20 +1434,21 @@ const downloadSyncMediaItems = async (items) => {
   }
   console.log(`Google Photos Service: Starting background download of ${items.length} media items...`);
   for (const item of items) {
-    const filePath = getLocalMediaFilePath(item.id);
-    if (!fs.existsSync(filePath)) {
-      try {
-        const url = buildGooglePhotoContentUrl(item.googleBaseUrl);
-        if (url) {
-          const res = await fetch(url);
-          if (res.ok) {
-            fs.writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));
-            console.log(`Google Photos Service: Successfully pre-downloaded item: ${item.id}`);
-          }
-        }
-      } catch (err) {
-        console.warn(`Google Photos Service: Failed to pre-download media for item ${item.id}:`, err.message);
-      }
+    try {
+      const id = item?.id;
+      const filePath = getLocalMediaFilePath(id);
+      assertLocalMediaPath(filePath);
+      if (fs.existsSync(filePath)) continue;
+      const url = buildGooglePhotoContentUrl(item?.googleBaseUrl);
+      if (!url) continue;
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      writeLocalMediaFile(filePath, Buffer.from(await res.arrayBuffer()));
+      console.log(`Google Photos Service: Successfully pre-downloaded item: ${id}`);
+    } catch (err) {
+      // Do not interpolate a rejected unknown id or let it terminate the batch.
+      console.warn('Google Photos Service: Failed to pre-download media item:', err && typeof err === 'object' && 'message' in err && typeof err.message === 'string'
+        ? err.message : typeof err === 'string' ? err : 'Unknown media failure');
     }
   }
 };
