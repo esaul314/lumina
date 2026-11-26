@@ -1012,7 +1012,9 @@ async function crawlAllCollections(
       return [category, retained];
     })
   );
-  const stampAcceptedPhotos = stampNewPhotos(currentTime);
+  const stampAcceptedPhotos = photos => stampNewPhotos(currentTime)(photos).map(photo => ({
+    ...photo, rating: photo.rating === undefined ? null : photo.rating
+  }));
 
   const matchesExclusion = (excludedList, item) => {
     if (!item || !item.title) return false;

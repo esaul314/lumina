@@ -4397,7 +4397,7 @@ assertTest('Google Photos cache lookup reads current storage and normalizes even
   assert.strictEqual(JSON.stringify(first), JSON.stringify(second));
   assert.notStrictEqual(first, second);
   first.rating = 2;
-  assert.strictEqual(second.rating, 10);
+  assert.strictEqual(second.rating, null);
   stored = JSON.stringify([{ ...second, rating: 8 }]);
   assert.strictEqual(fixture.findCachedMediaItem('photo').rating, 8);
   assert.deepStrictEqual(effects, ['read', 'write', 'read', 'read', 'read']);
@@ -4487,7 +4487,7 @@ assertTest('Google Photos cache read normalizes, filters, and keeps first usable
   assert.strictEqual(rows[0].addedAt, input[3].addedAt);
   assert.strictEqual(rows[0].createTime, input[3].createTime);
   assert.strictEqual(rows[0].customField.retained, true);
-  assert.strictEqual(rows[1].rating, 10);
+  assert.strictEqual(rows[1].rating, null);
   assert.strictEqual(rows[1].googleBaseUrl, undefined);
   assert.strictEqual(fixture.writes.length, 1);
   assert.strictEqual(fixture.writes[0].bytes, JSON.stringify(rows, null, 2));
@@ -5895,7 +5895,7 @@ assertTest('Picker cache construction projects a fixed fresh shape without sprea
     id: 'new', title: 'Google Photos Picker Cast', author: 'Lumina Google Cast', source: 'google_photos',
     url: '/api/google-photos/media/new?w=2560&h=1440', googleBaseUrl: '',
     googlePickerSessionId: 'session', googleBaseUrlFetchedAt: undefined, addedAt: '1970-01-01T00:00:00.000Z',
-    mimeType: 'image/jpeg', width: 2560, height: 1440, rating: 10,
+    mimeType: 'image/jpeg', width: 2560, height: 1440, rating: null,
     cropPercent: undefined, cropPositionY: undefined, preventPairing: undefined, loved: undefined
   });
   assert.notStrictEqual(row, item);
@@ -5958,7 +5958,7 @@ assertTest('Picker cache construction retains shallow user metadata without merg
       cropPercent: value, cropPositionY: value, preventPairing: value, loved: value, addedAt: 'retained'
     }));
     const row = build(Object.freeze({ id: 'edits', rating: 7, loved: true }), '', existing, 0);
-    assert.strictEqual(row.rating, value === undefined ? 10 : value);
+    assert.strictEqual(row.rating, value === undefined ? null : value);
     ['cropPercent', 'cropPositionY', 'preventPairing', 'loved'].forEach(field => assert.strictEqual(row[field], value));
     assert.strictEqual(existing.loved, value);
   });
@@ -7515,7 +7515,7 @@ assertTest('cached metadata matching decodes inputs but preserves strict cached 
     [' photo ', 'photo', false], [' photo ', '/api/google-photos/media/%20photo%20', true],
     ['other', '/api/google-photos/media/photo', false]
   ].forEach(([id, identifier, matches]) => {
-    const row = Object.freeze(googlePhotosCache.normalizeCachedMediaItem({ id, googleBaseUrl: 'https://fixture.invalid/photo' }));
+    const row = Object.freeze(googlePhotosCache.normalizeCachedMediaItem({ id, googleBaseUrl: 'https://fixture.invalid/photo', rating: 10 }));
     const metadata = Object.freeze({ rating: 10, title: 'ignored', loved: undefined });
     const fixture = createGooglePhotosServiceFixture({ cacheExists: () => true, read: () => JSON.stringify([row]) });
     const results = [fixture.updateMetadata(identifier, metadata), fixture.updateMetadata(identifier, metadata)];
@@ -7908,7 +7908,7 @@ assertTest('Cache normalization defaults only undefined ratings and accepts only
   const values = [undefined, null, false, 0, NaN, '', 'true', 1, true, Object.freeze({ value: true })];
   values.flatMap(rating => values.map(loved => Object.freeze({ id: 'metadata', rating, loved }))).forEach(row => {
     const result = normalizeCachedMediaItem(row);
-    assert.strictEqual(result.rating, row.rating === undefined ? 10 : row.rating);
+    assert.strictEqual(result.rating, row.rating === undefined ? null : row.rating);
     assert.strictEqual(result.loved, row.loved === true);
   });
 });
@@ -8942,7 +8942,7 @@ assertTest('correctly preserves rating during keyword auto-tagging', () => {
   ];
   const tagged = tagPhotosWithKeywords(photos);
   assert.strictEqual(tagged[0].rating, 8, 'Should preserve rating of 8');
-  assert.strictEqual(tagged[1].rating, 10, 'Should default rating to 10');
+  assert.strictEqual(tagged[1].rating, null, 'Missing human score stays unrated');
 });
 
 assertTest('never selects banned photos (rating = 1)', () => {
@@ -12268,7 +12268,7 @@ async function runIntegrationTests() {
     const response = await invokeRoute(app, 'patch', '/api/photos', {
       body: { url: 'land-1', rating: 11, get isBroken() { reads.push('broken'); return true; } }
     });
-    assert.deepStrictEqual(response, { status: 400, body: { error: 'Invalid parameter: "rating" must be an integer between 1 and 10.' } });
+    assert.deepStrictEqual(response, { status: 400, body: { error: 'Invalid parameter: "rating" must be null (unrated) or an integer between 1 and 10.' } });
     assert.deepStrictEqual(reads, ['broken']);
     assert.deepStrictEqual(dispatched, []);
     const { socketHandlers } = createSocketHarness({ dispatchCommand: async command => dispatched.push(command) });

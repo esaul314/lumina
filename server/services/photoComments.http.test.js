@@ -25,7 +25,7 @@ function loadRoutes(googleRows) {
   );
   return module.exports;
 }
-async function withHttp(run, { missingWriter = false, missingReader = false, failWrite = false, snapshotPath = null, googleRows = [structuredClone(g)] } = {}) {
+async function withHttp(run, { missingWriter = false, missingReader = false, failWrite = false, snapshotPath = null, persistRatings = false, googleRows = [structuredClone(g)] } = {}) {
   const dir = snapshotPath ? null : fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-comments-http-'));
   const jsonPath = snapshotPath ?? path.join(dir, 'collections.json');
   const collections = fs.existsSync(jsonPath)
@@ -39,7 +39,14 @@ async function withHttp(run, { missingWriter = false, missingReader = false, fai
   const io = { emit: (...args) => events.push(args) };
   const dispatcher = createDomainDispatcher({
     state, collections, io, getRuntimeContext: () => ({ externalCollections: { 'Google Photos': googleRows } }),
-    persistCollections() { throw new Error('Must not persist normal collections for a comment'); },
+    persistCollections(collections, state) {
+      if (!persistRatings) throw new Error('Must not persist normal collections for a comment');
+      saveCollectionsSnapshot({ jsonPath, collections, state });
+    },
+    persistExternalPhotoMetadata({ url, metadata }) {
+      const row = googleRows.find(row => row.url === url);
+      if (row) Object.assign(row, metadata);
+    },
     persistEnvVars() { throw new Error('Must not persist secrets'); },
     ...(!missingWriter ? { savePhotoComment: ({ url, comment }) => {
       if (failWrite) throw new Error('Injected persistence failure');
@@ -189,5 +196,51 @@ test('assembled comments survive real crawl/save, Google refresh and HTTP applic
       assert.equal((await f.request('GET', { url: a.url + '?new-identity=1' })).body.comment, '');
       assert.equal((await f.request('PATCH', { url: googleRows[0].url, comment: '' })).status, 200);
     }, { snapshotPath, googleRows }); // same durable path, reconstructed real HTTP app
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('explicit rating reset survives real HTTP, durable reconstruction and Google refresh without losing comments', async () => {
+  const { decodePhotoRatingCommand } = require('../domain/commands.js');
+  const { selectWeightedRandomPhoto, filterVisiblePhotos } = require('../domain/selectors.js');
+  const { normalizeCachedMediaItem, buildCachedMediaItem } = require('./googlePhotosCache.js');
+  const { projectPhotoRatingUpdate } = require('../config/collectionPhotoUpdaters.js');
+  const reset = decodePhotoRatingCommand({ url: a.url, rating: null });
+  assert.equal(reset.payload.rating, null);
+  [undefined, NaN, 0, 11, 'bad'].forEach(rating => assert.equal(decodePhotoRatingCommand({ url: a.url, rating }), null));
+  assert.equal(projectPhotoRatingUpdate(null).updater(a).rating, null);
+  assert.equal(projectPhotoRatingUpdate('8suffix').rating, 8); // legacy coercion retained
+  assert.equal(buildCachedMediaItem({ id: 'new' }, '', {}, 0).rating, null);
+  assert.equal(normalizeCachedMediaItem({ id: 'new' }).rating, null);
+  assert.equal(normalizeCachedMediaItem({ id: 'legacy', rating: 10 }).rating, 10);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-unrated-'));
+  const snapshotPath = path.join(dir, 'collections.json'), googleRows = [structuredClone(g)];
+  try {
+    await withHttp(async f => {
+      await f.request('PATCH', { url: a.url, comment: 'PRIVATE_RATING_NOTE' });
+      for (const url of [a.url, g.url]) {
+        for (const rating of [4, null]) {
+          const result = await f.request('PATCH', { url, rating }, '/api/photos');
+          assert.equal(result.status, 200);
+          assert.equal(result.body.photo.rating, rating);
+        }
+      }
+      assert.equal(f.collections.A[0].rating, null);
+      assert.equal(JSON.parse(fs.readFileSync(snapshotPath, 'utf8')).feeds.A[0].rating, null);
+      assert.equal((await f.request('PATCH', { url: a.url }, '/api/photos')).status, 404);
+      assert.equal((await f.request('PATCH', { url: a.url, rating: 11 }, '/api/photos')).status, 400);
+      const updated = mergeSyncedMediaItems([{ ...g, googleBaseUrl: 'refreshed', rating: 10 }], googleRows);
+      googleRows.splice(0, googleRows.length, ...updated);
+      assert.equal(googleRows[0].rating, null);
+      assert.equal(f.store.read(a).comment, 'PRIVATE_RATING_NOTE');
+      assert.ok(!JSON.stringify(f.dispatcher.refreshSnapshot()).includes('PRIVATE_RATING_NOTE'));
+    }, { snapshotPath, googleRows, persistRatings: true });
+    await withHttp(async f => {
+      assert.equal(f.collections.A[0].rating, null);
+      assert.equal(f.store.read(a).comment, 'PRIVATE_RATING_NOTE');
+    }, { snapshotPath, googleRows, persistRatings: true });
+    const rows = [{ url: 'unrated', rating: null }, { url: 'explicit', rating: 10 }, { url: 'banned', rating: 1 }, { url: 'broken', rating: null, isBroken: true }];
+    assert.deepEqual(filterVisiblePhotos(rows).map(row => row.url), ['unrated', 'explicit']);
+    assert.equal(selectWeightedRandomPhoto({ photos: rows, rng: () => 0.25 }).url, 'unrated');
+    assert.equal(selectWeightedRandomPhoto({ photos: rows, rng: () => 0.75 }).url, 'explicit');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

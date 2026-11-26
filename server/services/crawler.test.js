@@ -583,3 +583,55 @@ test('legacy assertTest callbacks contain no async functions (AST inventory)', (
   visit(source);
   assert.deepEqual(violations, [], 'Use assertAsyncTest or node:test so asynchronous assertions are awaited');
 });
+
+// Exercise live ingestion as well as its immutable serialization/reconstruction.
+for (const seam of ['manual recrawl', 'daily refresh']) {
+  test(`${seam} admits unrated photos consistently in live, broadcast and durable collections`, async () => {
+    const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
+    const { executeRecrawlPass } = require('../jobs/recrawl.js');
+    const { createEnvironmentRefreshRuntime } = require('../runtime/environmentRefresh.js');
+    const { buildBalancedFeed } = require('../domain/selectors.js');
+    const { syncLegacySnapshot } = require('../domain/snapshot.js');
+    const { saveCollectionsSnapshot, loadCollectionsSnapshot } = require('../config/collectionsCodec.js');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-crawl-unrated-'));
+    const jsonPath = path.join(dir, 'collections.json'), emissions = [];
+    const legacy = [10, false, null].map((rating, index) => ({ url: `https://example.test/old-${index}`, rating, loved: true }));
+    const collections = { A: structuredClone(legacy) };
+    const state = { currentCategory: 'A', photosList: [], widgets: {}, feedConfigs: {}, searchKeywords: {}, poolPolicies: {}, excludedKeywords: [] };
+    const feed = () => buildBalancedFeed({ selectedCategories: ['A'], collections });
+    let calls = 0;
+    const fetchImpl = async () => ++calls === 1 ? unsplash('new-unrated') : ok({ results: [] });
+    const crawler = isolatedCrawler(fetchImpl);
+    const options = {
+      state, collections, jsonPath,
+      crawlCollections: rows => crawler.crawlAllCollections(rows, { A: { unsplash: { enabled: true, keywords: ['fixture'] } } },
+        null, [], null, () => new Date('2026-11-26T00:00:00Z'), { fetchImpl }),
+      persistCollections: (rows, current, extra) => saveCollectionsSnapshot({ jsonPath, collections: rows, state: current, ...extra }),
+      broadcastStateSync: () => emissions.push(structuredClone(syncLegacySnapshot(state, collections))),
+      triggerImageAnalysisBackground: async () => {}
+    };
+    try {
+      if (seam === 'manual recrawl') {
+        await executeRecrawlPass({ ...options, buildActiveFeed: feed, getActiveCategories: () => ['A'] });
+      } else {
+        await createEnvironmentRefreshRuntime({ ...options,
+          activeFeedRuntime: { refreshActiveFeed: () => { state.photosList = feed(); } },
+          now: () => 2000000000000, log: { log() {}, warn() {}, error() {} }
+        }).updateFeedsDaily();
+      }
+      const url = collections.A.find(row => row.url.includes('new-unrated')).url;
+      const disk = JSON.parse(fs.readFileSync(jsonPath, 'utf8')).feeds.A;
+      const reconstructed = loadCollectionsSnapshot({ jsonPath, defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).collections.A;
+      for (const rows of [collections.A, state.photosList, emissions.at(-1).photosList, disk, reconstructed]) {
+        const admitted = rows.find(row => row.url === url);
+        assert.ok(Object.hasOwn(admitted, 'rating'));
+        assert.equal(admitted.rating, null, `${seam} must publish canonical null before restart`);
+        assert.ok(admitted.addedAt);
+      }
+      for (const rows of [collections.A, disk, reconstructed]) assert.deepEqual(rows.slice(0, 3), legacy.map(row => ({ ...row, category: 'A' })));
+      assert.equal(emissions.length, 1);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
