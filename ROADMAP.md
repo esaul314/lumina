@@ -188,6 +188,60 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
 - Keep transport-parity tests so REST and Socket.IO adapters continue to produce the same command semantics during the migration window.
 - The ordered cleanup sequence for this Phase 1 implementation workstream lives in [FUNCTIONAL_REFACTOR_ROADMAP.md](./FUNCTIONAL_REFACTOR_ROADMAP.md); its step numbering is local to that companion artifact.
 
+### Selected milestone: private photo comments — 2026-11-25
+
+**Accepted, source-only.** Delivered a complete local curation workflow, not a single small
+roadmap step: (1) stable comment identity and durable private metadata;
+(2) validated shared command/REST access; (3) accessible admin create/read/edit/
+clear controls beside ratings; (4) integrated refresh, reconstruction and privacy
+qualification. All four outcomes and the assembled workflow are independently
+accepted; the live release is unchanged.
+
+**Design decisions:** one comment per image across pools, independent of ratings,
+captions and AI text. Google proxy media IDs survive signed-URL refresh; other
+images use exact stored URLs (no guessed URL canonicalization or pool-identity
+migration). Keep a versioned private dictionary in the existing collection
+snapshot, outside photo rows and normal REST/Socket/TV snapshots. Plain text,
+2,000-code-unit limit, empty text clears. The existing trusted-local admin API is
+the access boundary, not newly introduced user authentication or encryption.
+Retain orphaned comments without destructive pruning; changed public URLs need a
+future explicit identity migration. Supported refresh/dedup/save paths must retain
+comments. Source-only: no deployment, live data edits or public sharing.
+
+**Storage review insight:** protecting only comment edits is insufficient when
+normal collection saves and startup deduplication share the same file. All three
+writers must use atomic replacement; partial-write/rename failures retain the
+previous readable document. Restart qualification must inspect the stored file,
+with legacy duplicates seeded after earlier deduplicating serializers, not merely
+check normalized memory. Generated identity keys must round-trip through the
+private codec, including encoded delimiters and line terminators. Direct-module
+checking supplements a baseline checker that has not yet imported new modules.
+
+**Access/editor decisions:** private storage identity is stable, but the admin API
+authorizes only currently known curated/external photo URLs, not arbitrary
+previews or guessed Google aliases. A current refreshed Google URL resolves the
+same comment; removed photos retain annotations without exposing orphan lookup.
+Keep drafts per selected photo inside the open admin tab, read before enabling
+edits, and isolate delayed reads/saves across the two portrait selections. Failed
+saves/clears retain the draft and report failure; navigating away/reloading does
+not preserve unsaved drafts. No comment mutation emits normal state-sync.
+
+**Acceptance and limits:** the [retained assembled regression](./server/services/photoComments.http.test.js)
+covers the real command/API/store across offline crawl/save, persisted startup
+cleanup, Google URL refresh and same-file HTTP application reconstruction. The
+[headless journeys](./test_slideshow.js) include create/edit/clear/reload, failures,
+portrait draft isolation and a fresh real Socket privacy receipt. Full tests, lint
+and twenty browser journeys pass; independent review verified the repaired
+disabled-cleanup oracle. Existing strict checking remains non-green, with five
+newly reachable existing Google-cache diagnostics (177 core / 26 transitive).
+This is not production restart, full Google-service recovery, physical-TV or
+hostile-client security qualification. No rollout was performed.
+
+**Future decisions, not this milestone:** public-URL identity migration, live
+comment synchronization/conflict detection and persistent draft recovery should
+be selected only when real operator needs justify their added state/complexity.
+No automatic next milestone or task-specific reminder is commissioned.
+
 ### Metadata foundation
 
 - Introduce canonical `rating: null` for unrated assets.
@@ -201,12 +255,10 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - optional description or caption
   - provenance and source flags
   - visibility and share eligibility
-- Add admin-authored comments alongside image ratings: create, view, edit, and
-  clear a comment without changing the rating. Define stable image identity and
-  source-specific persistence, including Google Photos metadata preservation;
-  keep comments distinct from captions and AI descriptions and private by
-  default. Preserve them through refresh, deduplication, and restarts, and
-  explicitly decide how comments follow an image belonging to multiple pools.
+- **Delivered source-only:** admin-authored comments alongside image ratings,
+  distinct from captions and AI descriptions and private by default. One comment
+  follows the same identity across pools and supported refresh/reconstruction;
+  see the [accepted milestone and explicit limits](#selected-milestone-private-photo-comments--2026-11-25).
 
 ### Advisory AI metadata
 

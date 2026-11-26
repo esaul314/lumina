@@ -1,5 +1,49 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-25 — private photo comments as an integrated milestone
+
+A milestone delivers a user capability through multiple substantive outcomes,
+not one granular repair with a larger label. This work spans stable identity and
+private persistence, a validated command/REST boundary, the admin editor and
+assembled refresh/reconstruction/privacy qualification. The earlier bounded
+weather lookup was a useful roadmap step, despite its historical milestone label.
+
+Keep the pure core small: identity and immutable private-document updates describe
+data; the existing dispatcher interprets one explicit persistence effect. Store
+comments outside open photo rows so normal projections never acquire private
+text. Google IDs and exact public URLs are storage identity; current known-photo
+lookup is a separate access decision, not permission to guess every alias.
+
+Independent failure injection found that protecting only the new writer was
+insufficient: every writer of the shared collection file must use atomic
+replacement. Reuse one existing-module helper instead of adding a database or
+second write owner. Generated keys must round-trip through the document codec,
+including line terminators and reserved names. Directly check new modules when
+the main compiler graph cannot yet reach them. Report newly reachable existing
+diagnostics separately from new defects; count headers/line shifts are not errors.
+
+The React shell keeps per-photo drafts local to its mounted tab. Read before edit;
+associate asynchronous results with their captured URL and suppress obsolete reads.
+Retain drafts on read/save/clear failures and validate successful response shapes.
+No private Socket fallback or shared-state field is needed. Existing headless
+fixtures now exercise the real private route, interpreter and temporary file.
+An observed cold-fetch race in an old 80 ms loopback test was fixed by readiness
+warmup and a 500 ms fixture-only deadline, not a production timeout change. The
+weather fixture received the same readiness discipline, an explicit admission-vs-
+deadline failure and listener-first cleanup instead of an unbounded admission wait.
+
+A four-node dependency graph is useful here; it does not make tests/review separate
+administrative tasks or prove productivity gains. Retain rejected candidates,
+reuse only exact relevant evidence, and enrich the living roadmap at discoveries
+and integrated acceptance. A final review caught a false startup-cleanup claim:
+normal save had already deduplicated the fixture. Seed the persisted duplicate
+after serialization and assert the on-disk result, not just normalized memory;
+a cleanup-disabled control must fail. Shared-writer, annotation and fixture rework
+are real costs. The assembled capability is independently accepted with the
+repaired durable oracle and existing evidence reused only for unchanged inputs.
+Source acceptance is not deployment or physical-TV validation.
+
+
 ## 2026-11-25 — bounded weather location and provider suitability
 
 The automatic-location milestone uses a pure unknown-to-location projection and

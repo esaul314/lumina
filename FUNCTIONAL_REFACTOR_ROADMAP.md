@@ -1,6 +1,6 @@
 # Lumina Functional Refactor Roadmap
 
-Last updated: 2026-11-24
+Last updated: 2026-11-25
 
 ## Purpose
 
@@ -223,6 +223,13 @@ Acceptance criteria:
 ### Step 6: Prepare the codebase for TypeScript without a premature rewrite
 
 Current checkpoint (2026-11-25): **Rating/broken transport-contract pilot accepted at the source/test boundary.** Two nullable decoder results now expose their exact canonical Command variants; the canonical payload remains optional. Typed composition must guard both command and payload instead of silently strengthening the global vocabulary.
+
+The separate [private-comments product milestone](./ROADMAP.md#selected-milestone-private-photo-comments--2026-11-25)
+extends the canonical vocabulary with `set-photo-comment` and `save-photo-comment`
+without adding private fields/events to shared snapshots. Its integrated acceptance
+and limits belong to the product roadmap; this does not close Step6 or recommission
+broader strict cleanup. The identity import reaches five existing Google-cache
+diagnostics: current 177 core / 26 transitive, not a green or unchanged whole graph.
 
 Existing compiler/runtime owners preserve coercive ratings, inherited/accessor/native failures, awaited rating-before-broken dispatch and broken response rating1 precedence independent of request key order. REST batch decoding evaluates optional specs before collecting failures: invalid input dispatches nothing, while a later native accessor failure retains its existing precedence. REST PATCH trims URL upstream; Socket validates but preserves raw spelling. Shared command parity must not erase transport preprocessing differences.
 

@@ -20,7 +20,7 @@ It is designed for a dedicated HTPC or living-room display running GNOME/Mutter.
 ## What it does
 
 - **Ambient TV view** — cross-faded wallpapers, clock and weather widgets, optional bokeh, atmospheric overlays, themes, crop controls, and portrait split-screen presentation.
-- **Remote control** — a responsive mobile UI for categories, pools, ratings, loved photos, feed sources, system settings, screensaver control, and Google Photos.
+- **Remote control** — a responsive mobile UI for categories, pools, ratings, private photo comments, loved photos, feed sources, system settings, screensaver control, and Google Photos.
 - **Many image sources** — configurable combinations of Reddit, Tumblr, Unsplash, Wallhaven, Lorem Picsum, Bing, NASA APOD, the Metropolitan Museum of Art, the Art Institute of Chicago, and AI-oriented sources. Provider availability and credentials vary by feed.
 - **Mood-aware selection** — Open-Meteo weather and Google News RSS sentiment can influence the visual atmosphere. Manual location settings are supported, with an optional IP-geolocation fallback.
 - **Local environment telemetry** — an Ecowitt-compatible LAN HTTP adapter reads indoor temperature, humidity, and pressure; hourly readings can be retained in SQLite and exported for analysis.
@@ -125,6 +125,41 @@ Some integrations are keyless; others are optional:
 
 Feeds are network-dependent and can be rate-limited or unavailable. A failed provider should reduce that provider’s contribution, not invalidate the local collection.
 Review each provider’s terms, rate limits, attribution requirements, and image licensing before enabling a feed for anything beyond personal use.
+
+### Private photo comments
+
+In **Remote → Direct Control**, select the image (left/right for a portrait pair)
+and use **Private photo comment** beside its rating. Read, create, edit, save or
+clear plain text independently of ratings, loved status, captions and AI text.
+Comments are not included in normal REST photo/state responses or Socket/TV
+snapshots. This capability is implemented in source; this work did not deploy it.
+
+`GET /api/admin/photo-comment?url=<encoded-current-photo-url>` returns
+`{key, comment}`. `PATCH /api/admin/photo-comment` takes `{url, comment}` and returns
+`{success: true, key, comment}` only after persistence completes. Text must be a
+string of at most 2,000 UTF-16 code units before trimming; empty text clears.
+Missing/invalid input is 400, an unknown current URL 404, missing comment adapters 503
+(the shared route retains 501 for a missing dispatcher), and storage failure 500.
+Failed reads do not enable blind edits; failed saves/clears retain the draft for
+retry. Selection changes keep separate drafts; reloading or leaving Direct Control
+loses unsaved drafts. Saved entries are cached only for the open tab lifetime;
+this is not live multi-client synchronization or conflict detection. Concurrent
+accepted writes are last-writer-wins.
+
+A private, versioned `privatePhotoComments` section in `curated_collections.json`
+keeps one comment per identity across pools. Google proxy media IDs survive
+render/signed-URL refresh; other images use exact stored URLs. Changed public URLs
+are new identities. Normal saves, crawl updates and startup dedup retain comments;
+removed photos' annotations are retained without destructive pruning, but the API
+only exposes currently known curated/external photo URLs, not arbitrary previews
+or guessed aliases. Corrupt/unsupported private documents refuse edits. All
+collection-file replacements use the same temporary-write/rename boundary;
+ordinary write/rename failure preserves the original, without promising power-loss
+transactions or multi-process locking. Include this existing file in backups.
+
+“Private” means local curation metadata excluded from shared snapshots, not
+new authentication, encryption or network-access control. Existing trusted-local
+admin access remains the boundary. Do not expose this API as a public service.
 
 ### Ecowitt-compatible sensors
 
