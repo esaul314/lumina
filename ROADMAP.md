@@ -200,6 +200,25 @@ Goal: make Lumina locally coherent, transport-clean, and ready for richer metada
   - Cached metadata hardening follow-up: choose normalization/write atomicity and metadata validation explicitly; normalization can persist before invalid inputs fail, !== treats NaN and equal-looking objects as changes, and returned unvalidated values may normalize differently on reread. Keep policy changes separate from contract work.
   - Live metadata hardening follow-up: decide identifier normalization and atomicity separately; decoded input ids and row ids trim differently, truthy row ids bypass URLs, and active-frame failures can leave committed list/field updates. Accessor effects are not rolled back.
   - Security follow-up: validate media ids and enforce media-directory containment before filesystem access in the media proxy and background download paths; path construction alone does not provide that guarantee. Track this separately from behavior-preserving contracts.
+    **SOURCE ACCEPTED2026-11-26 after independent review:** reject unknown or
+    path-bearing IDs before cache/network access; confine proxy reads and
+    background writes to the configured media directory. Preserve valid opaque
+    IDs/current data without identity migration. Reject symlink/nonregular/
+    multiply-linked targets and observed root symlinks, use no-follow descriptors
+    at I/O, and isolate invalid downloader items so later valid items recover.
+    Qualify actual HTTP/service/downloader paths with outside sentinels and
+    boundary-disabled negative controls. Configured directory ancestry is
+    trusted against concurrent local replacement; no general filesystem sandbox,
+    identity/schema migration, new retry framework or unrelated security sweep.
+    Read-only compatibility inventory: all3515cached IDs fit the opaque grammar;
+    2049current files are regular/single-link, and the media root is not a link.
+    Actual HTTP/service/downloader sentinels and disabled-boundary controls pass;
+    independent review accepts35media cases plus4additional FIFO/hardlink/root
+    probes. Full957shared assertions/297native cases and lint pass.
+    configured strict debt203/expanded893 unchanged, direct service debt36→35.
+    Configured ancestry replacement by local code stays excluded; no claim of
+    hostile same-user isolation. No identity migration or transactional cache
+    promise. Source-only: no provider/config/live data/deploy/restart/push change.
   - Media retrieval hardening follow-up: choose bounded network/decoding failure recovery, refreshed-token reuse, consistent empty-byte handling, validated MIME values, and thrown-value normalization explicitly. Current retries retain the original token/hint, and prior cache/byte writes survive later failures; keep policy changes separate from contract-only work.
   - Step 6 acceptance audit (2026-10-25): the shared Effect vocabulary now includes the already-emitted/handled `refresh-active-feed`; four regressions cover vocabulary parity, payload/result aliases, absent adapters, and rejected refresh ordering. Core contracts remain incomplete; this is not a TypeScript compilation claim or Phase 1 closeout.
   - Done: Step 6 reducer/dispatcher execution and result contracts are explicit, with seven regressions and no executable production changes. Defaults, identity, ordered effects, and pre-effect snapshots remain unchanged.

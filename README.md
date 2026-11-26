@@ -252,6 +252,24 @@ configurable from the remote.
 
 ### Google Photos
 
+Local cached media accepts only nonempty opaque IDs made of ASCII letters,
+digits, `_` and `-`; it never coerces, trims or decodes a service input. Valid
+IDs keep their existing `<id>.jpg` names. The HTTP router's normal single URL
+decoding is followed by the same validation; encoded/double-encoded path
+vocabulary is rejected, not treated as an alternate identity.
+
+Cache I/O rejects observed media-root symlinks and symlink/non-regular/multiply
+linked files. Reads and writes own no-follow, nonblocking descriptors and validate
+the opened file before reading or truncating; writes recheck after network awaits.
+Rejected initial IDs/targets make no provider request; a bad background-download
+item is logged without stopping later valid items. Local filesystem failures
+remain failures, not a new retry or transactional cache subsystem.
+
+The configured directory ancestry is trusted and must not be concurrently
+renamed/replaced by another local writer. These checks are not an openat sandbox
+against hostile same-user code, nor new admin authentication. Cache identities,
+provider metadata and existing data are not migrated.
+
 The remote can register Google OAuth credentials, complete the local OAuth flow, and use the Google Photos picker. Set `GOOGLE_REDIRECT_URI` in the server environment to the exact trusted absolute HTTPS callback URL registered with the Google OAuth client; HTTP is accepted only for loopback development (`localhost`, `127.0.0.0/8`, or `::1`). It must end in `/api/auth/google/callback`. Lumina never derives that URL from request or forwarded host headers. Each real authorization is bound to the initiating browser with a short-lived, one-time state challenge. The development sandbox callback remains local. Selected media is cached as an external collection and proxied by the server so the TV can display it without exposing provider tokens to the browser.
 
 ## REST API surface

@@ -7212,3 +7212,23 @@ Prepare both weather projections before publishing either. Normalize caught
 non-Error values in the refresh error boundary. Offline acceptance uses actual
 route/app composition plus warmed native headers/body stalls and an intentionally
 disabled deadline that must fail the settlement oracle; no provider call needed.
+
+
+## 2026-11-26 — Opaque media IDs and confined local cache I/O
+
+Separate unknown-to-opaque-ID validation from filesystem effects. Reject before
+metadata normalization, credentials or requests; do not coerce, trim or repeatedly
+decode a path-bearing identifier. Preserve valid IDs and filenames rather than
+inventing aliases or migrating source identity. Keep URL vocabulary recognition
+separate from the filesystem trust boundary.
+
+Lexical confinement alone does not stop links. Validate the media root and
+existing targets, open no-follow/nonblocking, validate fstat before bytes or
+truncation, and close the owned descriptor in finally. Exclude multiply linked
+files to avoid clobbering another name. Recheck targets after asynchronous body
+reads, while stating the configured-ancestry/local-writer trust assumption.
+Keep path checks inside downloader per-item recovery so one rejected item does
+not terminate the batch. Actual HTTP/service/download fixtures use outside
+sentinels and disabled-boundary controls to establish oracle sensitivity.
+A test fixture must own OAuth configuration explicitly rather than inherit the
+private environment: a deployed trusted callback exposed that old test leak.
