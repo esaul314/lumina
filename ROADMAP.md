@@ -13,7 +13,8 @@ admin refresh is needed for this backend fix. Private configuration is unchanged
 Rollback1.1.1 data compatibility is qualified in disposable files; it would lose
 the new containment enforcement. No live downgrade, Google account operation or
 physical-TV acceptance is claimed. Configured ancestry/local-writer trust limits
-and existing strict/security deferrals remain. No further milestone is selected.
+and existing strict/security deferrals remain. This release selected no further
+work; separately commissioned Direct Control density work is recorded below.
 
 ## Previous release — 1.1.1
 
@@ -337,11 +338,31 @@ source acceptance does not commission deployment. See [interaction design guidan
 
 ### Direct Control: reclaim rating/comment space — feedback 2026-11-26
 
-**High priority; open, not implemented.** User feedback on the released admin
+**SOURCE ACCEPTED; independently reviewed, not deployed or pushed.** User feedback on the released admin
 Direct Control page: excessive empty space separates the rating numbers from
 the divider immediately above "Add comment"; the separate "No comment" row
 also consumes valuable vertical space for the usual, uncommented photo.
 The earlier progressive-disclosure delivery above does not close this finding.
+Built baseline measurement found64px between rating numbers and divider: the
+card gap stacks with fieldset, section and disclosure margins. Use one local
+curation spacing owner instead of compensating negative margins. The clean-empty
+live region stays mounted but has no text, margin or height; loading/failure is
+not absence. Desktop Direct Control also squeezed ten targets below44px; select
+rating columns from the shared control's available width, not viewport width.
+Scope excludes header redesign, new state/settings/API, identity changes and any
+release/live-write work. Acceptance requires actual before/after built geometry
+and retained meaningful cues, not just deleting the words "No comment".
+The candidate measures64→8px rating/divider gap and83→45px clean comment section.
+At320/375px the curation-through-navigation region is98px shorter; desktop saves
+50px while correcting the formerly undersized rating targets. Following controls
+rise114px mobile/66px desktop including removed outer margins. Both portrait sides
+and expanded editors preserve the same improvements. Native disclosure/focus,
+clean-empty, saved, dirty-clear, loading/saving/failure/retry and delayed-side
+isolation pass isolated built checks. Old built "No comment" fails the new oracle.
+These measurements qualify the card, not the deferred global header or physical
+assistive/touch devices. Independent visual/behavior review accepted all18 paired
+measurements and focused state/focus/container probes. Rollout requires separate
+authority; live release remains unchanged.
 
 - Remove purposeless vertical space between rating controls and the comment
   divider/disclosure. Inspect actual computed layout before assigning a cause;

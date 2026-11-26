@@ -1,5 +1,23 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-26 — measure density at the component boundary
+
+Flex gaps and nested margins add rather than collapse. Measure the built rating
+edge, divider and section before choosing a correction; one local curation gap
+replaces four competing spacing contributions without negative-margin patches.
+Keep a polite live region mounted for later meaningful changes, but let its
+clean-empty text and box be empty; loading/error is not a successful empty read.
+Use the shared rating control's available width, not viewport width, to choose
+columns: ten 44px targets plus nine 4px gaps require 476px. This preserves touch
+size in narrow desktop cards as well as mobile and Image Feeds.
+
+Extend the existing isolated browser journey rather than adding a UI framework:
+check zero reserved geometry, disclosure/focus, dirty-clear and failure cues,
+portrait response isolation, then run the same oracle against old built assets.
+Paired screenshots need the same reachable scroll anchor; aligning both pages to
+their bottoms hides reclaimed viewport area. The [selected density milestone](./ROADMAP.md#direct-control-reclaim-ratingcomment-space--feedback-2026-11-26)
+owns product scope and review, not a physical-device or release claim.
+
 ## 2026-11-26 — canonical live admission and quieter curation
 
 A pure serialization projection can normalize saved copies while leaving live
