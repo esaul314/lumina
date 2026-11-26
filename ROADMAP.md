@@ -2,7 +2,21 @@
 
 Last updated: 2026-11-26
 
-## Current release — 1.1.2
+## Current release — 1.1.3
+
+Released 2026-11-26 from the accepted compact Direct Control milestone. Fresh
+isolated build, 25 browser journeys and all 18 density combinations pass. Native
+rollout and read-only live API/socket/admin checks verify the served assets,
+8px rating/divider gap, zero-height clean-empty status and 44px minimum targets
+at narrow and desktop widths. Existing admin pages need a normal refresh for
+new frontend code. Automatic intent stayed automatic; activation was not forced.
+Photos/comments/history and private configuration were retained. Exact1.1.2
+rollback assets and reader/writer compatibility are qualified; no live downgrade,
+physical-TV/touch/assistive-device or Google account acceptance is claimed.
+Header redesign and existing compiler debt remain deferred. No next sprint is
+commissioned by this release record.
+
+## Previous release — 1.1.2
 
 Released2026-11-26 from accepted local Google Photos media containment.
 Native restart, exact source/runtime/served artifacts, existing cached-media
@@ -338,7 +352,7 @@ source acceptance does not commission deployment. See [interaction design guidan
 
 ### Direct Control: reclaim rating/comment space — feedback 2026-11-26
 
-**SOURCE ACCEPTED; independently reviewed, not deployed or pushed.** User feedback on the released admin
+**Accepted, independently reviewed and released in 1.1.3.** User feedback on the released admin
 Direct Control page: excessive empty space separates the rating numbers from
 the divider immediately above "Add comment"; the separate "No comment" row
 also consumes valuable vertical space for the usual, uncommented photo.
@@ -361,8 +375,9 @@ clean-empty, saved, dirty-clear, loading/saving/failure/retry and delayed-side
 isolation pass isolated built checks. Old built "No comment" fails the new oracle.
 These measurements qualify the card, not the deferred global header or physical
 assistive/touch devices. Independent visual/behavior review accepted all18 paired
-measurements and focused state/focus/container probes. Rollout requires separate
-authority; live release remains unchanged.
+measurements and focused state/focus/container probes. Separately authorized
+1.1.3 rollout and read-only live geometry checks subsequently passed; existing
+admin pages load the new frontend after a normal refresh.
 
 - Remove purposeless vertical space between rating controls and the comment
   divider/disclosure. Inspect actual computed layout before assigning a cause;
