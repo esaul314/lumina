@@ -118,7 +118,7 @@ function saveCuratedCollections(collections, state, options = {}) {
  * @param {PhotoState | null | undefined} state
  * @param {string} url
  * @param {PhotoUpdater} updater
- * @param {number} [optionalRating]
+ * @param {number | null} [optionalRating]
  * @returns {boolean}
  */
 function updatePhotoField(collections, state, url, updater, optionalRating) {

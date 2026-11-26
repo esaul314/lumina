@@ -32,7 +32,7 @@ const { updatePhotoInCollections } = require('../domain/selectors.js');
  * @param {PhotoUpdateState | null | undefined} state
  * @param {string} url
  * @param {PhotoUpdater} updater
- * @param {number | undefined} optionalRating
+ * @param {number | null | undefined} optionalRating
  * @returns {PhotoFieldUpdatePlan}
  */
 const projectPhotoFieldUpdate = (collections, state, url, updater, optionalRating) => {

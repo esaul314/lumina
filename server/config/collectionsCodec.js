@@ -110,6 +110,7 @@ function cloneCollectionEntries(collections = {}) {
             .filter((photo) => photo?.url && !isDisallowedUnsplashPhoto(photo))
             .map((photo) => normalizePhotoTimestamp({
               ...photo,
+              rating: photo.rating === undefined ? null : photo.rating,
               category: photo.category ?? category
             }))
         : []

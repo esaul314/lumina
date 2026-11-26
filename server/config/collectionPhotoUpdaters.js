@@ -2,17 +2,17 @@
 
 /** @typedef {Record<string, unknown> & {url?: unknown}} PhotoRecord */
 /** @typedef {(photo: PhotoRecord) => PhotoRecord} PhotoUpdater */
-/** @typedef {{rating: number, updater: PhotoUpdater}} PhotoRatingUpdate */
+/** @typedef {{rating: number | null, updater: PhotoUpdater}} PhotoRatingUpdate */
 
 /**
  * Project the legacy rating parser and its data-last immutable updater.
- * `parseInt` coercion is intentionally preserved for existing callers.
+ * `parseInt` coercion is preserved; explicit null clears a human score.
  *
  * @param {unknown} rating
  * @returns {PhotoRatingUpdate}
  */
 const projectPhotoRatingUpdate = (rating) => {
-  const parsedRating = parseInt(/** @type {string} */ (rating), 10);
+  const parsedRating = rating === null ? null : parseInt(/** @type {string} */ (rating), 10);
   return {
     rating: parsedRating,
     updater: (photo) => ({ ...photo, rating: parsedRating })
