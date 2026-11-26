@@ -22,8 +22,8 @@ export const formatPoolSchedule = (schedule = {}) => schedule?.enabled
  * @returns {PoolLifecycleSummary}
  */
 export const formatPoolLifecycleSummary = ({ retentionDays, maxPhotos, schedule } = {}) => ({
-  retention: `${retentionDays} days`,
-  maximum: `${maxPhotos} photos`,
+  retention: `Age: ${retentionDays} days`,
+  maximum: `Target: ${maxPhotos} photos`,
   schedule: formatPoolSchedule(schedule)
 });
 

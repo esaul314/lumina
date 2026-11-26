@@ -164,6 +164,8 @@ function ImageFeedsTab({
 }) {
   const [keywordInput, setKeywordInput] = useState('');
   const [policyDrafts, setPolicyDrafts] = useState({});
+  const [policySaves, setPolicySaves] = useState({});
+  const policyRequestsRef = useRef({});
   const [usablePhotoCounts, setUsablePhotoCounts] = useState({});
   const policyDraftsRef = useRef({});
   const [localCrop, setLocalCrop] = useState(50);
@@ -278,8 +280,31 @@ function ImageFeedsTab({
     const nextDrafts = mergePoolPolicyDraft(poolPolicy)(policyDraftsRef.current, category, field, value);
     policyDraftsRef.current = nextDrafts;
     setPolicyDrafts(nextDrafts);
+    setPolicySaves(current => ({ ...current, [category]: 'Draft — not saved' }));
   };
-  const savePoolPolicy = (category) => actions.updatePoolPolicy(category, getDraftPolicy(policyDraftsRef.current, category));
+  const savePoolPolicy = async (category) => {
+    // ponytail: serialize each pool, retaining newer edits instead of a save queue.
+    if (policyRequestsRef.current[category]) return;
+    const submitted = policyDraftsRef.current[category];
+    if (!submitted) return;
+    policyRequestsRef.current[category] = submitted;
+    setPolicySaves(current => ({ ...current, [category]: 'Saving…' }));
+    try {
+      const confirmed = await actions.updatePoolPolicy(category, submitted);
+      if (policyDraftsRef.current[category] !== submitted) return;
+      const nextDrafts = { ...policyDraftsRef.current, [category]: confirmed };
+      policyDraftsRef.current = nextDrafts;
+      setPolicyDrafts(nextDrafts);
+      setPolicySaves(current => ({ ...current, [category]: 'Saved' }));
+    } catch {
+      setPolicySaves(current => ({ ...current, [category]:
+        'Save not confirmed. Draft kept; retry. The server may have applied it in memory.' }));
+    } finally {
+      delete policyRequestsRef.current[category];
+      // Render the newly available retry even when a newer edit superseded the save.
+      setPolicySaves(current => ({ ...current }));
+    }
+  };
   const handleFocusPanel = (panelId, control) => {
     focusOriginRef.current = control;
     setPanelState((state) => enterImageFeedsPanelFocus(state, panelId));
@@ -382,7 +407,7 @@ function ImageFeedsTab({
         <section className="pool-lifecycle-section" aria-labelledby="pool-lifecycle-title">
           <span id="pool-lifecycle-title" className="remote-section-title">Pool Lifecycle</span>
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.78rem', margin: '4px 0 12px' }}>
-            New photos age out automatically. Loved photos and legacy photos without an acquisition date are kept. Google Photos has an independent pool here, with the same size, retention, and optional daily activation controls.
+            Saving a policy does not clean up stored photos. Age rules run on later crawls; crawl size is a target, not a current limit. Existing oversized pools may stay oversized. Loved photos are protected and can exceed the target. Missing or invalid acquisition dates skip age expiry only, not size capping.
           </p>
           <div className="pool-lifecycle-grid">
           {lifecycleRows.map(({ category, policy, summary }) => {
@@ -402,14 +427,19 @@ function ImageFeedsTab({
                   </span>
                 </summary>
                 <div className="pool-lifecycle-panel">
+                  <p className="pool-lifecycle-help">
+                    {category === 'Google Photos'
+                      ? 'Google Photos also applies age and size rules when syncing, importing, or rebuilding the cached feed. Its visible feed can change after saving; this is not an immediate cache cleanup.'
+                      : 'Crawls retain up to 12 initial curated entries and loved photos. Size capping is published only when a crawl grows the pool; lowering this target alone does not shrink it.'}
+                  </p>
                   <div className="pool-lifecycle-limits">
-                    <label className="pool-lifecycle-field">Keep photos for
+                    <label className="pool-lifecycle-field">Age threshold
                       <span className="pool-lifecycle-input-wrap">
                         <input type="number" min="1" max="3650" value={policy.retentionDays} onChange={(event) => updatePolicyDraft(category, 'retentionDays', event.target.value)} onBlur={() => savePoolPolicy(category)} />
                         <span>days</span>
                       </span>
                     </label>
-                    <label className="pool-lifecycle-field">Maximum photos
+                    <label className="pool-lifecycle-field">Crawl size target
                       <span className="pool-lifecycle-input-wrap">
                         <input type="number" min="12" max="10000" value={policy.maxPhotos} onChange={(event) => updatePolicyDraft(category, 'maxPhotos', event.target.value)} onBlur={() => savePoolPolicy(category)} />
                         <span>photos</span>
@@ -418,6 +448,7 @@ function ImageFeedsTab({
                   </div>
                   <fieldset className="pool-schedule-fieldset">
                     <legend>Automatic activation</legend>
+                    <p className="pool-lifecycle-help">Daily local-time scheduling takes effect after saving, independently of crawls.</p>
                     <label className="pool-schedule-toggle">
                       <input
                         type="checkbox"
@@ -440,8 +471,8 @@ function ImageFeedsTab({
                     </div>
                   </fieldset>
                   <div className="pool-lifecycle-footer">
-                    <span>Changes save when a field loses focus.</span>
-                    <button type="button" className="remote-btn pool-lifecycle-save" onClick={() => savePoolPolicy(category)}>Save changes</button>
+                    <span role="status" aria-live="polite">{policySaves[category] || 'Fields save when you leave them. Drafts stay in this editor.'}{policyRequestsRef.current[category] && policySaves[category] !== 'Saving…' ? ' Earlier save pending; save your new draft after it finishes.' : ''}</span>
+                    <button type="button" className="remote-btn pool-lifecycle-save" disabled={Boolean(policyRequestsRef.current[category]) || policySaves[category] === 'Saved'} onClick={() => savePoolPolicy(category)}>Save changes</button>
                   </div>
                 </div>
               </details>

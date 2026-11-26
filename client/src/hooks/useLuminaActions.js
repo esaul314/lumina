@@ -160,11 +160,12 @@ export function useLuminaActions(socket, setState) {
         await refreshState();
       });
     },
-    updatePoolPolicy: (category, policy) => {
-      void runAction(async () => {
-        await patchPool(category, { policy });
-        await refreshState();
-      });
+    // Return the acknowledged policy, not a whole stale snapshot or swallowed error.
+    updatePoolPolicy: async (category, policy) => {
+      const response = await patchPool(category, { policy });
+      const confirmed = response?.state?.poolPolicies?.[category];
+      if (!confirmed) throw new Error('Policy acknowledgement unavailable.');
+      return confirmed;
     },
     setScreensaverActive: (active) => {
       void runAction(async () => {

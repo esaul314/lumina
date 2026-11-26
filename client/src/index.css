@@ -695,6 +695,14 @@ body {
 }
 
 .pool-lifecycle-field input {
+  min-height: 44px;
+  padding: 8px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text-color, #fff);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -733,6 +741,7 @@ body {
 }
 
 .pool-schedule-toggle {
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -742,6 +751,8 @@ body {
 }
 
 .pool-schedule-toggle input {
+  min-width: 24px;
+  min-height: 24px;
   accent-color: var(--accent-color);
   flex: none;
 }
@@ -2387,3 +2398,16 @@ summary.remote-section-title::-webkit-details-marker {
   .manual-controls-row .remote-btn { min-width: 0; padding: 10px 2px; font-size: 0.75rem; gap: 4px; }
   .manual-controls-row .remote-btn svg { width: 16px; flex-shrink: 0; }
 }
+
+.pool-lifecycle-help {
+  margin: 8px 0 0;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.pool-lifecycle-field input:focus-visible {
+  outline: 2px solid var(--accent-color, #00d4aa);
+  outline-offset: 2px;
+}
+.pool-lifecycle-footer [role="status"] { color: rgba(255,255,255,0.85); }
