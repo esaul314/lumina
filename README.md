@@ -171,6 +171,29 @@ it is not a live downgrade or off-host recovery guarantee.
 new authentication, encryption or network-access control. Existing trusted-local
 admin access remains the boundary. Do not expose this API as a public service.
 
+### Accepted curation source (not yet deployed)
+
+The selected [curation milestone](./ROADMAP.md#selected-milestone-honest-low-friction-photo-curation--2026-11-26)
+adds one shared rating control to Direct Control and the Independent Rating Deck.
+Missing/new scores are `null` and display **Unrated**, with no numeric button
+selected; **Reset to unrated** explicitly clears a score. Both `PATCH /api/photos`
+and compatibility `POST /api/photos/rate` accept `{url, rating: null}`. Missing or
+invalid scores retain existing rejection behavior. Existing numeric scores,
+including legacy10, are not reclassified: their human/default provenance is unknown.
+Unrated playback still uses the current effective weight10. Rating1 remains a ban;
+resetting a broken photo does not make it eligible again. Manual/daily crawl,
+Google refresh and normal file reconstruction preserve the distinction.
+
+Comments default to a compact **Add comment** or **View/edit comment** disclosure.
+Saved, unsaved, loading and error cues remain outside the folded editor; keyboard
+or pointer folding never saves, clears or discards text. Per-photo drafts and
+expansion survive left/right selection while Direct Control stays open, but not
+reloads/tab exit. Portrait rating/reset controls affect only the selected side.
+The curation card is qualified at320px and desktop widths with44px-high rating
+and disclosure targets. The existing trusted-local privacy/access boundary,
+last-writer-wins behavior and private-comment API/identity limits above remain.
+This accepted source does not change the running1.1.0 assets or API.
+
 ### Ecowitt-compatible sensors
 
 In **Remote → System → Environment**, add an Ecowitt-compatible LAN gateway and select the active source. Lumina polls one active profile at a time through `GET /get_livedata_info`, normalizes canonical metric values, and keeps the configured display units separate from storage.

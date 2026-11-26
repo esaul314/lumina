@@ -1,5 +1,38 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-26 — canonical live admission and quieter curation
+
+A pure serialization projection can normalize saved copies while leaving live
+admission and broadcasts inconsistent. Drive real manual/daily ingestion seams
+and inspect live/feed/emitted state, disk and reconstruction; a reload-only test
+misses that gap. Normalize at the shared accepted-row boundary, preserving defined
+legacy metadata rather than guessing provenance or mutating input rows.
+
+Honest Unrated/null and explicit reset now share one small rating presentation
+instead of duplicated controls. Native details/summary provides occasional comment
+editing without another state layer; keep error/draft/saved cues outside it, key
+expansion by photo and verify folding never writes. Narrow screenshots caught a
+real navigation-row overflow that functional success had missed. Existing global
+header overlap at320px is separate from the qualified curation card.
+
+The [selected milestone](./ROADMAP.md#selected-milestone-honest-low-friction-photo-curation--2026-11-26)
+uses the retained capture/verify tool and existing real-route/browser fixtures.
+Review data risk once, then UI plus assembled interaction coherently; scoped
+commits are not independent review boundaries. Exact unchanged backend evidence
+can be reused, while a repaired candidate needs its required gates. Distinguish
+product defects from ambiguous test selectors and harness quoting mistakes;
+fewer repeated scripts or reviews do not by themselves prove faster delivery.
+
+A fixture can invoke a real writer yet silently skip it through NODE_ENV=test.
+Keep that global protection intact; close the codec over fixture-only filesystem
+access and a local mode binding. Assert an intermediate durable value different
+from the seed before resetting to it, plus fresh reconstruction and preservation
+of private text. A disabled-writer control must fail the exact retained journey;
+spy invocation or seed-equals-final equality is not persistence evidence.
+The assembled source qualification is independently accepted; rollout and
+publication remain separate. Rejected probes stay retained rather than being
+rewritten as passing history.
+
 ## 2026-11-26 — harvest executable reuse, not only narrative
 
 Repeated bespoke input hashing is now one stdlib candidate capture/verify tool,

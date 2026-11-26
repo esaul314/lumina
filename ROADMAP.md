@@ -56,8 +56,9 @@ must front-load the normal user journey, every shared/rollback writer, compiler
 reachability and an integrated durable oracle. Independent review remains at
 coherent risk boundaries; unchanged checks and grounded briefs are reused, not
 rerun/reloaded per commit or turn. This improves repeatability, not demonstrated
-throughput. Existing strict/physical/security deferrals remain open; foldable
-comments are still a planned UX follow-up, not implemented by this audit.
+throughput. Existing strict/physical/security deferrals remain open. That audit
+did not implement folding; the subsequent curation milestone below accepts it
+at source level, separately from the running1.1.0 UI.
 
 The existing state-path gauge includes client modules and fixture/persistence
 paths; it is not evidence of 24 unnecessary ledgers. Inspect a touched persistence
@@ -263,9 +264,10 @@ No automatic next milestone or task-specific reminder is commissioned.
 
 ### Photo comment editor: progressive disclosure — feedback 2026-11-26
 
-**Planned UX follow-up, not yet implemented.** Most images will never receive a
-comment. The always-visible large textarea in 1.1.0 gives an occasional action
-too much space; prioritize photo browsing and ratings in the normal view.
+**Delivered in the accepted source-only curation milestone below; not yet live.**
+Most images will never receive a comment. The always-visible large textarea in
+live1.1.0 gives an occasional action too much space. The accepted disclosure
+prioritizes photo browsing and ratings in the normal view.
 
 - Collapse the editor by default behind a compact, discoverable "Add comment"
   control for an uncommented image; explicitly expand or roll it back up.
@@ -282,14 +284,52 @@ too much space; prioritize photo browsing and ratings in the normal view.
   Compare collapsed and expanded views for visual hierarchy and layout movement.
 
 Prefer a small local disclosure over new settings, persistence or API state.
-This captures the follow-up only; it does not reopen the accepted release or
-commission implementation/deployment. See [interaction design guidance](./CONVENTIONS.md#interaction-design-and-progressive-disclosure).
+This feedback is implemented and qualified by the curation milestone below;
+source acceptance does not commission deployment. See [interaction design guidance](./CONVENTIONS.md#interaction-design-and-progressive-disclosure).
+
+### Selected milestone: honest, low-friction photo curation — 2026-11-26
+
+**Accepted, source only; not deployed or pushed.** Integrated canonical unrated metadata and explicit reset,
+consistent honest ratings in both admin surfaces, and compact private comments.
+Normal browsing/rating remains primary; folding is not the entire milestone.
+New/missing scores become null, explicit legacy scores including 10 remain intact.
+Unrated playback retains its current effective weight of 10; configurable policy
+and legacy provenance/identity migration remain separate decisions. Broken photos
+stay excluded even after a rating reset. Native controls and local drafts avoid
+new persistence/settings. Acceptance spans real persistence/Google refresh and
+built narrow/keyboard/portrait/error journeys, not only static screenshots.
+Use the existing exact-candidate helper and coherent risk reviews; record actual
+rework/reuse, not an assumed speedup. No deployment, push or automatic next sprint.
+
+Data-boundary discovery: codec normalization alone does not update newly crawled
+live rows. Canonical unrated admission now occurs before manual/daily feed merges;
+acceptance inspects live/broadcast, durable and reconstructed representations.
+Legacy explicit10 and invalid defined values remain unguessed and unchanged.
+
+The UI candidate consolidates both rating surfaces, uses native per-photo comment
+disclosure and keeps saved/draft/error cues visible when folded. Actual built
+journeys combine comment save, rating/reset, durable persistence and reload;
+portrait-side isolation and live Socket privacy remain required. No new setting,
+controller or store is added. Narrow visual qualification also fixed the existing
+curation navigation-row overflow. The global logo/view-switch header still
+crowds at320px: capture a separate responsive-header follow-up, not a claim that
+the entire admin has been redesigned. Physical touch/assistive-device acceptance,
+configurable weighting and multi-client comment conflict handling remain outside
+this source-only outcome.
+
+Acceptance joins real route/store/Google and manual/daily ingestion evidence with
+22built browser journeys, full regression/lint/build and independent adversarial
+review. The final durable oracle observes4 on disk and fresh reconstruction
+before reset-to-null and rejects a disabled writer. Strict177core/26transitive
+debt remains; this is no strict-clean, live-device or rollout claim. All selected
+outcomes close at the source boundary; no automatic next sprint or reminder.
+The evidence/usage policy remains in [development evidence](./docs/DEVELOPMENT_EVIDENCE.md).
 
 ### Metadata foundation
 
-- Introduce canonical `rating: null` for unrated assets.
+- **Accepted source-only:** canonical `rating: null` for new/missing scores and explicit reset, with matching live admission, persistence, Google refresh and both admin controls. Existing defined scores are preserved, not reclassified.
 - Add configurable effective-selection policy without overwriting stored `null`.
-- Keep `1` as banned or broken and explicit numeric scores as the only true human ratings.
+- Keep rating`1` as banned and `isBroken` as a separate exclusion. Going forward numeric scores are explicit selections; do not infer human/default provenance for existing values.
 - Extend image metadata to support:
   - acquisition timestamp (`addedAt`)
   - human rating
