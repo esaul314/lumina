@@ -93,12 +93,13 @@ per-helper implementation narratives are in [the developer journal](./DEVELOPER_
 
 - Done: the Image Feeds admin surface now exposes per-pool retention days and
   maximum photo count controls through the shared pool REST command path.
-- Done: recrawls prune dated, non-loved photos past the configured age and cap
-  each pool with its configured maximum; loved photos and legacy undated photos
-  remain protected.
-- Backlog: clarify when a reduced maximum takes effect and show its impact before
-  any destructive cleanup; see the lifecycle semantics audit below. Legacy-date
-  backfill remains optional and requires an explicit policy.
+- Recrawls prune dated, non-loved photos past the configured age. Missing or
+  invalid dates exempt age only; size capping can still remove those photos.
+  Loved photos are protected. Ordinary crawls preserve a curated prefix and
+  publish capped candidates only on growth, so size is not a hard current limit.
+- Done source-only: prospective size-target timing and save/retry feedback are
+  explained; see the accepted lifecycle milestone below. Immediate destructive
+  cleanup/impact preview and legacy-date backfill remain separately scoped.
 
 ### Scheduled pool activation (2026-08-18)
 
@@ -591,6 +592,23 @@ design work, not claims that the current behavior has already been changed.
   ingestion target or an enforceable current limit. Expose that behavior in the
   UI and, if immediate cleanup is supported, preview affected rows and preserve
   explicit loved-photo and legacy-date rules.
+  **Accepted source-only, 2026-11-26:**
+  prospective crawl target, no immediate cleanup or hard current cap. Compact
+  per-pool disclosure explains curated/loved/legacy exceptions, existing oversized
+  pools, Google cached-feed reconstruction/sync/import differences, and independent
+  daily local-time schedules. Per-pool pending/saved/error feedback retains drafts
+  through failed/delayed saves and ignores superseded acknowledgements; no stale
+  whole-state refresh. Drafts survive disclosure/focus changes in the mounted
+  editor, not reload or tab navigation. Pool-policy persistence alone opts into
+  propagated disk failures; other collection commands and background saves retain
+  best-effort behavior. Socket errors are contained/logged with no success signal.
+  A failure can leave memory changed, explicitly disclosed with retry; no rollback
+  or persistence format change. Independent R1 rejected broad strict persistence;
+  narrowed policy persistence and socket containment passed R2. Required959
+  assertions,228 native cases,25 browser cases, lint and isolated build passed.
+  [Acceptance evidence](./.agents/instruction-archives/pool-lifecycle-20261126/implementation_plan.md)
+  retains both reviews and exact candidates; existing strict debt and headless-only
+  UI evidence remain explicit. No deploy, push or automatic next milestone.
 - **Harden the Google OAuth callback boundary.** The current authorization URL
   has no OAuth `state` value and the callback rebuilds its redirect URI from the
   request `Host` header. Add a one-time state check and use a configured,

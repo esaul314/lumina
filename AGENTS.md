@@ -222,7 +222,7 @@ If you are an AI agent or developer modifying this codebase, you **MUST** strict
 If you are an AI agent or a developer tasked with extending Lumina, here are excellent planned features you could implement:
 Cross-cutting design and consistency findings are tracked in [ROADMAP.md → Backlog & Audit Findings](./ROADMAP.md).
 * **Forecast Transport Resilience**: Automatic IP lookup resilience is delivered in 1.1.0; see [weather/location behavior](./README.md#weather-and-location). The separate forecast request remains unbounded; the [product roadmap](./ROADMAP.md#backlog--audit-findings-2026-10-04) owns its proposed follow-up, not an automatic next implementation.
-* **Google OAuth Callback Hardening**: Add a one-time OAuth `state` check and construct callback URLs from a configured trusted origin; see the audit backlog in [ROADMAP.md](./ROADMAP.md).
+* **Google OAuth Callback Hardening**: Source accepted; trusted redirect configuration and actual Google login remain release-time checks. See [ROADMAP.md](./ROADMAP.md).
 * **Smart Home Integrations**: Add an Express webhook (e.g. `POST /api/alert`) that temporarily overlays push notification bubbles on the TV view (e.g. "Front door bell rang") using standard Socket.io events.
 * **Audio Spectrum Visualizer Widget**: Connect to a local browser audio node when screensaver animations are active to draw a matching organic visualizer bar at the bottom screen borders.
 * **Repository-owned agent workflows**: Add portable roadmap-slice and Git-publish instructions under `.agents/skills` or tracked docs; this checkout currently has no repo-local copies, so a clean environment may depend on host-local Codex memory.

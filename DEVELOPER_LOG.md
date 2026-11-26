@@ -7171,3 +7171,25 @@ Pass required checks, freeze the exact candidate, then request independent revie
 ## 2026-11-26 — Browser-bound OAuth callback state
 
 Google OAuth callback hardening now validates a cryptographically random challenge against both the initiating browser's `HttpOnly; SameSite=Lax` cookie and a bounded, expiring, in-memory pending entry. Consume the entry before provider-denial/code handling; cookie clearing alone is not server-enforced single use. Configure the exact callback URI out-of-band; require HTTPS except loopback development, and never derive OAuth or post-callback destinations from Host/forwarded headers. Negative controls must prove code exchange and Picker creation are unreachable for missing, mismatched, expired and replayed state. The one-time map is ephemeral and bounded (256/10m), with no persistence or poller. Actual provider configuration/login and live rollout remain separate acceptance.
+
+
+## Pool lifecycle acknowledgement boundary
+
+Treat a policy PATCH as an awaited effect, not fire-and-forget plus a whole-state
+refresh: a delayed snapshot can overwrite unrelated newer edits. Keep submitted
+draft identity per pool, serialize saves for that pool, and replace only the
+unchanged draft with the server-normalized acknowledgement. Keep error drafts
+visible and retryable even when the dispatcher already applied memory.
+
+Trace the concrete writer before claiming durability: the domain dispatcher
+awaiting an adapter cannot detect a disk error swallowed inside that adapter.
+Only pool-policy wiring opts into the existing writer's strict error mode;
+other commands and background callers keep their best-effort contract. Memory
+applies before persistence, so prove identical-command retry at the selected seam
+and never generalize its durability guarantee to unrelated reducer no-ops. Socket.IO
+discards listener promises; contain errors at actual registration, including decoder
+and error-callback failures, and verify process survival with ignored promises. The isolated built-client
+fixture uses the real route, dispatcher, writer and guarded codec; disk assertions
+include intermediate values, reconstruction and a disabled-writer negative
+control. The lifecycle source tests preserve existing source-specific cap
+behavior rather than silently turning a prospective target into cleanup.

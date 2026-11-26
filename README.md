@@ -114,6 +114,23 @@ journalctl --user -u lumina -n 100 --no-pager
 
 The remote’s **Image Feeds** workspace manages categories, keywords, source toggles, pool retention, and scheduled activation. The built-in categories are Scenic Nature, Cosmic Space, Abstract Art, Liminal Spaces, and AI Creations, but pools are extensible.
 
+Pool lifecycle values are prospective guidance, not an immediate cleanup command.
+Age expiry runs on later crawls. The crawl size target can be exceeded by loved
+photos, retained curated entries and existing oversized pools; a capped ordinary
+crawl is published only on growth. Missing/invalid acquisition dates skip age
+expiry, not size capping. Google Photos also applies policy on cache-feed
+reconstruction and sync/import, so its visible feed can change after saving
+without deleting its cache. Daily local-time activation takes effect independently
+of crawls. Fields autosave on blur; each pool shows pending, saved or error status.
+Errors retain the draft and offer retry (memory may already have changed); newer
+edits are never replaced by older acknowledgements. Drafts last for the mounted
+Image Feeds editor, not a reload or tab switch. Pool-policy acknowledgements
+await persistence and report disk failure; identical policy retries attempt disk
+again. Other collection commands and background saves retain their existing
+best-effort behavior; their acknowledgements do not guarantee durability. Socket
+listener failures are contained and logged, not acknowledged as successful. No persistence schema or rollback-reader change is introduced.
+
+
 Some integrations are keyless; others are optional:
 
 | Environment variable | Used for |
