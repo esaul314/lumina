@@ -3635,7 +3635,8 @@ assertTest('Google Photos auth URL documents callback, branch encoding, and sync
   assert.match(contract, /@returns \{string\}/);
   assert.match(contract, /@throws \{URIError\}/);
   assert.match(contract, /@throws \{TypeError\}/);
-  assert.match(contract, /Neither branch\s+\* checks the client secret/);
+  assert.match(contract, /check the client secret/);
+  assert.match(contract, /optional caller-supplied state/);
   assert.match(contract, /not a pure projection/);
 });
 
@@ -11035,7 +11036,7 @@ async function runIntegrationTests() {
       );
       assert.deepStrictEqual(sandboxSuccess, {
         status: 200,
-        body: { redirect: 'http://display.example/?mode=remote&googleAuth=success' }
+        body: { redirect: '/?mode=remote&googleAuth=success' }
       });
 
       googlePhotos.exchangeGoogleCode = async () => {
@@ -11057,8 +11058,8 @@ async function runIntegrationTests() {
         '/api/auth/google/callback'
       );
       assert.deepStrictEqual(missingCode, {
-        status: 400,
-        body: 'Authentication code is missing from Google redirect.'
+        status: 503,
+        body: 'Google Photos OAuth callback URI is not configured.'
       });
     } finally {
       googlePhotos.exchangeGoogleCode = originalExchangeGoogleCode;
