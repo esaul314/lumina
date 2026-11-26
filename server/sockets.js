@@ -9,7 +9,7 @@ const {
 } = require('./domain/commands.js');
 const { createClosedInterpreter } = require('./utils/fn.js');
 const buildSocketErrorLogger = (label) => (error) => {
-  console.error(`Socket Event: ${label} failed:`, error.message);
+  console.error(`Socket Event: ${label} failed:`, error?.message ?? String(error));
 };
 const createLoggedDecoder = (buildMessage, decode) => (payload) => {
   console.log(typeof buildMessage === 'function' ? buildMessage(payload) : buildMessage);
@@ -142,7 +142,10 @@ function createTelemetryListener({ label, handler }) {
 }
 
 const registerSocketListeners = (socket, listeners) => listeners.forEach(({ event, handler }) => {
-  socket.on(event, handler);
+  // Socket.IO ignores returned promises: contain decode, dispatch and callback errors.
+  socket.on(event, (payload) => Promise.resolve()
+    .then(() => handler(payload))
+    .catch(buildSocketErrorLogger(event)));
 });
 const createSecretSaveResultEmitter = (socket) => (eventName, success, error) => {
   socket.emit(eventName, success ? { success: true } : { success: false, error });
@@ -253,15 +256,15 @@ module.exports = function configureSockets({
       socket.emit('job-status', job);
     });
 
-    const emitGooglePhotoRefreshResponse = (mediaItemId, payload) => {
+    const emitGooglePhotoRefreshResponse = (mediaItemId, /** @type {{url?: string, error?: string}} */ payload) => {
       socket.emit('active-google-photo-response', { mediaItemId, ...payload });
     };
 
     const listenForCommand = (spec) => {
-      socket.on(spec.event, createCommandListener({
-        dispatchCommand,
-        ...spec
-      }));
+      registerSocketListeners(socket, [{
+        event: spec.event,
+        handler: createCommandListener({ dispatchCommand, ...spec })
+      }]);
     };
 
     const registerCommands = registerCommandSpecs(listenForCommand);

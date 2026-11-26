@@ -1058,13 +1058,13 @@ async function runClientStateTests({
     const payload = { name: ' New Pool ', keywords: 'mist, forest' };
     const before = structuredClone({ state: harness.state, collections: harness.collections });
     await harness.socketHandlers['add-category'](payload);
-    await assert.rejects(harness.socketHandlers['add-category'](payload), error => error === failure);
+    await harness.socketHandlers['add-category'](payload);
     assert.deepStrictEqual(commands, Array.from({ length: 2 }, () => ({
       type: 'add-pool', payload: { name: 'New Pool', keywords: ['mist', 'forest'] }
     })));
     assert.deepStrictEqual(harness.events, []);
     assert.deepStrictEqual({ state: harness.state, collections: harness.collections }, before);
-    assert.deepStrictEqual(harness.errors, []);
+    assert.deepStrictEqual(harness.errors, [['Socket Event: add-category failed:', failure.message]]);
     assert.ok(!harness.imports.includes('./services/crawler.js'));
   });
 
