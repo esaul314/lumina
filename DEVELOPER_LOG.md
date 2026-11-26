@@ -1,5 +1,18 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-26 — harvest executable reuse, not only narrative
+
+Repeated bespoke input hashing is now one stdlib candidate capture/verify tool,
+including new unignored modules and explicit built artifacts. It reports drift,
+not approval; installed dependencies and physical/runtime state still need their
+own evidence. The [usage and limits](./docs/DEVELOPMENT_EVIDENCE.md) keep the helper
+from becoming a controller or shadow runtime ledger. Existing durable regression
+fixtures remain the reusable protection; do not recopy them into new frameworks.
+Plan common-case UX, shared/rollback writers, compiler reachability and negative
+integration oracles early. Reuse exact checks and grounded briefs, review coherent
+outcomes rather than commits, and distinguish fixture rework from product defects.
+Tracker latency alone is not total coordination cost or measured productivity.
+
 ## 2026-11-26 — prioritize the common interaction, not the new feature
 
 A tested editor can still have poor visual priority. Most photos need no comment;

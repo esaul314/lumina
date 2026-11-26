@@ -157,6 +157,11 @@ full-suite gates on the revised candidate; preserve rejected evidence. Relevant
 input changes, failures or uncertain coverage invalidate evidence. Matching task
 IDs alone never justify reuse.
 
+For capture/verification, use the stdlib [candidate-evidence helper](./docs/DEVELOPMENT_EVIDENCE.md)
+instead of rebuilding file-hash scripts. It binds inputs, not acceptance; retain
+check logs and independent review. Prefer coherent risk-based review boundaries,
+not one review per commit or a duplicate full-suite run per handoff.
+
 Documentation-only edits may reuse accepted application checks after verifying
 unchanged executable/test/config inputs and that changed documents aren't
 test/build inputs; validate diff, links and instruction consistency instead.

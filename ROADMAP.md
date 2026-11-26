@@ -48,6 +48,17 @@ single Step 6 checkpoint. Materialize a maintenance action in Beads only when se
 | **Keep or retire the tracker on evidence** | This slice observed ready → claim → implementation close → dependent acceptance readiness, with stable task/evidence references. Retain narrow opt-in; manual task translation and short claim-lease renewal remain costs, not an unattended/concurrent-safety proof. No measured productivity uplift. Reassess after the next selected slice; add no dashboard, synchronizer or scheduler to justify the tool. | Queue-first two-outcome trial accepted: one import/two atomic selections, zero between-outcome full-roadmap context reloads.17total tracker calls include5custody updates/3renewals; the older14-call slice is not equivalent. Selection/context are simpler, net time/token/quality savings unproved. Keep narrow opt-in and status-neutral execution links; no new monitor. |
 | **Use source-grounded architecture to remove coupling** | Current/target C4 model and concrete AR-1–AR-5 acceptance/removal criteria are in the [engineering bridge](./FUNCTIONAL_REFACTOR_ROADMAP.md#architecture-bridge--2026-11-24). Keep the same daemon/state/stores; begin with the observed legacy back-reference, not a framework rewrite. | Audit and bounded AR-1–AR-5 bridge accepted and qualified in1.0.3; the companion owns exact evidence, remaining coverage and next selection. |
 
+**Factory reuse audit — 2026-11-26:** the comments exercise exposed repeated
+manual candidate hashing and scattered operating guidance. A small repository
+[candidate-evidence helper](./docs/DEVELOPMENT_EVIDENCE.md) now binds real working
+inputs and explicit artifacts without a new test framework/controller. Planning
+must front-load the normal user journey, every shared/rollback writer, compiler
+reachability and an integrated durable oracle. Independent review remains at
+coherent risk boundaries; unchanged checks and grounded briefs are reused, not
+rerun/reloaded per commit or turn. This improves repeatability, not demonstrated
+throughput. Existing strict/physical/security deferrals remain open; foldable
+comments are still a planned UX follow-up, not implemented by this audit.
+
 The existing state-path gauge includes client modules and fixture/persistence
 paths; it is not evidence of 24 unnecessary ledgers. Inspect a touched persistence
 path before changing it, and remove only demonstrated duplicate state. Review
