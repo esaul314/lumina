@@ -314,10 +314,13 @@ function DirectControlTab({
           </div>
         )}
 
-        {selectedPhoto && <PhotoRatingControl photo={selectedPhoto} onRate={actions.ratePhoto}
-          sideLabel={isSplitLayoutActive ? (selectedPhotoSide === 'left' ? ' (Left Photo)' : ' (Right Photo)') : ''} />}
-
-        {selectedPhoto?.url && <PhotoCommentEditor url={selectedPhoto.url} />}
+        {selectedPhoto && (
+          <div className="photo-curation-controls">
+            <PhotoRatingControl photo={selectedPhoto} onRate={actions.ratePhoto}
+              sideLabel={isSplitLayoutActive ? (selectedPhotoSide === 'left' ? ' (Left Photo)' : ' (Right Photo)') : ''} />
+            {selectedPhoto.url && <PhotoCommentEditor url={selectedPhoto.url} />}
+          </div>
+        )}
 
         <div className="manual-controls-row">
           <button className="remote-btn" onClick={triggerPrev}>

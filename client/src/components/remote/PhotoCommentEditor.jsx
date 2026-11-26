@@ -43,8 +43,12 @@ function PhotoCommentEditor({ url }) {
     }
   };
 
+  const status = saving ? 'Saving comment…'
+    : !loaded ? (entry?.status === 'error' ? 'Unable to load comment' : 'Loading comment…')
+      : entry.error ? 'Comment not saved' : dirty ? 'Unsaved comment' : entry.saved ? 'Comment saved' : '';
+
   return (
-    <section aria-label="Private photo comment" style={{ margin: '16px 0' }}>
+    <section aria-label="Private photo comment">
       <details key={url} className="photo-comment-disclosure" open={Boolean(entry?.expanded)}
         onToggle={event => update(url, { expanded: event.currentTarget.open })}>
         <summary aria-expanded={Boolean(entry?.expanded)} aria-controls={`${id}-editor`}>
@@ -71,9 +75,8 @@ function PhotoCommentEditor({ url }) {
           </div>
         </div>
       </details>
-      <div role="status" aria-live="polite" style={{ fontSize: '0.75rem', marginTop: '6px' }}>
-        {saving ? 'Saving comment…' : !loaded ? (entry?.status === 'error' ? 'Unable to load comment' : 'Loading comment…') : entry?.error ? 'Comment not saved' : dirty ? 'Unsaved comment' : entry.saved ? 'Comment saved' : 'No comment'}
-      </div>
+      {/* Keep the live region mounted for announcements, but reserve no clean-empty row. */}
+      <div role="status" aria-live="polite" className="photo-comment-status">{status}</div>
       {entry?.error && <p role="alert">{entry.error}</p>}
     </section>
   );
