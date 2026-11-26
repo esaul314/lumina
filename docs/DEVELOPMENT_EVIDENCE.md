@@ -54,7 +54,10 @@ input/diff inspection. Record that mapping instead of silently editing history.
   `node --test tools/candidate-evidence.test.js`.
 - Build in an ignored activity directory with Vite's explicit `--outDir`; run
   `test_slideshow.js` using `LUMINA_TEST_DIST` for that exact absolute directory.
-  Do not replace the live index, open a GUI or install another browser to test.
+  Set `LUMINA_TEST_ARTIFACTS` to a fresh ignored evidence directory for screenshots;
+  the default is ignored `.agents/instruction-archives/browser`. Do not overwrite
+  prior review captures. Do not replace the live index, open a GUI or install
+  another browser to test.
 - New modules need direct compiler coverage when the existing graph omits them.
   Distinguish new diagnostics from newly reachable existing/imported errors.
 - Review coherent risk/acceptance boundaries, not each commit. Passing checks
