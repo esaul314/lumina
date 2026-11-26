@@ -24,7 +24,7 @@ function loadIsolated(filename, dependencies, globals = {}, onImport = () => {},
 }
 // App is executed with closed fixture imports, fake timers and the actual vision
 // job module. No private config load, history DB, provider or service is touched.
-function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port } = {}) {
+function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port, collectionWriter } = {}) {
   const captured = {}, timers = [], intervals = [], effects = [], calls = [], imports = [], history = [];
   const hit = name => { calls.push(name); failAt[name]?.(); };
   const state = {};
@@ -70,7 +70,7 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
     },
     './services/photoComments.js': { createPhotoCommentStore: capture('comments', { read: () => ({ key: 'url:fixture', comment: '' }), write: (_photo, comment) => ({ key: 'url:fixture', comment }) }) },
     './services/notifier.js': { sendEmailAlert: () => hit('email') }, './config/state.js': { screensaverState: state },
-    './config/collections.js': { saveCuratedCollections: (...args) => effects.push(['persist', ...args]) },
+    './config/collections.js': { saveCuratedCollections: collectionWriter ?? ((...args) => effects.push(['persist', ...args])) },
     './config/collectionsCodec.js': { loadCollectionsSnapshot: () => ({ collections, persistedState: { visionConfig: { apiUrl: 'https://vision.example.test' } } }) },
     './config/activeCategories.js': { loadActiveCategories: () => ['A'], createActiveCategoryDispatcher: ({ dispatchCommand }) => dispatchCommand },
     './domain/dispatch.js': { createDomainDispatcher: capture('domain', dispatcher) },
@@ -375,8 +375,9 @@ test('a real occupied loopback port uses a cancellable retry and leaves no liste
 test('composition supplies the real existing collection and environment writers to the dispatcher', () => {
   const h = appFixture('test'), app = h.exports.createApplication(), entries = Object.freeze({ FIXTURE_KEY: 'fixture' });
   h.captured.domain.persistCollections(app.curatedCollections, h.state);
+  h.captured.domain.persistPoolPolicy(app.curatedCollections, h.state);
   h.captured.domain.persistEnvVars(entries);
-  assert.deepEqual(h.effects, [['persist', app.curatedCollections, h.state], ['persist-env', entries]]);
+  assert.deepEqual(h.effects, [['persist', app.curatedCollections, h.state], ['persist', app.curatedCollections, h.state, { throwOnError: true }], ['persist-env', entries]]);
 });
 
 
@@ -388,4 +389,117 @@ test('composition binds private comments to the existing file and known-photo ef
   assert.throws(() => h.captured.domain.savePhotoComment({ url: 'unknown', comment: 'Note' }), /identity no longer available/);
   assert.deepEqual(h.captured.routes.readPhotoComment({ url: 'photo-0' }), { key: 'url:fixture', comment: '' });
   assert.deepEqual(h.effects, []);
+});
+
+// Reuse real composition adapters, command decoder/reducer and route registration.
+// Only the codec sink is injected; no filesystem, provider or listener is opened.
+test('strict policy failure/retry is narrow; unchanged patch/rating retain best-effort compatibility', async () => {
+  const { createRequire } = require('node:module');
+  let unavailable = true, durable = null, writes = 0;
+  const writerFile = path.join(__dirname, 'config/collections.js');
+  const writerRequire = createRequire(writerFile), writerModule = { exports: {} };
+  compileFunction(fs.readFileSync(writerFile, 'utf8'), ['module', 'require', 'process', '__dirname', 'console'], { filename: writerFile })(
+    writerModule, name => name === './collectionsCodec.js' ? { saveCollectionsSnapshot: ({ state }) => {
+      writes += 1;
+      if (unavailable) throw new Error('Fixture disk unavailable');
+      durable = structuredClone(state);
+    } } : writerRequire(name), { env: { NODE_ENV: 'isolated-fixture' } }, path.dirname(writerFile), quiet
+  );
+  // Bind the exact production adapters to the real writer and closed codec sink.
+  const h = appFixture('test', { collectionWriter: writerModule.exports.saveCuratedCollections });
+  const app = h.exports.createApplication();
+  Object.assign(h.state, { currentCategory: 'A', photosList: app.curatedCollections.A,
+    activePhoto: app.curatedCollections.A[0], widgets: { showWeather: true },
+    searchKeywords: { A: ['forest'] }, feedConfigs: {}, poolPolicies: {}, excludedKeywords: [] });
+  const dispatcher = require('./domain/dispatch.js').createDomainDispatcher({
+    ...h.captured.domain,
+    refreshActiveFeed() {}
+  });
+  const routeFile = path.join(__dirname, 'routes.js'), nativeRequire = createRequire(routeFile), routeModule = { exports: {} };
+  compileFunction(fs.readFileSync(routeFile, 'utf8'), ['module', 'require'], { filename: routeFile })(
+    routeModule, name => name === './services/googlePhotos.js' ? { getCachedMediaItems: () => [] }
+      : name === './services/weather.js' ? {} : nativeRequire(name)
+  );
+  const routes = new Map();
+  const fakeApp = Object.fromEntries(['get', 'post', 'patch', 'delete'].map(method => [method, (url, handler) => routes.set(method + url, handler)]));
+  routeModule.exports({ ...h.captured.routes, app: fakeApp, state: h.state, collections: app.curatedCollections,
+    dispatchCommand: dispatcher.dispatchCommand, broadcastStateSync: dispatcher.broadcastStateSync });
+  const invoke = async (url, body, params = {}) => {
+    const result = { status: 200 };
+    const res = { status(code) { result.status = code; return res; }, json(value) { result.body = value; return res; } };
+    await routes.get('patch' + url)({ body, params }, res);
+    return result;
+  };
+  assert.equal((await invoke('/api/state', { widgets: { showWeather: false } })).status, 200);
+  assert.equal(writes, 1); assert.equal(h.state.widgets.showWeather, false); assert.equal(durable, null);
+  unavailable = false;
+  assert.equal((await invoke('/api/state', { widgets: { showWeather: false } })).status, 200);
+  assert.equal(writes, 1, 'no-op patch keeps legacy behavior, not a new durability guarantee');
+  unavailable = true;
+  const rating = { type: 'rate-photo', payload: { url: 'photo-0', rating: 4 } };
+  await dispatcher.dispatchCommand(rating);
+  assert.equal(writes, 2);
+  unavailable = false;
+  assert.deepEqual((await dispatcher.dispatchCommand(rating)).reducerResult.effects, []);
+  assert.equal(writes, 2, 'unchanged rating does not gain strict retry behavior');
+  unavailable = true;
+  const policy = { policy: { maxPhotos: 500 } };
+  const failed = await invoke('/api/pools/:name', policy, { name: 'A' });
+  assert.equal(failed.status, 500); assert.match(failed.body.error, /Fixture disk unavailable/);
+  assert.equal(h.state.poolPolicies.A.maxPhotos, 500); assert.equal(writes, 3); assert.equal(durable, null);
+  unavailable = false;
+  const retried = await invoke('/api/pools/:name', policy, { name: 'A' });
+  assert.equal(retried.status, 200, JSON.stringify(retried.body));
+  assert.equal(writes, 4); assert.equal(durable.poolPolicies.A.maxPhotos, 500);
+});
+
+test('actual socket registration contains ignored listener promises; old boundary exits Node', () => {
+  const { spawnSync } = require('node:child_process');
+  const script = String.raw`
+    const assert = require('node:assert/strict');
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const { compileFunction } = require('node:vm');
+    const { createRequire } = require('node:module');
+    const filename = path.resolve('server/sockets.js'), nativeRequire = createRequire(filename);
+    const commands = nativeRequire('./domain/commands.js');
+    const policySpec = commands.SOCKET_COMMAND_LISTENER_SPECS.find(spec => spec.event === 'update-pool-policy');
+    assert.ok(policySpec);
+    const failure = new Error('Fixture socket failure'), logs = [], emitted = [], listeners = new Map();
+    const mode = process.argv[1], negative = process.argv[2] === 'old';
+    const spec = { ...policySpec,
+      ...(mode === 'decode' ? { decode: () => { throw failure; } } : {}),
+      ...(mode === 'callback' ? { afterDispatch: () => { throw failure; }, onError: () => { throw failure; } } : {})
+    };
+    let source = fs.readFileSync(filename, 'utf8');
+    if (negative) source = source.replace(/socket.on\(event, \(payload\) => Promise.resolve\(\)[\s\S]*?\.catch\(buildSocketErrorLogger\(event\)\)\);/, 'socket.on(event, handler);');
+    const moduleFixture = { exports: {} };
+    compileFunction(source, ['module', 'require', 'console'], { filename })(moduleFixture, name =>
+      name === './domain/commands.js' ? { ...commands, SOCKET_COMMAND_LISTENER_SPECS: [spec] }
+      : ['./services/notifier.js', './services/googlePhotos.js', './services/system.js', './socketLegacyCompatibility.js'].includes(name)
+        ? {} : nativeRequire(name),
+      { log() {}, error: (...args) => logs.push(args) });
+    moduleFixture.exports({
+      io: { on: (_event, connected) => connected({ id: 'fixture', on: (event, handler) => listeners.set(event, handler), emit: (...args) => emitted.push(args) }) },
+      state: {}, collections: {}, getLocalIpAddresses: () => [], port: 0,
+      dispatchCommand: () => mode === 'null' ? Promise.reject(null) : mode === 'dispatch' ? Promise.reject(failure) : Promise.resolve({})
+    });
+    // Deliberately ignore the promise, just like Socket.IO/EventEmitter.
+    listeners.get('update-pool-policy')({ name: 'A', policy: { maxPhotos: 500 } });
+    setTimeout(() => {
+      assert.equal(logs.length, 1);
+      assert.match(logs[0][0], /update-pool-policy/);
+      assert.equal(logs[0][1], mode === 'null' ? 'null' : failure.message);
+      assert.equal(emitted.some(([event]) => event === 'state-sync'), true, 'initial sync only');
+      assert.equal(emitted.length, 2, 'no success emitted after failure');
+      process.stdout.write('survived');
+    }, 25);
+  `;
+  for (const mode of ['dispatch', 'null', 'decode', 'callback']) {
+    const result = spawnSync(process.execPath, ['--unhandled-rejections=strict', '-e', script, mode, 'new'], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', timeout: 10000 });
+    assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout, 'survived');
+  }
+  const negative = spawnSync(process.execPath, ['--unhandled-rejections=strict', '-e', script, 'dispatch', 'old'], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', timeout: 10000 });
+  assert.equal(negative.status, 1); assert.match(negative.stderr, /Fixture socket failure/);
+  assert.equal(negative.stdout, '', 'old registration demonstrably fails the survival oracle');
 });

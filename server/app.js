@@ -483,7 +483,9 @@ function createApplication() {
   const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
     state: screensaverState,
     collections: curatedCollections,
+    // Only pool policy has a verified strict persistence/retry boundary.
     persistCollections: saveCuratedCollections,
+    persistPoolPolicy: (collections, state) => saveCuratedCollections(collections, state, { throwOnError: true }),
     persistEnvVars,
     io,
     getRuntimeContext,

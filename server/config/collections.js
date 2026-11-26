@@ -19,7 +19,7 @@ const {
  *   activeSecondPhoto?: PhotoValue;
  * }} PhotoState */
 /** @typedef {(photo: PhotoRecord) => PhotoRecord} PhotoUpdater */
-/** @typedef {{lastFeedUpdated?: number}} CollectionSaveOptions */
+/** @typedef {{lastFeedUpdated?: number, throwOnError?: boolean}} CollectionSaveOptions */
 
 /**
  * 🖼️ defaultCuratedCollections
@@ -106,6 +106,7 @@ function saveCuratedCollections(collections, state, options = {}) {
     console.log('[Collections Config] Safely persisted curated_collections.json to disk.');
   } catch (err) {
     console.error('[Collections Config] Failed to write curated_collections.json:', err.message);
+    if (options.throwOnError) throw err;
   }
 }
 
