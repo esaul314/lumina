@@ -16,6 +16,9 @@ const { createDomainDispatcher } = require('./server/domain/dispatch.js');
 const { buildDomainState, buildSnapshot } = require('./server/domain/snapshot.js');
 const { SOCKET_DURABLE_COMMAND_SPECS, decodeStatePatchCommand } = require('./server/domain/commands.js');
 
+// Keep captures with this run's isolated assets, never overwrite another review.
+const captureDirectory = process.env.LUMINA_TEST_ARTIFACTS || path.join(__dirname, '.agents/instruction-archives/browser');
+fs.mkdirSync(captureDirectory, { recursive: true });
 const INTERVAL = 120000;
 const RETRY_DELAYS = [1000, 2000, 4000, 8000];
 const photo = (id, orientation = 'landscape') => ({
@@ -26,13 +29,16 @@ const landscapePhotos = () => ['a', 'b', 'c', 'broken'].map(id => photo(id));
 const portraitPhotos = () => ['p1', 'p2', 'p3', 'broken'].map(id => photo(id, 'portrait'));
 
 // Keep the global test guard intact; only this closed codec may write fixture files.
-function createFixtureCodec(directory) {
+function createFixtureCodec(directory, control = {}) {
   const filename = path.join(__dirname, 'server/config/collectionsCodec.js');
   const module = { exports: {} }, nativeRequire = createRequire(filename);
   const inside = filename => assert.equal(path.dirname(path.resolve(filename)), directory, 'Codec I/O stays in the fixture directory');
   const fixtureFs = Object.fromEntries(['existsSync', 'readFileSync', 'writeFileSync', 'renameSync', 'rmSync'].map(method => [method, (...args) => {
     inside(args[0]);
-    if (method === 'renameSync') inside(args[1]);
+    if (method === 'renameSync') {
+      inside(args[1]);
+      if (control.fail) throw new Error('Fixture disk unavailable');
+    }
     return fs[method](...args);
   }]));
   compileFunction(fs.readFileSync(filename, 'utf8'), ['module', 'require', 'process'], { filename })(
@@ -59,19 +65,29 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   const commentPath = path.join(commentDir, 'collections.json');
   fs.writeFileSync(commentPath, JSON.stringify({ feeds: collections }));
   const commentStore = createPhotoCommentStore({ jsonPath: commentPath });
-  const fixtureCodec = createFixtureCodec(commentDir);
+  const persistence = { collections: [], env: [], fail: false, disabled: false };
+  const fixtureCodec = createFixtureCodec(commentDir, persistence);
+  const writerPath = path.join(__dirname, 'server/config/collections.js');
+  const writerModule = { exports: {} }, writerRequire = createRequire(writerPath);
+  compileFunction(fs.readFileSync(writerPath, 'utf8'), ['module', 'require', 'process', '__dirname'], { filename: writerPath })(
+    writerModule, name => name === './collectionsCodec.js' ? { saveCollectionsSnapshot: input => {
+      if (!persistence.disabled) fixtureCodec.saveCollectionsSnapshot(input);
+    } } : name === 'path' ? { ...path, join: (...parts) => parts.at(-1) === 'curated_collections.json' ? commentPath : path.join(...parts) }
+      : writerRequire(name), { env: { NODE_ENV: 'isolated-browser-fixture' } }, path.dirname(writerPath)
+  );
   const events = [];
   const errors = [];
   const logs = [];
   // Explicit fixture-owned sinks; the real codec is closed over task-owned I/O.
-  const persistence = { collections: [], env: [] };
+  const persistFixtureCollections = (savedCollections, savedState, options) => {
+    persistence.collections.push(structuredClone({ collections: savedCollections, state: savedState }));
+    writerModule.exports.saveCuratedCollections(savedCollections, savedState, options);
+  };
   const dispatcher = createDomainDispatcher({
     state, collections, io,
     savePhotoComment: ({ url, comment }) => commentStore.write({ url }, comment),
-    persistCollections: (savedCollections, savedState) => {
-      persistence.collections.push(structuredClone({ collections: savedCollections, state: savedState }));
-      fixtureCodec.saveCollectionsSnapshot({ jsonPath: commentPath, collections: savedCollections, state: savedState });
-    },
+    persistCollections: persistFixtureCollections,
+    persistPoolPolicy: (savedCollections, savedState) => persistFixtureCollections(savedCollections, savedState, { throwOnError: true }),
     persistEnvVars: entries => persistence.env.push(structuredClone(entries))
   });
   const dispatch = command => dispatcher.dispatchCommand(command, { rng: () => 0.5 });
@@ -109,6 +125,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   );
   routeModule.exports({ app, state, collections, io, port: 0, dispatchCommand: dispatch,
     readPhotoComment: row => commentStore.read(row), getWeatherData: () => weather, setWeatherData() {} });
+  app.use((error, _req, res, _next) => res.status(500).json({ error: error.message }));
   app.get('/api/*', (_req, res) => res.json({}));
   app.get('/fixtures/:id.svg', (req, res) => {
     if (req.params.id === 'broken') return res.sendStatus(404);
@@ -133,7 +150,10 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
-    state, collections, weather, events, errors, logs, persistence, dispatch, commentStore, readPersisted: () => JSON.parse(fs.readFileSync(commentPath, 'utf8')),
+    state, collections, weather, events, errors, logs, persistence, dispatch, commentStore,
+    saveLegacy: () => writerModule.exports.saveCuratedCollections(collections, state), readPersisted: () => JSON.parse(fs.readFileSync(commentPath, 'utf8')),
+    readPersistedPolicy: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
+      defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).persistedState.poolPolicies,
     readReconstructed: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
       defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).collections,
     ...dispatcher,
@@ -606,9 +626,9 @@ const commentCases = [
         assert.ok(box.height >= 44 && box.width >= 40, 'Rating touch target');
       }
       if (width === 320) {
-        await remote.screenshot({ path: '.agents/instruction-archives/curation-20261126/expanded-320.png', fullPage: true });
+        await remote.screenshot({ path: path.join(captureDirectory, 'curation-expanded-320.png'), fullPage: true });
         await disclosure.click();
-        await remote.screenshot({ path: '.agents/instruction-archives/curation-20261126/compact-320.png', fullPage: true });
+        await remote.screenshot({ path: path.join(captureDirectory, 'curation-compact-320.png'), fullPage: true });
       }
     }
     assert.equal(writes, 0, 'Disclosure and typing do not save');
@@ -656,6 +676,116 @@ const commentCases = [
 
 ];
 
+
+const policyCases = [
+  ['pool policy compact disclosure, keyboard/mobile save and durable reconstruction', async ({ page, fixture }) => {
+    fixture.state.searchKeywords = { Fixture: ['fixture'] };
+    const remote = await page.context().newPage();
+    await remote.setViewportSize({ width: 320, height: 800 });
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    const card = remote.locator('.pool-lifecycle-card').filter({ hasText: 'Fixture' });
+    await expect(card).not.toHaveAttribute('open', '');
+    const disclosure = card.locator('summary');
+    await disclosure.focus(); await remote.keyboard.press('Enter');
+    await expect(card.getByText('Age threshold', { exact: false })).toBeVisible();
+    assert.equal(fixture.persistence.collections.length, 0, 'Browsing/disclosure never writes');
+    const age = card.getByRole('spinbutton', { name: 'Age threshold' });
+    const target = card.getByRole('spinbutton', { name: 'Crawl size target' });
+    for (const input of await card.locator('input:not([type="checkbox"])').all()) {
+      assert.ok((await input.boundingBox()).height >= 44, 'Touch targets are at least44px high');
+    }
+    await age.focus();
+    assert.notEqual(await age.evaluate(el => getComputedStyle(el).outlineStyle), 'none');
+    await age.fill('17'); await age.press('Tab');
+    await expect(card.getByRole('status')).toHaveText('Saved');
+    await target.fill('120'); await target.press('Tab');
+    await expect(card.getByRole('status')).toHaveText('Saved');
+    assert.equal(fixture.readPersisted().poolPolicies.Fixture.maxPhotos, 120);
+    assert.equal(fixture.readPersistedPolicy().Fixture.maxPhotos, 120);
+    assert.equal(fixture.readPersisted().poolPolicies.Fixture.retentionDays, 17);
+    const toggle = card.getByRole('checkbox', { name: 'Enable daily window' });
+    await toggle.check(); await toggle.press('Tab');
+    await expect(card.getByRole('status')).toHaveText('Saved');
+    assert.equal(fixture.readPersisted().poolPolicies.Fixture.schedule.enabled, true);
+    assert.equal(fixture.collections.Fixture.length, 4, 'Saving never cleans the pool');
+    const dimensions = await card.evaluate(el => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+    assert.ok(dimensions.scroll <= dimensions.client + 1, JSON.stringify(dimensions));
+    await remote.screenshot({ path: path.join(captureDirectory, 'mobile-expanded.png'), fullPage: true });
+    await disclosure.click(); await expect(target).not.toBeVisible();
+    await remote.screenshot({ path: path.join(captureDirectory, 'mobile-compact.png'), fullPage: true });
+    await remote.reload();
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    await remote.locator('.pool-lifecycle-card').filter({ hasText: 'Fixture' }).locator('summary').click();
+    await expect(remote.getByRole('spinbutton', { name: 'Crawl size target' }).first()).toHaveValue('120');
+    await remote.close();
+  }],
+  ['real disk failure keeps draft, does not acknowledge saved, retry writes even after in-memory apply', async ({ page, fixture }) => {
+    fixture.state.searchKeywords = { Fixture: ['fixture'] };
+    const remote = await page.context().newPage();
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    const card = remote.locator('.pool-lifecycle-card').filter({ hasText: 'Fixture' });
+    await card.locator('summary').click();
+    const target = card.getByRole('spinbutton', { name: 'Crawl size target' });
+    fixture.persistence.fail = true;
+    assert.doesNotThrow(fixture.saveLegacy, 'Legacy best-effort contract is unchanged');
+    await target.fill('135'); await target.press('Tab');
+    await expect(card.getByRole('status')).toContainText('Save not confirmed');
+    await expect(target).toHaveValue('135');
+    assert.equal(fixture.state.poolPolicies.Fixture.maxPhotos, 135, 'Dispatcher applies memory before effect failure');
+    assert.equal(fixture.readPersisted().poolPolicies, undefined);
+    await card.locator('summary').click(); await card.locator('summary').click();
+    await expect(target).toHaveValue('135');
+    fixture.persistence.fail = false;
+    await card.getByRole('button', { name: 'Save changes' }).click();
+    await expect(card.getByRole('status')).toHaveText('Saved');
+    assert.equal(fixture.readPersisted().poolPolicies.Fixture.maxPhotos, 135);
+    // Negative control: the durable oracle detects a disabled writer despite HTTP success.
+    fixture.persistence.disabled = true;
+    await target.fill('136'); await target.press('Tab');
+    await expect(card.getByRole('status')).toHaveText('Saved');
+    assert.throws(() => assert.equal(fixture.readPersisted().poolPolicies.Fixture.maxPhotos, 136));
+    fixture.persistence.disabled = false;
+    await remote.close();
+  }],
+  ['delayed save and stale state cannot replace newer draft or another pool', async ({ page, fixture }) => {
+    fixture.state.searchKeywords = { Fixture: ['fixture'] };
+    const remote = await page.context().newPage();
+    let release, entered;
+    const started = new Promise(resolve => { entered = resolve; });
+    const held = new Promise(resolve => { release = resolve; });
+    await remote.route('**/api/pools/Fixture', async route => {
+      if (route.request().method() !== 'PATCH') return route.continue();
+      const response = await route.fetch(); entered(); await held; await route.fulfill({ response });
+    });
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    const card = remote.locator('.pool-lifecycle-card').filter({ hasText: 'Fixture' });
+    await card.locator('summary').click();
+    const target = card.getByRole('spinbutton', { name: 'Crawl size target' });
+    await target.fill('150'); await target.press('Tab'); await started;
+    await expect(card.getByRole('status')).toHaveText('Saving…');
+    await target.fill('160');
+    await target.press('Tab');
+    fixture.broadcastStateSync();
+    const google = remote.locator('.pool-lifecycle-card').filter({ hasText: 'Google Photos' });
+    await google.locator('summary').click();
+    await expect(google.getByText('Its visible feed can change', { exact: false })).toBeVisible();
+    release();
+    await expect(card.getByRole('button', { name: 'Save changes' })).toBeEnabled();
+    await expect(target).toHaveValue('160');
+    await expect(card.getByRole('status')).toContainText('Draft');
+    await expect(google.getByRole('spinbutton', { name: 'Crawl size target' })).toHaveValue('2000');
+    await remote.unroute('**/api/pools/Fixture');
+    await card.getByRole('button', { name: 'Save changes' }).click();
+    await expect(card.getByRole('status')).toHaveText('Saved');
+    assert.equal(fixture.readPersisted().poolPolicies.Fixture.maxPhotos, 160);
+    await remote.screenshot({ path: path.join(captureDirectory, 'desktop.png'), fullPage: true });
+    await remote.close();
+  }]
+];
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
@@ -682,6 +812,11 @@ async function main() {
       console.log(`PASS: ${name}`);
     }
     console.log(`${commentCases.length} private comment browser regressions passed.`);
+    for (const [name, run] of policyCases) {
+      await withFixture(browser, run);
+      console.log(`PASS: ${name}`);
+    }
+    console.log(`${policyCases.length} pool policy browser regressions passed.`);
   } finally {
     await browser.close();
   }

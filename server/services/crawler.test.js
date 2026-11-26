@@ -635,3 +635,34 @@ for (const seam of ['manual recrawl', 'daily refresh']) {
     }
   });
 }
+
+
+test('lifecycle boundaries preserve age-only legacy exemption and source-specific size rules', () => {
+  const { pruneExpiredPhotos, applyPoolPolicy, capPoolPhotos } = require('../domain/poolRetention.js');
+  const { capCollectionLimit } = require('./crawler.js');
+  const now = '2026-11-26T00:00:00Z';
+  const rows = [
+    { url: 'expired', addedAt: '2026-11-24T23:59:59.999Z' },
+    { url: 'cutoff', addedAt: '2026-11-25T00:00:00Z' },
+    { url: 'invalid', addedAt: 'invalid' }, { url: 'undated' },
+    { url: 'loved', addedAt: '2000-01-01', loved: true }
+  ];
+  assert.deepEqual(pruneExpiredPhotos(now, { retentionDays: 1 })(rows).map(row => row.url),
+    ['cutoff', 'invalid', 'undated', 'loved']);
+  assert.deepEqual(capPoolPhotos(rows.slice(2), 1).map(row => row.url), ['loved'], 'Legacy exemption does not protect from size capping');
+  const loved = Array.from({ length: 13 }, (_, i) => ({ url: 'loved-' + i, loved: true }));
+  assert.equal(applyPoolPolicy(now, { retentionDays: 1, maxPhotos: 12 })(loved).length, 13);
+  const regular = Array.from({ length: 20 }, (_, i) => ({ url: 'regular-' + i }));
+  assert.equal(capCollectionLimit(regular, 20, 12).length, 20, 'Curated prefix + slice(-0) is existing behavior, not a strict cap');
+  assert.equal(capCollectionLimit(regular.concat(loved), 12, 16).length, 29, 'Loved rows do not subtract from ordinary allowance');
+});
+
+test('lowered crawl target does not publish a shrink without growth; age expiry still runs', async () => {
+  const rows = Array.from({ length: 24 }, (_, i) => ({ url: 'https://example.test/' + i, addedAt: '2026-11-25T00:00:00Z' }));
+  const input = { A: rows.concat({ url: 'old', addedAt: '2000-01-01' }) };
+  const result = await crawlAllCollections(input, { A: {} }, null, [], { A: { maxPhotos: 12, retentionDays: 2 } },
+    () => new Date('2026-11-26T00:00:00Z'), { fetchImpl: () => { throw Error('No provider allowed'); } });
+  assert.equal(result.updatedCollections.A.length, 24);
+  assert.equal(result.updatedAny, true, 'Age expiry is published even without crawl growth');
+  assert.equal(input.A.length, 25);
+});

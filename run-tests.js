@@ -5566,8 +5566,8 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
     maxPhotos: 2000,
     schedule: { enabled: false }
   }), {
-    retention: '30 days',
-    maximum: '2000 photos',
+    retention: 'Age: 30 days',
+    maximum: 'Target: 2000 photos',
     schedule: 'Manual activation'
   });
   assert.deepStrictEqual(getPoolLifecycleRows(['Google Photos', 'Night Mood', 'Day Mood'], policyFor), [
@@ -5575,8 +5575,8 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
       category: 'Google Photos',
       policy: { retentionDays: 14, maxPhotos: 500, schedule: { enabled: false } },
       summary: {
-        retention: '14 days',
-        maximum: '500 photos',
+        retention: 'Age: 14 days',
+        maximum: 'Target: 500 photos',
         schedule: 'Manual activation'
       }
     },
@@ -5584,8 +5584,8 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
       category: 'Night Mood',
       policy: { retentionDays: 30, maxPhotos: 2000, schedule: { enabled: true, start: '22:00', end: '06:00' } },
       summary: {
-        retention: '30 days',
-        maximum: '2000 photos',
+        retention: 'Age: 30 days',
+        maximum: 'Target: 2000 photos',
         schedule: '22:00–06:00'
       }
     },
@@ -5593,8 +5593,8 @@ assertAsyncTest('pool lifecycle view models keep schedule presentation pure and 
       category: 'Day Mood',
       policy: { retentionDays: 14, maxPhotos: 500, schedule: { enabled: false } },
       summary: {
-        retention: '14 days',
-        maximum: '500 photos',
+        retention: 'Age: 14 days',
+        maximum: 'Target: 500 photos',
         schedule: 'Manual activation'
       }
     }
@@ -12311,7 +12311,7 @@ async function runIntegrationTests() {
     assert.deepStrictEqual(response, { status: 500, body: { error: failure.message } });
     assert.deepStrictEqual(dispatched, [{ type: 'rate-photo', payload: { url: 'land-1', rating: 8 } }]);
     const { socketHandlers } = createSocketHarness({ dispatchCommand });
-    await assert.rejects(socketHandlers['rate-photo']({ url: 'land-1', rating: 8 }), error => error === failure);
+    await assert.doesNotReject(socketHandlers['rate-photo']({ url: 'land-1', rating: 8 }));
     assert.deepStrictEqual(dispatched.map(command => command.type), ['rate-photo', 'rate-photo']);
   });
 
