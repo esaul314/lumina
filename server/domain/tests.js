@@ -2578,7 +2578,7 @@ function runDomainTests({ logSuite, assertTest }) {
     assert.deepStrictEqual(decodeBrokenPhotoCommand(input), {
       type: 'mark-photo-broken', payload: { url: input.url }
     });
-    [0, 11, null, undefined, NaN, 'invalid'].forEach(rating => {
+    [0, 11, undefined, NaN, 'invalid'].forEach(rating => {
       assert.strictEqual(decodePhotoRatingCommand({ url: 'photo', rating }), null);
     });
     [null, undefined, false, {}, { url: '   ' }].forEach(payload => {
@@ -2749,7 +2749,7 @@ if (firstPhotoEffectFixture.type === 'persist') {
 // @ts-expect-error photo persistence payload requires variant narrowing
 const wrongUnnarrowedPhotoPayloadFixture = firstPhotoEffectFixture.payload.url;
 if (firstPhotoEffectFixture.type === 'persist-external-photo-metadata') {
-  /** @type {number | undefined} */ const photoRatingFixture = firstPhotoEffectFixture.payload.metadata.rating;
+  /** @type {number | null | undefined} */ const photoRatingFixture = firstPhotoEffectFixture.payload.metadata.rating;
   // @ts-expect-error canonical persisted rating is not a string
   /** @type {string} */ const wrongPersistedPhotoRatingFixture = firstPhotoEffectFixture.payload.metadata.rating;
 }
@@ -2888,7 +2888,7 @@ const brokenDecoderFixture = decodeBrokenPhotoCommand(/** @type {unknown} */ ({}
 /** @type {0 extends (1 & typeof ratingDecoderFixture) ? true : false} */ const ratingDecoderIsAny = false;
 /** @type {0 extends (1 & typeof brokenDecoderFixture) ? true : false} */ const brokenDecoderIsAny = false;
 if (ratingDecoderFixture?.payload) {
-  /** @type {number} */ const decodedRatingNumberFixture = ratingDecoderFixture.payload.rating;
+  /** @type {number | null} */ const decodedRatingNumberFixture = ratingDecoderFixture.payload.rating;
   /** @type {string} */ const decodedRatingUrlFixture = ratingDecoderFixture.payload.url;
   // @ts-expect-error canonical ratings are numeric, not strings
   /** @type {string} */ const wrongDecodedRatingFixture = ratingDecoderFixture.payload.rating;
@@ -2909,7 +2909,7 @@ const photoMutationCommandsFixture = [ratingDecoderFixture, brokenDecoderFixture
 const photoMutationLabelsFixture = photoMutationCommandsFixture.map(command => {
   if (!command.payload) return command.type;
   if (command.type === 'rate-photo') {
-    /** @type {number} */ const rating = command.payload.rating;
+    /** @type {number | null} */ const rating = command.payload.rating;
     return command.payload.url + ':' + rating;
   }
   /** @type {string} */ const brokenUrl = command.payload.url;
@@ -7386,11 +7386,11 @@ navigationRouteFixture[navigationDecoderKeyFixture] = 7;
 
     assert.deepStrictEqual(persisted.feeds, {
       'Scenic Nature': [
-        { url: 'shared-image', title: 'First pool representation', category: 'Scenic Nature' },
-        { url: 'nature-only', title: 'Nature image', category: 'Scenic Nature' }
+        { url: 'shared-image', title: 'First pool representation', rating: null, category: 'Scenic Nature' },
+        { url: 'nature-only', title: 'Nature image', rating: null, category: 'Scenic Nature' }
       ],
       'Liminal Spaces': [
-        { url: 'liminal-only', title: 'Liminal image', category: 'Liminal Spaces' }
+        { url: 'liminal-only', title: 'Liminal image', rating: null, category: 'Liminal Spaces' }
       ]
     });
     assert.strictEqual(collections['Liminal Spaces'][0].url, 'shared-image');

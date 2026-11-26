@@ -1057,7 +1057,7 @@ function buildPlaybackCommandReducer({
 const reducePhotoCommand = {
   'rate-photo': buildPhotoCommandReducer({
     buildPatch: ({ rating }) => ({
-      rating: Number(rating)
+      rating: rating === null ? null : Number(rating)
     }),
     resolveAfterUpdate: ({ rating }) => (
       Number(rating) === 1

@@ -219,7 +219,10 @@ function decodeCategorySelectionFromSocket(category) {
 
 /** @type {(input: unknown) => Extract<Command, {type: 'rate-photo'}> | null} */
 const decodePhotoRatingCommand = createPhotoCommandDecoder('rate-photo', (url, payload) => {
-  const rating = validateRating(payload.rating);
+  // Explicit null resets a human score; missing/invalid still fails validation.
+  const rawRating = payload.rating;
+  if (rawRating === null) return { url, rating: null };
+  const rating = validateRating(rawRating);
   return rating === null ? null : { url, rating };
 });
 
@@ -590,7 +593,7 @@ const PHOTO_TRANSPORT_SPECS = [
       routeKey: 'rating',
       routeActive: ({ body }) => body?.rating !== undefined,
       decodeRoute: ({ url, body }) => decodePhotoRatingCommand({ url, rating: body?.rating }),
-      routeError: 'Invalid parameter: "rating" must be an integer between 1 and 10.',
+      routeError: 'Invalid parameter: "rating" must be null (unrated) or an integer between 1 and 10.',
       responsePatch: (command) => ({
         rating: command.payload.rating
       })

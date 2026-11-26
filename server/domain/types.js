@@ -22,7 +22,7 @@
  * @property {string=} source
  * @property {string=} category
  * @property {string=} addedAt ISO timestamp for when Lumina first accepted the photo into a pool
- * @property {number=} rating
+ * @property {(number | null)=} rating
  * @property {boolean=} isBroken
  * @property {boolean=} preventPairing
  * @property {boolean=} loved
@@ -182,7 +182,7 @@
  *   'set-active-photo': {url: string, photo?: ActivePhotoPreview},
  *   'advance-photo': {direction?: 'next' | 'prev', strategy?: AdvanceStrategy},
  *   'set-photo-comment': {url: string, comment: string},
- *   'rate-photo': {url: string, rating: number},
+ *   'rate-photo': {url: string, rating: number | null},
  *   'mark-photo-broken': {url: string},
  *   'set-photo-crop': {url: string, cropPercent?: number, cropPositionY?: number},
  *   'set-photo-prevent-pairing': {url: string, preventPairing: boolean, preserveActive?: boolean},
