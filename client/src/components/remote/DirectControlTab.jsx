@@ -1,3 +1,4 @@
+import PhotoRatingControl from './PhotoRatingControl';
 import PhotoCommentEditor from './PhotoCommentEditor';
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import {
@@ -313,50 +314,8 @@ function DirectControlTab({
           </div>
         )}
 
-        {selectedPhoto && (
-          <div style={{ marginTop: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
-              <span style={{ opacity: 0.6 }}>
-                Image Display Weight{isSplitLayoutActive ? ` (${selectedPhotoSide === 'left' ? 'Left Photo' : 'Right Photo'})` : ''}
-              </span>
-              <span style={{ color: 'var(--accent-color)' }}>
-                {selectedPhoto.rating === 1 ? '🛑 1 (Banned / Blocked)' :
-                 (selectedPhoto.rating === 10 || selectedPhoto.rating === undefined) ? '🌟 10 (Default / Max)' :
-                 `📈 ${selectedPhoto.rating} (Weight: ${selectedPhoto.rating / 10})`}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
-                const isCurrent = (selectedPhoto.rating || 10) === num;
-                return (
-                  <button
-                    key={num}
-                    onClick={() => actions.ratePhoto(selectedPhoto.url, num)}
-                    className="remote-btn"
-                    style={{
-                      flex: 1,
-                      height: '32px',
-                      padding: 0,
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.03)',
-                      borderColor: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.08)',
-                      color: isCurrent ? '#fff' : 'rgba(255,255,255,0.7)',
-                      cursor: 'pointer',
-                      boxShadow: isCurrent ? '0 0 10px var(--accent-color)' : 'none'
-                    }}
-                  >
-                    {num}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {selectedPhoto && <PhotoRatingControl photo={selectedPhoto} onRate={actions.ratePhoto}
+          sideLabel={isSplitLayoutActive ? (selectedPhotoSide === 'left' ? ' (Left Photo)' : ' (Right Photo)') : ''} />}
 
         {selectedPhoto?.url && <PhotoCommentEditor url={selectedPhoto.url} />}
 

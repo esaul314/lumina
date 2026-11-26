@@ -2369,3 +2369,21 @@ summary.remote-section-title {
 summary.remote-section-title::-webkit-details-marker {
   display: none;
 }
+
+/* Shared curation controls: primary ratings, optional compact private notes. */
+.photo-rating-control { border: 0; padding: 0; margin: 16px 0; min-width: 0; }
+.photo-rating-control legend { font-size: 0.82rem; font-weight: 600; opacity: 0.7; }
+.photo-rating-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78rem; margin-bottom: 8px; }
+.photo-rating-summary button { min-height: 44px; font-size: 0.75rem; }
+.photo-rating-control .image-feeds-rating-scale { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.photo-rating-control .image-feeds-rating-scale button { min-height: 44px; padding: 0; }
+.photo-comment-disclosure { margin: 12px 0; border-top: 1px solid rgba(255,255,255,0.12); }
+.photo-comment-disclosure summary { cursor: pointer; min-height: 44px; padding: 10px 0; box-sizing: border-box; font-size: 0.82rem; }
+.photo-comment-disclosure summary:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 3px; }
+@media (max-width: 540px) {
+  .photo-rating-control .image-feeds-rating-scale { grid-template-columns: repeat(5, minmax(44px, 1fr)); }
+  .photo-rating-summary { flex-wrap: wrap; }
+  .manual-controls-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .manual-controls-row .remote-btn { min-width: 0; padding: 10px 2px; font-size: 0.75rem; gap: 4px; }
+  .manual-controls-row .remote-btn svg { width: 16px; flex-shrink: 0; }
+}

@@ -1,3 +1,4 @@
+import PhotoRatingControl from './PhotoRatingControl';
 import { useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, ChevronDown, Plus, Focus, ArrowUp, ArrowDown } from 'lucide-react';
 import { getPools } from '../../api/luminaClient.js';
@@ -648,7 +649,6 @@ function ImageFeedsTab({
           (() => {
             const photo = state.photosList[galleryIndex];
             if (!photo) return null;
-            const photoRating = photo.rating !== undefined ? photo.rating : 10;
             
             return (
               <div className="image-feeds-rating-content" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -842,50 +842,7 @@ function ImageFeedsTab({
                   </button>
                 </div>
 
-                {/* Rating buttons */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600 }}>
-                    <span style={{ opacity: 0.6 }}>Set Weight (Rating)</span>
-                    <span style={{ color: 'var(--accent-color)' }}>
-                      {photoRating === 1 ? '🛑 1 (Banned)' :
-                       photoRating === 10 ? '🌟 10 (Default / Max)' :
-                       `📈 ${photoRating} (Weight: ${photoRating / 10})`}
-                    </span>
-                  </div>
-                  <div className="image-feeds-rating-scale" style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', width: '100%' }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
-                      const isCurrent = photoRating === num;
-                      return (
-                        <button
-                          key={num}
-                          type="button"
-                          aria-label={`Set rating ${num} for ${photo.title}`}
-                          aria-pressed={isCurrent}
-                          onClick={() => actions.ratePhoto(photo.url, num)}
-                          className="remote-btn"
-                          style={{
-                            flex: 1,
-                            height: '28px',
-                            padding: 0,
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            borderRadius: '6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.03)',
-                            borderColor: isCurrent ? 'var(--accent-color)' : 'rgba(255,255,255,0.08)',
-                            color: isCurrent ? '#fff' : 'rgba(255,255,255,0.7)',
-                            cursor: 'pointer',
-                            boxShadow: isCurrent ? '0 0 8px var(--accent-color)' : 'none'
-                          }}
-                        >
-                          {num}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <PhotoRatingControl photo={photo} onRate={actions.ratePhoto} />
 
                 {/* Photo Crop/Zoom range slider */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
