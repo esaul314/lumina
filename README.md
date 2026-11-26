@@ -178,7 +178,7 @@ transactions or multi-process locking. Include this existing file in backups.
 
 Before rolling back to an older collection writer, stop the writer and back up
 LATEST data plus a validated, separately protected private comment section.
-Legacy writers discard this section on save. Before returning forward, stop the
+Pre-1.1.0 writers discard this section on save. Before returning forward, stop the
 legacy writer and atomically merge protected comments into the LATEST document,
 preserving newer ratings/settings and refusing conflicting newer comments.
 Never restore an older whole collection file over newer curation. Release 1.1.0
@@ -189,7 +189,7 @@ it is not a live downgrade or off-host recovery guarantee.
 new authentication, encryption or network-access control. Existing trusted-local
 admin access remains the boundary. Do not expose this API as a public service.
 
-### Accepted curation source (not yet deployed)
+### Photo curation (released in 1.1.1)
 
 The selected [curation milestone](./ROADMAP.md#selected-milestone-honest-low-friction-photo-curation--2026-11-26)
 adds one shared rating control to Direct Control and the Independent Rating Deck.
@@ -210,7 +210,7 @@ reloads/tab exit. Portrait rating/reset controls affect only the selected side.
 The curation card is qualified at320px and desktop widths with44px-high rating
 and disclosure targets. The existing trusted-local privacy/access boundary,
 last-writer-wins behavior and private-comment API/identity limits above remain.
-This accepted source does not change the running1.1.0 assets or API.
+Released in1.1.1; refresh an already-open admin page to load the new controls.
 
 ### Ecowitt-compatible sensors
 

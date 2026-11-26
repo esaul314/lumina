@@ -2,6 +2,19 @@
 
 Last updated: 2026-11-26
 
+## Current release — 1.1.1
+
+Released2026-11-26 from the accepted curation, pool-lifecycle, OAuth callback and
+bounded-forecast milestones. Native restart and exact served-asset matching,
+real read-only admin/socket/API checks, and retained collections/comments/history
+passed. Automatic/inactive intent was preserved; no TV activation was forced.
+Trusted callback configuration and local state-cookie generation are verified;
+actual Google authorization/provider registration and physical-TV acceptance are
+not claimed. Rollback1.1.0 reader/writer compatibility preserves comments and
+nullable ratings in disposable qualification; no live downgrade was performed.
+Source-acceptance paragraphs below retain their historical checks and limits.
+No next milestone is selected by this release.
+
 - Screensaver cursor correction (2026-10-25): the active TV kiosk restarts its three-second inactivity timer when screensaver state changes and hides the pointer across the page, including over settings panels.
 - Reported TV pointer regression (2026-11-13; unverified): the pointer is again
   remaining visible. Prioritize an investigation of the actual Playwright-host
@@ -58,7 +71,7 @@ coherent risk boundaries; unchanged checks and grounded briefs are reused, not
 rerun/reloaded per commit or turn. This improves repeatability, not demonstrated
 throughput. Existing strict/physical/security deferrals remain open. That audit
 did not implement folding; the subsequent curation milestone below accepts it
-at source level, separately from the running1.1.0 UI.
+at source level, followed by the separately authorized1.1.1 release.
 
 The existing state-path gauge includes client modules and fixture/persistence
 paths; it is not evidence of 24 unnecessary ledgers. Inspect a touched persistence
@@ -97,7 +110,7 @@ per-helper implementation narratives are in [the developer journal](./DEVELOPER_
   invalid dates exempt age only; size capping can still remove those photos.
   Loved photos are protected. Ordinary crawls preserve a curated prefix and
   publish capped candidates only on growth, so size is not a hard current limit.
-- Done source-only: prospective size-target timing and save/retry feedback are
+- Released in1.1.1: prospective size-target timing and save/retry feedback are
   explained; see the accepted lifecycle milestone below. Immediate destructive
   cleanup/impact preview and legacy-date backfill remain separately scoped.
 
@@ -265,9 +278,9 @@ No automatic next milestone or task-specific reminder is commissioned.
 
 ### Photo comment editor: progressive disclosure — feedback 2026-11-26
 
-**Delivered in the accepted source-only curation milestone below; not yet live.**
+**Released in1.1.1 from the accepted curation milestone below.**
 Most images will never receive a comment. The always-visible large textarea in
-live1.1.0 gives an occasional action too much space. The accepted disclosure
+the previous1.1.0 UI gave an occasional action too much space. The accepted disclosure
 prioritizes photo browsing and ratings in the normal view.
 
 - Collapse the editor by default behind a compact, discoverable "Add comment"
@@ -592,7 +605,7 @@ design work, not claims that the current behavior has already been changed.
   ingestion target or an enforceable current limit. Expose that behavior in the
   UI and, if immediate cleanup is supported, preview affected rows and preserve
   explicit loved-photo and legacy-date rules.
-  **Accepted source-only, 2026-11-26:**
+  **Accepted2026-11-26; released in1.1.1:**
   prospective crawl target, no immediate cleanup or hard current cap. Compact
   per-pool disclosure explains curated/loved/legacy exceptions, existing oversized
   pools, Google cached-feed reconstruction/sync/import differences, and independent
@@ -608,13 +621,14 @@ design work, not claims that the current behavior has already been changed.
   assertions,228 native cases,25 browser cases, lint and isolated build passed.
   [Acceptance evidence](./.agents/instruction-archives/pool-lifecycle-20261126/implementation_plan.md)
   retains both reviews and exact candidates; existing strict debt and headless-only
-  UI evidence remain explicit. No deploy, push or automatic next milestone.
+  UI evidence remain explicit. Source acceptance did not itself authorize rollout;
+  the subsequent1.1.1 release is recorded above. No automatic next milestone.
 - **Harden the Google OAuth callback boundary.** The current authorization URL
   has no OAuth `state` value and the callback rebuilds its redirect URI from the
   request `Host` header. Add a one-time state check and use a configured,
   trusted public origin for callback construction; cover callback mismatch and
   replay behavior with focused tests.
-  **Accepted source-only, 2026-11-26:** bind each Google code callback to its initiating browser with a bounded, expiring, one-time state challenge; use an explicit HTTPS `GOOGLE_REDIRECT_URI` (loopback HTTP for development only); ignore request/forwarded host headers; preserve the local sandbox flow. Full regression/lint and nine focused OAuth scenarios pass; independent review rejected remote HTTP, then accepted the loopback-only repair. Actual Google login/configuration and live application remain unverified; no credentials, account flow, `.env` edit, deploy, version bump or push occurred. No automatic next milestone.
+  **Accepted source-only, 2026-11-26:** bind each Google code callback to its initiating browser with a bounded, expiring, one-time state challenge; use an explicit HTTPS `GOOGLE_REDIRECT_URI` (loopback HTTP for development only); ignore request/forwarded host headers; preserve the local sandbox flow. Full regression/lint and nine focused OAuth scenarios pass; independent review rejected remote HTTP, then accepted the loopback-only repair. At source acceptance, actual Google login/configuration and live application were unverified; no credentials, account flow, `.env` edit, deploy, version bump or push occurred. The subsequent1.1.1 release verifies local trusted-callback/state-cookie configuration, not actual Google login. No automatic next milestone.
 
 - **Bound failed-provider work and expose degraded capability.** The November24
   rollout found repeated Unsplash401/Reddit403 responses and aborted background
@@ -703,7 +717,7 @@ design work, not claims that the current behavior has already been changed.
   Provider availability remains external; physical-TV acceptance is still open.
   See [weather/location behavior](./README.md#weather-and-location) and the
   [design lesson](./DEVELOPER_LOG.md#2026-11-25--bounded-weather-location-and-provider-suitability).
-- **Bounded forecast refresh/recovery — SOURCE ACCEPTED 2026-11-26.**
+- **Bounded forecast refresh/recovery — accepted2026-11-26; released in1.1.1.**
   Bound Open-Meteo headers AND body with one five-second deadline; one attempt,
   no generic request/retry framework. Preserve successful URL/query/WMO behavior.
   Periodic failure retains valid prior cache/physical state without success
@@ -725,8 +739,8 @@ design work, not claims that the current behavior has already been changed.
   Unchanged frontend evidence reused only for unaffected frontend behavior.
   Follow-up opportunities remain explicit: stale-age UI/TTL, full daily schema,
   same-selection/ABA ordering and physical-display verification; none is selected
-  automatically. Source-only: no provider,
-  config/runtime/version, live write, deploy/restart/push or automatic next work.
+  automatically. Source acceptance was source-only; the subsequent1.1.1 release
+  verified live weather recovery and retained state through the native owner.
 
 ### Backlog maintenance
 
