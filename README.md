@@ -122,6 +122,7 @@ Some integrations are keyless; others are optional:
 | `USEAPI_TOKEN` | Optional UseAPI/Midjourney source for AI Creations |
 | `TUMBLR_API_KEY` | Optional Tumblr tagged-search source |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Photos OAuth setup |
+| `GOOGLE_REDIRECT_URI` | Trusted absolute HTTPS callback URL (loopback HTTP is allowed for development), ending in `/api/auth/google/callback` |
 
 Feeds are network-dependent and can be rate-limited or unavailable. A failed provider should reduce that provider’s contribution, not invalidate the local collection.
 Review each provider’s terms, rate limits, attribution requirements, and image licensing before enabling a feed for anything beyond personal use.
@@ -221,7 +222,7 @@ configurable from the remote.
 
 ### Google Photos
 
-The remote can register Google OAuth credentials, complete the local OAuth flow, and use the Google Photos picker. Selected media is cached as an external collection and proxied by the server so the TV can display it without exposing provider tokens to the browser.
+The remote can register Google OAuth credentials, complete the local OAuth flow, and use the Google Photos picker. Set `GOOGLE_REDIRECT_URI` in the server environment to the exact trusted absolute HTTPS callback URL registered with the Google OAuth client; HTTP is accepted only for loopback development (`localhost`, `127.0.0.0/8`, or `::1`). It must end in `/api/auth/google/callback`. Lumina never derives that URL from request or forwarded host headers. Each real authorization is bound to the initiating browser with a short-lived, one-time state challenge. The development sandbox callback remains local. Selected media is cached as an external collection and proxied by the server so the TV can display it without exposing provider tokens to the browser.
 
 ## REST API surface
 

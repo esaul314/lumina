@@ -596,6 +596,7 @@ design work, not claims that the current behavior has already been changed.
   request `Host` header. Add a one-time state check and use a configured,
   trusted public origin for callback construction; cover callback mismatch and
   replay behavior with focused tests.
+  **Accepted source-only, 2026-11-26:** bind each Google code callback to its initiating browser with a bounded, expiring, one-time state challenge; use an explicit HTTPS `GOOGLE_REDIRECT_URI` (loopback HTTP for development only); ignore request/forwarded host headers; preserve the local sandbox flow. Full regression/lint and nine focused OAuth scenarios pass; independent review rejected remote HTTP, then accepted the loopback-only repair. Actual Google login/configuration and live application remain unverified; no credentials, account flow, `.env` edit, deploy, version bump or push occurred. No automatic next milestone.
 
 - **Bound failed-provider work and expose degraded capability.** The November24
   rollout found repeated Unsplash401/Reddit403 responses and aborted background
