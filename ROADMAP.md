@@ -703,11 +703,30 @@ design work, not claims that the current behavior has already been changed.
   Provider availability remains external; physical-TV acceptance is still open.
   See [weather/location behavior](./README.md#weather-and-location) and the
   [design lesson](./DEVELOPER_LOG.md#2026-11-25--bounded-weather-location-and-provider-suitability).
-- **Bound forecast transport separately (follow-up, not selected).** Open-Meteo's
-  forecast request is unchanged and still has no whole-operation deadline. Before
-  selecting that work, define failure/cache semantics and test stalled headers
-  AND body through the existing weather composition. Reuse the simple boundary
-  pattern if it fits; don't extract a generic framework merely for symmetry.
+- **Bounded forecast refresh/recovery — SOURCE ACCEPTED 2026-11-26.**
+  Bound Open-Meteo headers AND body with one five-second deadline; one attempt,
+  no generic request/retry framework. Preserve successful URL/query/WMO behavior.
+  Periodic failure retains valid prior cache/physical state without success
+  broadcast; a cold HTTP failure returns the existing500 contract without a
+  poisoned cache, and the next existing trigger recovers. Location edits keep
+  cache invalidation and obsolete in-flight selections must not republish it.
+  Validate only required finite current temperature/code to prevent NaN physical
+  state; daily schema hardening, TTL/UI, IP-lookup changes and general concurrency
+  redesign stay excluded. **Source findings:** use a shared pure cache projection
+  and location-selection fingerprint, not object identity or a new request store.
+  Physical alignment stays last-known on failure; stale-age UI/TTL remains a
+  separate possible follow-up, not a hidden freshness guarantee. Require actual
+  entrypoint probes, stalled native
+  headers/body cancellation, late non-cooperative outcomes, cleanup and deadline
+  negative controls. Independent review accepted the frozen candidate: full959
+  assertions/262native cases and lint passed;38targeted review tests plus paired
+  guards-disabled controls confirmed stale-publication protection in both consumers.
+  Existing strict debt remains203configured; expanded898→893, no new diagnostics.
+  Unchanged frontend evidence reused only for unaffected frontend behavior.
+  Follow-up opportunities remain explicit: stale-age UI/TTL, full daily schema,
+  same-selection/ABA ordering and physical-display verification; none is selected
+  automatically. Source-only: no provider,
+  config/runtime/version, live write, deploy/restart/push or automatic next work.
 
 ### Backlog maintenance
 

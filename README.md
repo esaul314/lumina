@@ -234,7 +234,20 @@ Use manual selection to avoid that IP-lookup request. The provider's
 permits commercial use and allows 1,000 requests/day per client IP, with no uptime
 SLA (terms checked November 2026). Availability and quota remain external limits;
 there is no retry loop. Manual selection bypasses IP lookup, not the subsequent
-Open-Meteo forecast request. Weather and time-of-day alignment are independently
+Open-Meteo forecast request. Forecasts use one five-second deadline covering
+headers and JSON body, with owned cancellation/cleanup and no retries. HTTP,
+transport, JSON, timeout and invalid current-observation failures do not replace
+valid cached weather or physical state and do not broadcast a successful refresh.
+A cold `GET /api/weather` returns HTTP 500 on failure without caching it; the next
+existing request/refresh can recover. Current temperature and weather code must
+be finite numbers; other forecast fields and unknown numeric WMO codes preserve
+their existing behavior.
+
+Location edits invalidate the weather cache before refreshing; results for an
+obsolete location selection cannot repopulate it. Last-known physical alignment
+remains until a successful refresh (it is not a new-location measurement). There
+is no TTL/stale indicator or general latest-request policy; requests for the same
+selection may still overlap. Weather and time-of-day alignment are independently
 configurable from the remote.
 
 ### Google Photos

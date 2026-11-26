@@ -7193,3 +7193,22 @@ fixture uses the real route, dispatcher, writer and guarded codec; disk assertio
 include intermediate values, reconstruction and a disabled-writer negative
 control. The lifecycle source tests preserve existing source-specific cap
 behavior rather than silently turning a prospective target into cleanup.
+
+
+## 2026-11-26 — Bounded forecast publication
+
+A fetch timeout must cover body consumption, not only response headers. Race the
+whole operation against one owned deadline, abort/clear in finally, and keep late
+non-cooperative outcomes observed. Validate only the current numeric observations
+needed by the cache/physical projection; retain daily data and unknown-code
+fallback compatibility instead of inventing a broad provider schema.
+
+Trace cache consumers before changing failure propagation: periodic refresh keeps
+last-known data; cold HTTP fails without caching; explicit location edits still
+invalidate. Compare a pure fingerprint of relevant location settings around
+awaits so an old request cannot undo invalidation or misattribute data. Compare
+values, not object identity: unrelated domain updates reconstruct settings.
+Prepare both weather projections before publishing either. Normalize caught
+non-Error values in the refresh error boundary. Offline acceptance uses actual
+route/app composition plus warmed native headers/body stalls and an intentionally
+disabled deadline that must fail the settlement oracle; no provider call needed.
