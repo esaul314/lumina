@@ -5081,7 +5081,7 @@ assertAsyncTest('Google Photos Picker copy keeps the external source separate fr
   assert.match(imageFeedsSource, /className="image-feed-category-select"/);
   assert.match(imageFeedsSource, /aria-pressed=\{isActive\}/);
   assert.match(imageFeedsSource, /htmlFor="new-scenic-pool-name"/);
-  assert.match(imageFeedsSource, /className="image-feeds-rating-scale"/);
+  assert.match(imageFeedsSource, /<PhotoRatingControl photo=\{photo\} onRate=\{actions.ratePhoto\}/);
   assert.match(imageFeedsSource, /className="image-feeds-rating-preview"/);
   assert.match(imageFeedsSource, /className="image-feeds-rating-content"/);
   assert.match(imageFeedsSource, /aspectRatio: tvAspectRatio/);

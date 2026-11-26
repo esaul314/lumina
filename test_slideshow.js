@@ -25,6 +25,22 @@ const photo = (id, orientation = 'landscape') => ({
 const landscapePhotos = () => ['a', 'b', 'c', 'broken'].map(id => photo(id));
 const portraitPhotos = () => ['p1', 'p2', 'p3', 'broken'].map(id => photo(id, 'portrait'));
 
+// Keep the global test guard intact; only this closed codec may write fixture files.
+function createFixtureCodec(directory) {
+  const filename = path.join(__dirname, 'server/config/collectionsCodec.js');
+  const module = { exports: {} }, nativeRequire = createRequire(filename);
+  const inside = filename => assert.equal(path.dirname(path.resolve(filename)), directory, 'Codec I/O stays in the fixture directory');
+  const fixtureFs = Object.fromEntries(['existsSync', 'readFileSync', 'writeFileSync', 'renameSync', 'rmSync'].map(method => [method, (...args) => {
+    inside(args[0]);
+    if (method === 'renameSync') inside(args[1]);
+    return fs[method](...args);
+  }]));
+  compileFunction(fs.readFileSync(filename, 'utf8'), ['module', 'require', 'process'], { filename })(
+    module, name => name === 'fs' ? fixtureFs : nativeRequire(name), { env: { NODE_ENV: 'isolated-browser-fixture' } }
+  );
+  return module.exports;
+}
+
 async function createFixture(photos, { screensaverActive = false, widgets = {} } = {}) {
   const app = express();
   const server = http.createServer(app);
@@ -43,17 +59,19 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   const commentPath = path.join(commentDir, 'collections.json');
   fs.writeFileSync(commentPath, JSON.stringify({ feeds: collections }));
   const commentStore = createPhotoCommentStore({ jsonPath: commentPath });
+  const fixtureCodec = createFixtureCodec(commentDir);
   const events = [];
   const errors = [];
   const logs = [];
-  // Explicit fixture-owned sinks; production persistence is never imported.
+  // Explicit fixture-owned sinks; the real codec is closed over task-owned I/O.
   const persistence = { collections: [], env: [] };
   const dispatcher = createDomainDispatcher({
     state, collections, io,
     savePhotoComment: ({ url, comment }) => commentStore.write({ url }, comment),
-    persistCollections: (savedCollections, savedState) => persistence.collections.push(
-      structuredClone({ collections: savedCollections, state: savedState })
-    ),
+    persistCollections: (savedCollections, savedState) => {
+      persistence.collections.push(structuredClone({ collections: savedCollections, state: savedState }));
+      fixtureCodec.saveCollectionsSnapshot({ jsonPath: commentPath, collections: savedCollections, state: savedState });
+    },
     persistEnvVars: entries => persistence.env.push(structuredClone(entries))
   });
   const dispatch = command => dispatcher.dispatchCommand(command, { rng: () => 0.5 });
@@ -115,7 +133,10 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
-    state, collections, weather, events, errors, logs, persistence, dispatch, commentStore, ...dispatcher,
+    state, collections, weather, events, errors, logs, persistence, dispatch, commentStore, readPersisted: () => JSON.parse(fs.readFileSync(commentPath, 'utf8')),
+    readReconstructed: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
+      defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).collections,
+    ...dispatcher,
     url: `http://127.0.0.1:${server.address().port}`,
     get slowPending() { return Boolean(slowResponse); },
     releaseSlow: () => slowResponse(),
@@ -413,10 +434,15 @@ const weatherCases = [
 ];
 
 // The same real REST/interpreter/store path is used by the isolated browser fixture.
+const openComment = async page => {
+  const details = page.locator('.photo-comment-disclosure');
+  if (!await details.evaluate(element => element.open)) await details.locator('summary').click();
+};
 const commentCases = [
   ['private comment create/edit/clear is durable plain text and absent from TV/state', async ({ page, fixture }) => {
     const remote = await page.context().newPage();
     await remote.goto(fixture.url + '/?mode=remote');
+    await openComment(remote);
     const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
     await expect(text).toBeEnabled();
     const before = JSON.stringify(fixture.collections);
@@ -425,6 +451,7 @@ const commentCases = [
       await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
       await expect(remote.getByRole('status')).toHaveText('Comment saved');
       await remote.reload();
+      await openComment(remote);
       await expect(text).toHaveValue(comment);
       assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, comment);
     }
@@ -439,6 +466,7 @@ const commentCases = [
     await remote.getByRole('button', { name: 'Clear comment', exact: true }).click();
     await expect(text).toHaveValue('');
     await remote.reload();
+    await openComment(remote);
     await expect(text).toHaveValue('');
     assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, '');
     await remote.close();
@@ -453,6 +481,7 @@ const commentCases = [
         : route.continue();
     });
     await remote.goto(fixture.url + '/?mode=remote');
+    await openComment(remote);
     const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
     await expect(remote.getByRole('alert')).toHaveText('Injected comment failure');
     await expect(text).toBeDisabled();
@@ -462,6 +491,10 @@ const commentCases = [
     await text.fill('Unsaved private draft');
     await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
     await expect(remote.getByRole('alert')).toHaveText('Injected comment failure');
+    await remote.locator('.photo-comment-disclosure summary').click();
+    await expect(text).not.toBeVisible();
+    await expect(remote.getByRole('status')).toHaveText('Comment not saved');
+    await openComment(remote);
     await expect(text).toHaveValue('Unsaved private draft');
     assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, '');
     failSave = false;
@@ -478,13 +511,23 @@ const commentCases = [
   ['left/right selection keeps separate drafts and isolates delayed save responses', async ({ page, fixture }) => {
     const remote = await page.context().newPage();
     await remote.goto(fixture.url + '/?mode=remote');
+    await openComment(remote);
     const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
     await expect(text).toBeEnabled();
     await text.fill('Left draft');
     await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
+    await openComment(remote);
     await expect(text).toHaveValue('');
     await expect(text).toBeEnabled();
     await text.fill('Right draft');
+    const rightUrl = fixture.state.activeSecondPhoto.url;
+    const rightRating = remote.getByRole('group', { name: 'Photo rating (Right Photo)', exact: true });
+    await rightRating.getByRole('button', { name: /^Set rating 5 for / }).click();
+    await expect(rightRating.getByText('5 / 10', { exact: true })).toBeVisible();
+    await rightRating.getByRole('button', { name: 'Reset to unrated', exact: true }).click();
+    await expect(rightRating.getByText('Unrated', { exact: true })).toBeVisible();
+    assert.equal(fixture.collections.Fixture.find(row => row.url === rightUrl).rating, null);
+    assert.equal(fixture.collections.Fixture[0].rating, 10);
     await remote.getByRole('button', { name: 'Select left photo', exact: true }).press('Enter');
     await expect(text).toHaveValue('Left draft');
     let release;
@@ -496,6 +539,7 @@ const commentCases = [
     await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
     await expect(text).toBeDisabled();
     await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
+    await openComment(remote);
     await expect(text).toHaveValue('Right draft');
     await expect.poll(() => typeof release).toBe('function');
     release();
@@ -516,10 +560,12 @@ const commentCases = [
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"comment":"Old delayed response"}' });
     });
     await remote.goto(fixture.url + '/?mode=remote');
+    await openComment(remote);
     const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
     await expect(text).toBeDisabled();
     await expect.poll(() => typeof release).toBe('function');
     await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
+    await openComment(remote);
     await expect(text).toBeEnabled();
     await text.fill('New portrait draft');
     // Register before releasing so a fast response cannot race the observer.
@@ -529,6 +575,85 @@ const commentCases = [
     await expect(text).toHaveValue('New portrait draft');
     await remote.close();
   }, portraitPhotos().filter(row => !row.url.includes('broken'))]
+,
+  ['compact comment disclosure preserves drafts, cues and keyboard/touch layout without writes', async ({ page, fixture }) => {
+    const remote = await page.context().newPage();
+    const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
+    const disclosure = remote.locator('.photo-comment-disclosure summary');
+    let writes = 0;
+    remote.on('request', request => { if (request.method() === 'PATCH') writes += 1; });
+    for (const width of [320, 1280]) {
+      await remote.setViewportSize({ width, height: 850 });
+      await remote.goto(fixture.url + '/?mode=remote');
+      await expect(remote.getByRole('status')).toHaveText('No comment');
+      await expect(text).not.toBeVisible();
+      await expect(disclosure).toHaveText('Add comment');
+      assert.ok((await disclosure.boundingBox()).height >= 44);
+      await disclosure.focus();
+      await disclosure.press('Enter');
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+      await text.fill('Private draft retained');
+      await disclosure.press('Space');
+      await expect(text).not.toBeVisible();
+      await expect(remote.getByRole('status')).toHaveText('Unsaved comment');
+      await disclosure.press('Enter');
+      await expect(text).toHaveValue('Private draft retained');
+      const panel = remote.locator('.remote-card').first();
+      assert.ok(await panel.evaluate(element => element.scrollWidth <= element.clientWidth), 'Curation card fits viewport');
+      const buttons = remote.locator('.photo-rating-control .image-feeds-rating-scale button');
+      for (const button of await buttons.all()) {
+        const box = await button.boundingBox();
+        assert.ok(box.height >= 44 && box.width >= 40, 'Rating touch target');
+      }
+      if (width === 320) {
+        await remote.screenshot({ path: '.agents/instruction-archives/curation-20261126/expanded-320.png', fullPage: true });
+        await disclosure.click();
+        await remote.screenshot({ path: '.agents/instruction-archives/curation-20261126/compact-320.png', fullPage: true });
+      }
+    }
+    assert.equal(writes, 0, 'Disclosure and typing do not save');
+    assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, '');
+    await remote.close();
+  }],
+  ['both admin rating surfaces distinguish unrated, reset explicitly and preserve legacy 10/ban', async ({ page, fixture }) => {
+    const remote = await page.context().newPage();
+    await remote.setViewportSize({ width: 320, height: 850 });
+    await remote.goto(fixture.url + '/?mode=remote');
+    const rating = remote.getByRole('group', { name: 'Photo rating', exact: true });
+    await openComment(remote);
+    await remote.getByRole('textbox', { name: 'Private photo comment', exact: true }).fill('PRIVATE_CURATION_NOTE');
+    await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
+    await expect(remote.getByRole('status')).toHaveText('Comment saved');
+    await remote.locator('.photo-comment-disclosure summary').click();
+    await expect(rating.getByText('Unrated', { exact: true })).toBeVisible();
+    await expect(rating.locator('button[aria-pressed="true"]')).toHaveCount(0);
+    await rating.getByRole('button', { name: 'Set rating 4 for a', exact: true }).click();
+    await expect(rating.getByText('4 / 10')).toBeVisible();
+    assert.equal(fixture.readPersisted().feeds.Fixture[0].rating, 4, 'Intermediate rating4 must reach disk before reset');
+    assert.equal(fixture.readReconstructed().Fixture[0].rating, 4);
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    await expect(rating.getByText('4 / 10')).toBeVisible();
+    await rating.getByRole('button', { name: 'Reset to unrated', exact: true }).click();
+    await expect(rating.getByText('Unrated', { exact: true })).toBeVisible();
+    assert.equal(fixture.collections.Fixture[0].rating, null);
+    assert.equal(fixture.persistence.collections.at(-1).collections.Fixture[0].rating, null);
+    assert.equal(fixture.readPersisted().feeds.Fixture[0].rating, null);
+    assert.equal(fixture.readReconstructed().Fixture[0].rating, null);
+    assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, 'PRIVATE_CURATION_NOTE');
+    assert.ok(!JSON.stringify(fixture.refreshSnapshot()).includes('PRIVATE_CURATION_NOTE'));
+    await remote.reload();
+    await expect(rating.getByText('Unrated', { exact: true })).toBeVisible();
+    await remote.getByRole('button', { name: 'Direct Control', exact: true }).click();
+    await expect(remote.locator('.photo-comment-disclosure summary')).toHaveText('View/edit comment');
+    await expect(remote.getByRole('textbox', { name: 'Private photo comment', exact: true })).not.toBeVisible();
+    await expect(remote.getByRole('status')).toHaveText('Comment saved');
+    await expect(rating.locator('button[aria-pressed="true"]')).toHaveCount(0);
+    await rating.getByRole('button', { name: 'Set rating 1 for a', exact: true }).click();
+    await expect.poll(() => fixture.state.photosList.some(row => row.url === '/fixtures/a.svg')).toBe(false);
+    await expect(rating.getByRole('button', { name: 'Set rating 10 for b', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await remote.close();
+  }, [{ ...photo('a'), rating: null }, photo('b'), photo('c')]]
+
 ];
 
 async function main() {
