@@ -335,6 +335,32 @@ Prefer a small local disclosure over new settings, persistence or API state.
 This feedback is implemented and qualified by the curation milestone below;
 source acceptance does not commission deployment. See [interaction design guidance](./CONVENTIONS.md#interaction-design-and-progressive-disclosure).
 
+### Direct Control: reclaim rating/comment space — feedback 2026-11-26
+
+**High priority; open, not implemented.** User feedback on the released admin
+Direct Control page: excessive empty space separates the rating numbers from
+the divider immediately above "Add comment"; the separate "No comment" row
+also consumes valuable vertical space for the usual, uncommented photo.
+The earlier progressive-disclosure delivery above does not close this finding.
+
+- Remove purposeless vertical space between rating controls and the comment
+  divider/disclosure. Inspect actual computed layout before assigning a cause;
+  do not merely hide content or shrink accessible hit targets.
+- For a loaded, unchanged photo with no comment, show one compact "Add comment"
+  affordance without a separate "No comment" row or reserved empty status area.
+  Most photos have no comments: absence is the normal state, not a notification.
+- Keep existing comments discoverable and preserve draft, unsaved, saving,
+  failed-load and failed-save cues. Never treat a failed read as an empty comment.
+  Expanding/collapsing must retain drafts and predictable keyboard focus.
+- Acceptance: inspect built Direct Control at narrow/mobile and desktop widths,
+  including left/right portrait selection, both collapsed and expanded. Compare
+  before/after spacing and content visible without scrolling; ensure the empty
+  state adds no redundant row. Retest comment edit/save/clear/error recovery,
+  draft isolation and rating/reset; preserve keyboard/touch usability.
+- Scope: compact the existing layout, not new settings, storage or API state.
+  Check shared rating/comment styles for regressions in Image Feeds. Fixing this
+  requires implementation and visual acceptance; roadmap capture is not a fix.
+
 ### Selected milestone: honest, low-friction photo curation — 2026-11-26
 
 **Accepted, source only; not deployed or pushed.** Integrated canonical unrated metadata and explicit reset,
