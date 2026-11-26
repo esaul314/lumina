@@ -124,16 +124,61 @@ function classifyWeatherCode(code) {
 }
 
 /**
- * 🛰️ fetchWeatherForecast
- * Connects to Open-Meteo's API to fetch the current and daily telemetry datasets.
+ * @typedef {{current: Record<string, unknown> & {temperature_2m: number, weather_code: number}, daily?: unknown}} WeatherForecast
+ * @typedef {{fetchImpl?: typeof fetch, timeoutMs?: number}} ForecastLookupOptions
  */
-async function fetchWeatherForecast(lat, lon) {
-  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
-  const res = await fetch(weatherUrl);
-  if (!res.ok) {
-    throw new Error(`Open-Meteo API error: status ${res.status}`);
+
+/** Validate only observations required for a coherent cache/physical update.
+ * Daily fields and unknown numeric WMO codes retain their existing semantics.
+ * @param {unknown} data
+ * @returns {WeatherForecast}
+ */
+function validateWeatherForecast(data) {
+  const record = /** @type {Record<string, unknown> | null} */ (
+    data && typeof data === 'object' && !Array.isArray(data) ? data : null
+  );
+  const current = /** @type {Record<string, unknown> | null} */ (
+    record?.current && typeof record.current === 'object' && !Array.isArray(record.current) ? record.current : null
+  );
+  if (!record || record.error || !current
+    || typeof current.temperature_2m !== 'number' || !Number.isFinite(current.temperature_2m)
+    || typeof current.weather_code !== 'number' || !Number.isFinite(current.weather_code)) {
+    throw new Error('Invalid Open-Meteo forecast response');
   }
-  return res.json();
+  return /** @type {WeatherForecast} */ (record);
+}
+
+/**
+ * One forecast attempt with a whole-operation deadline, including body decoding.
+ * Race observes late outcomes even when a transport ignores cancellation.
+ * @param {number} lat
+ * @param {number} lon
+ * @param {ForecastLookupOptions} [options]
+ */
+async function fetchWeatherForecast(lat, lon, { fetchImpl = fetch, timeoutMs = 5_000 } = {}) {
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
+  const controller = new AbortController();
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  try {
+    /** @type {Promise<never>} */
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error('Open-Meteo forecast deadline exceeded'));
+        controller.abort();
+      }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5_000);
+    });
+    const lookup = async () => {
+      const response = await fetchImpl(weatherUrl, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Open-Meteo API error: status ${response.status}`);
+      return validateWeatherForecast(await response.json());
+    };
+    return await Promise.race([lookup(), deadline]);
+  } finally {
+    clearTimeout(timer);
+    // ponytail: request-local cleanup, not a retry service or shared controller.
+    controller.abort();
+  }
 }
 
 /**
@@ -153,5 +198,6 @@ module.exports = {
   getIpLocation,
   resolveActiveLocation,
   classifyWeatherCode,
-  fetchWeatherForecast
+  fetchWeatherForecast,
+  validateWeatherForecast
 };
