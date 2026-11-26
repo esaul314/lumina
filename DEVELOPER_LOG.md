@@ -1,5 +1,23 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-26 — content deadlines stop before cache effects
+
+A request signal alone cannot settle an abort-ignoring transport. Race one
+headers-plus-body attempt against its owned deadline, observe late outcomes, and
+check cancellation before consuming late headers. Keep filesystem effects after
+the awaited race so a late successful body cannot write. Share that content seam
+between existing proxy candidates and sequential background downloads, not token
+or Picker metadata calls. An existing empty file is a miss, not proof of success;
+metadata sync completion likewise does not imply byte availability. Preserve the
+old MIME/candidate/error sequencing and document partial-file/aggregate limits.
+
+Test actual HTTP and downloader entrypoints with empty/failed/stalled/late results
+and later success. Native-fetch fixtures need warmed listener-first peers and
+unconditional connection cleanup. Disable the deadline and empty guard separately
+to demonstrate the claimed oracles; give VM fixtures the new native capabilities
+without weakening production isolation. The [content-transfer milestone](./ROADMAP.md#selected-google-photos-content-transfer-resilience--2026-11-26)
+owns scope and acceptance, not a general transport framework.
+
 ## 2026-11-26 — measure density at the component boundary
 
 Flex gaps and nested margins add rather than collapse. Measure the built rating

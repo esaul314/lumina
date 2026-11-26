@@ -845,3 +845,31 @@ design work, not claims that the current behavior has already been changed.
   exist. That item is retired in favor of the callback hardening work above.
 - The agent guide's geolocation item described adding a flow that already
   exists; it is replaced by the transport/resilience work above.
+
+### Selected: Google Photos content-transfer resilience — 2026-11-26
+
+**SOURCE ACCEPTED, not deployed/pushed — 2026-11-26.** Independent review accepted53 media tests plus5 additional cancellation/stale-result probes; full957 assertions/315 native cases and lint pass. Existing compiler debt unchanged; exact frontend build/25 browser evidence reused. Bound each proxy/background
+content attempt across headers and body with15s deadline and owned cancellation;
+ignore late outcomes before any cache write. Reject empty bodies and treat empty
+local files as misses, retaining safe nonempty local hits and existing containment.
+Proxy failures retain502/no-success-cache behavior; downloader failures remain
+per-item so later entries and the next existing trigger recover. Existing URL,
+authentication and bounded Picker refresh sequencing stays unchanged. Metadata/
+token/Picker control-plane deadlines, general retry framework, MIME policy,
+identity migration and atomic file publication remain separate explicit deferrals.
+Acceptance requires actual offline HTTP/service/downloader late/stalled/empty/
+failed-body and recovery tests, not only an inner helper spy. No live operations.
+
+Content-transfer discovery: sync persists selected metadata and returns before
+its background downloads finish; metadata presence is not byte availability.
+Only nonempty, completed content is accepted by the byte cache. Existing empty
+files remain misses if recovery fails (no preemptive unlink); the next existing
+trigger retries them. Both initial proxy candidates and its existing final Picker
+content retry share the deadline. Late headers do not begin body consumption,
+and late body completion cannot reach filesystem writes. Caller settlement is
+bounded even if a mocked transport ignores abort; native-fetch peer cancellation
+is separately checked. This does not guarantee forcibly terminating an arbitrary
+noncooperative transport, cap payload size, or bound total batch/control-plane
+time. Whole-body buffering, existing MIME truthiness and non-atomic writes remain
+unchanged. Failed writes can still leave partial nonempty files: atomic publication
+is explicitly deferred, not a claim of transactional download/cache validity.
