@@ -483,7 +483,15 @@ const commentCases = [
     assert.ok(!(await page.evaluate(() => JSON.stringify(window.__state))).includes('Edited private note'));
     assert.ok(!(await page.locator('body').innerText()).includes('Edited private note'));
     assert.equal(JSON.stringify(fixture.collections), before);
+    await text.fill('');
+    await remote.locator('.photo-comment-disclosure summary').click();
+    await expect(remote.getByRole('status')).toHaveText('Unsaved comment');
+    assert.equal(fixture.commentStore.read(fixture.collections.Fixture[0]).comment, 'Edited private note');
+    await openComment(remote);
+    await expect(text).toHaveValue('');
+    await expect(remote.getByRole('button', { name: 'Save comment', exact: true })).toBeEnabled();
     await remote.getByRole('button', { name: 'Clear comment', exact: true }).click();
+    await expect(remote.getByRole('status')).toBeEmpty();
     await expect(text).toHaveValue('');
     await remote.reload();
     await openComment(remote);
@@ -504,10 +512,12 @@ const commentCases = [
     await openComment(remote);
     const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
     await expect(remote.getByRole('alert')).toHaveText('Injected comment failure');
+    await expect(remote.getByRole('status')).toHaveText('Unable to load comment');
     await expect(text).toBeDisabled();
     failRead = false;
     await remote.getByRole('button', { name: 'Retry loading comment' }).click();
     await expect(text).toBeEnabled();
+    await expect(remote.getByRole('status')).toBeEmpty();
     await text.fill('Unsaved private draft');
     await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
     await expect(remote.getByRole('alert')).toHaveText('Injected comment failure');
@@ -558,6 +568,8 @@ const commentCases = [
     });
     await remote.getByRole('button', { name: 'Save comment', exact: true }).click();
     await expect(text).toBeDisabled();
+    await remote.locator('.photo-comment-disclosure summary').click();
+    await expect(remote.getByRole('status')).toHaveText('Saving comment…');
     await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
     await openComment(remote);
     await expect(text).toHaveValue('Right draft');
@@ -565,7 +577,11 @@ const commentCases = [
     release();
     await expect.poll(() => fixture.commentStore.read(fixture.collections.Fixture[0]).comment).toBe('Left draft');
     await expect(text).toHaveValue('Right draft');
+    await expect(remote.getByRole('status')).toHaveText('Unsaved comment');
     await remote.getByRole('button', { name: 'Select left photo', exact: true }).click();
+    await expect(remote.getByRole('status')).toHaveText('Comment saved');
+    await expect(text).not.toBeVisible();
+    await openComment(remote);
     await expect(text).toHaveValue('Left draft');
     await expect(remote.getByRole('button', { name: 'Save comment', exact: true })).toBeDisabled();
     await remote.close();
@@ -583,6 +599,7 @@ const commentCases = [
     await openComment(remote);
     const text = remote.getByRole('textbox', { name: 'Private photo comment', exact: true });
     await expect(text).toBeDisabled();
+    await expect(remote.getByRole('status')).toHaveText('Loading comment…');
     await expect.poll(() => typeof release).toBe('function');
     await remote.getByRole('button', { name: 'Select right photo', exact: true }).click();
     await openComment(remote);
@@ -602,18 +619,36 @@ const commentCases = [
     const disclosure = remote.locator('.photo-comment-disclosure summary');
     let writes = 0;
     remote.on('request', request => { if (request.method() === 'PATCH') writes += 1; });
-    for (const width of [320, 1280]) {
+    for (const width of [320, 375, 1280]) {
       await remote.setViewportSize({ width, height: 850 });
       await remote.goto(fixture.url + '/?mode=remote');
-      await expect(remote.getByRole('status')).toHaveText('No comment');
+      const status = remote.getByRole('status');
+      await expect(status).toBeEmpty();
+      await expect(status).toHaveAttribute('aria-live', 'polite');
+      const geometry = await disclosure.evaluate(summary => {
+        const details = summary.parentElement, section = details.parentElement;
+        const card = section.closest('.remote-card');
+        const scale = card.querySelector('.image-feeds-rating-scale').getBoundingClientRect();
+        return { gap: details.getBoundingClientRect().top - scale.bottom,
+          statusHeight: section.querySelector('[role="status"]').getBoundingClientRect().height,
+          commentHeight: section.getBoundingClientRect().height, disclosureHeight: details.getBoundingClientRect().height };
+      });
+      assert.ok(geometry.gap >= 0 && geometry.gap <= 12, 'Curation gap is compact, not stacked margins');
+      assert.equal(geometry.statusHeight, 0, 'Clean-empty live region reserves no row');
+      assert.equal(geometry.commentHeight, geometry.disclosureHeight, 'Only Add comment occupies the clean section');
       await expect(text).not.toBeVisible();
       await expect(disclosure).toHaveText('Add comment');
       assert.ok((await disclosure.boundingBox()).height >= 44);
       await disclosure.focus();
       await disclosure.press('Enter');
       await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+      await expect(disclosure).toBeFocused();
+      const focusOutline = await disclosure.evaluate(el => getComputedStyle(el).outlineStyle);
+      assert.notEqual(focusOutline, 'none', 'Keyboard disclosure focus remains visible');
       await text.fill('Private draft retained');
       await disclosure.press('Space');
+      await expect(disclosure).toBeFocused();
+      await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
       await expect(text).not.toBeVisible();
       await expect(remote.getByRole('status')).toHaveText('Unsaved comment');
       await disclosure.press('Enter');
@@ -623,7 +658,7 @@ const commentCases = [
       const buttons = remote.locator('.photo-rating-control .image-feeds-rating-scale button');
       for (const button of await buttons.all()) {
         const box = await button.boundingBox();
-        assert.ok(box.height >= 44 && box.width >= 40, 'Rating touch target');
+        assert.ok(box.height >= 44 && box.width >= 44, 'Rating touch target');
       }
       if (width === 320) {
         await remote.screenshot({ path: path.join(captureDirectory, 'curation-expanded-320.png'), fullPage: true });
@@ -653,6 +688,14 @@ const commentCases = [
     assert.equal(fixture.readReconstructed().Fixture[0].rating, 4);
     await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
     await expect(rating.getByText('4 / 10')).toBeVisible();
+    for (const width of [320, 375, 1280]) {
+      await remote.setViewportSize({ width, height: 850 });
+      for (const button of await rating.locator('button').all()) {
+        const box = await button.boundingBox();
+        assert.ok(box.width >= 44 && box.height >= 44, 'Shared Image Feeds rating targets stay usable');
+      }
+      await remote.screenshot({ path: path.join(captureDirectory, `ratings-image-feeds-${width}.png`), fullPage: true });
+    }
     await rating.getByRole('button', { name: 'Reset to unrated', exact: true }).click();
     await expect(rating.getByText('Unrated', { exact: true })).toBeVisible();
     assert.equal(fixture.collections.Fixture[0].rating, null);
