@@ -1676,7 +1676,7 @@ function runDomainTests({ logSuite, assertTest }) {
   });
 
   assertTest('private record equality preserves strict values, own-key asymmetry and native failures', () => {
-    const sandbox = { module: { exports: {} } };
+    const sandbox = { module: { exports: {} }, require };
     runInNewContext(`${fs.readFileSync(require.resolve('./selectors.js'), 'utf8')}\nglobalThis.equal = shallowEqualRecords;`, sandbox);
     const { equal } = sandbox, symbol = Symbol('ignored'), shared = {};
     assert.strictEqual(equal(shared, shared), true);
@@ -1701,7 +1701,7 @@ function runDomainTests({ logSuite, assertTest }) {
   });
 
   assertTest('category projections retain shallow metadata and nullish external lookup precedence', () => {
-    const sandbox = { module: { exports: {} } };
+    const sandbox = { module: { exports: {} }, require };
     runInNewContext(`${fs.readFileSync(require.resolve('./selectors.js'), 'utf8')}\nglobalThis.tag = attachCategory; globalThis.lookup = getCategoryPhotos;`, sandbox);
     const metadata = {}, symbol = Symbol('metadata'), photo = Object.freeze({ url: 'u', category: 'A', metadata, [symbol]: metadata });
     const tagged = sandbox.tag('B', photo), equal = sandbox.tag('A', photo);
@@ -1917,7 +1917,7 @@ function runDomainTests({ logSuite, assertTest }) {
 
   assertTest('selector ambient defaults are undefined-only and injected failures propagate exactly', () => {
     const reads = [];
-    const sandbox = { module: { exports: {} }, Date: class extends Date {
+    const sandbox = { module: { exports: {} }, require, Date: class extends Date {
       constructor() { super(2026, 0, 1, 9); reads.push('date'); }
     }, Math: { get random() { reads.push('random'); return () => { reads.push('draw'); return 0; }; } } };
     runInNewContext(fs.readFileSync(require.resolve('./selectors.js'), 'utf8'), sandbox);
@@ -2150,7 +2150,7 @@ function runDomainTests({ logSuite, assertTest }) {
 
   assertTest('mutable patch field extensions preserve raw values without normalizing special fields', () => {
     const sharedFields = require('./statePatch.js').STATE_PATCH_FIELDS, before = [...sharedFields];
-    const sandbox = { module: { exports: {} } };
+    const sandbox = { module: { exports: {} }, require };
     runInNewContext(fs.readFileSync(require.resolve('./statePatch.js'), 'utf8'), sandbox);
     const { STATE_PATCH_FIELDS: fields, pickStatePatchFields: pick } = sandbox.module.exports;
     assert.notStrictEqual(fields, sharedFields);
@@ -2163,7 +2163,7 @@ function runDomainTests({ logSuite, assertTest }) {
   });
 
   assertTest('state patch normalizers retain native coercion, exact defaults and unvalidated boundaries', () => {
-    const sandbox = { module: { exports: {} } };
+    const sandbox = { module: { exports: {} }, require };
     runInNewContext(`${fs.readFileSync(require.resolve('./statePatch.js'), 'utf8')}\nglobalThis.helpers = { trimString, normalizeCoordinate };`, sandbox);
     const { trimString: trim, normalizeCoordinate: coordinate } = sandbox.helpers;
     const { normalizeManualLocation: location, normalizeVisionConfig: vision } = require('./statePatch.js');

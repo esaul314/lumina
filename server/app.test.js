@@ -75,7 +75,7 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
     './config/activeCategories.js': { loadActiveCategories: () => ['A'], createActiveCategoryDispatcher: ({ dispatchCommand }) => dispatchCommand },
     './domain/dispatch.js': { createDomainDispatcher: capture('domain', dispatcher) },
     './domain/poolRetention.js': { applyPoolPolicy: () => values => values },
-    './domain/selectors.js': { getPhotoByUrl: require('./domain/selectors.js').getPhotoByUrl, buildBalancedFeed: ({ collections: values }) => values.A },
+    './domain/selectors.js': { selectSmartPhotoFromFeed: options => require('./domain/selectors.js').selectSmartPhotoFromFeed({ ...options, rng: () => 0.3 }), getPhotoByUrl: require('./domain/selectors.js').getPhotoByUrl, buildBalancedFeed: ({ collections: values }) => values.A },
     './domain/snapshot.js': { syncLegacySnapshot: (...args) => effects.push(['snapshot', ...args]) },
     './runtime/activeFeed.js': { createActiveFeedRuntime: () => activeFeed },
     './runtime/poolSchedule.js': { createPoolScheduleRuntime: () => ({ start: () => hit('pool.start'), stop: () => hit('pool.stop') }) },
@@ -622,7 +622,7 @@ test('actual weather composition retains periodic cache, cold HTTP fails/retries
 
 // Badge contract: actual app adapters, REST/socket registration and codec, with
 // only task-owned paths. No daemon, private configuration or provider is opened.
-async function withBadgeFixture(run, { raw, disabledWriter = false, oldCodec = false, oldDefault = false } = {}) {
+async function withBadgeFixture(run, { raw, disabledWriter = false, oldCodec = false, oldDefault = false, oldWeight = false } = {}) {
   const os = require('node:os'), http = require('node:http');
   const { createRequire } = require('node:module');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-badge-'));
@@ -635,7 +635,9 @@ async function withBadgeFixture(run, { raw, disabledWriter = false, oldCodec = f
   const source = fs.readFileSync(codecFile, 'utf8');
   // Disable only the badge serialization seam to reproduce the old weather-only writer.
   // No Git history/HEAD dependency: the negative control must survive candidate commits.
-  const code = oldCodec ? source.replace(', qrcode: widgets.qrcode === true', '') : source;
+  const code = oldWeight ? source.replace('unratedPlaybackWeight: normalizeUnratedPlaybackWeight(unratedPlaybackWeight),', '')
+    : oldCodec ? source.replace(', qrcode: widgets.qrcode === true', '') : source;
+  if (oldWeight) assert.notEqual(code, source);
   if (oldCodec) assert.notEqual(code, source, 'negative control must disable the writer field');
   compileFunction(code, ['module', 'require', 'process'], { filename: codecFile })(
     codecModule, createRequire(codecFile), { env: { NODE_ENV: 'isolated-fixture' } }
@@ -924,3 +926,104 @@ test('blue filter REST disk failure then identical retry really persists', () =>
   await f.patch({ widgets: { clock: f.h.state.widgets.clock } });
   assert.equal(f.writes(), before);
 }));
+
+
+const unratedRows = Object.freeze([
+  Object.freeze({ url: 'unrated', category: 'A', rating: null }),
+  Object.freeze({ url: 'rated', category: 'A', rating: 10 }),
+  Object.freeze({ url: 'banned', category: 'A', rating: 1 }),
+  Object.freeze({ url: 'broken', category: 'A', rating: 10, isBroken: true })
+]);
+const unratedSelectionOracle = selectors => {
+  const input = { photos: unratedRows, rng: () => 0.3, unratedPlaybackWeight: 2 };
+  assert.equal(selectors.selectWeightedRandomPhoto(input).url, 'rated');
+  assert.equal(selectors.selectSmartPhotoFromFeed(input).url, 'rated');
+};
+test('unrated effective weight reaches both pure selectors, state adapter and app wrapper without score migration', () => {
+  const selectors = require('./domain/selectors.js');
+  const before = JSON.stringify(unratedRows);
+  unratedSelectionOracle(selectors);
+  assert.equal(selectors.selectWeightedRandomPhoto({ photos: unratedRows, rng: () => 0.3 }).url, 'unrated');
+  const { buildDomainState } = require('./domain/snapshot.js');
+  const legacy = { photosList: unratedRows, currentCategory: 'A', widgets: {}, unratedPlaybackWeight: 2 };
+  const state = buildDomainState(legacy, { A: unratedRows });
+  assert.equal(selectors.selectSmartPhoto({ state, rng: () => 0.3 }).url, 'rated');
+  const sequential = selectors.selectSequentialPhoto({ state }).url;
+  assert.equal(selectors.selectSequentialPhoto({ state: { ...state, config: { ...state.config, unratedPlaybackWeight: 10 } } }).url, sequential);
+  const h = appFixture('test', { initialState: { ...legacy, widgets: {} },
+    snapshotLoader: () => ({ collections: { A: unratedRows }, persistedState: { unratedPlaybackWeight: 2 } }) });
+  const application = h.exports.createApplication();
+  assert.equal(application.selectWeightedRandomPhoto(unratedRows).url, 'rated');
+  assert.equal(JSON.stringify(unratedRows), before);
+  assert.equal(selectors.selectWeightedRandomPhoto({ photos: [{url:'missing',category:'A'},unratedRows[1]],unratedPlaybackWeight:2,rng:()=>0.3 }).url,'rated');
+  assert.equal(selectors.selectWeightedRandomPhoto({ photos: [unratedRows[2], unratedRows[3]], unratedPlaybackWeight: 2 }), null);
+  const pools = [...unratedRows, { url: 'other-pool', category: 'B', rating: null }];
+  assert.equal(selectors.selectWeightedRandomPhoto({ photos: pools, unratedPlaybackWeight: 2, rng: () => 0.99 }).url, 'other-pool');
+  assert.equal(selectors.selectSmartPhotoFromFeed({ photos: pools, previousCategory: 'A', unratedPlaybackWeight: 2 }).url, 'other-pool');
+  assert.equal(selectors.selectWeightedRandomPhoto({ photos: [{url:'excluded', title:'exclude',rating:null}], excludedKeywords:['exclude'], unratedPlaybackWeight:2 }), null);
+});
+test('old constant10 fallback fails the same deterministic selection oracle', () => {
+  const { createRequire } = require('node:module'), filename = path.join(__dirname, 'domain/selectors.js');
+  const source = fs.readFileSync(filename, 'utf8');
+  const disabled = source.replace('photo.rating ?? fallbackWeight', 'photo.rating ?? 10');
+  assert.notEqual(disabled, source);
+  const module = { exports: {} }; compileFunction(disabled, ['module','require'], { filename })(module, createRequire(filename));
+  assert.throws(() => unratedSelectionOracle(module.exports), assert.AssertionError);
+});
+const weightRoundtrip = async f => {
+  assert.equal(f.reconstruct().state.unratedPlaybackWeight, 10);
+  assert.equal((await f.patch({ unratedPlaybackWeight: 4 })).status, 200);
+  assert.equal(f.disk().unratedPlaybackWeight, 4, 'Intermediate disk value must differ from compatibility default');
+  assert.equal(f.reconstruct().state.unratedPlaybackWeight, 4);
+  const { execFileSync } = require('node:child_process');
+  const script = "console.log(require('./server/config/collectionsCodec.js').loadCollectionsSnapshot({jsonPath:process.argv[1],defaultCollections:{},defaultState:{},buildFeedConfigsFromKeywords:()=>({})}).persistedState.unratedPlaybackWeight)";
+  assert.equal(execFileSync(process.execPath, ['-e',script,f.jsonPath], { cwd: path.join(__dirname,'..'),encoding:'utf8' }).trim(), '4');
+  await f.patch({ theme: 'Fixture theme' });
+  assert.equal(f.disk().unratedPlaybackWeight, 4);
+};
+test('unrated preference actual REST disk/cold-process roundtrip and unrelated save preserve value', () => withBadgeFixture(weightRoundtrip));
+test('disabled writer fails the same unrated durable oracle', () => assert.rejects(withBadgeFixture(weightRoundtrip, { disabledWriter: true }), assert.AssertionError));
+test('old weight writer fails the same unrated durable oracle', () => assert.rejects(withBadgeFixture(weightRoundtrip, { oldWeight: true }), assert.AssertionError));
+test('unrated preference validates exact numbers and strict identical retry through actual HTTP/socket registration', () => withBadgeFixture(async f => {
+  for (const value of [null, false, '4', 1, 11, 2.5]) {
+    assert.equal((await f.patch({ unratedPlaybackWeight: value })).status, 400);
+    assert.equal(f.writes(), 0);
+  }
+  f.fail(true);
+  assert.equal((await f.patch({ unratedPlaybackWeight: 2 })).status, 500);
+  assert.equal(f.h.state.unratedPlaybackWeight, 2);
+  assert.equal(f.disk().unratedPlaybackWeight, 10);
+  f.fail(false);
+  assert.equal((await f.patch({ unratedPlaybackWeight: 2 })).status, 200);
+  assert.equal(f.disk().unratedPlaybackWeight, 2);
+  f.fail(true);
+  f.listeners.get('change-unrated-playback-weight')(7);
+  await new Promise(setImmediate);
+  assert.equal(f.h.state.unratedPlaybackWeight, 7);
+  assert.equal(f.disk().unratedPlaybackWeight, 2);
+  f.fail(false);
+  f.listeners.get('change-unrated-playback-weight')(7);
+  await new Promise(setImmediate);
+  assert.equal(f.disk().unratedPlaybackWeight, 7);
+  assert.equal(f.reconstruct().state.unratedPlaybackWeight, 7);
+  const count = f.writes(); f.listeners.get('change-unrated-playback-weight')('8'); await new Promise(setImmediate);
+  assert.equal(f.writes(), count);
+}));
+test('unrated preference cold defaults malformed persisted values to10 and retains both bounds', async () => {
+  for (const value of [undefined,null,'2',1,11,2.5,2,10]) await withBadgeFixture(async f => {
+    assert.equal(f.h.state.unratedPlaybackWeight, [2,10].includes(value) ? value : 10);
+  }, { raw: { unratedPlaybackWeight: value } });
+});
+
+test('unrated policy saves preserve explicit scores, null, broken flags and private comments on disk', () => withBadgeFixture(async f => {
+  const ratings=() => f.disk().feeds.A.map(({rating})=>rating);
+  assert.deepEqual(ratings(), [null,10,1,10]);
+  for(const value of [2,10]) {
+    assert.equal((await f.patch({unratedPlaybackWeight:value})).status,200);
+    assert.equal(f.disk().unratedPlaybackWeight,value);
+    assert.equal(f.reconstruct().state.unratedPlaybackWeight,value);
+    assert.deepEqual(ratings(),[null,10,1,10]);
+    assert.equal(f.disk().feeds.A[3].isBroken,true);
+    assert.deepEqual(f.disk().privatePhotoComments,{version:1,entries:{}});
+  }
+}, {raw:{feeds:{A:unratedRows},privatePhotoComments:{version:1,entries:{}}}}));
