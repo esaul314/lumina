@@ -1245,6 +1245,7 @@ const createGooglePhotosServiceFixture = ({
   fetchResponse = async () => { throw new Error('Unexpected fetch'); },
   write = () => {},
   unlink = () => {},
+  rename = () => {},
   warn = () => {},
   now = Date.now,
   initialTokens = {},
@@ -1263,10 +1264,11 @@ const createGooglePhotosServiceFixture = ({
     fs: {
       constants: fs.constants,
       lstatSync: file => ({
-        isDirectory: () => !file.endsWith('.jpg'), isSymbolicLink: () => false,
-        isFile: () => file.endsWith('.jpg'), nlink: 1
+        isDirectory: () => !/\.(jpg|tmp)$/.test(file), isSymbolicLink: () => false,
+        isFile: () => /\.(jpg|tmp)$/.test(file), nlink: 1
       }),
       openSync: file => file,
+      renameSync: rename,
       fstatSync: () => ({ isFile: () => true, nlink: 1, size: 1 }),
       closeSync() {},
       ftruncateSync() {},
@@ -1274,6 +1276,7 @@ const createGooglePhotosServiceFixture = ({
         : file.endsWith('google_photos_cache.json') ? cacheExists(file) : true,
       readFileSync: read,
       unlinkSync: unlink,
+      rmSync: unlink,
       writeFileSync: (file, bytes, encoding) => {
         const result = write(file, bytes, encoding);
         writes.push({ file, bytes });
@@ -1442,7 +1445,7 @@ assertAsyncTest('Google Photos local-byte misses and handled file failures conti
     }[mode];
     assert.deepStrictEqual(events, ['exists', ...localEffects, 'authenticate', 'fetch', 'write']);
     assert.strictEqual(fixture.writes.length, 1);
-    assert.ok(fixture.writes[0].file.endsWith('/local.jpg'));
+    assert.match(fixture.writes[0].file, /\.lumina-media-[a-f0-9-]+\.tmp$/);
     if (mode === 'read failure') assert.strictEqual(fixture.warnings.at(-1)[1], failure.message);
   }));
 });
@@ -1725,7 +1728,7 @@ assertAsyncTest('Google Photos remote bytes decode before writing and select MIM
       nodeEnv: 'test', cacheExists: () => true,
       read: () => JSON.stringify([{ id, googleBaseUrl: 'https://fixture.invalid/base', mimeType: mime }]),
       initialTokens: synthetic ? {} : { accessToken: 'fixture-token', expiry: 1000000 }, now: () => 0,
-      write: (file, value) => { assert.ok(file.endsWith('.jpg')); assert.deepStrictEqual(value, bytes); events.push('write'); },
+      write: (file, value) => { assert.ok(file.endsWith('.tmp')); assert.deepStrictEqual(value, bytes); events.push('write'); },
       fetchResponse: async (url, { headers }) => {
         assert.strictEqual(url, 'https://fixture.invalid/base=w2560-h1440');
         assert.deepStrictEqual(Object.keys(headers), synthetic ? [] : ['Authorization']);
@@ -1787,7 +1790,7 @@ assertAsyncTest('Google Photos initial retrieval failures reject without another
       nodeEnv: 'test', cacheExists: () => true, now: () => 0,
       initialTokens: { accessToken: 'fixture-token', expiry: 1000000 },
       read: () => '[{"id":"photo","googleBaseUrl":"https://fixture.invalid/original","googlePickerSessionId":"session"}]',
-      write: file => { events.push(file.endsWith('.json') ? 'cache' : 'write'); if (file.endsWith('.jpg') && stage === 'write') throw failure; },
+      write: file => { events.push(file.endsWith('.json') ? 'cache' : 'write'); if (file.endsWith('.tmp') && stage === 'write') throw failure; },
       fetchResponse: async url => {
         if (url.startsWith('https://photospicker.googleapis.com/')) {
           events.push('picker');
@@ -3900,7 +3903,8 @@ const googlePhotosDownloadOrderCheck = assertAsyncTest('Google Photos pre-downlo
       events.push(url);
       return { ok: true, arrayBuffer: () => url.includes('/first=') ? firstBody : Buffer.from('second') };
     },
-    write: file => events.push(path.basename(file))
+    write: (_file, bytes) => events.push('stage:' + bytes.toString()),
+    rename: (_from, to) => events.push(path.basename(to))
   });
 
   const pending = fixture.download(items);
@@ -3909,8 +3913,8 @@ const googlePhotosDownloadOrderCheck = assertAsyncTest('Google Photos pre-downlo
   releaseBody(Buffer.from('first'));
   assert.strictEqual(await pending, undefined);
   assert.deepStrictEqual(events, [
-    'https://example.test/first=w2560-h1440', 'first.jpg',
-    'https://example.test/second=w2560-h1440', 'second.jpg'
+    'https://example.test/first=w2560-h1440', 'stage:first', 'first.jpg',
+    'https://example.test/second=w2560-h1440', 'stage:second', 'second.jpg'
   ]);
   assert.deepStrictEqual(fixture.writes.map(({ bytes }) => bytes.toString()), ['first', 'second']);
   assert.ok(fixture.writes.every(({ bytes }) => Buffer.isBuffer(bytes)));
@@ -3932,8 +3936,8 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
       requested.push(id);
       return responses[id]();
     },
-    write: file => {
-      if (file.endsWith('disk.jpg')) throw new Error('Disk unavailable');
+    write: (_file, bytes) => {
+      if (bytes.toString() === 'disk') throw new Error('Disk unavailable');
     }
   });
   const items = Object.freeze(['missing', ...Object.keys(responses)].map(id => Object.freeze({
@@ -3942,7 +3946,8 @@ const googlePhotosDownloadFailureCheck = assertAsyncTest('Google Photos pre-down
 
   assert.strictEqual(await fixture.download(items), undefined);
   assert.deepStrictEqual(requested, Object.keys(responses));
-  assert.deepStrictEqual(fixture.writes.map(({ file }) => path.basename(file)), ['last.jpg']);
+  assert.strictEqual(fixture.writes.length, 1);
+  assert.match(fixture.writes[0].file, /\.lumina-media-[a-f0-9-]+\.tmp$/);
   assert.deepStrictEqual(fixture.writes[0].bytes, Buffer.from('last'));
   assert.deepStrictEqual(fixture.warnings.map(([, message]) => message), [
     'Network unavailable', 'Body unavailable', 'Disk unavailable'

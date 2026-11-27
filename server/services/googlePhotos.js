@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('node:crypto');
 const { readEnvVar, persistEnvVars } = require('../config/env.js');
 const { applyPoolPolicy } = require('../domain/poolRetention.js');
 const {
@@ -1107,6 +1108,8 @@ async function refreshMediaItemUrl(mediaItemId, renderOptions = {}) {
  * Descriptor access rejects links/nonregular/multiply-linked files and rechecks
  * after network awaits. Configured ancestry must remain trusted against local
  * directory replacement; this is not a concurrent local-attacker sandbox.
+ * Byte publication stages and renames a complete file; failed staging/publication
+ * preserves prior target bytes (or absence/emptiness), not metadata/token effects.
  *
  * Otherwise await authentication before preparing deduplicated content-URL candidates.
  * A truthy Picker session triggers refresh only when its base URL is absent
@@ -1328,7 +1331,7 @@ const assertLocalMediaPath = (filePath) => {
   }
 };
 
-/** Own one no-follow descriptor; validate before any read/truncation/write.
+/** Own one no-follow descriptor; validate before reading the visible cache.
  * O_NONBLOCK prevents a planted FIFO from blocking before fstat can reject it.
  * @template T
  * @param {string} filePath
@@ -1350,21 +1353,52 @@ const withLocalMediaFile = (filePath, flags, operate) => {
     if (fd !== undefined) fs.closeSync(fd);
   }
 };
-/** @param {string} filePath @param {Buffer} buffer */
-const writeLocalMediaFile = (filePath, buffer) => withLocalMediaFile(
-  filePath, fs.constants.O_WRONLY | fs.constants.O_CREAT,
-  fd => {
-    // ponytail: validate descriptor before truncating, including multiply-linked files.
-    fs.ftruncateSync(fd, 0);
+/**
+ * Publish complete content without truncating the visible cache entry.
+ * Exclusive same-directory staging is private and never a valid media-id path.
+ * No await occurs between staging and rename: same-process orphan cleanup cannot
+ * interleave. Competing completed requests publish whole files, last rename wins.
+ * Configured ancestry/local staging remains trusted; no fsync/power-loss guarantee.
+ * @param {string} filePath @param {Buffer} buffer
+ */
+const writeLocalMediaFile = (filePath, buffer) => {
+  assertLocalMediaPath(filePath);
+  const stagedPath = path.join(MEDIA_DIR, `.lumina-media-${randomUUID()}.tmp`);
+  let fd;
+  let ownsStage = false;
+  try {
+    // ponytail: one exclusive staged file, not a cache transaction/retry store.
+    fd = fs.openSync(stagedPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL
+      | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK, 0o600);
+    ownsStage = true;
+    if (!isSingleMediaFile(fs.fstatSync(fd))) throw unsafeLocalMediaPath();
     fs.writeFileSync(fd, buffer);
+    const completedFd = fd;
+    fd = undefined;
+    fs.closeSync(completedFd);
+    assertLocalMediaPath(stagedPath);
+    assertLocalMediaPath(filePath);
+    fs.renameSync(stagedPath, filePath);
+    ownsStage = false;
+  } catch (error) {
+    if (mediaErrorCode(error) === 'ELOOP') throw unsafeLocalMediaPath();
+    throw error;
+  } finally {
+    try {
+      if (fd !== undefined) fs.closeSync(fd);
+    } finally {
+      if (ownsStage) fs.rmSync(stagedPath, { force: true });
+    }
   }
-);
+};
 
 /**
  * Remove locally cached files that are not represented by the supplied items.
  * A missing media directory and test mode are no-ops. Otherwise this reads the
  * directory, delegates orphan selection to `getOrphanedFiles(...)`, and
- * synchronously unlinks each result. Listing, projection, and unlink failures
+ * synchronously unlinks each result. Abandoned staging names are also orphans;
+ * active staging cannot interleave with this synchronous same-process cleanup.
+ * Listing, projection, and unlink failures
  * are caught and warned; cleanup is best-effort and does not propagate them.
  *
  * @param {Array<{id: string}>} newItems Media items whose ids remain cached.
