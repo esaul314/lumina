@@ -1,6 +1,6 @@
 import PermanentGallery from './PermanentGallery';
 import PhotoRatingControl from './PhotoRatingControl';
-import { useState, useEffect, useRef } from 'react';
+import { Children, useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, ChevronDown, Plus, Focus, ArrowUp, ArrowDown } from 'lucide-react';
 import { getPools } from '../../api/luminaClient.js';
 import { DEFAULT_TV_PREVIEW_DIMENSIONS, fitTvPreviewFrame } from './tvPreview';
@@ -37,6 +37,13 @@ import {
   moveImageFeedsPanelLater,
   toggleImageFeedsPanel,
 } from '../../state/imageFeedsPanels';
+
+// ponytail: keyed children keep drafts mounted while saved DOM and visual order agree.
+const ImageFeedsWorkspace = ({ order, children }) => (
+  <div className="image-feeds-workspace">
+    {Children.toArray(children).sort((a, b) => order.indexOf(a.props.panelId) - order.indexOf(b.props.panelId))}
+  </div>
+);
 
 const ImageFeedsPanel = ({
   panelId,
@@ -110,7 +117,7 @@ const ImageFeedsPanel = ({
           aria-label={`Move ${title} earlier`}
           title={`Move ${title} earlier`}
           disabled={panelIndex <= 0}
-          onClick={() => onMovePanel(panelId, 'earlier')}
+          onClick={(event) => onMovePanel(panelId, 'earlier', event.currentTarget)}
         >
           <ArrowUp size={15} aria-hidden="true" />
           <span>Move earlier</span>
@@ -121,7 +128,7 @@ const ImageFeedsPanel = ({
           aria-label={`Move ${title} later`}
           title={`Move ${title} later`}
           disabled={panelIndex < 0 || panelIndex >= panelState.order.length - 1}
-          onClick={() => onMovePanel(panelId, 'later')}
+          onClick={(event) => onMovePanel(panelId, 'later', event.currentTarget)}
         >
           <ArrowDown size={15} aria-hidden="true" />
           <span>Move later</span>
@@ -314,12 +321,13 @@ function ImageFeedsTab({
     setPanelState(exitImageFeedsPanelFocus);
     window.requestAnimationFrame(() => focusOriginRef.current?.focus());
   };
-  const handleMovePanel = (panelId, direction) => {
+  const handleMovePanel = (panelId, direction, control) => {
     setPanelState((state) => direction === 'earlier'
       ? moveImageFeedsPanelEarlier(state, panelId)
       : moveImageFeedsPanelLater(state, panelId));
+    window.requestAnimationFrame(() => (control.disabled
+      ? control.parentElement.querySelector('button:not(:disabled)') : control)?.focus());
   };
-  const panelStyle = (panelId) => ({ order: panelState.order.indexOf(panelId) });
   const panelProps = { panelState, setPanelState, onFocusPanel: handleFocusPanel, onExitFocus: handleExitFocus, onMovePanel: handleMovePanel };
 
   const handleAddChip = (text) => {
@@ -343,13 +351,16 @@ function ImageFeedsTab({
   return (
     <div className="image-feeds-page">
       <PermanentGallery />
-      <div className="image-feeds-workspace">
+      <details className="image-feeds-arrangement">
+        <summary>Arrange panels</summary>
+        <p>Move panels earlier or later below. Order and open panels are remembered on this browser.</p>
+      </details>
+      <ImageFeedsWorkspace order={panelState.order}>
       <ImageFeedsPanel
         panelId={IMAGE_FEEDS_PANEL_IDS.CATEGORIES}
         title="Curated Scenic Categories"
         description="Choose scenic pools and manage their lifecycle policies."
         summary={`${categories.length} pools · ${selectedCategories?.length || 0} active`}
-        style={panelStyle(IMAGE_FEEDS_PANEL_IDS.CATEGORIES)}
         {...panelProps}
       >
         <div className="image-feed-category-list">
@@ -675,7 +686,6 @@ function ImageFeedsTab({
         title="Independent Rating Deck"
         description={tvPreviewMetaLabel ? `📺 ${tvPreviewMetaLabel}` : undefined}
         summary={state.photosList?.length ? `${state.photosList.length} photos · card ${galleryIndex + 1}` : 'No photos in the active pool'}
-        style={panelStyle(IMAGE_FEEDS_PANEL_IDS.RATING)}
         {...panelProps}
       >
         {state.photosList && state.photosList.length > 0 ? (
@@ -979,7 +989,6 @@ function ImageFeedsTab({
         panelId={IMAGE_FEEDS_PANEL_IDS.SOURCES}
         title="Scenic Feed Source Manager"
         description="Configure search keywords and public feeds for the selected scenic pool."
-        style={panelStyle(IMAGE_FEEDS_PANEL_IDS.SOURCES)}
         {...panelProps}
       >
         <p style={{ fontSize: '0.72rem', opacity: 0.5, lineHeight: '1.35', marginTop: '6px', marginBottom: '12px' }}>
@@ -1230,7 +1239,7 @@ function ImageFeedsTab({
         title={GOOGLE_PHOTOS_PICKER_COPY.title}
         description={GOOGLE_PHOTOS_PICKER_COPY.eyebrow}
         summary="Optional · independent of scenic pools"
-        style={{ ...panelStyle(IMAGE_FEEDS_PANEL_IDS.GOOGLE), background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}
+        style={{ background: 'rgba(66, 133, 244, 0.05)', borderColor: 'rgba(66, 133, 244, 0.15)' }}
         {...panelProps}
       >
           <div>
@@ -1275,7 +1284,7 @@ function ImageFeedsTab({
             )}
           </div>
       </ImageFeedsPanel>
-      </div>
+      </ImageFeedsWorkspace>
 
     </div>
   );
