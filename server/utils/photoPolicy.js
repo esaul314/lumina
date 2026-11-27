@@ -14,4 +14,9 @@ function isDisallowedUnsplashPhoto(photo) {
   );
 }
 
-module.exports = { isDisallowedUnsplashPhoto };
+/** @param {unknown} value @returns {value is number} */
+const isUnratedPlaybackWeight = value => typeof value === 'number' && Number.isInteger(value) && value >= 2 && value <= 10;
+/** Compatibility default; never a stored photo score. @param {unknown} value @returns {number} */
+const normalizeUnratedPlaybackWeight = value => isUnratedPlaybackWeight(value) ? value : 10;
+
+module.exports = { isDisallowedUnsplashPhoto, isUnratedPlaybackWeight, normalizeUnratedPlaybackWeight };

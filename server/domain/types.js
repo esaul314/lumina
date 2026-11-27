@@ -78,6 +78,7 @@
  * @property {unknown} alignWeather
  * @property {unknown} allowOpenAiFallback
  * @property {unknown} nightPercentage Raw compatibility patches are not validated.
+ * @property {number} [unratedPlaybackWeight] Validated effective weight, not photo metadata.
  * @property {Record<string, unknown>} searchKeywords
  * @property {Record<string, unknown>} feedConfigs
  * @property {Record<string, { retentionDays?: number, maxPhotos?: number, schedule?: { enabled?: boolean, start?: string, end?: string, priority?: number } }>=} poolPolicies
@@ -159,7 +160,7 @@
  *   theme?: unknown, inactivityTimeout?: unknown, slideshowInterval?: unknown,
  *   scaleMode?: unknown, splitPortrait?: unknown, splitCropPercent?: unknown,
  *   alignTimeOfDay?: unknown, alignWeather?: unknown, nightPercentage?: unknown,
- *   allowOpenAiFallback?: unknown, excludedKeywords?: unknown[],
+ *   allowOpenAiFallback?: unknown, excludedKeywords?: unknown[], unratedPlaybackWeight?: number,
  *   widgets?: Record<string, unknown>, autoLocation?: boolean,
  *   manualLocation?: {lat: number, lon: number, city: string, regionName: string, country: string},
  *   visionConfig?: Record<'apiUrl' | 'apiKey' | 'model' | 'fallbackUrl' | 'fallbackApiKey' | 'fallbackModel', string>

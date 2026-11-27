@@ -1,5 +1,7 @@
 // @ts-check
 
+const { normalizeUnratedPlaybackWeight } = require('../utils/photoPolicy.js');
+
 /**
  * @typedef {import('./types').CollectionsState} CollectionsState
  * @typedef {import('./types').CurrentFrame} CurrentFrame
@@ -36,6 +38,7 @@
  * @property {ReadonlyArray<T> | null | undefined} photos
  * @property {unknown} [currentPhotoUrl=null] Compared by strict equality after a truthiness check.
  * @property {unknown} [excludedKeywords=[]]
+ * @property {unknown} [unratedPlaybackWeight=10] Effective weight for nullish ratings only.
  * @property {RandomSource} [rng=Math.random]
  */
 
@@ -540,7 +543,7 @@ function filterPhotosForNight(photos, alignTimeOfDay, isNight, nightPercentage, 
  * @param {WeightedPhotoOptions<T>} options
  * @returns {T | null} Original row alias; null when no visible candidates.
  */
-function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKeywords = [], rng = Math.random }) {
+function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKeywords = [], unratedPlaybackWeight = 10, rng = Math.random }) {
   const candidates = filterVisiblePhotos(photos, excludedKeywords);
   if (candidates.length === 0) {
     return null;
@@ -557,8 +560,9 @@ function selectWeightedRandomPhoto({ photos, currentPhotoUrl = null, excludedKey
 
   const weightedCandidates = withoutCurrent.length > 0 ? withoutCurrent : poolCandidates;
 
+  const fallbackWeight = normalizeUnratedPlaybackWeight(unratedPlaybackWeight);
   const thresholdMap = weightedCandidates.reduce((accumulator, photo) => {
-    const weight = divideByNumber(photo.rating ?? 10, 10);
+    const weight = divideByNumber(photo.rating ?? fallbackWeight, 10);
     const threshold = accumulator.total + weight;
     return {
       total: threshold,
@@ -594,6 +598,7 @@ function selectSmartPhotoFromFeed({
   alignTimeOfDay = false,
   isNight = false,
   nightPercentage = 50,
+  unratedPlaybackWeight = 10,
   now = new Date(),
   rng = Math.random
 }) {
@@ -619,6 +624,7 @@ function selectSmartPhotoFromFeed({
 
   return selectWeightedRandomPhoto({
     photos: candidates,
+    unratedPlaybackWeight,
     currentPhotoUrl,
     rng
   });
@@ -707,6 +713,7 @@ function selectSmartPhoto({ state, direction = 'next', now = new Date(), rng = M
       ? state.runtime.weather.current.is_day === 0
       : /** @type {Date} */ (now).getHours() >= 18 || /** @type {Date} */ (now).getHours() < 6,
     nightPercentage: state.config.nightPercentage,
+    unratedPlaybackWeight: state.config.unratedPlaybackWeight,
     now,
     rng
   }));

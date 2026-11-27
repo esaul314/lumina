@@ -1,5 +1,7 @@
 // @ts-check
 
+const { normalizeUnratedPlaybackWeight } = require('../utils/photoPolicy.js');
+
 /**
  * @typedef {import('./types').CollectionsState} CollectionsState
  * @typedef {import('./types').DomainState} DomainState
@@ -25,6 +27,7 @@
  *   alignWeather: unknown,
  *   allowOpenAiFallback: unknown,
  *   nightPercentage: unknown,
+ *   unratedPlaybackWeight?: unknown,
  *   searchKeywords: Record<string, unknown>,
  *   feedConfigs: Record<string, unknown>,
  *   poolPolicies: Record<string, unknown>,
@@ -128,6 +131,7 @@ function buildDomainState(legacyState, collections, runtimeOverrides = {}) {
       alignWeather: Boolean(legacyState.alignWeather),
       allowOpenAiFallback: Boolean(legacyState.allowOpenAiFallback),
       nightPercentage: legacyState.nightPercentage ?? 50,
+      unratedPlaybackWeight: normalizeUnratedPlaybackWeight(legacyState.unratedPlaybackWeight),
       searchKeywords: cloneSearchKeywords(legacyState.searchKeywords),
       feedConfigs: { ...(legacyState.feedConfigs || {}) },
       poolPolicies: { ...(legacyState.poolPolicies || {}) },
