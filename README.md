@@ -260,7 +260,16 @@ vocabulary is rejected, not treated as an alternate identity.
 
 Cache I/O rejects observed media-root symlinks and symlink/non-regular/multiply
 linked files. Reads and writes own no-follow, nonblocking descriptors and validate
-the opened file before reading or truncating; writes recheck after network awaits.
+the opened file before reading or writing; writes recheck after network awaits.
+The byte writer uses exclusive0600 same-directory staging, complete write/close,
+then validated atomic rename instead of truncating the visible entry. A failed
+write/rename preserves the previous destination bytes or absence/emptiness.
+Owned temporary files are removed on failure; exclusive-open collisions are not
+deleted. A failed cleanup/crash may leave an unreachable temporary orphan for the
+existing orphan cleanup. Overlapping requests publish complete files in completion
+order; already-open readers retain their prior inode. Metadata JSON writes remain
+a separate non-atomic contract. This adds no fsync/power-loss guarantee or detection
+of legacy nonempty corrupt/partial files.
 Rejected initial IDs/targets make no provider request; a bad background-download
 item is logged without stopping later valid items. Local filesystem failures
 remain failures, not a new retry or transactional cache subsystem.

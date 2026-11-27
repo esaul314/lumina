@@ -1,8 +1,20 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-11-26
+Last updated: 2026-11-27
 
-## Current release — 1.1.3
+## Current release — 1.1.4
+
+Released2026-11-27 from accepted Google Photos content-transfer resilience.
+Fresh full tests/lint, isolated build and25 browser journeys pass. Native restart
+preserved automatic/inactive intent and latest photos/comments/history. Served
+frontend bytes match1.1.3; read-only API/socket/admin signals pass. Exact1.1.3
+rollback artifact and reader/writer compatibility are qualified offline; rollback
+would remove content deadlines/empty-body protection. No Google account flow or
+physical-TV/assistive-device acceptance. Vision capability remains separately
+unavailable; runtime/configuration are unchanged. This release does not select
+further work; the independently commissioned atomic-publication scope is below.
+
+## Previous release — 1.1.3
 
 Released 2026-11-26 from the accepted compact Direct Control milestone. Fresh
 isolated build, 25 browser journeys and all 18 density combinations pass. Native
@@ -684,6 +696,21 @@ design work, not claims that the current behavior has already been changed.
 
 ### High priority
 
+- **Remember QR & IP Badge visibility; default off — Alex, 2026-11-27.**
+  User reports that the badge keeps returning to on after deployments. Treat
+  this as a persistence/release regression to investigate, not intended behavior.
+  Default the badge to **off** when no saved preference exists. Persist an explicit
+  on or off choice through the existing configuration owner, just like other
+  settings; neither startup nor deployment may overwrite that saved choice.
+  Preserve explicit false during defaults/migration as well as explicit true.
+  **Acceptance:** isolated fresh-config startup is off; both saved off and saved
+  on survive save/reload, process restart and the normal upgrade/deployment path;
+  restart/deployment never re-enables a saved-off badge. Cover the existing
+  configuration migration and release fixture, not only the in-memory toggle.
+  Root cause remains unverified. Backlog only: no live setting or behavior changed,
+  and not added to the selected atomic-cache milestone.
+
+
 - **Separate image identity from pool membership.**
   `server/config/collectionsCodec.js`
   currently deduplicates persisted rows by exact URL and keeps the first pool's
@@ -874,5 +901,39 @@ bounded even if a mocked transport ignores abort; native-fetch peer cancellation
 is separately checked. This does not guarantee forcibly terminating an arbitrary
 noncooperative transport, cap payload size, or bound total batch/control-plane
 time. Whole-body buffering, existing MIME truthiness and non-atomic writes remain
-unchanged. Failed writes can still leave partial nonempty files: atomic publication
-is explicitly deferred, not a claim of transactional download/cache validity.
+unchanged in1.1.4. Its failed writes can still leave partial nonempty files;
+atomic publication is now separately source accepted below, not retroactively claimed
+as part of content-transfer acceptance.
+
+
+### Selected: atomic Google Photos byte-cache publication — 2026-11-27
+
+**SOURCE ACCEPTED — independent review passed.** Replace the byte
+writer shared by proxy initial/final content attempts and background downloads,
+not the separate metadata JSON writer. Stage complete bytes with an exclusive
+random same-directory name and0600 permissions; validate regular/single-link
+descriptors, close before rename, recheck destination/staging and publish atomically.
+Failed writes/renames retain prior complete destination bytes or its prior
+absence/empty state, never a new partial cache hit. Cleanup unlinks only owned
+staging, not an exclusive-open collision. Invalid IDs and observed unsafe targets
+still fail; nofollow reads and final-target rechecks remain. Identical next
+requests/triggers recover, with downloader later-item continuation.
+
+Discovery: both existing consumers skip nonempty local content; partial in-place
+writes therefore poison later recovery, even after an HTTP502. Real HTTP/service/
+downloader tests inject partial writes and failed renames and inspect durable
+files, not save spies. Restoring the old writer must reproduce partial-cache hits.
+Open readers retain the old inode through replacement. Synchronous publication
+does not interleave with same-process orphan cleanup; overlapping remote requests
+use independent staging and last complete publication wins, not newest-start wins.
+Cleanup failure may leave an unreachable temporary orphan; the existing orphan
+cleanup can remove it. No new queue, lock, state store or retry framework.
+
+Exclusions: fsync/power-loss durability, hostile local ancestry/staging replacement,
+metadata JSON atomicity, detecting historical nonempty partial/corrupt files,
+identity/MIME/size/control-plane redesign. A crashed process can leave temporary
+files; no startup repair/background sweeper is introduced. Full regression/lint
+and independent HTTP/downloader review qualify this source boundary, with existing
+compiler debt unchanged. Scoped commits close this milestone; no deployment,
+restart or push of these changes is included. The historical Selected heading is
+retained for stable links; the acceptance status above supersedes selection.

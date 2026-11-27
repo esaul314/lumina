@@ -1,5 +1,22 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-27 — publish bytes after the filesystem effect succeeds
+
+A bounded successful download is not sufficient if an in-place write can fail
+after truncating the cache. Both proxy reads and download skips treat nonempty
+files as hits, so partial bytes can suppress the very retry expected to recover.
+Use exclusive same-directory staging, descriptor validation, complete synchronous
+write/close, target revalidation and rename; cleanup only staging actually owned.
+Keep effects in the existing byte writer, not a new transaction/retry layer.
+
+Inject a real partial descriptor write and rename failure at the public proxy
+and downloader, inspect old/absent/empty target bytes, then retry the identical
+input. Restore the old writer to prove a subsequent hit can return partial bytes.
+Distinguish atomic visibility from fsync durability, metadata atomicity and request
+ordering; preserve old-reader inodes and document last-completion-wins behavior.
+The [atomic-publication milestone](./ROADMAP.md#selected-atomic-google-photos-byte-cache-publication--2026-11-27)
+owns the accepted scope and limits.
+
 ## 2026-11-26 — content deadlines stop before cache effects
 
 A request signal alone cannot settle an abort-ignoring transport. Race one
