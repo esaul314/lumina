@@ -2,7 +2,23 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.6
+## Current release — 1.1.7
+
+Released2026-11-27 from independently accepted indoor elapsed-time trends.
+Fresh958 shared assertions/345 native cases, lint, isolated build and26 browser
+cases pass. Atomic hash-asset/index publication and one native-owner restart
+preserved latest photos/comments/settings/history and automatic display intent;
+no forced activation. Live read-only APIs/socket/admin and narrow/tall weather
+geometry pass. New opaque configured-profile history is being recorded; legacy
+history stays excluded, so a comparable delta needs about a day after rollout.
+Exact1.1.6 rollback is retained and actual older collection/history readers and
+writers qualified offline: comments, badge booleans, policies and newer ratings
+survive; downgrade-era legacy rows remain ineligible after forward return.
+No live downgrade, provider account flow, live curation write or physical-TV/AT
+claim. Private runtime/config unchanged. Existing compiler/vision debt and the
+short-height credits follow-up remain separate. This release selects no new work.
+
+## Previous release — 1.1.6
 
 Released2026-11-27 from accepted QR/IP badge preference persistence. Fresh full
 regression/lint, isolated build and25 browser cases pass, with both saved booleans
@@ -604,7 +620,7 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
 - Done: each hourly history row preserves the complete Ecowitt `get_livedata_info` payload under `gateway_metrics`, so optional rain, wind, UV/light, lightning, air-quality, soil, leaf, leak, distance, and multichannel sensor blocks are retained without schema changes.
 - Done: introduced a general capability-aware sensor adapter platform; Ecowitt GW1200 is now the first registered adapter rather than the platform contract itself, with adapter discovery at `GET /api/environment/adapters`.
 - Have widgets consume normalized sensor records plus source/device capability metadata.
-- **SOURCE ACCEPTED — compact timestamp-aware indoor temperature/humidity trends.**
+- **RELEASED in1.1.7 — compact timestamp-aware indoor temperature/humidity trends.**
   Initial scope is indoor only: outdoor history stamps cached weather with indoor
   poll time, so outdoor observation freshness cannot be proven. Historical device
   labels are constant; new observations carry an opaque configured-profile/URL key
@@ -620,7 +636,8 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
   Opaque identity is configured connection/profile, not physical hardware attestation;
   no detection of an unconfigured relocation. New history may need a day to qualify.
   Independent review accepted; 958 assertions/345 native cases, lint, build and
-  26 browser cases passed with exact candidate evidence. No deployment or push.
+  26 browser cases passed with exact candidate evidence. Initial source acceptance
+  excluded deployment/push; the separately authorized1.1.7 release is recorded above.
   Short-height follow-up: with clock/weather/indoor and landscape credits at
   320x568, the last ~72px of credits lie below screen. Add a height-aware credit
   layout and short-height regression before claiming arbitrary phone-height fit;
