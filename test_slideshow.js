@@ -999,6 +999,81 @@ const blueLightCases = [
   }, portraitPhotos().filter(row => !row.url.includes('broken'))]
 ];
 
+const unratedPlaybackCases = [
+  ['unrated playback draft uses narrow keyboard form; failed identical retry persists and reloads without changing ratings', async ({page,fixture}) => {
+    const original=fixture.collections.Fixture.map(({url,rating})=>({url,rating}));
+    const remote=await page.context().newPage();
+    await remote.setViewportSize({width:320,height:900});
+    await remote.goto(fixture.url+'/?mode=remote');
+    await remote.getByRole('button',{name:'System',exact:true}).click();
+    const form=remote.locator('.unrated-playback-control'), select=form.getByRole('combobox',{name:'Unrated playback weight',exact:true});
+    await expect(select).toHaveValue('10');
+    await expect(form).toContainText('not a human rating');
+    for(const width of [320,375,1280]) {
+      await remote.setViewportSize({width,height:900});
+      const box=await form.evaluate(el=>({scroll:el.scrollWidth,width:el.clientWidth}));
+      assert.ok(box.scroll<=box.width+1,JSON.stringify(box));
+      for(const target of await form.locator('select,button').all()) {
+        const bounds=await target.boundingBox();assert.ok(bounds.height>=44 && bounds.width>=44);
+      }
+      await form.screenshot({path:path.join(captureDirectory,`unrated-compact-${width}.png`)});
+    }
+    await select.focus();await select.press('Home');await select.press('ArrowDown');await select.press('Tab');
+    await expect(select).toHaveValue('3');
+    await expect(form.getByRole('button',{name:'Save weight',exact:true})).toBeFocused();
+    await expect(form.getByRole('status')).toHaveText('Draft — not saved');
+    assert.notEqual(fixture.readPersisted().unratedPlaybackWeight,3,'Editing alone does not persist');
+    await select.selectOption('4');fixture.persistence.fail=true;
+    await form.getByRole('button',{name:'Save weight',exact:true}).click();
+    await expect(form.getByRole('status')).toContainText('Save not confirmed');
+    await expect(select).toHaveValue('4');
+    assert.equal(fixture.state.unratedPlaybackWeight,4);
+    assert.notEqual(fixture.readPersisted().unratedPlaybackWeight,4);
+    await form.screenshot({path:path.join(captureDirectory,'unrated-retry.png')});
+    fixture.persistence.fail=false;
+    await form.getByRole('button',{name:'Retry save weight',exact:true}).click();
+    await expect(form.getByRole('status')).toHaveText('Weight saved');
+    assert.equal(fixture.readPersisted().unratedPlaybackWeight,4);
+    assert.deepEqual(fixture.collections.Fixture.map(({url,rating})=>({url,rating})),original);
+    await remote.reload();await remote.getByRole('button',{name:'System',exact:true}).click();
+    await expect(select).toHaveValue('4');
+    // An older/ignoring server can return200 without accepting the new setting.
+    await remote.route('**/api/state', route => route.request().method()==='PATCH'
+      ? route.fulfill({json:{unratedPlaybackWeight:4}}) : route.continue());
+    await select.selectOption('5');await form.getByRole('button',{name:'Save weight',exact:true}).click();
+    await expect(form.getByRole('status')).toContainText('Save not confirmed');
+    assert.equal(fixture.readPersisted().unratedPlaybackWeight,4);
+    await remote.unroute('**/api/state');
+    await form.getByRole('button',{name:'Retry save weight',exact:true}).click();
+    await expect(form.getByRole('status')).toHaveText('Weight saved');
+    assert.equal(fixture.readPersisted().unratedPlaybackWeight,5);
+    await remote.close();
+  }],
+  ['delayed unrated save acknowledgement cannot clear a newer draft or claim it saved', async ({page,fixture}) => {
+    const remote=await page.context().newPage();let release,entered;
+    const started=new Promise(resolve=>{entered=resolve;}),held=new Promise(resolve=>{release=resolve;});
+    await remote.route('**/api/state',async route=>{
+      if(route.request().method()!=='PATCH')return route.continue();
+      const response=await route.fetch();entered();await held;await route.fulfill({response});
+    });
+    await remote.goto(fixture.url+'/?mode=remote');
+    await remote.getByRole('button',{name:'System',exact:true}).click();
+    const form=remote.locator('.unrated-playback-control'),select=form.getByRole('combobox');
+    await select.selectOption('4');await form.getByRole('button',{name:'Save weight',exact:true}).click();await started;
+    await expect(form.getByRole('status')).toContainText('Saving');
+    await select.selectOption('6');fixture.broadcastStateSync();
+    release();
+    await expect(form.getByRole('status')).toHaveText('Draft — not saved');
+    await expect(select).toHaveValue('6');
+    assert.equal(fixture.readPersisted().unratedPlaybackWeight,4);
+    await remote.unroute('**/api/state');
+    await form.getByRole('button',{name:'Save weight',exact:true}).click();
+    await expect(form.getByRole('status')).toHaveText('Weight saved');
+    assert.equal(fixture.readPersisted().unratedPlaybackWeight,6);
+    await remote.close();
+  }]
+];
+
 const imageFeedsCases = [
   ['Image Feeds compact arrangement matches saved DOM, keyboard order and remembered open states', async ({ page, fixture }) => {
     const remote = await page.context().newPage();
@@ -1229,6 +1304,11 @@ async function main() {
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    for (const [name, run] of unratedPlaybackCases) {
+      await withFixture(browser,run);
+      console.log(`PASS: ${name}`);
+    }
+    if(process.env.LUMINA_TEST_ONLY_UNRATED === '1')return;
     for (const [name, run] of imageFeedsCases) {
       await withFixture(browser, run);
       console.log(`PASS: ${name}`);

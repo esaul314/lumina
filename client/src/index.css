@@ -2481,3 +2481,12 @@ summary.remote-section-title::-webkit-details-marker {
   .connection-widget { grid-column: 1; grid-row: 3; }
   .photo-info-widget { grid-column: 1; grid-row: 4; max-width: 100%; }
 }
+
+/* Playback policy is a compact form, not another widget or settings store. */
+.unrated-playback-control { gap: 8px; }
+.unrated-playback-control p { margin: 0; font-size: 0.78rem; line-height: 1.4; color: rgba(255,255,255,0.65); }
+.unrated-playback-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.unrated-playback-fields select { min-height: 44px; min-width: 88px; color: #fff; background: #151b20; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; padding: 8px; }
+.unrated-playback-fields .remote-btn { min-height: 44px; margin: 0; }
+.unrated-playback-fields :focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.unrated-playback-control [role="status"]:empty { display: none; }

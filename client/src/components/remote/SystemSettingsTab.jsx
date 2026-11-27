@@ -2,7 +2,7 @@ import {
   Clock, Sun, Sliders, Palette, Sparkles, Maximize, Layout, Moon, 
   CloudRain, MapPin, Trash2, RefreshCw, QrCode, Thermometer
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { patchState } from '../../api/luminaClient';
 import EnvironmentSettingsTab from './EnvironmentSettingsTab';
 
@@ -40,6 +40,29 @@ function GeneralSettingsTab({
   handleSaveTumblrApiKey,
   handleSaveUseapiToken
 }) {
+  const [weightDraft, setWeightDraft] = useState(null);
+  const weightDraftRef = useRef(null);
+  const [weightSave, setWeightSave] = useState({ pending: false, error: false, saved: false, confirmed: state.unratedPlaybackWeight ?? 10 });
+  useEffect(() => {
+    setWeightSave(current => ({ ...current, confirmed: state.unratedPlaybackWeight ?? 10 }));
+  }, [state.unratedPlaybackWeight]);
+  const saveWeight = async event => {
+    event.preventDefault();
+    if (weightSave.pending || weightDraftRef.current === null) return;
+    const submitted = weightDraftRef.current;
+    setWeightSave(current => ({ ...current, pending: true, error: false, saved: false }));
+    try {
+      const confirmed = await patchState({ unratedPlaybackWeight: Number(submitted) });
+      if (confirmed.unratedPlaybackWeight !== Number(submitted)) throw new Error('Playback weight not confirmed');
+      if (weightDraftRef.current === submitted) {
+        weightDraftRef.current = null;
+        setWeightDraft(null);
+      }
+      setWeightSave({ pending: false, error: false, saved: true, confirmed: confirmed.unratedPlaybackWeight });
+    } catch {
+      setWeightSave(current => ({ ...current, pending: false, error: true, saved: false }));
+    }
+  };
   const [filterSave, setFilterSave] = useState({ pending: false, retry: null });
   const saveFilter = async (enabled) => {
     setFilterSave({ pending: true, retry: null });
@@ -53,6 +76,25 @@ function GeneralSettingsTab({
   };
   return (
     <>
+      <form className="remote-card unrated-playback-control" onSubmit={saveWeight}>
+        <label htmlFor="unrated-playback-weight" className="remote-section-title">Unrated playback weight</label>
+        <p id="unrated-playback-help">Effective weight for unrated photos in smart playback, not a human rating. Default10 matches previous playback; lower values favor rated photos within each pool. Stored Unrated, bans and sequential playback stay unchanged.</p>
+        <div className="unrated-playback-fields">
+          <select id="unrated-playback-weight" aria-describedby="unrated-playback-help" value={weightDraft ?? weightSave.confirmed}
+            onChange={event => {
+              weightDraftRef.current = event.target.value;
+              setWeightDraft(event.target.value);
+              setWeightSave(current => ({ ...current, error: false, saved: false }));
+            }}>
+            {Array.from({ length: 9 }, (_, index) => index + 2).map(value => <option key={value} value={value}>{value} / 10</option>)}
+          </select>
+          <button type="submit" className="remote-btn" disabled={weightSave.pending || weightDraft === null}>
+            {weightSave.error ? 'Retry save weight' : 'Save weight'}
+          </button>
+        </div>
+        <span role="status">{weightSave.pending ? 'Saving… Draft kept' : weightSave.error ? 'Save not confirmed. Draft kept; retry.'
+          : weightDraft !== null ? 'Draft — not saved' : weightSave.saved ? 'Weight saved' : ''}</span>
+      </form>
       <div className="remote-card">
         <span className="remote-section-title">TV Widgets Switchboard</span>
         <div className="widget-toggle-list">
