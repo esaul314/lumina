@@ -24,7 +24,7 @@ function loadIsolated(filename, dependencies, globals = {}, onImport = () => {},
 }
 // App is executed with closed fixture imports, fake timers and the actual vision
 // job module. No private config load, history DB, provider or service is touched.
-function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port, collectionWriter, weatherService = {}, environmentRefreshFactory, initialState, snapshotLoader } = {}) {
+function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port, collectionWriter, weatherService = {}, environmentRefreshFactory, initialState, snapshotLoader, environmentSettings, environmentRead, historyStore } = {}) {
   const captured = {}, timers = [], intervals = [], effects = [], calls = [], imports = [], history = [];
   const hit = name => { calls.push(name); failAt[name]?.(); };
   const state = initialState ?? {};
@@ -87,9 +87,9 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
     './runtime/idleDaemon.js': { createIdleDaemonRuntime: () => ({ notifyActivity: noop, start: () => hit('idle.start'), stop: () => hit('idle.stop') }) },
     './runtime/kioskControl.js': { createKioskControlRuntime: () => ({ getRuntimeContext: () => ({}), killKioskBrowser: () => hit('kiosk.stop') }) },
     './services/system.js': {}, './services/weather.js': weatherService, './services/googlePhotos.js': { getCachedMediaItems: () => [] },
-    './services/sentiment.js': {}, './services/ecowitt.js': { createEcowittRuntime: capture('ecowitt', {}) }, './services/sensorHistory.js': { createSensorHistoryStore: options => { hit('history.open'); history.push(options); return { close: () => hit('history.close'), record: () => hit('history.record') }; } },
-    './config/localSettings.js': {}, './services/sensorPlatform.js': { createSensorPlatform: () => ({ start: () => hit('sensor.start'), stop: () => hit('sensor.stop') }) },
-    './domain/environmentSettings.js': { normalizeEnvironmentSettings: () => ({}), toRuntimeSettings: () => ({}) },
+    './services/sentiment.js': {}, './services/ecowitt.js': { createEcowittRuntime: capture('ecowitt', {}) }, './services/sensorHistory.js': { ...require('./services/sensorHistory.js'), createSensorHistoryStore: options => { hit('history.open'); history.push(options); return historyStore ?? { close: () => hit('history.close'), record: () => hit('history.record') }; } },
+    './config/localSettings.js': {}, './services/sensorPlatform.js': { createSensorPlatform: () => ({ read: async () => environmentRead?.(), start: () => hit('sensor.start'), stop: () => hit('sensor.stop') }) },
+    './domain/environmentSettings.js': { normalizeEnvironmentSettings: () => environmentSettings ?? ({}), toRuntimeSettings: () => ({}) },
     './services/crawler.js': {}, './utils/fn.js': require('./utils/fn.js'),
     './services/vision.js': { analyzeImageContent: async (...args) => { effects.push(['analyze', ...args]); return tags; } },
     './routes.js': capture('routes'), './sockets.js': capture('sockets')
@@ -760,3 +760,101 @@ test('badge disk failure returns500, identical retry persists after memory alrea
 // The fresh-state oracle must detect the prior default, not only missing bytes.
 test('badge old-default control fails fresh default oracle', () =>
   assert.rejects(withBadgeFixture(async f => assert.equal(f.defaultState().widgets.qrcode, false), { oldDefault: true }), assert.AssertionError));
+
+const trendSettings = { activeDeviceId: 'room', devices: [{ id: 'room', adapterId: 'ecowitt-local-http', baseUrl: 'http://sensor.example.test' }] };
+const trendService = require('./services/sensorHistory.js');
+const trendEnvironment = (now = Date.now()) => ({ enabled: true, stale: false, source: 'ecowitt-gw1200',
+  device: trendService.environmentDeviceKey(trendSettings), observedAt: new Date(now).toISOString(),
+  indoor: { temperatureC: 22, humidityPercent: 50 }, units: { temperature: 'C' } });
+const trendWeather = { location: { lat: 12, lon: 34 } };
+const trendRow = env => ({ observed_at: new Date(Date.parse(env.observedAt) - 86400000).toISOString(), source: env.source,
+  device: env.device, latitude: 12, longitude: 34, indoor_temperature_c: 20, indoor_humidity_percent: 55 });
+
+test('indoor elapsed selector is bounded, comparable and finite; missing values never become zero', () => {
+  const now = Date.now(), environment = trendEnvironment(now), row = trendRow(environment);
+  const select = (env = environment, rows = [row], weather = trendWeather) => trendService.selectIndoorTrend({ environment: env, readings: rows, weather, now });
+  assert.equal(select().temperatureC, 2); assert.equal(select().humidityPercent, -5);
+  for (const patch of [{ stale: true }, { enabled: false }, { device: 'GW1200' }, { device: 4 }, { observedAt: null },
+    { observedAt: new Date(now + 1).toISOString() }, { observedAt: new Date(now - 600001).toISOString() }]) assert.equal(select({ ...environment, ...patch }), null);
+  for (const patch of [{ source: 'other' }, { device: 'other' }, { latitude: null }, { longitude: 35 },
+    { observed_at: new Date(now - 82800000 + 1).toISOString() }, { observed_at: 'invalid' },
+    { indoor_temperature_c: null, indoor_humidity_percent: null }, { indoor_temperature_c: '', indoor_humidity_percent: '50' }]) assert.equal(select(environment, [{ ...row, ...patch }]), null);
+  assert.equal(select(environment, []), null); assert.equal(select(environment, [null]), null);
+  assert.equal(select(environment, [row], { location: { lat: null, lon: 34 } }), null);
+  assert.equal(select({ ...environment, indoor: { temperatureC: null, humidityPercent: null } }), null);
+  assert.equal(select({ ...environment, indoor: { temperatureC: Number.MAX_VALUE, humidityPercent: null } }, [{ ...row, indoor_temperature_c: -Number.MAX_VALUE }]), null);
+  const boundary = { ...row, observed_at: new Date(now - 90000000).toISOString() };
+  assert.equal(select(environment, [boundary]).temperatureC, 2);
+  assert.equal(select(environment, [boundary, row]).referenceAt, row.observed_at);
+  const missing = trendService.normalizeSensorSnapshot({ environment: { ...environment, indoor: { temperatureC: null, humidityPercent: false } } });
+  assert.equal(missing.indoorTemperatureC, null); assert.equal(missing.indoorHumidityPercent, null);
+  const key = trendService.environmentDeviceKey(trendSettings); assert(!key.includes('sensor.example'));
+  assert.notEqual(key, trendService.environmentDeviceKey({ ...trendSettings, devices: [{ ...trendSettings.devices[0], baseUrl: 'http://different.example.test' }] }));
+  assert.notEqual(key, trendService.environmentDeviceKey({ activeDeviceId: 'other', devices: [{ ...trendSettings.devices[0], id: 'other' }] }));
+});
+
+test('actual environment route + app + SQLite history produces comparisons, silence on failure and recovery without a new resource', async () => {
+  const { createRequire } = require('node:module');
+  const store = trendService.createSensorHistoryStore();
+  let current = trendEnvironment(), fail = false, changeDuringRead = null;
+  const settings = structuredClone(trendSettings);
+  const historical = { ...current, observedAt: new Date(Date.parse(current.observedAt) - 86400000).toISOString(), indoor: { temperatureC: 20, humidityPercent: 55 } };
+  store.record({ environment: historical, weather: trendWeather });
+  const h = appFixture('production', { historyEnabled: true, environmentSettings: settings, environmentRead: async () => { changeDuringRead?.(); return current; },
+    historyStore: { ...store, history: query => { if (fail) throw new Error('Fixture history unavailable'); return store.history(query); } } });
+  const application = h.exports.createApplication(); application.startServer();
+  h.captured.routes.setWeatherData(trendWeather);
+  const routeFile = path.join(__dirname, 'routes.js'), routes = { exports: {} }, requireRoute = createRequire(routeFile);
+  compileFunction(fs.readFileSync(routeFile, 'utf8'), ['module', 'require'], { filename: routeFile })(routes,
+    name => name === './services/googlePhotos.js' ? { getCachedMediaItems: () => [] } : name === './services/weather.js' ? {} : requireRoute(name));
+  const app = require('express')(); routes.exports({ ...h.captured.routes, app });
+  const server = require('node:http').createServer(app);
+  try {
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const get = async () => {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/api/environment`);
+      assert.equal(response.status, 200); return response.json();
+    };
+    const firstTrendResponse = await get();
+    assert.equal(firstTrendResponse.trend?.temperatureC, 2, JSON.stringify(firstTrendResponse));
+    fail = true; assert.equal((await get()).trend, null);
+    fail = false; assert.equal((await get()).trend.humidityPercent, -5);
+    current = { ...current, stale: true }; assert.equal((await get()).trend, null);
+    current = trendEnvironment(); h.captured.routes.setWeatherData({ location: { lat: 13, lon: 34 } });
+    assert.equal((await get()).trend, null);
+    h.captured.routes.setWeatherData(trendWeather);
+    h.captured.ecowitt.onReading(current);
+    assert.equal(store.history({ limit: 1 })[0].device, current.device, 'actual recording stores comparison identity');
+    assert.equal((await get()).trend.temperatureC, 2);
+    const changedSettings = { ...settings, devices: [{ ...settings.devices[0], baseUrl: 'http://other.example.test' }] };
+    store.record({ environment: { ...historical, device: trendService.environmentDeviceKey(changedSettings) }, weather: trendWeather });
+    changeDuringRead = () => { settings.devices[0].baseUrl = changedSettings.devices[0].baseUrl; };
+    const relabelled = await get();
+    assert.equal(relabelled.device, null); assert.equal(relabelled.trend, null, 'in-flight old reading cannot compare as new device');
+    // Guard-disabled source identity would turn the wrong-device row into a comparison.
+    const wrong = { ...trendRow(current), device: 'another-device' };
+    assert.equal(trendService.selectIndoorTrend({ environment: current, weather: trendWeather, readings: [wrong], now: Date.now() }), null);
+    assert.equal(trendService.selectIndoorTrend({ environment: current, weather: trendWeather, readings: [{ ...wrong, device: current.device }], now: Date.now() }).temperatureC, 2);
+  } finally {
+    server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+    await application.stopServer();
+  }
+});
+
+test('disabled identity/freshness/numeric guards fail the same silent-trend oracle', () => {
+  const { createRequire } = require('node:module'), filename = path.join(__dirname, 'services/sensorHistory.js');
+  const source = fs.readFileSync(filename, 'utf8'), now = Date.now(), current = trendEnvironment(now);
+  const probes = [
+    ['row.device === environment.device', 'true', current, { ...trendRow(current), device: 'other' }],
+    ['now - current <= TREND_FRESH_MS', 'true', trendEnvironment(now - 600001), trendRow(trendEnvironment(now - 600001))],
+    ["typeof value === 'number' && Number.isFinite(value)", 'Number.isFinite(Number(value))', { ...current, indoor: { temperatureC: null, humidityPercent: null } }, trendRow(current)]
+  ];
+  for (const [guard, disabled, environment, row] of probes) {
+    const candidate = trendService.selectIndoorTrend({ environment, readings: [row], weather: trendWeather, now });
+    assert.equal(candidate, null);
+    const code = source.replace(guard, disabled); assert.notEqual(code, source);
+    const module = { exports: {} };
+    compileFunction(code, ['module', 'require'], { filename })(module, createRequire(filename));
+    assert.notEqual(module.exports.selectIndoorTrend({ environment, readings: [row], weather: trendWeather, now }), null);
+  }
+});

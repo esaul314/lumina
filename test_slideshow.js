@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { compileFunction } = require('node:vm');
 const { createRequire } = require('node:module');
+const { createSensorHistoryStore, selectIndoorTrend, environmentDeviceKey } = require('./server/services/sensorHistory.js');
 const { createPhotoCommentStore } = require('./server/services/photoComments.js');
 const path = require('path');
 const express = require('express');
@@ -47,7 +48,7 @@ function createFixtureCodec(directory, control = {}) {
   return module.exports;
 }
 
-async function createFixture(photos, { screensaverActive = false, widgets = {} } = {}) {
+async function createFixture(photos, { screensaverActive = false, widgets = {}, environmentControl = null } = {}) {
   const app = express();
   const server = http.createServer(app);
   // Clock jumps must not simulate Socket.IO heartbeat failure.
@@ -92,6 +93,11 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   });
   const dispatch = command => dispatcher.dispatchCommand(command, { rng: () => 0.5 });
   let slowResponse;
+  const sensorHistory = environmentControl ? createSensorHistoryStore() : null;
+  if (sensorHistory) sensorHistory.record({ environment: {
+    ...environmentControl.current, observedAt: new Date(Date.parse(environmentControl.current.observedAt) - 86400000).toISOString(),
+    indoor: { temperatureC: 20, humidityPercent: 55 }
+  }, weather: { location: { lat: 12, lon: 34 } } });
 
   const weather = {
     location: { city: 'Fixture City', regionName: 'Fixture Region' },
@@ -124,7 +130,15 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
       : name === './services/weather.js' ? {} : nativeRequire(name)
   );
   routeModule.exports({ app, state, collections, io, port: 0, dispatchCommand: dispatch,
-    readPhotoComment: row => commentStore.read(row), getWeatherData: () => weather, setWeatherData() {} });
+    readPhotoComment: row => commentStore.read(row), getWeatherData: () => weather, setWeatherData() {},
+    getEnvironmentData: () => {
+      if (!environmentControl) return { enabled: false };
+      if (environmentControl.fail) throw new Error('Fixture environment unavailable');
+      const current = environmentControl.current;
+      return { ...current, trend: selectIndoorTrend({ environment: current, weather: { location: { lat: 12, lon: 34 } },
+        readings: sensorHistory.history(), now: Date.now() }) };
+    }
+  });
   app.use((error, _req, res, _next) => res.status(500).json({ error: error.message }));
   app.get('/api/*', (_req, res) => res.json({}));
   app.get('/fixtures/:id.svg', (req, res) => {
@@ -150,7 +164,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
-    state, collections, weather, events, errors, logs, persistence, dispatch, commentStore,
+    state, collections, weather, events, errors, logs, persistence, dispatch, commentStore, environmentControl,
     saveLegacy: () => writerModule.exports.saveCuratedCollections(collections, state), readPersisted: () => JSON.parse(fs.readFileSync(commentPath, 'utf8')),
     readPersistedPolicy: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
       defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).persistedState.poolPolicies,
@@ -162,7 +176,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {} }
     releaseSlow: () => slowResponse(),
     select: id => dispatch({ type: 'set-active-photo', payload: { url: `/fixtures/${id}.svg` } }),
     count: event => events.filter(entry => entry.event === event).length,
-    close: () => new Promise(resolve => io.close(() => { fs.rmSync(commentDir, { recursive: true, force: true }); resolve(); }))
+    close: () => new Promise(resolve => io.close(() => { sensorHistory?.close(); fs.rmSync(commentDir, { recursive: true, force: true }); resolve(); }))
   };
 }
 
@@ -829,12 +843,72 @@ const policyCases = [
   }]
 ];
 
+const environmentTrendCases = [
+  ['compact indoor trends use elapsed labels, scaled delta units and silent failure/recovery', async ({ page, fixture }) => {
+    const geometry = [];
+    const trend = page.locator('.indoor-trend');
+    const expectBaseline = process.env.LUMINA_TREND_CAPTURE_BASELINE === '1';
+    for (const [width,height] of [[320,900],[375,900],[1440,900],[900,1400]]) {
+      await page.setViewportSize({ width, height });
+      if (expectBaseline) await expect(trend).toHaveCount(0);
+      else {
+        await expect(trend).toContainText('vs ~24h ago');
+        await expect(trend).toContainText('Temp +3.6°F');
+        await expect(trend).toContainText('Humidity −5.0 pp');
+        await expect(page.getByRole('note',{name:/approximately 24 hours earlier.*percentage points/})).toBeVisible();
+      }
+      const measured=await page.locator('.weather-widget').evaluate(el=>{
+        const t=el.querySelector('.indoor-trend'), main=el.querySelector('.weather-main');
+        return { widgetHeight:el.getBoundingClientRect().height,widgetWidth:el.getBoundingClientRect().width,
+          widgetLeft:el.getBoundingClientRect().left,widgetRight:el.getBoundingClientRect().right,
+          mainHeight:main.getBoundingClientRect().height, trendHeight:t?.getBoundingClientRect().height||0,
+          trendOverflow:t ? t.scrollWidth>t.clientWidth+1 : false,viewport:innerWidth };
+      });
+      fs.writeFileSync(path.join(captureDirectory,`trend-probe-${width}.json`),JSON.stringify(measured,null,2));
+      assert.equal(measured.trendOverflow,false);
+      if (!expectBaseline) {
+        assert(measured.trendHeight<=40,'bounded comparison footprint');
+        assert(measured.widgetLeft>=0 && measured.widgetRight<=width+1,'weather card fits viewport');
+      }
+      geometry.push({width,height,...measured});
+      await page.screenshot({path:path.join(captureDirectory,`trend-${expectBaseline?'before':'after'}-${width}.png`)});
+    }
+    fs.writeFileSync(path.join(captureDirectory,expectBaseline?'trend-before.json':'trend-after.json'),JSON.stringify(geometry,null,2));
+    if (expectBaseline) return;
+    const visibleHeight = await page.locator('.weather-widget').evaluate(el=>el.getBoundingClientRect().height);
+    fixture.environmentControl.fail=true;
+    await page.clock.fastForward(60000);
+    await expect(trend).toHaveCount(0);
+    const silentHeight = await page.locator('.weather-widget').evaluate(el=>el.getBoundingClientRect().height);
+    assert(silentHeight < visibleHeight,'silent trend reserves no row');
+    fs.writeFileSync(path.join(captureDirectory,'trend-silence.json'),JSON.stringify({visibleHeight,silentHeight,spaceReclaimed:visibleHeight-silentHeight},null,2));
+    await page.screenshot({path:path.join(captureDirectory,'trend-silent.png')});
+    fixture.environmentControl.fail=false;
+    await page.clock.fastForward(60000);
+    await expect(trend).toContainText('vs ~24h ago');
+    fixture.environmentControl.current.stale=true;
+    await page.clock.fastForward(60000);
+    await expect(trend).toHaveCount(0);
+    fixture.environmentControl.current.stale=false;
+    fixture.environmentControl.current.indoor={temperatureC:null,humidityPercent:null,pressureRelativeHpa:null};
+    await page.clock.fastForward(60000);await expect(trend).toHaveCount(0);
+  }, () => ({ widgets: {clock:true,weather:true,indoorEnvironment:true}, environmentControl: { current: {
+    enabled:true, stale:false,source:'ecowitt-gw1200',device:environmentDeviceKey({activeDeviceId:'fixture',devices:[{id:'fixture',adapterId:'ecowitt-local-http',baseUrl:'http://fixture.example.test'}]}),
+    observedAt:new Date().toISOString(),indoor:{temperatureC:22,humidityPercent:50,pressureRelativeHpa:null},units:{temperature:'F'}
+  } } })]
+];
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    for (const [name,run,options] of environmentTrendCases) {
+      await withFixture(browser,run,landscapePhotos(),options());
+      console.log(`PASS: ${name}`);
+    }
+    if (process.env.LUMINA_TEST_ONLY_TRENDS === '1') return;
     for (const [name, run, photos] of cases) {
       await withFixture(browser, run, photos);
       console.log(`PASS: ${name}`);

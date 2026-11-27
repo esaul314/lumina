@@ -73,12 +73,28 @@ async function runClientStateTests({
     formatEnvironmentTimestamp,
     getActiveEnvironmentDevice,
     getEnvironmentStatus,
+    formatIndoorTrend,
     normalizeEnvironmentSettingsDraft,
     removeEnvironmentDevice,
     selectEnvironmentDevice,
     upsertEnvironmentDevice,
     parseEnvironmentSettingsJson
   } = await importClientModule('./client/src/state/environmentHistory.js');
+
+  assertTest('indoor elapsed trend formatting rejects stale/null observations and scales deltas without offsets', () => {
+    const now = Date.parse('2026-11-27T12:00:00Z');
+    const environment = { enabled:true,stale:false,observedAt:new Date(now).toISOString(),units:{temperature:'F'},
+      trend:{observedAt:new Date(now).toISOString(),referenceAt:new Date(now-86400000).toISOString(),temperatureC:2,humidityPercent:-5} };
+    assert.match(formatIndoorTrend(environment,now).text,/Temp \+3.6°F/);
+    assert.match(formatIndoorTrend(environment,now).label,/humidity −5.0 percentage points/);
+    assert.strictEqual(formatIndoorTrend({...environment,stale:true},now),null);
+    assert.strictEqual(formatIndoorTrend(environment,now+600001),null);
+    assert.strictEqual(formatIndoorTrend(environment,now-1),null);
+    assert.strictEqual(formatIndoorTrend({...environment,trend:{...environment.trend,temperatureC:null,humidityPercent:null}},now),null);
+    assert.strictEqual(convertTemperature(null,'F'),null);
+    assert.strictEqual(convertPressure(null),null);
+    assert.match(formatIndoorTrend({...environment,trend:{...environment.trend,temperatureC:0.001,humidityPercent:null}},now).text,/Temp 0.0°F/);
+  });
 
   assertTest('environment UI helpers present normalized sensor status and safe metric fallbacks', () => {
     assert.strictEqual(formatEnvironmentMetric(24.75, '°C'), '24.8°C');
