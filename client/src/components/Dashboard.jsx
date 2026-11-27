@@ -753,7 +753,7 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
   };
 
   return (
-    <div className={`lumina-tv-container ${currentThemeClass} ${showCursor ? '' : 'hide-cursor'}`}>
+    <div className={`lumina-tv-container ${currentThemeClass} ${showCursor ? '' : 'hide-cursor'} ${allowScreensaverDismissal && state.widgets?.blueLightFilter === true ? 'blue-light-filter' : ''}`}>
       {/* 1. Ambient Wallpaper Slideshow */}
       <div className="slideshow-container">
         {activeSlides.map((slide) => {

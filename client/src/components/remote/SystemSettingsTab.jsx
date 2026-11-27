@@ -3,6 +3,7 @@ import {
   CloudRain, MapPin, Trash2, RefreshCw, QrCode, Thermometer
 } from 'lucide-react';
 import { useState } from 'react';
+import { patchState } from '../../api/luminaClient';
 import EnvironmentSettingsTab from './EnvironmentSettingsTab';
 
 function GeneralSettingsTab({
@@ -39,11 +40,40 @@ function GeneralSettingsTab({
   handleSaveTumblrApiKey,
   handleSaveUseapiToken
 }) {
+  const [filterSave, setFilterSave] = useState({ pending: false, retry: null });
+  const saveFilter = async (enabled) => {
+    setFilterSave({ pending: true, retry: null });
+    try {
+      await patchState({ widgets: { blueLightFilter: enabled } });
+      setFilterSave({ pending: false, retry: null });
+    } catch {
+      // Keep the exact requested value: memory may already have changed on failure.
+      setFilterSave({ pending: false, retry: enabled });
+    }
+  };
   return (
     <>
       <div className="remote-card">
         <span className="remote-section-title">TV Widgets Switchboard</span>
         <div className="widget-toggle-list">
+          <div className="widget-toggle-item blue-light-control">
+            <div className="toggle-info">
+              <Moon size={18} aria-hidden="true" style={{ color: '#fbbf24' }} />
+              <div>
+                <div className="toggle-label">Blue light filter</div>
+                <div className="toggle-desc">Manual warm tint on TV only; previews stay original</div>
+                <span role="status">{filterSave.pending ? 'Saving…' : filterSave.retry !== null ? 'Save not confirmed' : ''}</span>
+                {filterSave.retry !== null && <button type="button" onClick={() => saveFilter(filterSave.retry)}>Retry save</button>}
+              </div>
+            </div>
+            <button type="button" role="switch" aria-label="Blue light filter"
+              aria-checked={state.widgets.blueLightFilter === true} disabled={filterSave.pending}
+              className="switch-wrapper" style={{ padding: 0, border: 0, background: 'transparent', minWidth: 44, minHeight: 44 }}
+              onClick={() => saveFilter(state.widgets.blueLightFilter !== true)}>
+              <span className={`switch-slider ${state.widgets.blueLightFilter === true ? 'checked' : ''}`}></span>
+            </button>
+          </div>
+
           <div className="widget-toggle-item">
             <div className="toggle-info">
               <Clock size={18} style={{ color: 'var(--accent-color)' }} />

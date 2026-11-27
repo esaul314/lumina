@@ -89,6 +89,12 @@ body {
   flex-direction: column;
 }
 
+/* One TV-only composition covers images and widget/settings layers without an
+   overlay that could intercept input. Preview and original bytes stay unchanged. */
+.lumina-tv-container.blue-light-filter {
+  filter: sepia(35%) saturate(80%);
+}
+
 /* --- THE AMBIENT BACKDROP SLIDESHOW --- */
 .slideshow-container {
   position: absolute;
