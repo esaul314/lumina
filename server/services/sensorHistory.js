@@ -1,5 +1,6 @@
 // @ts-check
 
+const { createHash } = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 
 const DEFAULT_LIMIT = 168;
@@ -13,6 +14,7 @@ const SENSOR_SOURCE = 'ecowitt-gw1200';
  * @typedef {object} SensorEnvironmentInput
  * @property {SensorTimestamp} [observedAt]
  * @property {string} [source]
+ * @property {string | null} [device]
  * @property {SensorRecord | null} [indoor]
  * @property {SensorRecord | null} [metrics]
  */
@@ -35,7 +37,7 @@ const SENSOR_SOURCE = 'ecowitt-gw1200';
  * @property {string} hourKey
  * @property {string} observedAt
  * @property {string} source
- * @property {'GW1200'} device
+ * @property {string} device
  * @property {number | null} indoorTemperatureC
  * @property {number | null} indoorHumidityPercent
  * @property {number | null} indoorPressureAbsoluteHpa
@@ -95,6 +97,7 @@ const SENSOR_SOURCE = 'ecowitt-gw1200';
  * @returns {number | null}
  */
 const toFiniteNumber = (value) => {
+  if (value == null || typeof value === 'boolean' || String(value).trim() === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
@@ -128,7 +131,7 @@ const normalizeSensorSnapshot = ({ environment, weather = null, observedAt } = {
     hourKey: hourKeyFor(timestamp),
     observedAt: timestamp,
     source: environment?.source || SENSOR_SOURCE,
-    device: 'GW1200',
+    device: environment?.device || 'GW1200',
     indoorTemperatureC: toFiniteNumber(indoor.temperatureC),
     indoorHumidityPercent: toFiniteNumber(indoor.humidityPercent),
     indoorPressureAbsoluteHpa: toFiniteNumber(indoor.pressureAbsoluteHpa),
@@ -145,6 +148,66 @@ const normalizeSensorSnapshot = ({ environment, weather = null, observedAt } = {
     longitude: toFiniteNumber(location.lon),
     gatewayMetricsJson: JSON.stringify(environment?.metrics || {})
   };
+};
+
+// Comparison policy is elapsed time, never a calendar-day/aggregate estimate.
+const TREND_DAY_MS = 24 * 60 * 60 * 1000;
+const TREND_TOLERANCE_MS = 60 * 60 * 1000;
+const TREND_FRESH_MS = 10 * 60 * 1000;
+/** @param {unknown} value @returns {value is number} */
+const realNumber = value => typeof value === 'number' && Number.isFinite(value);
+/** @param {unknown} value @returns {number} */
+const timestampMs = value => typeof value === 'string' && value.trim() ? Date.parse(value) : NaN;
+
+/** Opaque identity for the configured profile AND connection, without publishing
+ * a LAN URL. Units/names/poll rate do not change metric observation identity.
+ * Missing identity and legacy GW1200 rows are not comparable.
+ * @param {{activeDeviceId?: string|null, devices?: Array<{id:string,adapterId:string,baseUrl:string}>}} settings
+ * @returns {string|null}
+ */
+const environmentDeviceKey = settings => {
+  const device = settings.devices?.find(row => row.id === settings.activeDeviceId);
+  return device?.id && device.adapterId && device.baseUrl
+    ? 'env-v1-' + createHash('sha256').update(JSON.stringify([device.id, device.adapterId, device.baseUrl])).digest('hex')
+    : null;
+};
+
+/** @param {any} environment @param {number} now */
+const indoorTrendQuery = (environment, now) => {
+  const current = timestampMs(environment?.observedAt);
+  return environment?.enabled === true && environment.stale === false && environment.indoor
+    && typeof environment.device === 'string' && environment.device.startsWith('env-v1-') && typeof environment.source === 'string' && environment.source
+    && Number.isFinite(current) && realNumber(now) && current <= now && now - current <= TREND_FRESH_MS
+    ? { from: new Date(current - TREND_DAY_MS - TREND_TOLERANCE_MS).toISOString(),
+      to: new Date(current - TREND_DAY_MS + TREND_TOLERANCE_MS).toISOString(), limit: 3 }
+    : null;
+};
+
+/** Pure nearest comparable observation, no interpolation or invented zeros.
+ * Both endpoints must share configured device/source and exact finite location.
+ * Return null on any unproven context; individual missing metrics stay silent.
+ * @param {{environment:any, weather:any, readings:any[], now:number}} input
+ */
+const selectIndoorTrend = ({ environment, weather, readings, now }) => {
+  if (!indoorTrendQuery(environment, now)) return null;
+  const { lat, lon } = weather?.location || {};
+  if (!realNumber(lat) || !realNumber(lon)) return null;
+  const current = timestampMs(environment.observedAt), target = current - TREND_DAY_MS;
+  const comparable = (Array.isArray(readings) ? readings : []).filter(row => row && typeof row === 'object' && row.source === environment.source && row.device === environment.device
+    && realNumber(row.latitude) && realNumber(row.longitude) && row.latitude === lat && row.longitude === lon
+    && Number.isFinite(timestampMs(row.observed_at)) && Math.abs(timestampMs(row.observed_at) - target) <= TREND_TOLERANCE_MS)
+    .sort((a,b) => Math.abs(timestampMs(a.observed_at) - target) - Math.abs(timestampMs(b.observed_at) - target));
+  const reference = comparable[0];
+  if (!reference) return null;
+  /** @param {unknown} currentValue @param {unknown} previousValue */
+  const delta = (currentValue, previousValue) => {
+    const difference = realNumber(currentValue) && realNumber(previousValue) ? currentValue - previousValue : NaN;
+    return Number.isFinite(difference) ? difference : null;
+  };
+  const temperatureC = delta(environment.indoor.temperatureC, reference.indoor_temperature_c);
+  const humidityPercent = delta(environment.indoor.humidityPercent, reference.indoor_humidity_percent);
+  return temperatureC === null && humidityPercent === null ? null
+    : { temperatureC, humidityPercent, observedAt: environment.observedAt, referenceAt: reference.observed_at };
 };
 
 /** @param {unknown} value @returns {number} */
@@ -344,6 +407,9 @@ function createSensorHistoryStore({ databasePath = ':memory:', database = null }
 }
 
 module.exports = {
+  environmentDeviceKey,
+  indoorTrendQuery,
+  selectIndoorTrend,
   DEFAULT_LIMIT,
   MAX_LIMIT,
   SENSOR_SOURCE,

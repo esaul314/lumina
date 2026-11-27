@@ -57,7 +57,7 @@ function createApplication() {
   const googlePhotos = require('./services/googlePhotos.js');
   const { analyzeSentiment } = require('./services/sentiment.js');
   const { createEcowittRuntime } = require('./services/ecowitt.js');
-  const { createSensorHistoryStore } = require('./services/sensorHistory.js');
+  const { createSensorHistoryStore, environmentDeviceKey, indoorTrendQuery, selectIndoorTrend } = require('./services/sensorHistory.js');
   const { saveLocalConfigPatch } = require('./config/localSettings.js');
   const { createSensorPlatform } = require('./services/sensorPlatform.js');
   const {
@@ -104,6 +104,7 @@ function createApplication() {
     return handle;
   };
 
+  /** @type {import('./services/sensorHistory.js').SensorHistoryStore|null} */
   let sensorHistoryStore = null;
   const openSensorHistory = () => {
     if (config.sensorHistory?.enabled !== false) {
@@ -120,7 +121,7 @@ function createApplication() {
   };
   const recordSensorReading = (environment) => {
     try {
-      return sensorHistoryStore?.record({ environment, weather: getWeatherData() });
+      return sensorHistoryStore?.record({ environment: { ...environment, device: environmentDeviceKey(environmentSettings) }, weather: getWeatherData() });
     } catch (error) {
       console.warn(`Sensor history write skipped: ${error.message}`);
       return null;
@@ -562,7 +563,21 @@ function createApplication() {
     readPhotoComment: (photo) => photoComments.read(photo),
     getWeatherData,
     setWeatherData,
-    getEnvironmentData: () => sensorPlatform.read('ecowitt-gw1200'),
+    getEnvironmentData: async () => {
+      const device = environmentDeviceKey(environmentSettings);
+      const reading = await sensorPlatform.read('ecowitt-gw1200');
+      // Do not relabel an in-flight observation after a profile/connection edit.
+      const environment = { ...(reading && typeof reading === 'object' ? reading : {}),
+        device: device === environmentDeviceKey(environmentSettings) ? device : null };
+      const now = Date.now(), query = indoorTrendQuery(environment, now);
+      try {
+        const readings = query ? sensorHistoryStore?.history(query) || [] : [];
+        return { ...environment, trend: selectIndoorTrend({ environment, weather: getWeatherData(), readings, now }) };
+      } catch (error) {
+        console.warn('Indoor trend unavailable:', error instanceof Error ? error.message : String(error));
+        return { ...environment, trend: null };
+      }
+    },
     getEnvironmentHistory: query => sensorHistoryStore?.history(query) || [],
     getEnvironmentStats: query => sensorHistoryStore?.stats(query) || { summary: {}, daily: [] },
     exportEnvironmentHistory: query => sensorHistoryStore?.exportCsv(query) || '',
