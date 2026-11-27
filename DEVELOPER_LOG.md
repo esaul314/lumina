@@ -7347,3 +7347,25 @@ restored thumbnail focus. Fresh-page reads may legitimately become empty during
 expanded navigation: route that success to the existing gallery heading because
 the removed expanded view can no longer own focus. The retained Node/HTTP and synthetic browser gallery
 regressions cover these seams without another store, framework or dependency.
+
+
+## Image Feeds: ordering is a DOM contract, not just a layout preference
+
+CSS order can honor a saved visual preference while leaving keyboard traversal
+in source order. Compose the existing panel children in the same normalized
+saved order; retain stable React keys so reordering does not remount uncontrolled
+source inputs or erase drafts. Keep the reducer/preferences owner unchanged and
+restore focus after DOM movement, using the remaining enabled direction at an
+order boundary. Native disclosure can expose occasional arrangement without
+another state store; keep the disclosure outside the sorted child list.
+
+Measure compact and expanded built components at their real container widths.
+Compare matched card edges and the same reachable scroll origin, not document
+bottoms or screenshots taken after different automatic focus scrolling. Verify
+actual Tab order, not geometry alone. CSS hiding can temporarily exclude a
+mounted gallery from focus mode while retaining its loaded page/selection; do
+not unmount it just to simplify the screen. Couple draft-node identity and failed
+save/retry checks with the existing gallery no-write suite. Paused browser clocks
+must advance animation frames before asserting deferred focus restoration.
+See the Image Feeds milestone in [ROADMAP.md](./ROADMAP.md) and the existing
+[candidate evidence procedure](./docs/DEVELOPMENT_EVIDENCE.md) for qualification.

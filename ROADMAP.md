@@ -523,16 +523,32 @@ debt remains; this is no strict-clean, live-device or rollout claim. All selecte
 outcomes close at the source boundary; no automatic next sprint or reminder.
 The evidence/usage policy remains in [development evidence](./docs/DEVELOPMENT_EVIDENCE.md).
 
-### Image Feeds interaction assessment — planned feedback, 2026-11-27
+### Image Feeds interaction assessment — source accepted, 2026-11-27
 
-Assess and optimize the Image Feeds UI/UX as an integrated surface, including the
-new gallery. Establish interaction frequency and information hierarchy before
-changing controls; evaluate progressive disclosure so occasional editing does
-not dominate browsing. Review compact/expanded layouts, narrow-screen journeys
-and keyboard/focus workflows with explicit saved/draft/error cues.
-Build on the existing interaction-design convention and comment/Direct Control
-findings rather than duplicating those tasks. This is planned assessment and
-optimization, not implemented or selected as the next sprint by this release.
+Separately commissioned after1.1.9; source-only, not part of that release.
+Built narrow/wide assessment prioritizes routine browse/curation over occasional
+arrangement/setup. Persistent reorder bars consumed75px per collapsed card at
+320px; saved CSS order disagreed with keyboard DOM order. The integrated change
+puts arrangement behind a visible keyboard-operable “Arrange panels” disclosure,
+renders existing keyed panels in saved DOM order without remounting drafts, and
+hides the mounted gallery during panel focus. Escape restores the originating
+focus control; gallery state returns unchanged. All saved order/open preferences
+and existing defaults remain intact; setup panels are not forcibly collapsed.
+Compact collapsed cards are85px shorter at320px and57px at1280px. Expanded
+arrangement retains44px targets. No new store, controller, dependency, backend or
+navigation framework; no curation/settings writes from arrangement or gallery.
+Existing draft/error/save/retry behavior remains available, with source drafts
+and failed policy edits covered through reorder/focus transitions.
+
+Full regression/lint/private build and33 built-browser journeys pass; strict
+checking remains203 inherited diagnostics with zero additions/removals. Paired
+component geometry, narrow/wide screenshots, actual Tab/Enter/Escape journeys,
+reload preferences, stable draft nodes, durable retry and old-assets negative
+control support this bounded simplification. Parent full-diff acceptance and independent read-only R1 review passed, including
+all24 panel orders, denied preferences, draft identity and expanded-gallery
+restoration. Source-only milestone accepted; no deployment or push of this sprint. Physical devices/assistive technology and broader hierarchy or
+setup redesign remain unassessed, not implied complete by headless tests. Further
+Image Feeds optimization remains feedback, not automatic next-sprint authority.
 
 ### Permanent-collection gallery — released in 1.1.9, 2026-11-27
 
