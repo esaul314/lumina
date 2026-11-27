@@ -7253,7 +7253,7 @@ navigationRouteFixture[navigationDecoderKeyFixture] = 7;
 
 
   assertTest('weather location preference round-trips without changing other widget defaults or location data', () => {
-    const defaults = { ...createState().config, widgets: { clock: true, weather: true, weatherLocation: true } };
+    const defaults = { ...createState().config, widgets: { clock: true, weather: true, weatherLocation: true, qrcode: false } };
     const dependencies = {
       defaultCollections: createState().library.collections,
       defaultState: defaults,
@@ -7262,7 +7262,7 @@ navigationRouteFixture[navigationDecoderKeyFixture] = 7;
     [true, false].forEach((visible) => {
       const state = { ...defaults, widgets: { ...defaults.widgets, weatherLocation: visible } };
       const saved = buildPersistedSnapshot(dependencies.defaultCollections, state, 123);
-      assert.deepStrictEqual(saved.widgets, { weatherLocation: visible });
+      assert.deepStrictEqual(saved.widgets, { weatherLocation: visible, qrcode: false });
       const restored = normalizePersistedSnapshot(saved, dependencies);
       assert.deepStrictEqual(restored.persistedState.widgets, state.widgets);
       assert.deepStrictEqual(restored.persistedState.manualLocation, state.manualLocation);

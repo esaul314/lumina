@@ -1,5 +1,5 @@
-// Offline composition/resource-boundary regressions. No private config, files,
-// providers, native listeners or real timers are used by this closed fixture.
+// Offline composition/resource-boundary regressions. The primary fixture is
+// closed; badge composition below adds only task-owned files/loopback listeners.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -24,10 +24,10 @@ function loadIsolated(filename, dependencies, globals = {}, onImport = () => {},
 }
 // App is executed with closed fixture imports, fake timers and the actual vision
 // job module. No private config load, history DB, provider or service is touched.
-function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port, collectionWriter, weatherService = {}, environmentRefreshFactory } = {}) {
+function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport = false, port, collectionWriter, weatherService = {}, environmentRefreshFactory, initialState, snapshotLoader } = {}) {
   const captured = {}, timers = [], intervals = [], effects = [], calls = [], imports = [], history = [];
   const hit = name => { calls.push(name); failAt[name]?.(); };
-  const state = {};
+  const state = initialState ?? {};
   const collections = { A: photos(1) };
   const processFixture = { env: { NODE_ENV: mode } };
   const vision = loadIsolated(path.join(__dirname, 'jobs/visionAnalysis.js'), {
@@ -69,9 +69,9 @@ function appFixture(mode, { historyEnabled = false, failAt = {}, realTransport =
       createVisionAnalysisJobService: capture('manual', fakeJob)
     },
     './services/photoComments.js': { createPhotoCommentStore: capture('comments', { read: () => ({ key: 'url:fixture', comment: '' }), write: (_photo, comment) => ({ key: 'url:fixture', comment }) }) },
-    './services/notifier.js': { sendEmailAlert: () => hit('email') }, './config/state.js': { screensaverState: state },
-    './config/collections.js': { saveCuratedCollections: collectionWriter ?? ((...args) => effects.push(['persist', ...args])) },
-    './config/collectionsCodec.js': { loadCollectionsSnapshot: () => ({ collections, persistedState: { visionConfig: { apiUrl: 'https://vision.example.test' } } }) },
+    './services/notifier.js': { sendEmailAlert: () => hit('email') }, './config/state.js': { screensaverState: state, buildFeedConfigsFromKeywords: () => ({}) },
+    './config/collections.js': { defaultCuratedCollections: collections, saveCuratedCollections: collectionWriter ?? ((...args) => effects.push(['persist', ...args])) },
+    './config/collectionsCodec.js': { loadCollectionsSnapshot: snapshotLoader ?? (() => ({ collections, persistedState: { visionConfig: { apiUrl: 'https://vision.example.test' } } })) },
     './config/activeCategories.js': { loadActiveCategories: () => ['A'], createActiveCategoryDispatcher: ({ dispatchCommand }) => dispatchCommand },
     './domain/dispatch.js': { createDomainDispatcher: capture('domain', dispatcher) },
     './domain/poolRetention.js': { applyPoolPolicy: () => values => values },
@@ -619,3 +619,144 @@ test('actual weather composition retains periodic cache, cold HTTP fails/retries
   assert.equal(h.captured.routes.getWeatherData(), latest);
   assert.equal(latest.location.city, locationB.city);
 });
+
+// Badge contract: actual app adapters, REST/socket registration and codec, with
+// only task-owned paths. No daemon, private configuration or provider is opened.
+async function withBadgeFixture(run, { raw, disabledWriter = false, oldCodec = false, oldDefault = false } = {}) {
+  const os = require('node:os'), http = require('node:http');
+  const { createRequire } = require('node:module');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-badge-'));
+  let server;
+  try {
+  const jsonPath = path.join(dir, 'collections.json');
+  const codecFile = path.join(__dirname, 'config/collectionsCodec.js');
+  const codecModule = { exports: {} }, writerModule = { exports: {} };
+  let failWrite = false, writes = 0;
+  const source = fs.readFileSync(codecFile, 'utf8');
+  // Disable only the badge serialization seam to reproduce the old weather-only writer.
+  // No Git history/HEAD dependency: the negative control must survive candidate commits.
+  const code = oldCodec ? source.replace(', qrcode: widgets.qrcode === true', '') : source;
+  if (oldCodec) assert.notEqual(code, source, 'negative control must disable the writer field');
+  compileFunction(code, ['module', 'require', 'process'], { filename: codecFile })(
+    codecModule, createRequire(codecFile), { env: { NODE_ENV: 'isolated-fixture' } }
+  );
+  const codec = codecModule.exports;
+  const writerFile = path.join(__dirname, 'config/collections.js');
+  compileFunction(fs.readFileSync(writerFile, 'utf8'), ['module', 'require', 'process', '__dirname', 'console'], { filename: writerFile })(
+    writerModule, name => name === './collectionsCodec.js' ? { saveCollectionsSnapshot: options => {
+      writes += 1;
+      if (failWrite) throw new Error('Fixture disk unavailable');
+      if (!disabledWriter) codec.saveCollectionsSnapshot({ ...options, jsonPath });
+    } } : createRequire(writerFile)(name), { env: { NODE_ENV: 'isolated-fixture' } }, path.dirname(writerFile), quiet
+  );
+  const defaultState = () => {
+    const defaults = loadIsolated(path.join(__dirname, 'config/state.js'), {
+      './configLoader.js': { location: {} }, '../utils/keywordSpecs.js': require('./utils/keywordSpecs.js')
+    }).screensaverState;
+    if (oldDefault) defaults.widgets.qrcode = true;
+    return defaults;
+  };
+  const reconstruct = () => {
+    const h = appFixture('test', { initialState: defaultState(), collectionWriter: writerModule.exports.saveCuratedCollections,
+      snapshotLoader: options => codec.loadCollectionsSnapshot({ ...options, jsonPath }) });
+    h.exports.createApplication();
+    return h;
+  };
+  if (raw !== undefined) fs.writeFileSync(jsonPath, JSON.stringify(raw));
+  const h = reconstruct();
+  const dispatcher = require('./domain/dispatch.js').createDomainDispatcher(h.captured.domain);
+  const express = require('express'), app = express(); app.use(express.json());
+  const routesFile = path.join(__dirname, 'routes.js'), routes = { exports: {} };
+  compileFunction(fs.readFileSync(routesFile, 'utf8'), ['module', 'require'], { filename: routesFile })(routes,
+    name => name === './services/googlePhotos.js' ? { getCachedMediaItems: () => [] }
+      : name === './services/weather.js' ? {} : createRequire(routesFile)(name));
+  routes.exports({ ...h.captured.routes, app, dispatchCommand: dispatcher.dispatchCommand, broadcastStateSync: dispatcher.broadcastStateSync });
+  const socketsFile = path.join(__dirname, 'sockets.js'), sockets = { exports: {} };
+  compileFunction(fs.readFileSync(socketsFile, 'utf8'), ['module', 'require', 'console'], { filename: socketsFile })(sockets,
+    name => ['./services/googlePhotos.js', './services/notifier.js', './services/system.js'].includes(name) ? {} : createRequire(socketsFile)(name), quiet);
+  let connection;
+  const listeners = new Map(), socketEvents = [];
+  sockets.exports({ ...h.captured.sockets, io: { on: (_event, callback) => { connection = callback; }, emit() {} },
+    dispatchCommand: dispatcher.dispatchCommand, broadcastStateSync: dispatcher.broadcastStateSync });
+  connection({ id: 'badge-fixture', on: (event, listener) => listeners.set(event, listener), emit: (...args) => socketEvents.push(args) });
+  server = http.createServer(app);
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const patch = async body => {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/api/state`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      return { status: response.status, body: await response.json() };
+    };
+    await run({ h, patch, reconstruct, jsonPath, listeners, socketEvents, defaultState, dir,
+      disk: () => JSON.parse(fs.readFileSync(jsonPath, 'utf8')), writes: () => writes,
+      fail: value => { failWrite = value; } });
+  } finally {
+    try {
+      server?.closeAllConnections();
+      if (server?.listening) await new Promise(resolve => server.close(resolve));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}
+
+for (const value of [undefined, false, true]) {
+  test(`badge cold startup and fresh reconstruction preserve ${String(value)}`, () => withBadgeFixture(async f => {
+    assert.equal(f.defaultState().widgets.qrcode, false);
+    assert.equal(f.h.state.widgets.qrcode, value === true);
+    assert.equal(f.reconstruct().state.widgets.qrcode, value === true);
+  }, value === undefined ? {} : { raw: { widgets: { qrcode: value, weatherLocation: false, clock: false } } }));
+}
+
+const badgeRoundtrip = async f => {
+  for (const desired of [true, false]) {
+    assert.equal((await f.patch({ widgets: { qrcode: !desired } })).status, 200);
+    assert.equal(f.disk().widgets.qrcode, !desired, 'different intermediate durable value');
+    const result = await f.patch({ widgets: { qrcode: desired } });
+    assert.equal(result.status, 200); assert.equal(result.body.widgets.qrcode, desired);
+    assert.equal(f.disk().widgets.qrcode, desired, 'acknowledgement requires disk');
+    assert.equal(f.reconstruct().state.widgets.qrcode, desired);
+    // Same release path: source/package is replaced while this existing data file
+    // is retained. A separate Node process must reconstruct from that latest file.
+    const script = 'const c=require(\'./server/config/collectionsCodec.js\');console.log(JSON.stringify(c.loadCollectionsSnapshot({jsonPath:process.argv[1],defaultCollections:{},defaultState:{widgets:{qrcode:false}},buildFeedConfigsFromKeywords:()=>({})}).persistedState.widgets.qrcode));';
+    const restored = require('node:child_process').execFileSync(process.execPath, ['-e', script, f.jsonPath], { encoding: 'utf8' });
+    assert.equal(JSON.parse(restored), desired);
+    assert.equal((await f.patch({ widgets: { clock: false } })).status, 200);
+    assert.equal(f.disk().widgets.qrcode, desired, 'unrelated setting save preserves badge');
+  }
+};
+test('badge REST saves acknowledge durable booleans across restart and release-style reconstruction', () => withBadgeFixture(badgeRoundtrip));
+test('badge disabled-writer control fails the durable roundtrip oracle', () =>
+  assert.rejects(withBadgeFixture(badgeRoundtrip, { disabledWriter: true }), assert.AssertionError));
+test('badge legacy codec control fails the same roundtrip oracle', () =>
+  assert.rejects(withBadgeFixture(badgeRoundtrip, { oldCodec: true }), assert.AssertionError));
+
+test('badge actual socket toggle sets explicit visibility, not inversion, and survives reconstruction', () => withBadgeFixture(async f => {
+  for (const visible of [true, true, false, false]) {
+    const before = f.writes();
+    f.listeners.get('toggle-widget')({ widgetName: 'qrcode', visible });
+    // Registration deliberately returns no promise; wait for its dispatched effect.
+    await new Promise(setImmediate);
+    assert.equal(f.writes(), before + 1);
+    assert.equal(f.disk().widgets.qrcode, visible);
+    assert.equal(f.reconstruct().state.widgets.qrcode, visible);
+  }
+}));
+
+test('badge disk failure returns500, identical retry persists after memory already applied, unrelated no-op stays best effort', () => withBadgeFixture(async f => {
+  f.fail(true);
+  const oldBytes = fs.readFileSync(f.jsonPath);
+  const failed = await f.patch({ widgets: { qrcode: true } });
+  assert.equal(failed.status, 500); assert.equal(f.h.state.widgets.qrcode, true);
+  assert.deepEqual(fs.readFileSync(f.jsonPath), oldBytes);
+  f.fail(false);
+  assert.equal((await f.patch({ widgets: { qrcode: true } })).status, 200);
+  assert.equal(f.disk().widgets.qrcode, true); assert.equal(f.reconstruct().state.widgets.qrcode, true);
+  const before = f.writes();
+  assert.equal((await f.patch({ widgets: { clock: f.h.state.widgets.clock } })).status, 200);
+  assert.equal(f.writes(), before);
+}));
+
+// The fresh-state oracle must detect the prior default, not only missing bytes.
+test('badge old-default control fails fresh default oracle', () =>
+  assert.rejects(withBadgeFixture(async f => assert.equal(f.defaultState().widgets.qrcode, false), { oldDefault: true }), assert.AssertionError));
