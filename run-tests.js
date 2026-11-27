@@ -6465,7 +6465,7 @@ assertAsyncTest('Google Photos slide titles use localized capture dates and pres
   );
   assert.match(dashboardSource, /title: getPhotoSlideTitle\(photo\)/);
   assert.match(dashboardSource, /source: photo\.source/);
-  assert.match(dashboardSource, /slide\.source === 'google_photos' && \(/);
+  // Built-browser coverage verifies one Google capture-date credit, independent of DOM placement.
   assert.match(dashboardSource, /className="single-slide-credit"/);
   assert.match(dashboardSource, /projectSplitSlideTitles\(photo1, photo2\)/);
 });

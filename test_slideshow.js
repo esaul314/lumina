@@ -48,20 +48,20 @@ function createFixtureCodec(directory, control = {}) {
   return module.exports;
 }
 
-async function createFixture(photos, { screensaverActive = false, widgets = {}, environmentControl = null } = {}) {
+async function createFixture(photos, { screensaverActive = false, widgets = {}, environmentControl = null, category = 'Fixture' } = {}) {
   const app = express();
   const server = http.createServer(app);
   // Clock jumps must not simulate Socket.IO heartbeat failure.
   const io = new Server(server, { pingInterval: 1000000000, pingTimeout: 1000000000 });
   const state = {
-    currentCategory: 'Fixture', activePhoto: photos[0], photosList: photos,
+    currentCategory: category, activePhoto: photos[0], photosList: photos,
     theme: 'Zen Retreat', scaleMode: 'cover', splitPortrait: true, splitCropPercent: 50,
     widgets: { blueLightFilter: false, ...widgets }, slideshowInterval: INTERVAL, inactivityTimeout: 600000,
     alignTimeOfDay: false, alignWeather: false, nightPercentage: 50,
     searchKeywords: {}, feedConfigs: {}, poolPolicies: {}, excludedKeywords: [],
     autoLocation: false, manualLocation: {}, screensaverActive, splitSeed: 1
   };
-  const collections = { Fixture: photos.map(row => ({ ...row })) };
+  const collections = { [category]: photos.map(row => ({ ...row })) };
   const commentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumina-browser-comments-'));
   const commentPath = path.join(commentDir, 'collections.json');
   fs.writeFileSync(commentPath, JSON.stringify({ feeds: collections }));
@@ -999,6 +999,82 @@ const blueLightCases = [
   }, portraitPhotos().filter(row => !row.url.includes('broken'))]
 ];
 
+// Measure actual overlay edges, not document scrollHeight (TV root clips overflow).
+const overlayGeometry = () => {
+  const rect = el => { const r=el.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}; };
+  const elements=[...document.querySelectorAll('.tv-dashboard-ui > .glass-widget, .slide.active .slide-half-credit, .slide.active .single-slide-credit')];
+  const boxes=elements.filter(el=>getComputedStyle(el).display!=='none').map(el=>({name:el.className,...rect(el)}));
+  const overlaps=boxes.flatMap((a,i)=>boxes.slice(i+1).filter(b=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1).map(b=>[a.name,b.name]));
+  const controls=[document.querySelector('.desktop-settings-btn'),document.querySelector('.lumina-tv-container')?.parentElement?.querySelector(':scope > button')].filter(Boolean).map(rect);
+  return {width:innerWidth,height:innerHeight,boxes,overlaps,controls,overflow:boxes.filter(b=>b.left< -1||b.top< -1||b.right>innerWidth+1||b.bottom>innerHeight+1),
+    text:[...document.querySelectorAll('.clock-time,.clock-date,.weather-condition,.weather-city,.indoor-environment,.indoor-trend,.forecast-day,.photo-title,.photo-author,.photo-category,.slide.active .slide-half-credit .title,.slide.active .slide-half-credit .author,.connection-info')].map(el=>({name:el.className,font:parseFloat(getComputedStyle(el).fontSize),truncated:getComputedStyle(el).textOverflow==='ellipsis'||parseInt(getComputedStyle(el).webkitLineClamp)>0,width:el.clientWidth,scroll:el.scrollWidth,...rect(el)}))};
+};
+const overlayViewports = [[320,568],[375,667],[568,320],[1280,720],[1920,1080],[900,1400]];
+const overlayOptions = (badge,category) => ({category,widgets:{clock:true,weather:true,indoorEnvironment:true,qrcode:badge},environmentControl:{current:{
+  enabled:true,stale:false,source:'ecowitt-gw1200',device:environmentDeviceKey({activeDeviceId:'fixture',devices:[{id:'fixture',adapterId:'ecowitt-local-http',baseUrl:'http://fixture.example.test'}]}),
+  observedAt:new Date().toISOString(),indoor:{temperatureC:22,humidityPercent:50,pressureRelativeHpa:1015},units:{temperature:'F'}
+}}});
+const overlayConfigurations = [false,true].flatMap(split=>[false,true].flatMap(badge=>[false,true].map(long=>({split,badge,long,google:false}))));
+overlayConfigurations.push({split:false,badge:true,long:true,google:true});
+const overlayCases = overlayConfigurations.map(({split,badge,long,google})=>{
+  const label=`${google?'google-':''}${split?'split':'single'}-${badge?'badge':'no-badge'}-${long?'long':'normal'}`;
+  const category=long?'Fixture '+ 'PhotographicRegion'.repeat(8):'Fixture';
+  const rows=(split?portraitPhotos():landscapePhotos()).filter(row=>!row.url.includes('broken')).map(row=>({...row,category,
+    title:long?'A very long photographic title with an unbroken '+ 'panorama'.repeat(12):'Evening light over the mountain',
+    author:long?'Photographer '+ 'LongAuthor'.repeat(10):'Fixture Photographer',...(google?{source:'google_photos',createTime:'2026-11-23T12:00:00Z'}:{})}));
+  return [`TV overlay viewport and attribution coherence ${label}`,async ({page,fixture})=>{
+    const baseline=process.env.LUMINA_OVERLAY_BASELINE==='1';
+    await page.route('https://api.qrserver.com/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="white"/></svg>'}));
+    if(long){fixture.weather.location.city='A very long regional location name';fixture.weather.location.regionName='Extended region';fixture.weather.current.weather_code=95;fixture.weather.daily.weather_code=[95,95,95,95];}
+    await page.reload();
+    await expect(page.locator('.indoor-trend')).toContainText('vs ~24h ago');
+    await expect(page.locator('.slide.active .slide-half')).toHaveCount(split?2:0);
+    if(google&&!baseline){
+      await expect(page.locator('.slide.active .single-slide-credit')).toHaveCount(0);
+      await expect(page.locator('.photo-info-widget .single-slide-credit')).toHaveCount(1);
+      await expect(page.locator('.photo-title')).toContainText('2026');
+    }
+    const measurements=[];
+    for(const [width,height] of overlayViewports){
+      await page.setViewportSize({width,height});
+      await expect(page.locator('.forecast-day')).toHaveCount(3);
+      await expect(page.locator('.connection-widget')).toHaveCount(badge?1:0);
+      const geometry=await page.evaluate(overlayGeometry);measurements.push(geometry);
+      await page.screenshot({path:path.join(captureDirectory,`overlay-${label}-${width}x${height}.png`)});
+      if(!baseline){
+        assert.deepEqual(geometry.overflow,[],`viewport edges ${label} ${width}x${height}`);
+        assert.deepEqual(geometry.overlaps,[],`overlay collisions ${label} ${width}x${height}`);
+        for(const text of geometry.text){
+          assert(text.width>=Math.min(80,width/4)&&text.height>0,`meaningful text remains visible: ${text.name}`);
+          assert(text.left>=-1&&text.top>=-1&&text.right<=width+1&&text.bottom<=height+1,`text viewport ${text.name}`);
+          for(const control of geometry.controls)assert(!(Math.min(text.right,control.right)-Math.max(text.left,control.left)>1&&Math.min(text.bottom,control.bottom)-Math.max(text.top,control.top)>1),`controls do not cover ${text.name}`);
+          assert(text.scroll<=text.width+1||text.truncated,`text stays inside ${text.name} at ${width}x${height}`);
+          if(width<=1000&&height<=740)assert(text.font>=12,`short-screen font floor ${text.name}`);
+        }
+        for(const forecast of await page.locator('.forecast-day').all())await expect(forecast).toBeVisible();
+        if(long&&width<=1000&&height<=740){
+          const titles=page.locator(split?'.slide.active .slide-half-credit .title':'.photo-title');
+          for(const title of await titles.all())assert.equal(await title.getAttribute('title'),await title.textContent(),'full title retained for truncation');
+        }
+      }
+    }
+    if(split&&badge&&long&&!baseline){
+      await page.setViewportSize({width:568,height:320});
+      const imageStyles=await page.locator('.slide.active .slide-half-image').evaluateAll(els=>els.map(el=>el.getAttribute('style')));
+      const originalBytes=await (await page.request.get(fixture.url+'/fixtures/p1.svg')).text();
+      fixture.state.widgets.blueLightFilter=true;fixture.broadcastStateSync();
+      await expect(page.locator('.lumina-tv-container')).toHaveClass(/blue-light-filter/);
+      const filtered=await page.evaluate(overlayGeometry);
+      assert.deepEqual(filtered.overflow,[]);assert.deepEqual(filtered.overlaps,[]);
+      assert.deepEqual(await page.locator('.slide.active .slide-half-image').evaluateAll(els=>els.map(el=>el.getAttribute('style'))),imageStyles,'layout does not modify original image crop/styles');
+      assert.equal(await (await page.request.get(fixture.url+'/fixtures/p1.svg')).text(),originalBytes);
+      fs.writeFileSync(path.join(captureDirectory,'overlay-blue-filter.json'),JSON.stringify(filtered,null,2));
+      await page.screenshot({path:path.join(captureDirectory,'overlay-blue-filter.png')});
+    }
+    fs.writeFileSync(path.join(captureDirectory,`overlay-${label}.json`),JSON.stringify(measurements,null,2));
+  },rows,()=>overlayOptions(badge,category)];
+});
+
 const unratedPlaybackCases = [
   ['unrated playback draft uses narrow keyboard form; failed identical retry persists and reloads without changing ratings', async ({page,fixture}) => {
     const original=fixture.collections.Fixture.map(({url,rating})=>({url,rating}));
@@ -1304,6 +1380,10 @@ async function main() {
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    for(const [name,run,photos,options] of overlayCases){
+      await withFixture(browser,run,photos,options());console.log(`PASS: ${name}`);
+    }
+    if(process.env.LUMINA_TEST_ONLY_OVERLAY==='1')return;
     for (const [name, run] of unratedPlaybackCases) {
       await withFixture(browser,run);
       console.log(`PASS: ${name}`);
