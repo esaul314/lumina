@@ -858,3 +858,69 @@ test('disabled identity/freshness/numeric guards fail the same silent-trend orac
     assert.notEqual(module.exports.selectIndoorTrend({ environment, readings: [row], weather: trendWeather, now }), null);
   }
 });
+
+// Reuse the real route/socket/application/codec fixture, not a parallel store.
+for (const value of [undefined, null, false, true, 1, 'true', {}, []]) {
+  test(`blue filter cold startup bounds ${JSON.stringify(value)}`, () => withBadgeFixture(async f => {
+    assert.equal(f.defaultState().widgets.blueLightFilter, false);
+    assert.equal(f.h.state.widgets.blueLightFilter, value === true);
+    assert.equal(f.reconstruct().state.widgets.blueLightFilter, value === true);
+  }, { raw: { widgets: { blueLightFilter: value } } }));
+}
+const filterRoundtrip = async f => {
+  for (const desired of [true, false]) {
+    await f.patch({ widgets: { blueLightFilter: !desired } });
+    assert.equal(f.disk().widgets.blueLightFilter, !desired);
+    const response = await f.patch({ widgets: { blueLightFilter: desired } });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.widgets.blueLightFilter, desired);
+    const script = "const c=require('./server/config/collectionsCodec.js');console.log(JSON.stringify(c.loadCollectionsSnapshot({jsonPath:process.argv[1],defaultCollections:{},defaultState:{widgets:{}},buildFeedConfigsFromKeywords:()=>({})}).persistedState.widgets.blueLightFilter));";
+    const cold = require('node:child_process').execFileSync(process.execPath, ['-e', script, f.jsonPath], { encoding: 'utf8' });
+    assert.equal(JSON.parse(cold), desired);
+    assert.equal(f.disk().widgets.blueLightFilter, desired);
+    assert.equal(f.reconstruct().state.widgets.blueLightFilter, desired);
+    await f.patch({ widgets: { clock: false, qrcode: true } });
+    assert.equal(f.disk().widgets.blueLightFilter, desired);
+    assert.equal(f.reconstruct().state.widgets.blueLightFilter, desired);
+  }
+};
+test('blue filter REST roundtrip survives reconstruction and unrelated writes', () => withBadgeFixture(filterRoundtrip));
+test('blue filter disabled writer fails durable oracle', () =>
+  assert.rejects(withBadgeFixture(filterRoundtrip, { disabledWriter: true }), assert.AssertionError));
+test('blue filter REST ignores non-booleans without broadening legacy widgets', () => withBadgeFixture(async f => {
+  await f.patch({ widgets: { blueLightFilter: true } });
+  for (const value of [null, 0, 1, 'false', {}, []]) {
+    assert.equal((await f.patch({ widgets: { blueLightFilter: value } })).status, 200);
+    assert.equal(f.h.state.widgets.blueLightFilter, true);
+  }
+}));
+test('blue filter actual socket identical retry contains failure and persists explicit values', () => withBadgeFixture(async f => {
+  f.fail(true);
+  const oldBytes = fs.readFileSync(f.jsonPath);
+  f.listeners.get('toggle-widget')({ widgetName: 'blueLightFilter', visible: true });
+  await new Promise(setImmediate);
+  assert.equal(f.h.state.widgets.blueLightFilter, true);
+  assert.deepEqual(fs.readFileSync(f.jsonPath), oldBytes);
+  f.fail(false);
+  for (const visible of [true, true, false, false]) {
+    const before = f.writes();
+    f.listeners.get('toggle-widget')({ widgetName: 'blueLightFilter', visible });
+    await new Promise(setImmediate);
+    assert.equal(f.writes(), before + 1);
+    assert.equal(f.disk().widgets.blueLightFilter, visible);
+    assert.equal(f.reconstruct().state.widgets.blueLightFilter, visible);
+  }
+}));
+test('blue filter REST disk failure then identical retry really persists', () => withBadgeFixture(async f => {
+  f.fail(true);
+  const bytes = fs.readFileSync(f.jsonPath);
+  assert.equal((await f.patch({ widgets: { blueLightFilter: true } })).status, 500);
+  assert.equal(f.h.state.widgets.blueLightFilter, true);
+  assert.deepEqual(fs.readFileSync(f.jsonPath), bytes);
+  f.fail(false);
+  assert.equal((await f.patch({ widgets: { blueLightFilter: true } })).status, 200);
+  assert.equal(f.disk().widgets.blueLightFilter, true);
+  const before = f.writes();
+  await f.patch({ widgets: { clock: f.h.state.widgets.clock } });
+  assert.equal(f.writes(), before);
+}));

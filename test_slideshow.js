@@ -56,7 +56,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {}, 
   const state = {
     currentCategory: 'Fixture', activePhoto: photos[0], photosList: photos,
     theme: 'Zen Retreat', scaleMode: 'cover', splitPortrait: true, splitCropPercent: 50,
-    widgets: { ...widgets }, slideshowInterval: INTERVAL, inactivityTimeout: 600000,
+    widgets: { blueLightFilter: false, ...widgets }, slideshowInterval: INTERVAL, inactivityTimeout: 600000,
     alignTimeOfDay: false, alignWeather: false, nightPercentage: 50,
     searchKeywords: {}, feedConfigs: {}, poolPolicies: {}, excludedKeywords: [],
     autoLocation: false, manualLocation: {}, screensaverActive, splitSeed: 1
@@ -88,6 +88,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {}, 
     state, collections, io,
     savePhotoComment: ({ url, comment }) => commentStore.write({ url }, comment),
     persistCollections: persistFixtureCollections,
+    persistDisplayPreference: (savedCollections, savedState) => persistFixtureCollections(savedCollections, savedState, { throwOnError: true }),
     persistPoolPolicy: (savedCollections, savedState) => persistFixtureCollections(savedCollections, savedState, { throwOnError: true }),
     persistEnvVars: entries => persistence.env.push(structuredClone(entries))
   });
@@ -166,6 +167,8 @@ async function createFixture(photos, { screensaverActive = false, widgets = {}, 
   return {
     state, collections, weather, events, errors, logs, persistence, dispatch, commentStore, environmentControl,
     saveLegacy: () => writerModule.exports.saveCuratedCollections(collections, state), readPersisted: () => JSON.parse(fs.readFileSync(commentPath, 'utf8')),
+    readPersistedWidgets: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
+      defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).persistedState.widgets,
     readPersistedPolicy: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
       defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).persistedState.poolPolicies,
     readReconstructed: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
@@ -898,12 +901,115 @@ const environmentTrendCases = [
   } } })]
 ];
 
+const blueLightCases = [
+  ['manual filter syncs durably, retries and covers TV composition without changing preview or bytes', async ({ page, fixture }) => {
+    const root = page.locator('.lumina-tv-container');
+    const filter = () => root.evaluate(el => getComputedStyle(el).filter);
+    const sample = async () => {
+      const png = await page.screenshot();
+      return page.evaluate(async base64 => {
+        const image = new Image(); image.src = 'data:image/png;base64,' + base64;
+        await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+        const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+        return [...context.getImageData(100, 100, 1, 1).data];
+      }, png.toString('base64'));
+    };
+    const originalPixel = await sample();
+    assert.equal(await filter(), 'none');
+    const before = JSON.stringify(fixture.state.photosList);
+    const bytes = await (await page.request.get(fixture.url + '/fixtures/a.svg')).text();
+    const remote = await page.context().newPage();
+    await remote.setViewportSize({ width: 320, height: 740 });
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'System', exact: true }).click();
+    const control = remote.getByRole('switch', { name: 'Blue light filter', exact: true });
+    await expect(control).toHaveAttribute('aria-checked', 'false');
+    await control.focus(); await control.press('Space');
+    await expect(control).toHaveAttribute('aria-checked', 'true');
+    await expect(root).toHaveClass(/blue-light-filter/);
+    assert.notEqual(await filter(), 'none');
+    const warmPixel = await sample();
+    assert.ok(warmPixel[0] / warmPixel[2] > originalPixel[0] / originalPixel[2], 'built TV pixels gain warmth');
+    const disabled = await page.addStyleTag({ content: '.lumina-tv-container.blue-light-filter { filter: none !important; }' });
+    const disabledPixel = await sample();
+    assert.throws(() => assert.ok(disabledPixel[0] / disabledPixel[2] > originalPixel[0] / originalPixel[2]), assert.AssertionError,
+      'disabled CSS must fail the same warmth oracle');
+    await disabled.evaluate(el => el.remove());
+    fs.writeFileSync(path.join(captureDirectory, 'blue-light-pixels.json'), JSON.stringify({ originalPixel, warmPixel, disabledPixel }));
+    assert.equal(fixture.readPersisted().widgets.blueLightFilter, true);
+    const preview = await page.context().newPage();
+    await preview.setViewportSize({ width: 1280, height: 720 });
+    await preview.goto(fixture.url);
+    await expect(preview.locator('.slide.active')).toHaveCount(1);
+    assert.equal(await preview.locator('.lumina-tv-container').evaluate(el => getComputedStyle(el).filter), 'none');
+    assert.equal(await remote.locator('body').evaluate(el => getComputedStyle(el).filter), 'none');
+    for (const [width, height] of [[1280,720],[375,812],[320,640]]) {
+      await page.setViewportSize({ width, height });
+      const box = await root.boundingBox();
+      assert.equal(box.width,width); assert.equal(box.height,height);
+      assert.ok(await page.locator('.slide').count() <= 2);
+      await page.screenshot({path:path.join(captureDirectory,`blue-light-${width}.png`)});
+    }
+    const bounds = await control.boundingBox();
+    assert.ok(bounds.width >= 44 && bounds.height >= 44);
+    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 320);
+    await remote.screenshot({path:path.join(captureDirectory,'blue-light-remote-320.png')});
+    await preview.screenshot({path:path.join(captureDirectory,'blue-light-preview-original.png')});
+    for (const selector of ['.slideshow-container','.desktop-settings-btn']) {
+      assert.ok(await page.locator(selector).evaluate(el => Boolean(el.closest('.blue-light-filter'))));
+    }
+    // Reconstruct the fixture's canonical widgets from disk before a fresh client.
+    fixture.state.widgets = fixture.readPersistedWidgets(); fixture.broadcastStateSync();
+    await page.reload({waitUntil:'domcontentloaded'});
+    await expect(root).toHaveClass(/blue-light-filter/);
+    await remote.reload({waitUntil:'domcontentloaded'});
+    await remote.getByRole('button', {name:'System',exact:true}).click();
+    await expect(control).toHaveAttribute('aria-checked','true');
+    fixture.persistence.fail = true;
+    await control.click();
+    await expect(remote.getByRole('status').filter({hasText:'Save not confirmed'})).toBeVisible();
+    assert.equal(fixture.state.widgets.blueLightFilter, false);
+    assert.equal(fixture.readPersisted().widgets.blueLightFilter,true);
+    fixture.persistence.fail = false;
+    await remote.getByRole('button',{name:'Retry save',exact:true}).click();
+    await expect(control).toHaveAttribute('aria-checked','false');
+    await expect(root).not.toHaveClass(/blue-light-filter/);
+    assert.equal(await filter(),'none');
+    assert.equal(fixture.readPersisted().widgets.blueLightFilter,false);
+    assert.equal(JSON.stringify(fixture.state.photosList),before);
+    assert.equal(await (await page.request.get(fixture.url+'/fixtures/a.svg')).text(),bytes);
+    await page.screenshot({path:path.join(captureDirectory,'blue-light-off.png')});
+    await preview.close(); await remote.close();
+  }],
+  ['portrait halves and cursor/settings remain composed under manual warmth', async ({page,fixture}) => {
+    await fixture.dispatch({type:'patch-state',payload:{widgets:{blueLightFilter:true,clock:true}}});
+    await expect(page.locator('.slide.active .slide-half-image')).toHaveCount(2);
+    assert.equal(await page.locator('.slide.active .slide-half-image').evaluateAll(els => els.every(el=>Boolean(el.closest('.blue-light-filter')))),true);
+    await page.locator('.desktop-settings-btn').evaluate(el=>el.click());
+    await expect(page.locator('.desktop-settings-drawer')).toHaveClass(/open/);
+    assert.equal(await page.locator('.desktop-settings-drawer').evaluate(el=>Boolean(el.closest('.blue-light-filter'))),true);
+    fixture.state.screensaverActive = true; fixture.broadcastStateSync();
+    await expect.poll(() => page.evaluate(() => window.__state.screensaverActive)).toBe(true);
+    await page.clock.fastForward(4000);
+    await expect(page.locator('body')).toHaveClass(/hide-cursor/);
+    await page.evaluate(() => window.dispatchEvent(new MouseEvent('mousemove', {clientX:100,clientY:100})));
+    await expect(page.locator('.lumina-tv-container')).not.toHaveClass(/hide-cursor/);
+    await page.screenshot({path:path.join(captureDirectory,'blue-light-portrait.png')});
+  }, portraitPhotos().filter(row => !row.url.includes('broken'))]
+];
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    for (const [name,run,photos] of blueLightCases) {
+      await withFixture(browser,run,photos);
+      console.log(`PASS: ${name}`);
+    }
+    if (process.env.LUMINA_TEST_ONLY_BLUE_LIGHT === '1') return;
     for (const [name,run,options] of environmentTrendCases) {
       await withFixture(browser,run,landscapePhotos(),options());
       console.log(`PASS: ${name}`);
