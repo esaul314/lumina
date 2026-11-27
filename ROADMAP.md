@@ -2,7 +2,23 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.8
+## Current release — 1.1.9
+
+Released2026-11-27 from the independently accepted permanent-collection gallery.
+Fresh shared/native/sensor/report tests, lint, private build and full headless
+journeys pass. Strict checking remains203 inherited diagnostics, none added.
+Read-only live gallery (24-image bound, keyboard open/Escape), admin/socket/TV
+and APIs pass with preview images supplied locally; zero application mutations.
+Atomic compatible assets/index publication and one native-owner restart preserve
+latest photos/comments/settings/history and automatic intent without forcing
+activation. The exact1.1.8 artifact and old assets are retained; actual old codec
+and forward roundtrip preserve comments, both badge/filter booleans and newer
+ratings/location/policies offline. No live downgrade, provider-account operation,
+actual-photo visual, physical-TV/GPU/AT claim. Runtime/private config unchanged.
+Refresh an existing admin page normally for the new frontend. This release
+selects no next sprint or continuation.
+
+## Previous release — 1.1.8
 
 Released2026-11-27 from independently accepted manual blue-light filter source.
 Fresh958 shared assertions/358 native cases, lint, isolated build and28 browser
@@ -507,7 +523,18 @@ debt remains; this is no strict-clean, live-device or rollout claim. All selecte
 outcomes close at the source boundary; no automatic next sprint or reminder.
 The evidence/usage policy remains in [development evidence](./docs/DEVELOPMENT_EVIDENCE.md).
 
-### Permanent-collection gallery — source accepted, 2026-11-27
+### Image Feeds interaction assessment — planned feedback, 2026-11-27
+
+Assess and optimize the Image Feeds UI/UX as an integrated surface, including the
+new gallery. Establish interaction frequency and information hierarchy before
+changing controls; evaluate progressive disclosure so occasional editing does
+not dominate browsing. Review compact/expanded layouts, narrow-screen journeys
+and keyboard/focus workflows with explicit saved/draft/error cues.
+Build on the existing interaction-design convention and comment/Direct Control
+findings rather than duplicating those tasks. This is planned assessment and
+optimization, not implemented or selected as the next sprint by this release.
+
+### Permanent-collection gallery — released in 1.1.9, 2026-11-27
 
 Accepted source adds **Image Feeds → Permanent Collection Gallery** independently
 of the selected/visible rating deck. Permanent membership is exactly `loved === true`
@@ -534,7 +561,7 @@ Independent R2 review accepted the repaired empty-page focus behavior; required
 tests, lint, private build and31 browser journeys pass. Strict checking retains203
 inherited diagnostics, none added. Earlier parallel-load Google fixture timing
 failure is retained; serial full rerun passes without test weakening.
-Source acceptance does not deploy or push this feature; live remains1.1.8.
+Source acceptance was followed by the separately authorized1.1.9 release above.
 Retained regression owners: `server/domain/permanentGallery.test.js`,
 `server/services/googlePhotos.media.test.js` and `test_slideshow.js`.
 
