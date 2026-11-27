@@ -2,7 +2,19 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.4
+## Current release — 1.1.5
+
+Released2026-11-27 from accepted atomic Google Photos byte-cache publication.
+Fresh full tests/lint, isolated build and25 browser journeys pass. Native restart
+preserved automatic/inactive intent and latest photos/comments/history; served
+frontend bytes match1.1.4. Read-only API/socket/admin checks pass. Exact1.1.4
+rollback artifact and old reader/writer compatibility are qualified offline;
+rollback removes atomic byte publication. No Google account flow, live curation
+write, live downgrade or physical-TV/assistive-device claim. Runtime/private
+configuration unchanged; existing vision/compiler debt remains separate.
+This release does not select further work.
+
+## Previous release — 1.1.4
 
 Released2026-11-27 from accepted Google Photos content-transfer resilience.
 Fresh full tests/lint, isolated build and25 browser journeys pass. Native restart
@@ -908,7 +920,7 @@ as part of content-transfer acceptance.
 
 ### Selected: atomic Google Photos byte-cache publication — 2026-11-27
 
-**SOURCE ACCEPTED — independent review passed.** Replace the byte
+**ACCEPTED, independently reviewed and released in1.1.5.** Replace the byte
 writer shared by proxy initial/final content attempts and background downloads,
 not the separate metadata JSON writer. Stage complete bytes with an exclusive
 random same-directory name and0600 permissions; validate regular/single-link
@@ -934,6 +946,6 @@ metadata JSON atomicity, detecting historical nonempty partial/corrupt files,
 identity/MIME/size/control-plane redesign. A crashed process can leave temporary
 files; no startup repair/background sweeper is introduced. Full regression/lint
 and independent HTTP/downloader review qualify this source boundary, with existing
-compiler debt unchanged. Scoped commits close this milestone; no deployment,
-restart or push of these changes is included. The historical Selected heading is
+compiler debt unchanged. Scoped commits closed source acceptance; the separately authorized1.1.5 release
+and push are recorded above. The historical Selected heading is
 retained for stable links; the acceptance status above supersedes selection.
