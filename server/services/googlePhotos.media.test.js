@@ -5,7 +5,7 @@ const {compileFunction}=require('node:vm'),{createRequire}=require('node:module'
 const filename=path.join(__dirname,'googlePhotos.js');
 const source=fs.readFileSync(filename,'utf8');
 const bytes=Buffer.from('Fixture media bytes');
-function fixture(t,{serviceSource=source,onOpen=()=>{},disableDeadline=false,fetchImpl=async()=>({ok:true,arrayBuffer:async()=>bytes,headers:{get:()=> 'image/jpeg'}})}={}){
+function fixture(t,{serviceSource=source,onOpen=()=>{},disableDeadline=false,ioEffects={},fetchImpl=async()=>({ok:true,arrayBuffer:async()=>bytes,headers:{get:()=> 'image/jpeg'}})}={}){
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'lumina-media-containment-'));
   const media=path.join(directory,'google_photos_media'),cache=path.join(directory,'google_photos_cache.json');
   fs.mkdirSync(media);fs.writeFileSync(cache,'[]');
@@ -21,11 +21,11 @@ function fixture(t,{serviceSource=source,onOpen=()=>{},disableDeadline=false,fet
     return resolved;
   };
   const fixtureFs={...fs};
-  for(const method of ['existsSync','lstatSync','readFileSync','writeFileSync','mkdirSync','unlinkSync','readdirSync','openSync']){
+  for(const method of ['existsSync','lstatSync','readFileSync','writeFileSync','mkdirSync','unlinkSync','readdirSync','openSync','renameSync','rmSync']){
     fixtureFs[method]=(...args)=>{
-      const file=inside(args[0]);io.push([method,file]);
+      const file=inside(args[0]);if(method==='renameSync')inside(args[1]);io.push([method,file]);
       if(method==='openSync')onOpen(file,args[1]);
-      const result=fs[method](...args);
+      const result=(ioEffects[method]??(perform=>perform()))(()=>fs[method](...args),...args);
       if(method==='openSync')descriptors.set(result,file);
       return result;
     };
@@ -156,7 +156,7 @@ test('no-follow read rejects final-component symlink substitution without remote
   await assert.rejects(f.fetchMediaItemBytes('race'),/Unsafe Google Photos local media path/);
   assert.equal(f.calls.length,0);assert.equal(f.descriptors.size,0);
 });
-test('descriptor validation refuses a hardlink planted at open before truncating',async t=>{
+test('exclusive creation refuses a hardlink planted at open without changing its bytes',async t=>{
   let f;
   f=fixture(t,{onOpen:file=>fs.linkSync(path.join(f.directory,'outside.jpg'),file)});
   const outside=path.join(f.directory,'outside.jpg');fs.writeFileSync(outside,'Do not truncate');
@@ -343,4 +343,162 @@ test('negative control: removed empty-content guard makes HTTP succeed and cache
  const f=fixture(t,{serviceSource:noEmptyGuard,fetchImpl:async()=>response(Buffer.alloc(0))});remoteItem(f,'empty');
  const request=await proxyServer(t,f);assert.equal((await request('empty')).status,200);
  assert.equal(fs.statSync(path.join(f.media,'empty.jpg')).size,0);
+});
+
+
+// Real descriptor writes/rename faults, with durable artifacts as the oracle.
+const noStages=f=>assert.deepEqual(fs.readdirSync(f.media).filter(name=>!name.endsWith('.jpg')),[]);
+const partialWrite=(perform,fd,data)=>{
+  if(typeof fd!=='number')return perform(); // Metadata JSON is a separate contract.
+  fs.writeSync(fd,data.subarray(0,3));throw new Error('Fixture partial disk write');
+};
+for(const entry of ['proxy','downloader'])for(const failure of ['write','rename'])for(const initial of ['missing','empty']){
+ test(`atomic ${entry} ${failure} failure preserves ${initial} target, cleans staging and identical retry recovers`,async t=>{
+  let fail=true;
+  const f=fixture(t,{ioEffects:{
+    writeFileSync:(perform,...args)=>fail&&failure==='write'?partialWrite(perform,...args):perform(),
+    renameSync:perform=>{if(fail&&failure==='rename')throw new Error('Fixture rename failure');return perform();}
+  }});
+  remoteItem(f,'atomic');const target=path.join(f.media,'atomic.jpg');
+  if(initial==='empty')fs.writeFileSync(target,'');
+  const request=entry==='proxy'?await proxyServer(t,f):null;
+  const items=[{id:'atomic',googleBaseUrl:'https://fixture.test/content'}];
+  if(request)assert.equal((await request('atomic')).status,502);
+  else await f.downloadSyncMediaItems(items);
+  assert.equal(fs.existsSync(target),initial==='empty');
+  if(initial==='empty')assert.equal(fs.statSync(target).size,0);
+  noStages(f);fail=false;
+  if(request)assert.equal((await request('atomic')).status,200);else await f.downloadSyncMediaItems(items);
+  assert.deepEqual(fs.readFileSync(target),bytes);noStages(f);
+  assert.equal(f.calls.length,2);
+ });
+}
+for(const failure of ['write','rename']){
+ test(`atomic proxy replacement ${failure} failure preserves prior complete bytes and retries identically`,async t=>{
+  let reads=0,fail=true;
+  const f=fixture(t,{ioEffects:{
+    readFileSync:(perform,fd)=>{if(typeof fd==='number'&&++reads<=2)throw new Error('Fixture local read unavailable');return perform();},
+    writeFileSync:(perform,...args)=>fail&&failure==='write'?partialWrite(perform,...args):perform(),
+    renameSync:perform=>{if(fail&&failure==='rename')throw new Error('Fixture rename failure');return perform();}
+  }});
+  remoteItem(f,'replace');const target=path.join(f.media,'replace.jpg'),prior=Buffer.from('Prior complete cache');
+  fs.writeFileSync(target,prior);const request=await proxyServer(t,f);
+  assert.equal((await request('replace')).status,502);assert.deepEqual(fs.readFileSync(target),prior);noStages(f);
+  fail=false;assert.equal((await request('replace')).status,200);assert.deepEqual(fs.readFileSync(target),bytes);
+  assert.deepEqual((await request('replace')).body,bytes);assert.equal(f.calls.length,2);noStages(f);
+ });
+}
+test('atomic downloader rename failure does not block later item or next existing trigger',async t=>{
+ let fail=true;
+ const f=fixture(t,{ioEffects:{renameSync:(perform,_from,to)=>{
+  if(to.endsWith('/failed.jpg')&&fail)throw new Error('Fixture failed publication');return perform();
+ }}});
+ const items=[{id:'failed',googleBaseUrl:'https://fixture.test/failed'},{id:'later',googleBaseUrl:'https://fixture.test/later'}];
+ await f.downloadSyncMediaItems(items);
+ assert(!fs.existsSync(path.join(f.media,'failed.jpg')));assert.deepEqual(fs.readFileSync(path.join(f.media,'later.jpg')),bytes);noStages(f);
+ fail=false;await f.downloadSyncMediaItems(items);
+ assert.deepEqual(fs.readFileSync(path.join(f.media,'failed.jpg')),bytes);assert.equal(f.calls.length,3);noStages(f);
+});
+test('atomic publication exposes only complete old/new bytes, retains open-reader inode and validates target again',async t=>{
+ let f,priorFd,renames=0;
+ f=fixture(t,{ioEffects:{renameSync:(perform,stage,target)=>{
+  renames++;assert.deepEqual(fs.readFileSync(stage),bytes);
+  assert.equal(fs.statSync(stage).mode&0o777,0o600);assert.equal(fs.statSync(stage).nlink,1);
+  if(renames===1){
+   assert(!fs.existsSync(target));return perform();
+  }
+  assert.equal(fs.readFileSync(target,'utf8'),'Concurrent complete bytes');
+  priorFd=fs.openSync(target,'r');return perform();
+ }},fetchImpl:async()=>{
+  if(f.calls.length===2)fs.writeFileSync(path.join(f.media,'visible.jpg'),'Concurrent complete bytes');
+  return response(bytes);
+ }});
+ remoteItem(f,'visible');const request=await proxyServer(t,f);
+ assert.equal((await request('visible')).status,200);
+ fs.unlinkSync(path.join(f.media,'visible.jpg')); // Simulate another miss before the await-time publisher.
+ try{
+  assert.equal((await request('visible')).status,200);assert.equal(renames,2);
+  assert.equal(fs.readFileSync(priorFd,'utf8'),'Concurrent complete bytes');
+  assert.deepEqual(fs.readFileSync(path.join(f.media,'visible.jpg')),bytes);noStages(f);
+ }finally{if(priorFd!==undefined)fs.closeSync(priorFd);}
+});
+test('atomic exclusive staging collision is not truncated or cleaned as an owned file',async t=>{
+ let planted;
+ const f=fixture(t,{onOpen:(file,flags)=>{
+  if(flags&fs.constants.O_EXCL){planted=file;fs.writeFileSync(file,'Other owner staging');}
+ }});
+ remoteItem(f,'collision');const request=await proxyServer(t,f);
+ assert.equal((await request('collision')).status,502);assert(planted);
+ assert.equal(fs.readFileSync(planted,'utf8'),'Other owner staging');
+ assert(!fs.existsSync(path.join(f.media,'collision.jpg')));
+});
+test('atomic target planted after staged write is rejected without following outside link',async t=>{
+ let f;
+ const outsideBytes=Buffer.from('Outside protected sentinel');
+ f=fixture(t,{ioEffects:{writeFileSync:(perform,fd)=>{
+  const result=perform();
+  if(typeof fd==='number')fs.symlinkSync(path.join(f.directory,'outside.jpg'),path.join(f.media,'late-stage.jpg'));
+  return result;
+ }}});
+ fs.writeFileSync(path.join(f.directory,'outside.jpg'),outsideBytes);remoteItem(f,'late-stage');
+ const request=await proxyServer(t,f);assert.equal((await request('late-stage')).status,502);
+ assert.deepEqual(fs.readFileSync(path.join(f.directory,'outside.jpg')),outsideBytes);noStages(f);
+});
+
+for(const entry of ['proxy','downloader']){
+ test(`atomic-disabled control: old ${entry} truncation publishes partial bytes that the next call accepts`,async t=>{
+  // Deliberately restore the old in-place boundary, independent of Git HEAD.
+  const oldWrite = `const writeLocalMediaFile = (filePath, buffer) => withLocalMediaFile(
+    filePath, fs.constants.O_WRONLY | fs.constants.O_CREAT,
+    fd => { fs.ftruncateSync(fd, 0); fs.writeFileSync(fd, buffer); }
+  );
+  `;
+  const writeStart=source.indexOf('/**\n * Publish complete content');
+  assert(writeStart>0);
+  const noAtomic=source.slice(0,writeStart)+oldWrite
+    +source.slice(source.indexOf('/**\n * Remove locally cached files',writeStart));
+  let fail=true;
+  const f=fixture(t,{serviceSource:noAtomic,ioEffects:{writeFileSync:(perform,...args)=>fail?partialWrite(perform,...args):perform()}});
+  remoteItem(f,'negative-atomic');const target=path.join(f.media,'negative-atomic.jpg'),request=entry==='proxy'?await proxyServer(t,f):null;
+  const items=[{id:'negative-atomic',googleBaseUrl:'https://fixture.test/content'}];
+  if(request)assert.equal((await request('negative-atomic')).status,502);else await f.downloadSyncMediaItems(items);
+  assert.equal(fs.readFileSync(target,'utf8'),'Fix');fail=false;
+  if(request)assert.equal((await request('negative-atomic')).body.toString(),'Fix');else await f.downloadSyncMediaItems(items);
+  assert.equal(f.calls.length,1,'Partial old file incorrectly prevents healthy retry');
+  assert.notDeepEqual(fs.readFileSync(target),bytes,'Disabled atomic publication must fail durable complete-byte oracle');
+ });
+}
+test('atomic cleanup failure leaves only an unreachable staging orphan; retry and existing orphan cleanup recover',async t=>{
+ let failWrite=true,failCleanup=true;
+ const f=fixture(t,{ioEffects:{
+  writeFileSync:(perform,...args)=>failWrite?partialWrite(perform,...args):perform(),
+  rmSync:perform=>{if(failCleanup)throw new Error('Fixture cleanup denied');return perform();}
+ }});
+ remoteItem(f,'cleanup');const request=await proxyServer(t,f);
+ assert.equal((await request('cleanup')).status,502);
+ assert(!fs.existsSync(path.join(f.media,'cleanup.jpg')));
+ const stages=fs.readdirSync(f.media);assert.equal(stages.length,1);
+ assert(stages[0].endsWith('.tmp'));assert.equal(f.descriptors.size,0);
+ assert.equal((await request(stages[0])).status,502);assert.equal(f.calls.length,1,'Stage cannot be a valid media-id hit');
+ failWrite=false;failCleanup=false;
+ assert.equal((await request('cleanup')).status,200);
+ f.cleanOrphanedMediaFiles([{id:'cleanup'}]);noStages(f);
+ assert.deepEqual(fs.readFileSync(path.join(f.media,'cleanup.jpg')),bytes);
+});
+
+test('atomic overlapping proxy completions publish complete files with distinct stages, last completion wins',async t=>{
+ let releaseFirst,firstEntered;
+ const firstBody=new Promise(resolve=>{releaseFirst=resolve;}),entered=new Promise(resolve=>{firstEntered=resolve;});
+ const older=Buffer.from('Earlier request complete bytes'),newer=Buffer.from('Later request complete bytes');
+ const f=fixture(t,{fetchImpl:async()=>{
+  if(f.calls.length===1)return {...response(older),arrayBuffer:()=>{firstEntered();return firstBody;}};
+  return response(newer);
+ }});
+ remoteItem(f,'overlap');const request=await proxyServer(t,f),pending=request('overlap');
+ await entered;assert.deepEqual((await request('overlap')).body,newer);
+ assert.deepEqual(fs.readFileSync(path.join(f.media,'overlap.jpg')),newer);
+ releaseFirst(older);assert.deepEqual((await pending).body,older);
+ assert.deepEqual(fs.readFileSync(path.join(f.media,'overlap.jpg')),older);noStages(f);
+ const opened=f.io.filter(([method,file])=>method==='openSync'&&file.endsWith('.tmp')).map(([,file])=>file);
+ assert.equal(opened.length,2);assert.equal(new Set(opened).size,2);
 });
