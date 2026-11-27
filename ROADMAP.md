@@ -2,7 +2,27 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.11
+## Current release — 1.1.12
+
+Released2026-11-27 from independently accepted short-screen overlay coherence.
+Fresh958shared/371native/sensor/report checks, lint, private build and44headless
+journeys pass, including54overlay layouts. Strict remains203 inherited diagnostics,
+zero added/removed. Clock/weather/indoor/three forecasts and attribution fit the
+bounded short-screen matrix; optional badge/split credits retain their ownership.
+Long attribution is explicitly clamped; full strings remain in DOM/title attributes.
+Desktop/tall imagery, settings and blue-light behavior are preserved.
+One native restart and compatible atomic assets/index publication preserve fresh
+automatic intent without an activation command. All prior photos/fields/comments,
+user settings and history survive. Guarded live API/socket/admin/TV and six viewport
+checks pass with local preview substitutions and zero application mutations/errors.
+Named1.1.11 artifact/assets retained; actual old codec rollback/forward qualification
+preserves comments/widgets/unrated weight and newer ratings/location/policies.
+Protected latest-data merges refuse conflicts; never restore a stale whole snapshot.
+No live downgrade/off-host recovery, provider imagery/account, physical-TV/touch/AT,
+GPU or QR-scanning claim. Runtime/pin/private configuration unchanged. Refresh an
+open admin page normally to load the new frontend. No next sprint selected here.
+
+## Previous release — 1.1.11
 
 Released2026-11-27 from independently accepted configurable unrated playback.
 Fresh958shared/371native/sensor/report tests, lint, private build and35headless
@@ -803,7 +823,7 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
   Independent review accepted; 958 assertions/345 native cases, lint, build and
   26 browser cases passed with exact candidate evidence. Initial source acceptance
   excluded deployment/push; the separately authorized1.1.7 release is recorded above.
-  **Short-height follow-up — source accepted after independent review.**
+  **Short-height follow-up — independently reviewed and released in1.1.12.**
   Built baseline reproduces attribution clipping at320x568 (more with the optional
   badge/long metadata), severe568x320 overflow, and badge/split-credit collisions.
   Existing short-screen CSS now composes clock/weather/indoor/trend/three forecasts
@@ -826,8 +846,9 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
   widget overflow/collisions and tall/desktop clock/weather edges match within1px.
   Strict remains203 inherited, zero added/removed. The same old-assets oracle
   fails on320x568 credit overflow. Independent review accepted after192 optional-widget
-  combinations and6Google layouts. Source-only, not deployed or pushed; physical
-  acceptance remains outstanding. No automatic continuation selected.
+  combinations and6Google layouts. Initial source acceptance was source-only; the
+  separately authorized1.1.12 rollout is recorded above. Physical acceptance remains
+  outstanding. No automatic continuation selected.
 - Temperature and humidity trends to the TV weather/environment display,
   using available hourly history where appropriate. Compare with a clearly
   defined earlier reference such as the corresponding time yesterday, and assess

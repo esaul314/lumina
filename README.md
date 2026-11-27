@@ -17,6 +17,17 @@ It is designed for a dedicated HTPC or living-room display running GNOME/Mutter.
   </tr>
 </table>
 
+## Released TV layout — 1.1.12
+
+The short-screen overlay keeps clock, weather, indoor readings, all three forecast
+rows and photo attribution within the qualified phone/TV matrix, including portrait
+pairs and the optional badge. Long text has explicit readable clamping; full strings
+remain in DOM/title attributes. Desktop/tall image presentation and saved preferences
+are unchanged. Headless geometry is qualified, not physical-TV, touch/AT or QR scanning.
+Before any downgrade, preserve latest data and protected comments/widget/playback
+preferences; merge only into the latest document and refuse conflicts, never restore
+an old whole snapshot over newer edits.
+
 ## What it does
 
 - **Ambient TV view** — cross-faded wallpapers, clock and weather widgets, optional bokeh, atmospheric overlays, themes, crop controls, and portrait split-screen presentation.
