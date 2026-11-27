@@ -999,12 +999,133 @@ const blueLightCases = [
   }, portraitPhotos().filter(row => !row.url.includes('broken'))]
 ];
 
+const galleryCases = [
+  ['expanded gallery navigation focuses heading when concurrent removal clamps the next page empty', async ({ page, fixture }) => {
+    // Retain the review's49-row/page2/last-image race against the real read-only route.
+    fixture.collections.Hidden = Array.from({ length: 49 }, (_, index) => ({
+      ...photo(`review-${index}`), loved: true, title: `Review ${index}`
+    }));
+    const remote = await page.context().newPage();
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    await remote.getByRole('button', { name: 'Permanent Collection Gallery', exact: true }).click();
+    const gallery = remote.locator('.permanent-gallery');
+    await expect(gallery.locator('p[role="status"]')).toContainText('49 images');
+    await gallery.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(gallery.locator('p[role="status"]')).toContainText('Page 2 of 3');
+    await gallery.getByRole('button', { name: 'Open Review 47', exact: true }).click();
+    await expect(gallery.getByRole('region', { name: 'Expanded collection image' }).getByRole('heading')).toBeFocused();
+    fixture.collections.Hidden = [];
+    const collections = JSON.stringify(fixture.collections), state = JSON.stringify(fixture.state);
+    const writes = fixture.persistence.collections.length, events = fixture.events.length;
+    const response = remote.waitForResponse(res => new URL(res.url()).pathname === '/api/admin/permanent-gallery'
+      && new URL(res.url()).searchParams.get('page') === '3');
+    await remote.keyboard.press('ArrowRight');
+    const clamped = await (await response).json();
+    assert.equal(clamped.page, 1); assert.equal(clamped.total, 0); assert.deepEqual(clamped.photos, []);
+    await expect(gallery).toContainText('No permanent images yet');
+    await expect(gallery.getByRole('region', { name: 'Expanded collection image' })).toHaveCount(0);
+    await expect(gallery.getByRole('heading', { name: 'Permanent collection images' })).toBeFocused();
+    assert.equal(JSON.stringify(fixture.collections), collections);
+    assert.equal(JSON.stringify(fixture.state), state);
+    assert.equal(fixture.persistence.collections.length, writes);
+    assert.deepEqual(fixture.events.slice(events), []);
+    await remote.close();
+  }],
+  ['permanent gallery pages a large hidden collection on narrow keyboard UI without mutations', async ({ page, fixture }) => {
+    fixture.collections.Hidden = Array.from({ length: 1501 }, (_, index) => ({
+      ...photo(index === 1 ? 'broken' : `gallery-${index}`), loved: true,
+      rating: index === 1 ? 1 : null, isBroken: index === 1, title: `Saved ${index}`
+    }));
+    fixture.collections.Duplicate = [fixture.collections.Hidden[0], { ...photo('temporary'), loved: false }];
+    const remote = await page.context().newPage();
+    await remote.setViewportSize({ width: 320, height: 720 });
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    const before = JSON.stringify(fixture.collections), active = fixture.state.activePhoto.url;
+    const writes = fixture.persistence.collections.length, events = fixture.events.length;
+    await remote.getByRole('button', { name: 'Permanent Collection Gallery', exact: true }).click();
+    const gallery = remote.locator('.permanent-gallery');
+    await expect(gallery.locator('p[role="status"]')).toContainText('1501 images');
+    await expect(gallery.locator('.permanent-gallery-grid > li')).toHaveCount(24);
+    await expect(gallery).toContainText('Marked broken');
+    const first = gallery.getByRole('button', { name: 'Open Saved 0', exact: true });
+    await first.focus(); await remote.keyboard.press('Enter');
+    const expanded = gallery.getByRole('region', { name: 'Expanded collection image' });
+    await expect(expanded.getByRole('heading')).toBeFocused();
+    await remote.keyboard.press('ArrowRight');
+    await expect(expanded.getByRole('status')).toContainText('Image unavailable');
+    await expect(expanded).toContainText('Banned rating');
+    await remote.keyboard.press('ArrowLeft'); await remote.keyboard.press('Escape');
+    await expect(first).toBeFocused();
+    await gallery.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(gallery.locator('p[role="status"]')).toContainText('Page 2 of 63');
+    await expect(gallery.getByRole('heading', { name: 'Permanent collection images' })).toBeFocused();
+    await expect(gallery.getByRole('button', { name: 'Open Saved 24', exact: true })).toBeVisible();
+    await gallery.getByRole('button', { name: 'Previous page', exact: true }).click();
+    await expect(gallery.locator('p[role="status"]')).toContainText('Page 1 of 63');
+    await gallery.getByRole('button', { name: 'Open Saved 23', exact: true }).click();
+    await remote.keyboard.press('ArrowRight');
+    await expect(expanded.getByRole('heading')).toContainText('Saved 24');
+    await remote.keyboard.press('ArrowLeft');
+    await expect(expanded.getByRole('heading')).toContainText('Saved 23');
+    await remote.keyboard.press('Escape');
+    await expect(gallery.getByRole('button', { name: 'Open Saved 23', exact: true })).toBeFocused();
+    for (const width of [320, 375, 1280]) {
+      await remote.setViewportSize({ width, height: 720 });
+      assert.ok(await remote.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal overflow');
+      const bounds = await first.boundingBox(); assert.ok(bounds.height >= 44);
+      await remote.screenshot({ path: path.join(captureDirectory, `permanent-gallery-${width}.png`) });
+    }
+    assert.equal(JSON.stringify(fixture.collections), before); assert.equal(fixture.state.activePhoto.url, active);
+    assert.equal(fixture.persistence.collections.length, writes);
+    assert.equal(fixture.events.slice(events).filter(row => ['mark-photo-broken', 'next-photo', 'patch-state'].includes(row.event)).length, 0);
+    await remote.close();
+  }],
+  ['gallery errors, malformed data, retry, empty and stale completion are local', async ({ page, fixture }) => {
+    fixture.collections.Hidden = Array.from({ length: 30 }, (_, index) => ({ ...photo(`saved-${index}`), loved: true }));
+    const remote = await page.context().newPage();
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    let mode = 'error', delayed;
+    await remote.route('**/api/admin/permanent-gallery?*', async route => {
+      if (mode === 'error') return route.fulfill({ status: 503, json: { error: 'Fixture unavailable' } });
+      if (mode === 'malformed') return route.fulfill({ json: {} });
+      if (mode === 'delay') { delayed = route; return; }
+      return route.continue();
+    });
+    const toggle = remote.getByRole('button', { name: 'Permanent Collection Gallery', exact: true });
+    await toggle.click(); const gallery = remote.locator('.permanent-gallery');
+    await expect(gallery.getByRole('alert')).toContainText('could not be loaded');
+    mode = 'malformed'; await gallery.getByRole('button', { name: 'Retry collection' }).click();
+    await expect(gallery.getByRole('alert')).toContainText('Invalid permanent');
+    mode = 'ready'; await gallery.getByRole('button', { name: 'Retry collection' }).click();
+    await expect(gallery.locator('p[role="status"]')).toContainText('30 images');
+    mode = 'delay'; await gallery.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(gallery.locator('p[role="status"]')).toContainText('Loading');
+    await expect.poll(() => Boolean(delayed)).toBe(true);
+    await toggle.click(); mode = 'ready'; await toggle.click();
+    await expect(gallery.locator('p[role="status"]')).toContainText('Page 1 of 2');
+    await delayed.fulfill({ json: { page: 2, pageSize: 24, pages: 2, total: 30,
+      photos: Array.from({ length: 6 }, (_, index) => ({ url: `/fixtures/stale-${index}.svg`, title: 'STALE', pool: 'Hidden', exclusions: [] })) } }).catch(() => {});
+    await expect(gallery).not.toContainText('STALE');
+    fixture.collections.Hidden = []; await toggle.click(); await toggle.click();
+    await expect(gallery).toContainText('No permanent images yet');
+    await remote.close();
+  }]
+];
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    for (const [name, run] of galleryCases) {
+      await withFixture(browser, run);
+      console.log(`PASS: ${name}`);
+    }
+    if (process.env.LUMINA_TEST_ONLY_GALLERY === '1') return;
     for (const [name,run,photos] of blueLightCases) {
       await withFixture(browser,run,photos);
       console.log(`PASS: ${name}`);
