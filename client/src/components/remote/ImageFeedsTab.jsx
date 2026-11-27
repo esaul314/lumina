@@ -1,3 +1,4 @@
+import PermanentGallery from './PermanentGallery';
 import PhotoRatingControl from './PhotoRatingControl';
 import { useState, useEffect, useRef } from 'react';
 import { HelpCircle, RefreshCw, Trash2, Check, ChevronLeft, ChevronRight, ChevronDown, Plus, Focus, ArrowUp, ArrowDown } from 'lucide-react';
@@ -341,6 +342,7 @@ function ImageFeedsTab({
 
   return (
     <div className="image-feeds-page">
+      <PermanentGallery />
       <div className="image-feeds-workspace">
       <ImageFeedsPanel
         panelId={IMAGE_FEEDS_PANEL_IDS.CATEGORIES}
