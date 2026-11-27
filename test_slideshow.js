@@ -999,6 +999,114 @@ const blueLightCases = [
   }, portraitPhotos().filter(row => !row.url.includes('broken'))]
 ];
 
+const imageFeedsCases = [
+  ['Image Feeds compact arrangement matches saved DOM, keyboard order and remembered open states', async ({ page, fixture }) => {
+    const remote = await page.context().newPage();
+    await remote.addInitScript(() => {
+      if (!localStorage.getItem('lumina.image-feeds.panels')) localStorage.setItem('lumina.image-feeds.panels', JSON.stringify({
+        order: ['google', 'sources', 'rating', 'categories'],
+        open: { categories: false, rating: false, sources: false, google: false }
+      }));
+    });
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    const panels = remote.locator('.image-feeds-panel');
+    const arrangement = remote.locator('.image-feeds-arrangement summary');
+    for (const width of [320, 375, 1280]) {
+      await remote.setViewportSize({ width, height: 900 });
+      await expect(remote.getByRole('toolbar', { name: /Reorder/ })).toHaveCount(0);
+      assert.deepEqual(await panels.evaluateAll(els => els.map(el => el.querySelector('h2').textContent)),
+        ['Google Photos Picker', 'Scenic Feed Source Manager', 'Independent Rating Deck', 'Curated Scenic Categories']);
+      // Actual Tab traversal, not just a DOM-order inference.
+      await panels.first().getByRole('button', { name: 'Expand Google Photos Picker', exact: true }).focus();
+      await remote.keyboard.press('Tab');
+      await expect(remote.getByRole('button', { name: 'Focus Google Photos Picker', exact: true })).toBeFocused();
+      await remote.keyboard.press('Tab');
+      await expect(remote.getByRole('button', { name: 'Expand Scenic Feed Source Manager', exact: true })).toBeFocused();
+      await remote.locator('.image-feeds-page').evaluate(el => el.scrollIntoView({ block: 'start' }));
+      await remote.screenshot({ path: path.join(captureDirectory, `feeds-compact-${width}.png`), fullPage: true });
+      await arrangement.focus(); await remote.keyboard.press('Enter');
+      await expect(remote.getByRole('toolbar', { name: /Reorder/ })).toHaveCount(4);
+      for (const bar of await remote.getByRole('toolbar', { name: /Reorder/ }).all()) {
+        const geometry = await bar.evaluate(el => ({ width: el.clientWidth, scroll: el.scrollWidth }));
+        assert.ok(geometry.scroll <= geometry.width + 1, JSON.stringify(geometry));
+        for (const button of await bar.locator('button').all()) {
+          const box = await button.boundingBox();
+          assert.ok(box.width >= 44 && box.height >= 44, 'Arrangement targets remain44px');
+        }
+      }
+      await remote.screenshot({ path: path.join(captureDirectory, `feeds-arrange-${width}.png`), fullPage: true });
+      await arrangement.press('Enter');
+    }
+    await arrangement.click();
+    const move = remote.getByRole('button', { name: 'Move Google Photos Picker later', exact: true });
+    await move.focus(); await move.press('Enter');
+    await expect(move).toBeFocused();
+    await expect(panels.first()).toHaveClass(/image-feeds-sources/);
+    const earlier = remote.getByRole('button', { name: 'Move Google Photos Picker earlier', exact: true });
+    await earlier.click();
+    await remote.clock.runFor(32);
+    await expect(earlier).toBeDisabled();
+    await expect(move).toBeFocused();
+    await move.click();
+    await remote.reload();
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    await expect(panels.first()).toHaveClass(/image-feeds-sources/);
+    await expect(panels.locator('.image-feeds-panel-body')).toHaveCount(0);
+    await expect(remote.getByRole('toolbar', { name: /Reorder/ })).toHaveCount(0);
+    assert.equal(fixture.persistence.collections.length, 0, 'Arrangement never writes settings/curation');
+    await remote.close();
+  }],
+  ['Image Feeds reorders without remounting source drafts; focus preserves gallery and failed policy edits', async ({ page, fixture }) => {
+    fixture.state.searchKeywords = { Fixture: ['fixture'] };
+    fixture.state.feedConfigs = { Fixture: { unsplash: { enabled: true, keywords: [] } } };
+    const remote = await page.context().newPage();
+    await remote.goto(fixture.url + '/?mode=remote');
+    await remote.getByRole('button', { name: 'Image Feeds', exact: true }).click();
+    const gallery = remote.getByRole('button', { name: 'Permanent Collection Gallery', exact: true });
+    await gallery.click();
+    await expect(remote.locator('.permanent-gallery h3')).toBeVisible();
+    const draft = remote.locator('textarea[name="unsplash_input"]');
+    await draft.fill('UNSAVED_SOURCE_DRAFT');
+    await draft.evaluate(el => { el.draftIdentity = true; });
+    await remote.locator('.image-feeds-arrangement summary').click();
+    await remote.getByRole('button', { name: 'Move Scenic Feed Source Manager earlier', exact: true }).click();
+    await expect(draft).toHaveValue('UNSAVED_SOURCE_DRAFT');
+    assert.ok(await draft.evaluate(el => el.draftIdentity), 'Reorder keeps the same draft node');
+    const focus = remote.getByRole('button', { name: 'Focus Scenic Feed Source Manager', exact: true });
+    await focus.click();
+    await expect(gallery).not.toBeVisible();
+    await expect(remote.locator('.permanent-gallery h3')).toHaveCount(1);
+    await expect(remote.locator('.image-feeds-panel:visible')).toHaveCount(1);
+    for (const width of [320, 1280]) {
+      await remote.setViewportSize({ width, height: 900 });
+      await remote.screenshot({ path: path.join(captureDirectory, `feeds-focused-draft-${width}.png`), fullPage: true });
+    }
+    await draft.focus(); await remote.keyboard.press('Escape');
+    await remote.clock.runFor(32);
+    await expect(focus).toBeFocused();
+    await expect(gallery).toBeVisible();
+    await expect(draft).toHaveValue('UNSAVED_SOURCE_DRAFT');
+    assert.equal(fixture.persistence.collections.length, 0);
+    const card = remote.locator('.pool-lifecycle-card').filter({ hasText: 'Fixture' });
+    await card.locator('summary').click();
+    fixture.persistence.fail = true;
+    const target = card.getByRole('spinbutton', { name: 'Crawl size target' });
+    await target.fill('137'); await target.press('Tab');
+    await expect(card.getByRole('status')).toContainText('Save not confirmed');
+    await remote.getByRole('button', { name: 'Focus Curated Scenic Categories', exact: true }).click();
+    await remote.getByRole('button', { name: 'Move Curated Scenic Categories later', exact: true }).click();
+    await expect(target).toHaveValue('137');
+    await expect(card.getByRole('status')).toContainText('Save not confirmed');
+    await remote.screenshot({ path: path.join(captureDirectory, 'feeds-policy-error.png'), fullPage: true });
+    fixture.persistence.fail = false;
+    await card.getByRole('button', { name: 'Save changes' }).click();
+    await expect(card.getByRole('status')).toHaveText('Saved');
+    assert.equal(fixture.readPersisted().poolPolicies.Fixture.maxPhotos, 137);
+    await remote.close();
+  }]
+];
+
 const galleryCases = [
   ['expanded gallery navigation focuses heading when concurrent removal clamps the next page empty', async ({ page, fixture }) => {
     // Retain the review's49-row/page2/last-image race against the real read-only route.
@@ -1121,6 +1229,11 @@ async function main() {
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    for (const [name, run] of imageFeedsCases) {
+      await withFixture(browser, run);
+      console.log(`PASS: ${name}`);
+    }
+    if (process.env.LUMINA_TEST_ONLY_FEEDS === '1') return;
     for (const [name, run] of galleryCases) {
       await withFixture(browser, run);
       console.log(`PASS: ${name}`);
