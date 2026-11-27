@@ -84,7 +84,19 @@ const normalizeManualLocation = (manualLocation = {}) => {
   };
 };
 
+/** Identify the supported badge preference, including explicit false/no-op retries.
+ * Public command decoding supplies an own-enumerable widget record; preserve its
+ * existing truthiness semantics without widening persistence for unrelated patches.
+ * @param {unknown} patch @returns {boolean}
+ */
+const hasQrCodePreference = (patch) => {
+  const widgets = /** @type {{widgets?: unknown} | null | undefined} */ (patch)?.widgets;
+  return widgets !== null && typeof widgets === 'object' && !Array.isArray(widgets)
+    && Object.prototype.propertyIsEnumerable.call(widgets, 'qrcode');
+};
+
 module.exports = {
+  hasQrCodePreference,
   normalizeManualLocation,
   normalizeVisionConfig,
   pickStatePatchFields,

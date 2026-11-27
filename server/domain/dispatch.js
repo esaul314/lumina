@@ -1,5 +1,6 @@
 // @ts-check
 
+const { hasQrCodePreference } = require('./statePatch.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 const { reduceAsyncSequentially } = require('../utils/asyncReduce.js');
@@ -43,6 +44,7 @@ const { createClosedInterpreter } = require('../utils/fn.js');
  * @property {CollectionsState} collections
  * @property {(collections: CollectionsState, state: LegacyState) => unknown} persistCollections
  * @property {(collections: CollectionsState, state: LegacyState) => unknown} [persistPoolPolicy]
+ * @property {(collections: CollectionsState, state: LegacyState) => unknown} [persistBadgePreference]
  * @property {(entries: Record<string, unknown>) => unknown} persistEnvVars
  * @property {{emit: (event: 'photo-update' | 'state-sync', payload: import('./types').FeedPhoto | LegacyState) => unknown}} io
  * @property {(() => RuntimeOverrides)} [getRuntimeContext]
@@ -251,6 +253,7 @@ function createDomainDispatcher({
   collections,
   persistCollections,
   persistPoolPolicy = persistCollections,
+  persistBadgePreference = persistCollections,
   persistEnvVars,
   io,
   getRuntimeContext = () => ({}),
@@ -309,10 +312,14 @@ function createDomainDispatcher({
   });
   const eventHandlers = createEventHandlers({ state, io, broadcastStateSync });
   const interpretEffects = createEffectInterpreter(effectHandlers);
-  // ponytail: only policy saves have a strict, same-value retry contract.
+  // ponytail: strict persistence is limited to policy and explicit badge saves.
   const interpretPolicyEffects = createEffectInterpreter({
     ...effectHandlers,
     persist: async () => { await persistPoolPolicy(collections, state); }
+  });
+  const interpretBadgeEffects = createEffectInterpreter({
+    ...effectHandlers,
+    persist: async () => { await persistBadgePreference(collections, state); }
   });
   const emitEvents = createEventEmitter(eventHandlers);
 
@@ -335,7 +342,9 @@ function createDomainDispatcher({
     /** @type {ReducerResult} */
     const reducerResult = reduceCommand(command, env);
     const snapshot = applyReducerResult(reducerResult);
-    const interpret = command.type === 'set-pool-policy' ? interpretPolicyEffects : interpretEffects;
+    const interpret = command.type === 'set-pool-policy' ? interpretPolicyEffects
+      : command.type === 'patch-state' && hasQrCodePreference(command.payload) ? interpretBadgeEffects
+        : interpretEffects;
     const effectResults = await interpret(reducerResult.effects);
 
     emitEvents(reducerResult.events);

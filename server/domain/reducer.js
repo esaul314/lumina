@@ -31,6 +31,7 @@ const {
 } = require('../utils/keywordSpecs.js');
 const { createIndexedInterpreter } = require('../utils/fn.js');
 const {
+  hasQrCodePreference,
   normalizeManualLocation,
   normalizeVisionConfig,
   STATE_PATCH_FIELDS
@@ -1678,7 +1679,10 @@ function reduceStatePatchCommand(state, patch, env) {
   }));
 
   if (!context.changed) {
-    return unchangedResult(state);
+    // ponytail: retry the same badge value after a failed write already applied memory.
+    return hasQrCodePreference(patch) && Object.prototype.hasOwnProperty.call(state.config.widgets, 'qrcode')
+      ? buildMutationResult(state, { persist: true, events: [{ type: 'state-sync' }] })
+      : unchangedResult(state);
   }
 
   const ensured = context.recomputePhotos
