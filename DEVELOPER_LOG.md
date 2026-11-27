@@ -7330,3 +7330,20 @@ remote and admin preview outside it, and test viewport bounds because filters
 create a containing/stacking context. Native pointer color is outside CSS; cursor
 hide/rearm remains a separate contract. The retained app and slideshow fixtures
 cover disk failure/retry, cold reconstruction and built presentation behavior.
+
+
+## Read-only collection browsing is not playback — 2026-11-27
+
+Permanent membership and playback visibility are separate projections: start from
+existing owners, dedupe exact URLs, then page and whitelist presentation fields.
+Do not reuse a visible feed or its image-failure hook for archival browsing. A
+cache getter can secretly repair persistent metadata; the Google reader therefore
+has explicit no-write inspection and unavailable-row options, preserving default
+playback behavior. Pure page/request/response functions keep boundary checks out
+of the React effect shell; abort plus stale-result rejection confines responses
+to their mounted browser. Cross-page expanded navigation and grid-return focus
+need different focus targets; a general page-focus effect must not steal Escape's
+restored thumbnail focus. Fresh-page reads may legitimately become empty during
+expanded navigation: route that success to the existing gallery heading because
+the removed expanded view can no longer own focus. The retained Node/HTTP and synthetic browser gallery
+regressions cover these seams without another store, framework or dependency.

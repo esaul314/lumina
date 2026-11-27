@@ -389,3 +389,23 @@ The identity represents configured profile/connection, not hardware attestation:
 an unconfigured physical relocation/replacement is not detectable. Outdoor trends
 are deferred because outdoor cache values were stamped with the indoor poll time,
 not their own weather-observation time. No inference or backfill is performed.
+
+
+### Permanent collection gallery (accepted source, not yet deployed)
+
+In Image Feeds, open **Permanent Collection Gallery** to browse saved permanent
+images across pools, independently of the active slideshow. Grid pages contain24
+images; open an image for next/previous buttons or arrow-key navigation across
+pages. Escape returns to its grid. Excluded and unavailable images are labelled;
+browsing never rates, crops, marks broken, changes membership or advances playback.
+Close/reopen to refresh membership; the gallery is ephemeral, not a live snapshot.
+
+`GET /api/admin/permanent-gallery?page=1&pageSize=24` is a read-only admin projection
+with no-store responses. Positive integer pages and page sizes1–60 are accepted;
+past-end pages clamp to the final page. The response contains `page`, `pageSize`,
+`pages`, `total` and bounded `photos` (`url`, `title`, `pool`, `exclusions`). Permanent
+means boolean `loved: true`; exact-URL duplicates use first permanent occurrence
+in curated-pool order, then Google. Existing source-local Google normalization is
+read-only here, with unavailable rows retained; no new identity migration or
+signed-provider metadata is returned. Existing Google image delivery can still
+contact its provider/cache; byte availability is not guaranteed by membership.

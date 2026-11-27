@@ -507,16 +507,36 @@ debt remains; this is no strict-clean, live-device or rollout claim. All selecte
 outcomes close at the source boundary; no automatic next sprint or reminder.
 The evidence/usage policy remains in [development evidence](./docs/DEVELOPMENT_EVIDENCE.md).
 
-### Planned permanent-collection gallery — Alex, 2026-11-27
+### Permanent-collection gallery — source accepted, 2026-11-27
 
-Add an admin gallery to browse **all images in the permanent collection**,
-independent of the current slideshow or selected pool. Provisional design: a
-thumbnail grid, larger-image view with next/previous navigation, practical
-incremental loading or pagination for large collections, and accessible keyboard
-and narrow-screen interaction. Browsing must preserve collection membership,
-ratings and comments and must not change slideshow playback or selection.
-Planned feedback only: no implementation, new controller/store or preemption of
-the selected milestone; refine the design when this item is commissioned.
+Accepted source adds **Image Feeds → Permanent Collection Gallery** independently
+of the selected/visible rating deck. Permanent membership is exactly `loved === true`
+in existing curated pools and the normalized Google cache (including unavailable
+refresh metadata), not every temporary/feed image. Exact URL dedupe keeps the first
+permanent occurrence's metadata in pool insertion order, then Google; no identity
+migration or membership writes. Missing/invalid URLs and non-boolean legacy loved
+values are not silently promoted into permanent membership.
+
+Explicit 24-image pages bound browser state/DOM; a read-only projection scans existing
+owners rather than adding a store. The API accepts positive integer pages and page
+sizes up to60, clamps past-end requests and returns only URL/title/pool/exclusion
+labels. Banned, marked-broken and keyword-excluded permanent images remain browsable.
+The thumbnail grid opens an in-panel larger image; buttons/arrows traverse images
+across pages, Escape restores grid focus, page changes focus the page heading.
+Collection loading/error/retry/empty states and image-unavailable labels remain local.
+If concurrent membership removal empties an expanded cross-page request, focus
+returns to the gallery heading rather than the document body.
+Rating/crop/comment/playback controls retain their existing owners and behavior.
+
+Verification uses synthetic loopback collections and private candidate assets;
+physical mobile/assistive-technology/real-provider rendering remains unverified.
+Independent R2 review accepted the repaired empty-page focus behavior; required
+tests, lint, private build and31 browser journeys pass. Strict checking retains203
+inherited diagnostics, none added. Earlier parallel-load Google fixture timing
+failure is retained; serial full rerun passes without test weakening.
+Source acceptance does not deploy or push this feature; live remains1.1.8.
+Retained regression owners: `server/domain/permanentGallery.test.js`,
+`server/services/googlePhotos.media.test.js` and `test_slideshow.js`.
 
 ### Metadata foundation
 
