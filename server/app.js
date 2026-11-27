@@ -211,6 +211,7 @@ function createApplication() {
       manualLocation,
       visionConfig,
       scaleMode,
+      unratedPlaybackWeight,
       splitPortrait,
       splitCropPercent,
       excludedKeywords
@@ -226,6 +227,7 @@ function createApplication() {
     manualLocation,
     visionConfig,
     scaleMode,
+    unratedPlaybackWeight,
     splitPortrait,
     splitCropPercent,
     excludedKeywords
@@ -354,7 +356,8 @@ function createApplication() {
             const hour = new Date().getHours();
             return hour >= 18 || hour < 6;
           })(),
-      nightPercentage: screensaverState.nightPercentage
+      nightPercentage: screensaverState.nightPercentage,
+      unratedPlaybackWeight: screensaverState.unratedPlaybackWeight
     });
   }
 

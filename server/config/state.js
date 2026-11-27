@@ -97,6 +97,7 @@ const screensaverState = {
   currentCategory: 'Scenic Nature',
   theme: 'Zen Retreat', // Zen Retreat, Cosmic Night, Art Museum, Cyberpunk Rain
   scaleMode: 'cover',
+  unratedPlaybackWeight: 10,
   splitPortrait: false,
   splitCropPercent: 50,
   widgets: {

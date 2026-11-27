@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const { normalizeKeywordEntries } = require('../utils/keywordSpecs.js');
-const { isDisallowedUnsplashPhoto } = require('../utils/photoPolicy.js');
+const { isDisallowedUnsplashPhoto, normalizeUnratedPlaybackWeight } = require('../utils/photoPolicy.js');
 const { normalizePhotoTimestamp } = require('../domain/photoTimestamps.js');
 const { normalizePoolPolicy } = require('../domain/poolRetention.js');
 
@@ -25,6 +25,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  * @property {unknown} [autoLocation]
  * @property {Record<string, unknown>} [manualLocation]
  * @property {Record<string, unknown>} [visionConfig]
+ * @property {unknown} [unratedPlaybackWeight]
  * @property {unknown} [scaleMode]
  * @property {unknown} [splitPortrait]
  * @property {unknown} [splitCropPercent]
@@ -52,6 +53,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  *     manualLocation?: Record<string, unknown>
  *   },
  *   visionConfig?: Record<string, unknown>,
+ *   unratedPlaybackWeight?: unknown,
  *   scaleMode?: unknown,
  *   splitPortrait?: unknown,
  *   splitCropPercent?: unknown,
@@ -68,6 +70,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  * @property {unknown} autoLocation
  * @property {Record<string, unknown>} manualLocation
  * @property {Record<string, unknown> | undefined} visionConfig
+ * @property {number} unratedPlaybackWeight
  * @property {unknown} scaleMode
  * @property {unknown} splitPortrait
  * @property {unknown} splitCropPercent
@@ -87,6 +90,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  * @property {Record<string, Record<string, unknown>>} [poolPolicies]
  * @property {{autoLocation: boolean, manualLocation: Record<string, unknown> | undefined}} locationSettings
  * @property {Record<string, unknown>} [visionConfig]
+ * @property {unknown} [unratedPlaybackWeight]
  * @property {unknown} [scaleMode]
  * @property {unknown} [splitPortrait]
  * @property {unknown} [splitCropPercent]
@@ -260,6 +264,7 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
       autoLocation: rawData?.locationSettings?.autoLocation ?? defaultState.autoLocation,
       manualLocation: { ...manualLocation },
       visionConfig: rawData?.visionConfig ? { ...rawData.visionConfig } : defaultState.visionConfig,
+      unratedPlaybackWeight: normalizeUnratedPlaybackWeight(rawData?.unratedPlaybackWeight),
       scaleMode: rawData?.scaleMode || defaultState.scaleMode,
       splitPortrait: rawData?.splitPortrait ?? defaultState.splitPortrait,
       splitCropPercent: rawData?.splitCropPercent ?? defaultState.splitCropPercent,
@@ -290,6 +295,7 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
     manualLocation,
     visionConfig,
     scaleMode,
+    unratedPlaybackWeight,
     splitPortrait,
     splitCropPercent,
     excludedKeywords
@@ -297,6 +303,7 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
   const uniqueCollections = dedupeCollections(cloneCollectionEntries(collections)).collections;
   /** @type {PersistedSnapshot} */
   const payload = {
+    unratedPlaybackWeight: normalizeUnratedPlaybackWeight(unratedPlaybackWeight),
     lastUpdated: timestamp,
     lastFeedUpdated,
     feeds: uniqueCollections
