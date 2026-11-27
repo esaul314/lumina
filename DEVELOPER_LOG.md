@@ -7314,3 +7314,19 @@ not terminate the batch. Actual HTTP/service/download fixtures use outside
 sentinels and disabled-boundary controls to establish oracle sensitivity.
 A test fixture must own OAuth configuration explicitly rather than inherit the
 private environment: a deployed trusted callback exposed that old test leak.
+
+
+## Manual display preference: composition, not another overlay
+
+A bounded boolean can reuse the widget snapshot/codec and narrow strict-save
+interpreter instead of adding a store or adapter. Strict writes must also execute
+for an identical retry after applied-memory failure; an unchanged reducer value
+is not proof of durable success. New display preferences can reject malformed
+values without changing legacy widgets' coercion contract.
+
+A CSS filter at the explicit-TV composition root warms both image halves and
+widget/settings layers without another pointer-intercepting element. Keep the
+remote and admin preview outside it, and test viewport bounds because filters
+create a containing/stacking context. Native pointer color is outside CSS; cursor
+hide/rearm remains a separate contract. The retained app and slideshow fixtures
+cover disk failure/retry, cold reconstruction and built presentation behavior.

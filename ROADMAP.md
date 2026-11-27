@@ -489,6 +489,17 @@ debt remains; this is no strict-clean, live-device or rollout claim. All selecte
 outcomes close at the source boundary; no automatic next sprint or reminder.
 The evidence/usage policy remains in [development evidence](./docs/DEVELOPMENT_EVIDENCE.md).
 
+### Planned permanent-collection gallery — Alex, 2026-11-27
+
+Add an admin gallery to browse **all images in the permanent collection**,
+independent of the current slideshow or selected pool. Provisional design: a
+thumbnail grid, larger-image view with next/previous navigation, practical
+incremental loading or pagination for large collections, and accessible keyboard
+and narrow-screen interaction. Browsing must preserve collection membership,
+ratings and comments and must not change slideshow playback or selection.
+Planned feedback only: no implementation, new controller/store or preemption of
+the selected milestone; refine the design when this item is commissioned.
+
 ### Metadata foundation
 
 - **Accepted source-only:** canonical `rating: null` for new/missing scores and explicit reset, with matching live admission, persistence, Google refresh and both admin controls. Existing defined scores are preserved, not reclassified.
@@ -515,7 +526,22 @@ The evidence/usage policy remains in [development evidence](./docs/DEVELOPMENT_E
 
 ### Local platform work
 
-- Add blue light filter as a first-class display setting in backend state and client rendering.
+- **Blue light filter — accepted source-only, 2026-11-27.**
+  Manual, off-default warm TV presentation through System → General. A single
+  boolean uses existing widget/state/REST/socket/collections boundaries; no
+  intensity, scheduler or separate store. Explicit TV mode warms images,
+  portrait pairs and widget/settings layers; remote and automatic/admin preview
+  keep original colors. Source image bytes are unchanged. Save failures offer
+  an identical-value retry; unrelated saves retain the preference. Older writers
+  drop the field: preserve it separately on downgrade and merge into latest data
+  before forward return, never restore an old collections file over newer edits.
+  Route/socket/disk and built-browser fixtures cover the contract; physical-TV
+  color judgment and assistive-technology testing remain unverified. Source only;
+  this milestone does not authorize a release or claim medical/power benefits.
+  Independent review accepted the exact candidate; required tests/lint/private
+  build and 28 built-browser journeys passed. Strict diagnostics remain inherited
+  (203, zero additions); physical and downgrade limits above remain open.
+  No automatic next sprint or reminder is selected.
 - Add a background job subsystem for recrawls, vision analysis, later AI generation, and sensor polling or ingestion.
 - Add a typed frontend API client as the transport boundary for the remote UI.
 - Add a persistent admin control to hide the city/region label on the TV weather
