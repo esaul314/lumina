@@ -2,7 +2,21 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.5
+## Current release — 1.1.6
+
+Released2026-11-27 from accepted QR/IP badge preference persistence. Fresh full
+regression/lint, isolated build and25 browser cases pass, with both saved booleans
+and default-off qualified in disposable restart/upgrade fixtures. Native restart
+preserved latest photos/comments/history and automatic display intent. The live
+badge had no saved boolean, so default-off loaded without a preference mutation;
+read-only API/socket/admin checks confirm it. Explicit saved true/false are retained.
+Exact1.1.5 rollback artifact is retained; the old writer drops the new field, so
+qualified protected export/conflict-refusing latest-data merge is required across
+downgrade/forward return. No live downgrade, Google account flow or physical-TV/AT
+claim. Runtime/private config and frontend bytes unchanged. Existing compiler/
+vision debt remains separate. This release selects no further work.
+
+## Previous release — 1.1.5
 
 Released2026-11-27 from accepted atomic Google Photos byte-cache publication.
 Fresh full tests/lint, isolated build and25 browser journeys pass. Native restart
@@ -719,7 +733,7 @@ design work, not claims that the current behavior has already been changed.
   on survive save/reload, process restart and the normal upgrade/deployment path;
   restart/deployment never re-enables a saved-off badge. Cover the existing
   configuration migration and release fixture, not only the in-memory toggle.
-  **SOURCE ACCEPTED — QR/IP badge persistence.** Root cause: state defaults
+  **ACCEPTED, independently reviewed and released in1.1.6 — QR/IP badge persistence.** Root cause: state defaults
   the badge on, while snapshot serialization/restoration whitelist weatherLocation
   only, discarding the badge after save/restart. Persist this boolean in the same
   collection settings owner; preserve explicit true/false, default only unset off.
@@ -730,7 +744,7 @@ design work, not claims that the current behavior has already been changed.
   failure; no rollback or general transaction/retry layer. REST/socket/file tests
   and old-default/old-codec/disabled-writer controls cover this boundary. Earlier
   versions cannot retain this new preference when they rewrite snapshots; do not
-  claim backward-writer preservation. Independent review accepted the frozen candidate; default-off and explicit on/off reconstruction, failed-write retry and socket containment passed. Not deployed or pushed as part of this source milestone.
+  claim backward-writer preservation. Independent review accepted the frozen candidate; default-off and explicit on/off reconstruction, failed-write retry and socket containment passed. Source acceptance excluded deployment; the separately authorized1.1.6 release is recorded above.
 
 
 - **Separate image identity from pool membership.**
