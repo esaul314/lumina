@@ -198,7 +198,20 @@ selected; **Reset to unrated** explicitly clears a score. Both `PATCH /api/photo
 and compatibility `POST /api/photos/rate` accept `{url, rating: null}`. Missing or
 invalid scores retain existing rejection behavior. Existing numeric scores,
 including legacy10, are not reclassified: their human/default provenance is unknown.
-Unrated playback still uses the current effective weight10. Rating1 remains a ban;
+**Accepted source-only, independently reviewed and not yet deployed:**
+unrated smart playback uses **System → General → Unrated playback weight**:
+an integer2–10, default10 for previous behavior. It is an effective selection
+weight within the chosen pool, not a human score; lower values favor rated
+photos without rewriting stored `null` or explicit scores. `PATCH /api/state`
+accepts `{unratedPlaybackWeight: 4}` (JSON numbers only); compatibility socket
+`change-unrated-playback-weight` accepts the same numeric value. The preference
+persists in the existing collection snapshot. Explicit saves and retries are
+strict: failure can leave memory applied, but is not acknowledged saved; retry
+the same value. A newer local draft remains unsaved when an older save completes.
+Sequential playback and pool rotation/fairness are unchanged. Older writers omit
+this field; before an authorized downgrade export the latest preference and
+reconcile into the latest data on forward return, refusing conflicts rather than
+restoring an old complete snapshot. Rating1 remains a ban;
 resetting a broken photo does not make it eligible again. Manual/daily crawl,
 Google refresh and normal file reconstruction preserve the distinction.
 

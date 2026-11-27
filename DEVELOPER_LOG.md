@@ -7369,3 +7369,24 @@ save/retry checks with the existing gallery no-write suite. Paused browser clock
 must advance animation frames before asserting deferred focus restoration.
 See the Image Feeds milestone in [ROADMAP.md](./ROADMAP.md) and the existing
 [candidate evidence procedure](./docs/DEVELOPMENT_EVIDENCE.md) for qualification.
+
+
+## Unrated playback is configuration, not photo provenance
+
+Keep stored `null` and explicit legacy scores separate from effective selection
+weight. Normalize the global fallback once per selection; use nullish coalescing,
+not truthiness or row updates. Trace every composition consumer: the low-level
+weighted selector, smart-feed selector, state adapter and app wrapper can each
+silently retain an old constant even if a unit selector passes. Put validation
+in the existing pure policy module and keep persistence in the collection codec.
+
+Extend the narrow strict-preference path for valid explicit saves only, including
+an identical-value retry after applied-memory/disk failure; do not make unrelated
+legacy saves strict. Require an intermediate non-default disk value and fresh
+process reconstruction; disable the writer and old fallback in paired controls.
+Preserve stored scores, bans and pool-first fairness in the same oracle: a missing
+category creates another pool and is not a within-pool weighting test. VM fixtures
+must supply a module-relative loader when a formerly import-free core gains a
+pure dependency. A form acknowledgement owns only its submitted draft: clear it
+only if no newer edit exists, and keep failure/retry separate from live state sync.
+See the Metadata foundation milestone in [ROADMAP.md](./ROADMAP.md).

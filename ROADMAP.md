@@ -602,7 +602,26 @@ Retained regression owners: `server/domain/permanentGallery.test.js`,
 ### Metadata foundation
 
 - **Accepted source-only:** canonical `rating: null` for new/missing scores and explicit reset, with matching live admission, persistence, Google refresh and both admin controls. Existing defined scores are preserved, not reclassified.
-- Add configurable effective-selection policy without overwriting stored `null`.
+- **Accepted source-only — configurable unrated playback weight.**
+  One existing global playback setting accepts an integer2–10, default10 for
+  compatibility. Only nullish photo scores use it; no stored Unrated or explicit
+  legacy score is rewritten or assigned new provenance. Weighted and smart-feed
+  selectors, domain-state adapter and app wrapper share the policy. Bans/broken/
+  keyword/time exclusions, equal pool selection/rotation and sequential playback
+  retain their existing contracts. System→General offers a compact explicit-save
+  keyboard/mobile form, explains that effective weight is not a human rating,
+  and keeps newer drafts across delayed acknowledgements. Failures keep the draft
+  and offer identical-value retry through the existing strict preference sink.
+  Persist through the existing collection snapshot, preserving unrelated fields;
+  no new store/dependency/controller, source-policy or identity migration.
+  Accepted source:958shared/371native checks, lint/private build and35
+  built-browser journeys pass. Strict remains203 inherited, zero added/removed.
+  Deterministic old-fallback, disabled-writer/old-codec and nonconfirming-response
+  controls detect the corresponding regressions. Independent R1 review and parent
+  acceptance complete; no deployment/push/restart/live-setting writes.
+  Retained acceptance: `.agents/instruction-archives/unrated-playback-20261127/acceptance.md`. Older writers omit the new preference; a future authorized downgrade
+  must preserve it separately and reconcile into latest data, not restore an old
+  whole snapshot. Physical/AT and live preference acceptance remain unverified.
 - Keep rating`1` as banned and `isBroken` as a separate exclusion. Going forward numeric scores are explicit selections; do not infer human/default provenance for existing values.
 - Extend image metadata to support:
   - acquisition timestamp (`addedAt`)
