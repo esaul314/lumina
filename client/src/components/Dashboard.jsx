@@ -16,7 +16,7 @@ import {
 } from '../state/frameSelectors';
 import { toCssImageUrl } from '../state/cssImage.js';
 import { formatClockParts } from '../state/clock.js';
-import { convertPressure, convertTemperature } from '../state/environmentHistory.js';
+import { convertPressure, convertTemperature, formatIndoorTrend, formatEnvironmentMetric } from '../state/environmentHistory.js';
 import { isEscapeKey, isScreensaverDismissalActivity } from '../state/screensaverActivity.js';
 import { buildMediaOriginProbeUrl, decideMediaFailure } from '../state/mediaRecovery.js';
 import { getPhotoSlideTitle, projectSplitSlideTitles } from '../state/photoTitles.js';
@@ -66,7 +66,7 @@ const loadImageMeta = (url, timeoutMs = 8000) => new Promise((resolve, reject) =
 function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = false }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [weather, setWeather] = useState(null);
-  const [environment, setEnvironment] = useState(null);
+  const [environment, setEnvironment] = useState(/** @type {import('../state/environmentHistory.js').EnvironmentStatusSnapshot|null} */ (null));
   const [activeSlides, setActiveSlides] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showCursor, setShowCursor] = useState(true);
@@ -86,6 +86,8 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
   const secondaryPhoto = getFramePhoto(state, 'secondary');
   const displayedPrimaryUrl = activeSlides.find(slide => slide.active)?.url;
   const clockParts = formatClockParts(currentTime);
+  const indoorTrend = formatIndoorTrend(environment, currentTime.getTime());
+  const indoorPressure = convertPressure(environment?.indoor?.pressureRelativeHpa, environment?.units?.pressure);
 
   useEffect(() => {
     const handleResize = () => {
@@ -100,9 +102,10 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
     const fetchEnvironment = async () => {
       try {
         const data = await readJson('/api/environment');
-        if (!cancelled && data && !data.error) setEnvironment(data);
+        if (!cancelled) setEnvironment(current => data && !data.error ? data : current ? { ...current, trend: null } : null);
       } catch (error) {
         console.error('Failed to load indoor environment data', error);
+        if (!cancelled) setEnvironment(current => current ? { ...current, trend: null } : null);
       }
     };
     fetchEnvironment();
@@ -930,9 +933,10 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
                 {state.widgets.indoorEnvironment && environment?.enabled && environment.indoor && (
                   <div className={`indoor-environment ${environment.stale ? 'stale' : ''}`}>
                     <span>Indoor</span>
-                    {environment.indoor.temperatureC !== null && ` ${convertTemperature(environment.indoor.temperatureC, environment.units?.temperature).toFixed(1)}°${environment.units?.temperature || 'C'}`}
-                    {environment.indoor.humidityPercent !== null && ` · ${environment.indoor.humidityPercent}% humidity`}
-                    {environment.indoor.pressureRelativeHpa !== null && ` · ${Math.round(convertPressure(environment.indoor.pressureRelativeHpa, environment.units?.pressure))} ${environment.units?.pressure || 'hPa'}`}
+                    {` ${formatEnvironmentMetric(convertTemperature(environment.indoor.temperatureC, environment.units?.temperature))}°${environment.units?.temperature || 'C'}`}
+                    {` · ${formatEnvironmentMetric(environment.indoor.humidityPercent)}% humidity`}
+                    {indoorPressure !== null && ` · ${Math.round(indoorPressure)} ${environment.units?.pressure || 'hPa'}`}
+                    {indoorTrend && <div className="indoor-trend" role="note" aria-label={indoorTrend.label}>{indoorTrend.text}</div>}
                   </div>
                 )}
               </div>

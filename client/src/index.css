@@ -2419,3 +2419,34 @@ summary.remote-section-title::-webkit-details-marker {
   outline-offset: 2px;
 }
 .pool-lifecycle-footer [role="status"] { color: rgba(255,255,255,0.85); }
+
+/* Keep elapsed comparisons subordinate to readings, absent states reserve no row. */
+.indoor-trend {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: normal;
+  max-width: 270px;
+  margin-top: 3px;
+}
+
+/* The existing TV card's 480px minimum clips comparisons on phone viewports.
+   Stack existing widgets only at narrow widths; retain every forecast/day. */
+@media (max-width: 1000px) {
+  .tv-dashboard-ui { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; gap: 12px; }
+  .clock-widget { grid-column: 1; grid-row: 1; max-width: 100%; }
+  .clock-time { font-size: clamp(2rem, 12vw, 4rem); }
+  .clock-date { font-size: 1rem; }
+  .weather-widget { grid-column: 1; grid-row: 2; min-width: 0; width: 100%; max-width: 100%; padding: 16px; gap: 10px; flex-direction: column; align-items: stretch; }
+  .weather-temp { font-size: 3rem; }
+  .weather-icon-wrapper { font-size: 2.5rem; }
+  .weather-condition { font-size: 1.3rem; }
+  .weather-city { font-size: 0.85rem; white-space: normal; }
+  .indoor-environment { font-size: 0.85rem; white-space: normal; }
+  .indoor-trend { max-width: 100%; }
+  .weather-divider { width: 100%; height: 1px; }
+  .weather-forecast { gap: 4px; }
+  .forecast-day { font-size: 0.85rem; gap: 8px; }
+  .connection-widget { grid-column: 1; grid-row: 3; }
+  .photo-info-widget { grid-column: 1; grid-row: 4; max-width: 100%; }
+}

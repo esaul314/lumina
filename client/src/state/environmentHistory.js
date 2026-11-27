@@ -6,6 +6,8 @@
  * opaque to this module.
  *
  * @typedef {object} EnvironmentStatusSnapshot
+ * @property {Record<string, string>=} units
+ * @property {string|null=} observedAt
  * @property {boolean=} enabled
  * @property {boolean=} stale
  * @property {Record<string, unknown>|null=} indoor
@@ -35,6 +37,7 @@ export const formatEnvironmentMetric = (value, suffix = '') => {
  * @returns {number|null}
  */
 export const convertTemperature = (value, unit = 'C') => {
+  if (value == null || typeof value === 'boolean' || value === '') return null;
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return null;
   return unit === 'F' ? (numericValue * 9) / 5 + 32 : numericValue;
@@ -48,6 +51,7 @@ export const convertTemperature = (value, unit = 'C') => {
  * @returns {number|null}
  */
 export const convertPressure = (value, unit = 'hPa') => {
+  if (value == null || typeof value === 'boolean' || value === '') return null;
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return null;
   return unit === 'inHg' ? numericValue / 33.8638866667 : numericValue;
@@ -151,4 +155,35 @@ export const getEnvironmentStatus = (environment) => {
   if (environment.stale) return { label: 'Stale fallback', color: '#f59e0b' };
   if (environment.indoor) return { label: 'Online', color: '#10b981' };
   return { label: 'Waiting for device', color: '#f59e0b' };
+};
+
+/** Compact indoor-only elapsed comparison; recheck age on the existing UI clock.
+ * Delta conversion scales C->F, never applies the absolute-temperature offset.
+ * @param {any} environment @param {number} now @returns {{text:string,label:string}|null}
+ */
+export const formatIndoorTrend = (environment, now) => {
+  const trend = environment?.trend;
+  if (!trend || environment.enabled !== true || environment.stale !== false
+    || typeof environment.observedAt !== 'string' || trend.observedAt !== environment.observedAt) return null;
+  const current = Date.parse(trend.observedAt), reference = Date.parse(trend.referenceAt);
+  if (!Number.isFinite(now) || !Number.isFinite(current) || !Number.isFinite(reference)
+    || current > now || now - current > 600_000 || Math.abs(current - reference - 86_400_000) > 3_600_000) return null;
+  /** @param {number} value */
+  const signed = value => {
+    const rounded = Math.round(value * 10) / 10;
+    return `${rounded === 0 ? '' : rounded < 0 ? '−' : '+'}${Math.abs(rounded).toFixed(1)}`;
+  };
+  /** @param {unknown} value @returns {value is number} */
+  const real = value => typeof value === 'number' && Number.isFinite(value);
+  const unit = environment.units?.temperature === 'F' ? 'F' : 'C';
+  const parts = [
+    real(trend.temperatureC) ? `Temp ${signed(trend.temperatureC * (unit === 'F' ? 1.8 : 1))}°${unit}` : null,
+    real(trend.humidityPercent) ? `Humidity ${signed(trend.humidityPercent)} pp` : null
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  const text = `vs ~24h ago · ${parts.join(' · ')}`;
+  const label = text.replace('vs ~24h ago', 'Compared with approximately 24 hours earlier')
+    .replace('Temp ', 'temperature ').replace('Humidity ', 'humidity ')
+    .replace('°F', ' degrees Fahrenheit').replace('°C', ' degrees Celsius').replace(' pp', ' percentage points');
+  return { text, label };
 };
