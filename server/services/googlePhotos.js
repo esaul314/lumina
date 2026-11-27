@@ -1512,20 +1512,23 @@ const downloadSyncMediaItems = async (items) => {
  * A missing file or caught read/JSON-parse failure returns an empty array.
  * Valid JSON is expected to contain an array; non-array shapes still throw.
  * Serialization changes trigger a synchronous cache write outside test mode;
- * unchanged rows and test-mode reads never write. Existence-check and write
+ * readOnly suppresses repair writes; includeUnavailable retains normalized rows
+ * lacking refresh metadata for inspection (not playback). Existing callers retain
+ * their filtering/repair behavior. Neither option contacts a provider.
+ * Unchanged rows and test-mode reads never write. Existence-check and write
  * failures propagate. File access and warnings remain in this service shell.
  *
  * @returns {Array<import('./googlePhotosCache.js').GooglePhotoMediaItem & {id: string; url: string}>}
  * Newly projected, source-local render rows with stable ids and proxy URLs.
  */
-function getCachedMediaItems() {
+function getCachedMediaItems({ readOnly = false, includeUnavailable = false } = {}) {
   const rawItems = readCachedMediaItemsRaw();
   const normalizedItems = dedupeMediaItemsById(rawItems
     .map(normalizeCachedMediaItem)
     .filter(Boolean)
-    .filter(isUsableCachedMediaItem));
+    .filter(item => includeUnavailable || isUsableCachedMediaItem(item)));
 
-  if (JSON.stringify(rawItems) !== JSON.stringify(normalizedItems) && process.env.NODE_ENV !== 'test') {
+  if (!readOnly && JSON.stringify(rawItems) !== JSON.stringify(normalizedItems) && process.env.NODE_ENV !== 'test') {
     writeCachedMediaItems(normalizedItems);
   }
 

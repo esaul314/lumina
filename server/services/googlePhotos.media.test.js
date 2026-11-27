@@ -502,3 +502,16 @@ test('atomic overlapping proxy completions publish complete files with distinct 
  const opened=f.io.filter(([method,file])=>method==='openSync'&&file.endsWith('.tmp')).map(([,file])=>file);
  assert.equal(opened.length,2);assert.equal(new Set(opened).size,2);
 });
+
+test('read-only gallery cache access normalizes legacy rows without repair writes or provider activity',t=>{
+  const f=fixture(t);
+  const legacy=[{id:'GALLERY',url:'legacy-url',loved:true,rating:1,isBroken:true}];
+  fs.writeFileSync(f.cache,JSON.stringify(legacy));
+  const before=fs.readFileSync(f.cache,'utf8'),ioBefore=f.io.length;
+  const rows=f.getCachedMediaItems({readOnly:true,includeUnavailable:true});
+  assert.equal(rows.length,1);assert.equal(rows[0].loved,true);assert.equal(rows[0].isBroken,true);
+  assert.equal(fs.readFileSync(f.cache,'utf8'),before);assert.equal(f.calls.length,0);
+  assert.equal(f.io.slice(ioBefore).filter(([method])=>['writeFileSync','renameSync','unlinkSync'].includes(method)).length,0);
+  f.getCachedMediaItems();
+  assert.notEqual(fs.readFileSync(f.cache,'utf8'),before,'Default existing repair behavior remains enabled');
+});
