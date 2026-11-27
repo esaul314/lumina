@@ -1,5 +1,20 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-27 — a setting needs both serialization and reconstruction
+
+A working toggle/state-sync can conceal a persistence whitelist omission. The QR
+badge used an on default but was absent from both snapshot projections; changing
+only its default would still discard explicit opt-in. Keep supported fields in
+the existing codec and test false as a value, not an absent key. Trace actual
+command adapters and all snapshot writers before widening failure propagation.
+A strict preference save needs identical-value retry after an applied-memory disk
+failure; leave unrelated legacy best-effort commands unchanged. Prove the durable
+boundary with a different intermediate disk value, cold reconstruction and a
+separate process reading the same latest data. Disable the writer and restore the
+old codec/default to make the acceptance oracle fail. Older snapshot writers can
+drop new fields: qualify forward data reuse without claiming backward compatibility.
+The [badge preference scope](./ROADMAP.md#high-priority) owns review and exclusions.
+
 ## 2026-11-27 — publish bytes after the filesystem effect succeeds
 
 A bounded successful download is not sufficient if an in-place write can fail

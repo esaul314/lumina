@@ -719,8 +719,18 @@ design work, not claims that the current behavior has already been changed.
   on survive save/reload, process restart and the normal upgrade/deployment path;
   restart/deployment never re-enables a saved-off badge. Cover the existing
   configuration migration and release fixture, not only the in-memory toggle.
-  Root cause remains unverified. Backlog only: no live setting or behavior changed,
-  and not added to the selected atomic-cache milestone.
+  **SOURCE ACCEPTED — QR/IP badge persistence.** Root cause: state defaults
+  the badge on, while snapshot serialization/restoration whitelist weatherLocation
+  only, discarding the badge after save/restart. Persist this boolean in the same
+  collection settings owner; preserve explicit true/false, default only unset off.
+  Qualify actual REST/socket commands, unrelated saves, cold reconstruction,
+  failed-write identical retry and release-style data reuse. No live preference
+  change, deployment, other-widget persistence expansion or new store. Explicit
+  badge saves use a narrow strict writer and same-value retry after applied-memory
+  failure; no rollback or general transaction/retry layer. REST/socket/file tests
+  and old-default/old-codec/disabled-writer controls cover this boundary. Earlier
+  versions cannot retain this new preference when they rewrite snapshots; do not
+  claim backward-writer preservation. Independent review accepted the frozen candidate; default-off and explicit on/off reconstruction, failed-write retry and socket containment passed. Not deployed or pushed as part of this source milestone.
 
 
 - **Separate image identity from pool membership.**

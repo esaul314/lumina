@@ -345,3 +345,20 @@ Lumina is an active, evolving personal project. [ROADMAP.md](ROADMAP.md) is the 
 The server is designed for a trusted home LAN and currently enables broad CORS for local control. Do not expose it directly to the public Internet without adding authentication, access controls, and an appropriate reverse-proxy boundary.
 
 This repository does not currently include a checked-in `LICENSE` file. Treat reuse and redistribution accordingly until explicit licensing terms are added.
+
+### QR & IP Badge preference
+
+The badge is off when no saved preference exists. Explicit boolean on/off values
+are saved in `curated_collections.json` alongside supported widget settings and
+restored on startup; unrelated collection/settings saves retain the preference.
+Both remote-control and legacy socket toggles keep their existing set-visible
+semantics. An explicit badge patch retries persistence even when memory already
+has that value. A failed disk write returns the existing HTTP500 contract and
+suppresses that command's sync event; applied memory is not rolled back. Retry
+the same value to persist it. Other widget persistence/defaults are unchanged.
+
+Versions before this preference support can drop it when rewriting collections.
+An upgrade retains the latest settings file; a downgrade requires separately
+protecting this preference before an old writer runs and merging it into the
+latest document on forward return, never restoring an older whole data snapshot.
+This does not migrate other widgets or change QR generation/network policy.
