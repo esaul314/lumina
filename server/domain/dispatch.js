@@ -1,6 +1,6 @@
 // @ts-check
 
-const { hasDurableDisplayPreference } = require('./statePatch.js');
+const { hasDurableDisplayPreference, hasDurablePlaybackPreference } = require('./statePatch.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 const { reduceAsyncSequentially } = require('../utils/asyncReduce.js');
@@ -312,7 +312,7 @@ function createDomainDispatcher({
   });
   const eventHandlers = createEventHandlers({ state, io, broadcastStateSync });
   const interpretEffects = createEffectInterpreter(effectHandlers);
-  // ponytail: strict persistence is limited to policy and explicit display preference saves.
+  // ponytail: strict persistence is limited to policy and explicit display/playback preference saves.
   const interpretPolicyEffects = createEffectInterpreter({
     ...effectHandlers,
     persist: async () => { await persistPoolPolicy(collections, state); }
@@ -343,7 +343,7 @@ function createDomainDispatcher({
     const reducerResult = reduceCommand(command, env);
     const snapshot = applyReducerResult(reducerResult);
     const interpret = command.type === 'set-pool-policy' ? interpretPolicyEffects
-      : command.type === 'patch-state' && hasDurableDisplayPreference(command.payload) ? interpretDisplayEffects
+      : command.type === 'patch-state' && (hasDurableDisplayPreference(command.payload) || hasDurablePlaybackPreference(command.payload)) ? interpretDisplayEffects
         : interpretEffects;
     const effectResults = await interpret(reducerResult.effects);
 

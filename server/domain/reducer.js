@@ -32,6 +32,7 @@ const {
 const { createIndexedInterpreter } = require('../utils/fn.js');
 const {
   hasDurableDisplayPreference,
+  hasDurablePlaybackPreference,
   normalizeManualLocation,
   normalizeVisionConfig,
   STATE_PATCH_FIELDS
@@ -1596,6 +1597,10 @@ const readManualLocationPatch = readPatchField('manualLocation', (manualLocation
 /** @type {ConfigPatchSpec<any>[]} */
 const PATCH_STATE_SPECS = [
   ...STATE_PATCH_FIELDS.map((field) => createConfigPatchSpec(field)),
+  createConfigPatchSpec('unratedPlaybackWeight', {
+    readValue: patch => hasDurablePlaybackPreference(patch)
+      ? /** @type {{unratedPlaybackWeight: number}} */ (patch).unratedPlaybackWeight : PATCH_SKIP
+  }),
   createConfigPatchSpec('excludedKeywords', {
     readValue: readExcludedKeywordsPatch,
     hasChanged: (nextState, keywords) => !arraysEqual(nextState.config.excludedKeywords, keywords),
@@ -1680,8 +1685,8 @@ function reduceStatePatchCommand(state, patch, env) {
   }));
 
   if (!context.changed) {
-    // ponytail: retry the same display preference after a failed write already applied memory.
-    return hasDurableDisplayPreference(patch) && readWidgetPatch(patch, state) !== PATCH_SKIP
+    // ponytail: retry the same explicit preference after a failed write already applied memory.
+    return hasDurablePlaybackPreference(patch) || (hasDurableDisplayPreference(patch) && readWidgetPatch(patch, state) !== PATCH_SKIP)
       ? buildMutationResult(state, { persist: true, events: [{ type: 'state-sync' }] })
       : unchangedResult(state);
   }

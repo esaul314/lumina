@@ -1,5 +1,7 @@
 // @ts-check
 
+const { isUnratedPlaybackWeight } = require('../utils/photoPolicy.js');
+
 /** @typedef {import('./types').StatePatchPayload} StatePatchPayload */
 
 const STATE_PATCH_FIELDS = [
@@ -97,7 +99,13 @@ const hasDurableDisplayPreference = (patch) => {
         && typeof /** @type {Record<string, unknown>} */ (widgets).blueLightFilter === 'boolean'));
 };
 
+/** Strict durability is scoped to an own, valid playback preference. @param {unknown} patch */
+const hasDurablePlaybackPreference = patch => patch !== null && typeof patch === 'object'
+  && Object.prototype.propertyIsEnumerable.call(patch, 'unratedPlaybackWeight')
+  && isUnratedPlaybackWeight(/** @type {{unratedPlaybackWeight?: unknown}} */ (patch).unratedPlaybackWeight);
+
 module.exports = {
+  hasDurablePlaybackPreference,
   hasDurableDisplayPreference,
   normalizeManualLocation,
   normalizeVisionConfig,

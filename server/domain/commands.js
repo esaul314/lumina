@@ -11,6 +11,7 @@
 // to Result values. Native access/coercion failures still propagate. Scalar
 // state patches and excluded-keyword entries intentionally remain unvalidated.
 
+const { isUnratedPlaybackWeight } = require('../utils/photoPolicy.js');
 const { normalizePhotoComment } = require('./photoComments.js');
 const { curry } = require('../utils/fn.js');
 const {
@@ -310,6 +311,10 @@ function decodeStatePatchCommand(payload) {
   }
 
   const patch = pickStatePatchFields(payload);
+  if (Object.prototype.hasOwnProperty.call(payload, 'unratedPlaybackWeight')) {
+    if (!isUnratedPlaybackWeight(payload.unratedPlaybackWeight)) return null;
+    patch.unratedPlaybackWeight = payload.unratedPlaybackWeight;
+  }
 
   if (Array.isArray(payload.excludedKeywords)) {
     patch.excludedKeywords = payload.excludedKeywords;
@@ -455,6 +460,7 @@ const SOCKET_STATE_PATCH_SPECS = [
   createSocketStatePatchSpec('toggle-split-portrait', buildBooleanFieldPatch('splitPortrait')),
   createSocketStatePatchSpec('change-split-crop', buildPercentFieldPatch('splitCropPercent')),
   createSocketStatePatchSpec('update-vision-config', buildObjectFieldPatch('visionConfig')),
+  createSocketStatePatchSpec('change-unrated-playback-weight', (/** @type {unknown} */ value) => ({ unratedPlaybackWeight: value })),
   createSocketStatePatchSpec('change-night-percentage', buildPercentFieldPatch('nightPercentage')),
   createSocketStatePatchSpec('change-interval', buildFiniteNumberFieldPatch('slideshowInterval')),
   createSocketStatePatchSpec('change-theme', buildTrimmedStringFieldPatch('theme')),
