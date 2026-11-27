@@ -48,7 +48,7 @@ function createFixtureCodec(directory, control = {}) {
   return module.exports;
 }
 
-async function createFixture(photos, { screensaverActive = false, widgets = {}, environmentControl = null, category = 'Fixture' } = {}) {
+async function createFixture(photos, { screensaverActive = false, widgets = {}, environmentControl = null, category = 'Fixture', weatherControl = null } = {}) {
   const app = express();
   const server = http.createServer(app);
   // Clock jumps must not simulate Socket.IO heartbeat failure.
@@ -111,7 +111,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {}, 
   };
   app.use(express.json());
   app.head('/', (_req, res) => res.sendStatus(200));
-  app.get('/api/weather', (_req, res) => res.json(weather));
+  app.get('/api/weather', (_req, res) => res.json(weatherControl ? weatherControl.current : weather));
   app.patch('/api/state', async (req, res, next) => {
     try {
       events.push({ event: 'patch-state', payload: req.body });
@@ -189,7 +189,7 @@ const activeBackground = () => document.querySelector(
 
 async function withFixture(browser, run, photos = landscapePhotos(), options = {}) {
   const fixture = await createFixture(photos, options);
-  const context = await browser.newContext();
+  const context = await browser.newContext(options.timezoneId ? { timezoneId: options.timezoneId, locale: 'en-US' } : {});
   context.on('page', opened => opened.on('pageerror', error => fixture.errors.push(error)));
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
@@ -233,6 +233,7 @@ async function withFixture(browser, run, photos = landscapePhotos(), options = {
     assert.deepStrictEqual(fixture.errors, []);
     assert.ok(await page.locator('.slide').count() <= 2, 'Slide DOM must stay bounded');
   } catch (error) {
+    await page.screenshot({path:path.join(captureDirectory,'fixture-failure.png')}).catch(()=>{});
     console.error('Fixture diagnostics:', {
       events: fixture.events.map(({ event, payload }) => ({ event, url: payload?.url })),
       logs: fixture.logs.slice(-8)
@@ -250,6 +251,68 @@ async function exhaustRetries({ page }) {
     await page.clock.fastForward(delay);
   }
 }
+
+const forecastWeather = daily => ({
+  location: { city: 'Fixture City', regionName: 'Fixture Region' },
+  current: { temperature_2m: 0, weather_code: 777, relative_humidity_2m: 50 }, daily
+});
+const forecastDaily = () => ({
+  time: ['2024-02-28', '2024-02-29', '2024-03-01', '2024-03-02', '2024-03-03'],
+  temperature_2m_max: [1, 0, -2, 4, 9], temperature_2m_min: [0, -5, -8, 0, 4], weather_code: [0, 777, 71, 95, 1]
+});
+const partialDaily = () => {
+  const daily = forecastDaily(); daily.time[0] = 'invalid'; daily.temperature_2m_max[2] = null; return daily;
+};
+const invalidFutureDaily = () => {
+  const daily=forecastDaily();daily.time[1]='2024-02-30';daily.temperature_2m_min[2]=99;return daily;
+};
+const misalignedDaily = () => {
+  const daily=forecastDaily();daily.temperature_2m_max.length=2;return daily;
+};
+const invalidNumericDaily = () => {
+  const daily=forecastDaily();daily.temperature_2m_max[1]='0';daily.weather_code[2]=false;daily.temperature_2m_min[3]=null;return daily;
+};
+const forecastConfigurations = [
+  ['empty maximum temperatures', {...forecastDaily(),temperature_2m_max:[]}, []],
+  ['missing numeric arrays', { time: forecastDaily().time }, []],
+  ['missing daily', undefined, []], ['null daily', null, []], ['legacy array daily', [], []],
+  ['non-array dates', { ...forecastDaily(), time: '2024-02-29' }, []],
+  ['partial rows and invalid today', partialDaily(), ['Thu', 'Sat']],
+  ['misaligned numeric columns', misalignedDaily(), ['Thu']],
+  ['invalid future date and inverted range', invalidFutureDaily(), ['Sat']],
+  ['non-numeric null and boolean values', invalidNumericDaily(), []],
+  ['valid leap date zero negative and unknown WMO', forecastDaily(), ['Thu', 'Fri', 'Sat']]
+];
+const forecastCases = forecastConfigurations.map(([name, daily, labels]) => {
+  const weatherControl = { current: forecastWeather(daily) };
+  return [`daily forecast ${name} is honest and current conditions survive`, async ({ page, fixture }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    const card = page.locator('.weather-widget'); await expect(card).toBeVisible();
+    await page.screenshot({ path: path.join(captureDirectory, `forecast-${name.replaceAll(' ', '-')}-320.png`) });
+    await expect(card.locator('.weather-temp')).toHaveText('0°C');
+    await expect(card.locator('.weather-condition')).toHaveText('Atmospheric');
+    await expect(card.locator('.forecast-day-name')).toHaveText(labels);
+    await expect(card).not.toContainText(/NaN|Invalid Date|undefined/);
+    if(labels.length === 0)await expect(card.getByRole('status')).toHaveText('Daily forecast unavailable');
+    else await expect(card.getByRole('status')).toHaveCount(0);
+    if(labels.includes('Thu')) {
+      await expect(card.locator('.forecast-day').first()).toContainText('0° / -5°');
+      await expect(card.locator('.forecast-day').first()).toContainText('Atmospheric');
+    }
+    const before = await card.boundingBox(); assert(before.x >= 0 && before.y >= 0 && before.x+before.width <= 321 && before.y+before.height <= 569);
+    // The existing 30-minute trigger, not remount/reload or a new retry loop.
+    weatherControl.current = forecastWeather(forecastDaily());
+    await page.clock.fastForward(1800000);
+    await expect(card.locator('.forecast-day-name')).toHaveText(['Thu', 'Fri', 'Sat']);
+    await expect(card).not.toContainText(/NaN|Invalid Date|undefined/);
+    for(const [width,height] of [[320,568],[1280,720]]){
+      await page.setViewportSize({width,height});
+      await page.screenshot({path:path.join(captureDirectory,`forecast-recovered-${name.replaceAll(' ','-')}-${width}.png`)});
+      const box=await card.boundingBox();assert(box.x>=0&&box.y>=0&&box.x+box.width<=width+1&&box.y+box.height<=height+1);
+    }
+    assert.equal(fixture.errors.length,0);
+  }, () => ({ weatherControl, widgets: {clock:true,weather:true}, timezoneId:'America/Los_Angeles' })];
+});
 
 const cases = [
   ['newly displayed primary receives its full interval', async env => {
@@ -1380,6 +1443,14 @@ async function main() {
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    const otherFocused = ['OVERLAY','UNRATED','FEEDS','GALLERY','BLUE_LIGHT','TRENDS']
+      .some(name => process.env[`LUMINA_TEST_ONLY_${name}`] === '1');
+    if (!otherFocused || process.env.LUMINA_TEST_ONLY_FORECAST === '1') {
+      for(const [name,run,options] of forecastCases){
+        await withFixture(browser,run,landscapePhotos(),options());console.log(`PASS: ${name}`);
+      }
+    }
+    if(process.env.LUMINA_TEST_ONLY_FORECAST==='1')return;
     for(const [name,run,photos,options] of overlayCases){
       await withFixture(browser,run,photos,options());console.log(`PASS: ${name}`);
     }

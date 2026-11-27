@@ -219,7 +219,10 @@ for (const stage of ['fetch', 'body']) {
 test('forecast success keeps query, raw fields, zero values and unknown numeric WMO fallback', async () => {
   const data = Object.freeze({ current: { temperature_2m: 0, weather_code: 777, is_day: 0 }, daily: ['legacy'], extra: 'retained' });
   const f = fixture(async () => ok(data));
-  assert.equal(await f.fetchWeatherForecast(0, -180), data);
+  const admitted = await f.fetchWeatherForecast(0, -180);
+  assert.equal(admitted.current, data.current); assert.equal(admitted.extra, 'retained');
+  assert.deepEqual(admitted.daily, { time: [], temperature_2m_max: [], temperature_2m_min: [], weather_code: [] });
+  assert.deepEqual(data.daily, ['legacy']);
   const url = new URL(f.calls[0][0]);
   assert.equal(url.origin, 'https://api.open-meteo.com');
   assert.equal(url.pathname, '/v1/forecast');
@@ -259,7 +262,7 @@ for (const [name, fetchImpl, failure] of [
     await assert.rejects(f.fetchWeatherForecast(12, 34), failure);
     assert.equal(f.calls.length, 1); assertReleased(f);
     failed = false;
-    assert.equal(await f.fetchWeatherForecast(12, 34), forecast);
+    assert.deepEqual(await f.fetchWeatherForecast(12, 34), { ...forecast, daily: { time: [], temperature_2m_max: [], temperature_2m_min: [], weather_code: [] } });
     assert.equal(f.calls.length, 2); assertReleased(f);
   });
 }
@@ -435,3 +438,125 @@ test('classification failure cannot partially replace an otherwise valid cached 
   assert.equal(await runtime.updateServerWeather(), null);
   assert.equal(state.physicalWeather, physical); assert.equal(cache, prior); assert.deepEqual(effects, []);
 });
+
+const dailyColumns = ['time', 'temperature_2m_max', 'temperature_2m_min', 'weather_code'];
+const dailyFixture = () => ({
+  time: ['2024-02-28', '2024-02-29', '2024-03-01', '2024-03-02', '2024-03-03'],
+  temperature_2m_max: [0, 0, -2, 4, 8], temperature_2m_min: [-3, -5, -8, 0, 2],
+  weather_code: [0, 777, 71, 95, 1], precipitation_sum: [0, 1, 2, 3, 4]
+});
+const displayProjection = async daily => (await import('../../client/src/state/environmentHistory.js')).projectForecastDays(daily);
+const emptyDaily = { time: [], temperature_2m_max: [], temperature_2m_min: [], weather_code: [] };
+const malformedDaily = [undefined, null, [], 'legacy', 4, {}, { time: '2024-02-29' }, { time: ['2024-02-28', '2024-02-29'] }];
+for (const [index, daily] of malformedDaily.entries()) {
+  test(`unusable daily shape${index} preserves current but admits no invented daily values`, async () => {
+    const input = { current: Object.freeze({ temperature_2m: -2, weather_code: 777 }), daily };
+    const saved = structuredClone(input), f = fixture(async () => ok(input));
+    const result = await f.fetchWeatherForecast(12, 34);
+    assert.equal(result.current, input.current); assert.deepEqual(input, saved);
+    assert.deepEqual(await displayProjection(result.daily), []);
+    assert.deepEqual(await displayProjection(daily), []);
+    if (!Array.isArray(daily?.time)) assert.deepEqual(result.daily, emptyDaily);
+    assertReleased(f);
+  });
+}
+
+for (const [column, invalid] of [
+  ['time', '2024-02-30'], ['time', '2023-02-29'], ['time', '2024-13-01'], ['time', '2024-2-01'],
+  ['time', '2024-02-29T00:00:00Z'], ['time', ''], ['time', null], ['time', 1],
+  ...['temperature_2m_max', 'temperature_2m_min', 'weather_code'].flatMap(key => [null, undefined, '0', false, NaN, Infinity, -Infinity].map(value => [key, value]))
+]) {
+  test(`daily row rejects ${column}=${String(invalid)} without shifting any other slot`, async () => {
+    const daily = dailyFixture(); daily[column][1] = invalid;
+    const before = structuredClone(daily), normalized = fixture().projectDailyForecast(daily);
+    dailyColumns.forEach(key => {
+      assert.equal(normalized[key][1], null);
+      assert.equal(normalized[key][0], daily[key][0]); assert.equal(normalized[key][2], daily[key][2]);
+      assert.equal(normalized[key].length, daily.time.length);
+    });
+    assert.deepEqual(daily, before); assert.deepEqual(fixture().projectDailyForecast(normalized), normalized);
+    assert.deepEqual(await displayProjection(normalized), await displayProjection(daily));
+    assert.deepEqual((await displayProjection(normalized)).map(row => row.time), ['2024-03-01', '2024-03-02']);
+  });
+}
+
+test('daily aligned holes/short columns and inverted ranges stay unavailable, not coerced or compacted', async () => {
+  const daily = dailyFixture(); delete daily.time[0]; daily.temperature_2m_max.length = 3;
+  daily.temperature_2m_min[2] = 99;
+  const normalized = fixture().projectDailyForecast(daily);
+  dailyColumns.forEach(key => assert.deepEqual(normalized[key].map(value => value === null), [true, false, true, true, true]));
+  assert.deepEqual(await displayProjection(normalized), [{ time: '2024-02-29', maximum: 0, minimum: -5, code: 777 }]);
+  assert.deepEqual(await displayProjection(daily), await displayProjection(normalized));
+});
+
+test('valid daily data is immutable, retains zero/negative/unknown WMO and skips slot zero before filtering', async () => {
+  const daily = Object.freeze(Object.fromEntries(Object.entries(dailyFixture()).map(([key, value]) => [key, Object.freeze(value)])));
+  const normalized = fixture().projectDailyForecast(daily);
+  assert.deepEqual(normalized, daily); assert.notEqual(normalized, daily); assert.equal(normalized.precipitation_sum, daily.precipitation_sum);
+  const rows = await displayProjection(daily);
+  assert.deepEqual(rows.map(row => row.time), ['2024-02-29', '2024-03-01', '2024-03-02']);
+  assert.deepEqual(rows[0], { time: '2024-02-29', maximum: 0, minimum: -5, code: 777 });
+  const brokenFirst = { ...daily, time: ['invalid', ...daily.time.slice(1)] };
+  assert.deepEqual(await displayProjection(fixture().projectDailyForecast(brokenFirst)), rows);
+});
+
+// Real HTTP route + periodic owner, closed local provider; never the production daemon.
+async function dailyHttpFixture(t, serviceSource = source) {
+  const express = require('express'), { createRequire } = require('node:module'), path = require('node:path');
+  const app = express(), server = http.createServer(app);
+  let payload, cache = null, providerCalls = 0, broadcasts = 0;
+  const state = { autoLocation: false, manualLocation: fallback };
+  app.get('/fixture-provider', (_req, res) => { providerCalls++; res.json(payload); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { const stopped = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await stopped; });
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const f = fixture((_url, options) => fetch(origin + '/fixture-provider', options), true, serviceSource);
+  const filename = path.resolve(__dirname, '../routes.js'), nativeRequire = createRequire(filename), routes = { exports: {} };
+  compileFunction(readFileSync(filename, 'utf8'), ['module', 'require'], { filename })(routes,
+    name => ['./services/weather.js', './services/googlePhotos.js'].includes(name) ? {} : nativeRequire(name));
+  const setWeatherData = value => { cache = value; };
+  routes.exports({ app, state, collections: {}, getWeatherData: () => cache, setWeatherData,
+    resolveWeatherLocation: f.resolveActiveLocation, fetchWeather: f.fetchWeatherForecast });
+  const runtime = createEnvironmentRefreshRuntime({ state, collections: {}, activeFeedRuntime: {}, jsonPath: 'unused',
+    resolveActiveLocation: f.resolveActiveLocation, fetchWeatherForecast: f.fetchWeatherForecast,
+    classifyWeatherCode: f.classifyWeatherCode, setWeatherData, broadcastStateSync: () => { broadcasts++; }, log: { log() {}, error() {} } });
+  return { f, state, runtime, get cache() { return cache; }, get broadcasts() { return broadcasts; }, get providerCalls() { return providerCalls; },
+    setPayload(value) { payload = value; cache = null; }, read: async () => {
+      const response = await fetch(origin + '/api/weather'); return { status: response.status, body: await response.json() };
+    } };
+}
+
+for (const consumer of ['route', 'periodic']) {
+  test(`${consumer} actual HTTP admits partial/all-unavailable daily, preserves current and recovers valid rows`, async t => {
+    const h = await dailyHttpFixture(t);
+    const partial = dailyFixture(); partial.time[0] = 'invalid'; partial.temperature_2m_max[2] = null;
+    const partialExpected = { ...partial, time: [null,'2024-02-29',null,'2024-03-02','2024-03-03'],
+      temperature_2m_max: [null,0,null,4,8], temperature_2m_min: [null,-5,null,0,2], weather_code: [null,777,null,95,1] };
+    const shapes = [...malformedDaily.map(daily => ({ daily, expected: Array.isArray(daily?.time)
+      ? {time:[null,null],temperature_2m_max:[null,null],temperature_2m_min:[null,null],weather_code:[null,null]} : emptyDaily })),
+      {daily:partial,expected:partialExpected},{daily:dailyFixture(),expected:dailyFixture()}];
+    for (const {daily,expected} of shapes) {
+      h.setPayload({ current: { temperature_2m: 0, weather_code: 777 }, daily });
+      if (consumer === 'periodic') {
+        assert.ok(await h.runtime.updateServerWeather());
+        assert.deepEqual(h.state.physicalWeather, { temp: 0, condition: 'Cloudy / Overcast', weatherMatch: 'Cloudy' });
+      }
+      const { status, body } = await h.read(); assert.equal(status, 200);
+      assert.equal(body.current.temperature_2m, 0); assert.equal(body.current.weather_code, 777);
+      assert.deepEqual(body.daily, expected);
+      assert.deepEqual(await displayProjection(body.daily), await displayProjection(daily));
+      assert.equal(h.cache.current.temperature_2m, 0); assertReleased(h.f);
+    }
+    assert.equal(h.providerCalls, shapes.length, 'Cache GET must not query the provider again');
+    assert.equal(h.broadcasts, consumer === 'periodic' ? shapes.length : 0);
+  });
+  test(`${consumer} sanitizer-disabled negative control fails actual cache daily oracle`, async t => {
+    const disabled = source.replace('daily: projectDailyForecast(record.daily)', 'daily: record.daily'); assert.notEqual(disabled, source);
+    const h = await dailyHttpFixture(t, disabled), daily = { time: ['2024-02-28', '2024-02-29'] };
+    h.setPayload({ current: { temperature_2m: 0, weather_code: 777 }, daily });
+    if (consumer === 'periodic') await h.runtime.updateServerWeather();
+    const result = await h.read(); assert.equal(result.status, 200);
+    assert.throws(() => assert.deepEqual(result.body.daily, {time:[null,null],temperature_2m_max:[null,null],temperature_2m_min:[null,null],weather_code:[null,null]}), assert.AssertionError);
+    assertReleased(h.f);
+  });
+}
