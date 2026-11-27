@@ -1146,6 +1146,32 @@ design work, not claims that the current behavior has already been changed.
   automatically. Source acceptance was source-only; the subsequent1.1.1 release
   verified live weather recovery and retained state through the native owner.
 
+- **Daily forecast schema resilience — source accepted after independent review.**
+  Required current observations remain independent of unavailable daily forecasts.
+  The provider boundary admits real ISO calendar dates, finite numeric WMO/max/min
+  and coherent min<=max rows without coercion. Invalid consumed rows become aligned
+  null/unavailable slots; unused provider daily fields remain opaque, not validated.
+  The defensive legacy display selects original slots1–3 BEFORE omitting unusable
+  rows, so an invalid slot zero cannot shift tomorrow or backfill later days.
+  Missing/all-invalid daily data leaves current conditions visible and announces
+  daily forecast unavailable; no invented0/NaN/date labels. Zero/negative values
+  and unknown finite WMO fallback survive. Calendar labels use local dates rather
+  than UTC-midnight conversion. No sort/contiguity/freshness or physical-location
+  attestation is implied; provider slot zero still means today by contract.
+  Existing cache/current/physical update, timeout, location invalidation and recovery
+  ownership stay unchanged; no new store/timer/dependency/controller or live write.
+  Service/actual HTTP/background and built-browser fixtures cover malformed/partial/
+  misaligned/all-invalid daily, immutable data, valid recovery and normal layouts.
+  Sanitizer-disabled HTTP/background oracles and the released-assets browser oracle
+  detect the old failure; paired synthetic captures retain the visible rationale.
+  Fresh958shared/414native tests, lint/private build and55browser journeys pass,
+  including the existing54overlay layouts. Strict203 and direct-graph28diagnostics
+  remain inherited, zero added. Independent review accepts the exact candidate with
+  424 schema/calendar probes and nine built-browser timezone cases. Source accepted
+  in scoped commits; no version change, deployment, push, restart or physical/provider
+  acceptance. Generic lessons and regressions retained in existing owners.
+  TTL/stale-age UI, location ABA ordering and other deferred work remain unselected.
+
 ### Backlog maintenance
 
 - The agent guide's roadmap list named Google Photos OAuth as unimplemented,

@@ -7418,3 +7418,26 @@ Use `LUMINA_TEST_ONLY_OVERLAY=1` with the existing `test_slideshow.js` and
 old-build measurements without enforcing the fix oracle; its PASS lines mean
 fixture completion, not layout acceptance. Keep each run in a fresh
 `LUMINA_TEST_ARTIFACTS` directory and enforce the oracle against old assets too.
+
+
+## Coherent forecast rows must preserve positional meaning
+
+Validate parallel-array rows together, not each column independently. A finite
+maximum cannot rescue a missing minimum, invalid calendar date or nonnumeric WMO
+code. Keep valid current observations when optional daily data is unusable, and
+make unavailable output explicit instead of coercing null to zero. Preserve raw
+unrelated fields as opaque; validating the consumed subset is not full-schema trust.
+
+Filtering before a positional skip can silently discard tomorrow when today is
+invalid. Preserve unavailable provider slots at admission, then select the original
+future window before omitting invalid display rows. Do not invent replacement days
+or silently add freshness/sort/contiguity policy. Render calendar-only labels as
+local calendar dates, not UTC instants that become yesterday west of Greenwich.
+
+A provider boundary and a defensive legacy-client boundary have distinct owners;
+keep their small pure projections in existing modules, with contract-agreement tests,
+rather than importing service/config code into the browser or adding a shared runtime
+framework. Actual HTTP/background tests must assert independent expected values and
+fail when admission is disabled. Exercise malformed legacy JSON through built assets,
+retain old-assets negative controls and paired screenshots, and capture fixture
+failures before teardown so a removed React tree is not misdiagnosed as image loading.
