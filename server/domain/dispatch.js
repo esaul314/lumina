@@ -1,6 +1,6 @@
 // @ts-check
 
-const { hasQrCodePreference } = require('./statePatch.js');
+const { hasDurableDisplayPreference } = require('./statePatch.js');
 const { reduceDomainCommand } = require('./reducer.js');
 const { applyDomainState, buildDomainState, syncLegacySnapshot } = require('./snapshot.js');
 const { reduceAsyncSequentially } = require('../utils/asyncReduce.js');
@@ -44,7 +44,7 @@ const { createClosedInterpreter } = require('../utils/fn.js');
  * @property {CollectionsState} collections
  * @property {(collections: CollectionsState, state: LegacyState) => unknown} persistCollections
  * @property {(collections: CollectionsState, state: LegacyState) => unknown} [persistPoolPolicy]
- * @property {(collections: CollectionsState, state: LegacyState) => unknown} [persistBadgePreference]
+ * @property {(collections: CollectionsState, state: LegacyState) => unknown} [persistDisplayPreference]
  * @property {(entries: Record<string, unknown>) => unknown} persistEnvVars
  * @property {{emit: (event: 'photo-update' | 'state-sync', payload: import('./types').FeedPhoto | LegacyState) => unknown}} io
  * @property {(() => RuntimeOverrides)} [getRuntimeContext]
@@ -253,7 +253,7 @@ function createDomainDispatcher({
   collections,
   persistCollections,
   persistPoolPolicy = persistCollections,
-  persistBadgePreference = persistCollections,
+  persistDisplayPreference = persistCollections,
   persistEnvVars,
   io,
   getRuntimeContext = () => ({}),
@@ -312,14 +312,14 @@ function createDomainDispatcher({
   });
   const eventHandlers = createEventHandlers({ state, io, broadcastStateSync });
   const interpretEffects = createEffectInterpreter(effectHandlers);
-  // ponytail: strict persistence is limited to policy and explicit badge saves.
+  // ponytail: strict persistence is limited to policy and explicit display preference saves.
   const interpretPolicyEffects = createEffectInterpreter({
     ...effectHandlers,
     persist: async () => { await persistPoolPolicy(collections, state); }
   });
-  const interpretBadgeEffects = createEffectInterpreter({
+  const interpretDisplayEffects = createEffectInterpreter({
     ...effectHandlers,
-    persist: async () => { await persistBadgePreference(collections, state); }
+    persist: async () => { await persistDisplayPreference(collections, state); }
   });
   const emitEvents = createEventEmitter(eventHandlers);
 
@@ -343,7 +343,7 @@ function createDomainDispatcher({
     const reducerResult = reduceCommand(command, env);
     const snapshot = applyReducerResult(reducerResult);
     const interpret = command.type === 'set-pool-policy' ? interpretPolicyEffects
-      : command.type === 'patch-state' && hasQrCodePreference(command.payload) ? interpretBadgeEffects
+      : command.type === 'patch-state' && hasDurableDisplayPreference(command.payload) ? interpretDisplayEffects
         : interpretEffects;
     const effectResults = await interpret(reducerResult.effects);
 

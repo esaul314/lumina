@@ -484,10 +484,10 @@ function createApplication() {
   const { dispatchCommand, broadcastStateSync, refreshSnapshot } = createDomainDispatcher({
     state: screensaverState,
     collections: curatedCollections,
-    // Policy and explicit badge saves have narrow strict persistence/retry boundaries.
+    // Policy and explicit display preference saves have narrow strict persistence/retry boundaries.
     persistCollections: saveCuratedCollections,
     persistPoolPolicy: (collections, state) => saveCuratedCollections(collections, state, { throwOnError: true }),
-    persistBadgePreference: (collections, state) => saveCuratedCollections(collections, state, { throwOnError: true }),
+    persistDisplayPreference: (collections, state) => saveCuratedCollections(collections, state, { throwOnError: true }),
     persistEnvVars,
     io,
     getRuntimeContext,
