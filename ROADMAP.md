@@ -803,10 +803,31 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
   Independent review accepted; 958 assertions/345 native cases, lint, build and
   26 browser cases passed with exact candidate evidence. Initial source acceptance
   excluded deployment/push; the separately authorized1.1.7 release is recorded above.
-  Short-height follow-up: with clock/weather/indoor and landscape credits at
-  320x568, the last ~72px of credits lie below screen. Add a height-aware credit
-  layout and short-height regression before claiming arbitrary phone-height fit;
-  weather/trend fit and qualified taller/portrait layouts remain accepted.
+  **Short-height follow-up — source accepted after independent review.**
+  Built baseline reproduces attribution clipping at320x568 (more with the optional
+  badge/long metadata), severe568x320 overflow, and badge/split-credit collisions.
+  Existing short-screen CSS now composes clock/weather/indoor/trend/three forecasts
+  and attribution below the top controls; no forecast or unique credit is hidden.
+  The optional badge stays clear of split attribution. Short landscape pairs use
+  a labeled Left/Right credit rail, retaining original image/crop layouts; ordinary
+  desktop/tall clock/weather geometry remains unchanged. One Google capture-date
+  caption is consolidated into the existing attribution card instead of competing
+  duplicate overlays. No new store/timer/dependency/controller or preference change.
+  Bounded matrix:320x568,375x667,568x320,1280x720,1920x1080,900x1400;
+  split/non-split and badgeon/off, regular/long metadata plus Google capture date.
+  Short-screen text stays at least12px; title/location can clamp to2lines, author/
+  category to1line, and split labels remain single-line. Desktop/tall attribution
+  allows3title lines and2author/category lines for long values. Full strings remain in
+  DOM/title attributes, not a promise of full text or touch/AT disclosure on-screen.
+  Synthetic QR geometry is qualified, not scanning. Physical-TV/AT and arbitrary
+  viewport/font/metadata fit remain unverified. Existing tall/desktop imagery and
+  blue-light behavior are retained. Fresh958shared/371native checks, lint/private
+  build and44browser journeys pass;54paired matrix combinations have zero final
+  widget overflow/collisions and tall/desktop clock/weather edges match within1px.
+  Strict remains203 inherited, zero added/removed. The same old-assets oracle
+  fails on320x568 credit overflow. Independent review accepted after192 optional-widget
+  combinations and6Google layouts. Source-only, not deployed or pushed; physical
+  acceptance remains outstanding. No automatic continuation selected.
 - Temperature and humidity trends to the TV weather/environment display,
   using available hourly history where appropriate. Compare with a clearly
   defined earlier reference such as the corresponding time yesterday, and assess

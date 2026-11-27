@@ -7390,3 +7390,31 @@ must supply a module-relative loader when a formerly import-free core gains a
 pure dependency. A form acknowledgement owns only its submitted draft: clear it
 only if no newer edit exists, and keep failure/retry separate from live state sync.
 See the Metadata foundation milestone in [ROADMAP.md](./ROADMAP.md).
+
+
+## Short overlays need measured lanes, not a clipped root
+
+An absolute TV root can hide overflow while document dimensions look correct.
+Measure actual widget/text edges and pairwise intersections at fixed viewport
+sizes, including optional badges and credits attached outside the dashboard grid.
+Check top controls against text, not just widget backgrounds. Use a height-aware
+composition and reserve attribution lanes instead of shrinking all typography or
+omitting forecast days. Keep truncated full strings in the DOM/attributes and
+state the tested font/viewport/metadata limits; a title attribute alone does not
+prove touch or screen-reader disclosure. A synthetic QR verifies geometry only.
+
+Derived active-slide data should have one render owner. Google capture-date text
+had two competing overlays: consolidating its existing caption into the attribution
+card preserves unique content without another visibility state. Reuse the same
+split-credit DOM for a labeled short-landscape rail; verify fixed positioning under
+the TV filter, which can establish a containing block. Keep original image styles/
+bytes unchanged. Layout fixtures must exclude intentionally broken pairing candidates
+or preloading failure can masquerade as a CSS issue. Retain a failing old-assets
+oracle and inspect paired built screenshots; source-shape checks cannot prove an
+attribution is visible. See the short-height follow-up in [ROADMAP.md](./ROADMAP.md).
+
+Use `LUMINA_TEST_ONLY_OVERLAY=1` with the existing `test_slideshow.js` and
+`LUMINA_TEST_DIST` to run the focused matrix. `LUMINA_OVERLAY_BASELINE=1` captures
+old-build measurements without enforcing the fix oracle; its PASS lines mean
+fixture completion, not layout acceptance. Keep each run in a fresh
+`LUMINA_TEST_ARTIFACTS` directory and enforce the oracle against old assets too.
