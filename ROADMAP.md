@@ -2,7 +2,25 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.9
+## Current release — 1.1.10
+
+Released2026-11-27 from independently accepted Image Feeds usability source.
+Fresh958shared/363native/sensor/report tests, lint, private build and33headless
+journeys pass. The first parallel suite run hit an inherited timing-sensitive
+held-media fixture; serial full suite and controlled actual-deadline reproduction
+passed without product/test changes. Strict remains203 inherited, zero added.
+Read-only live compact arrangement, keyboard disclosure, focused-gallery return,
+DOM order, gallery/admin/socket/TV and APIs pass with preview images supplied
+locally; zero application mutations/page errors. Atomic compatible assets/index
+publication and one native restart preserve latest photos/comments/settings/history
+and automatic intent without forcing activation. Named1.1.9 artifact and assets
+are retained; actual old codec preserves comments, both display booleans and newer
+ratings/location/policies offline. Protected export/latest-data merge and conflict
+refusal are qualified; no live downgrade. Runtime/private configuration unchanged.
+No provider-account, real-photo visual, physical-TV/GPU/AT claim. Refresh an existing
+admin page normally for the new frontend. No next sprint or continuation selected.
+
+## Previous release — 1.1.9
 
 Released2026-11-27 from the independently accepted permanent-collection gallery.
 Fresh shared/native/sensor/report tests, lint, private build and full headless
@@ -523,9 +541,9 @@ debt remains; this is no strict-clean, live-device or rollout claim. All selecte
 outcomes close at the source boundary; no automatic next sprint or reminder.
 The evidence/usage policy remains in [development evidence](./docs/DEVELOPMENT_EVIDENCE.md).
 
-### Image Feeds interaction assessment — source accepted, 2026-11-27
+### Image Feeds interaction assessment — released in 1.1.10, 2026-11-27
 
-Separately commissioned after1.1.9; source-only, not part of that release.
+Separately commissioned after1.1.9; source acceptance preceded the authorized1.1.10 rollout recorded above.
 Built narrow/wide assessment prioritizes routine browse/curation over occasional
 arrangement/setup. Persistent reorder bars consumed75px per collapsed card at
 320px; saved CSS order disagreed with keyboard DOM order. The integrated change
@@ -546,7 +564,7 @@ component geometry, narrow/wide screenshots, actual Tab/Enter/Escape journeys,
 reload preferences, stable draft nodes, durable retry and old-assets negative
 control support this bounded simplification. Parent full-diff acceptance and independent read-only R1 review passed, including
 all24 panel orders, denied preferences, draft identity and expanded-gallery
-restoration. Source-only milestone accepted; no deployment or push of this sprint. Physical devices/assistive technology and broader hierarchy or
+restoration. Initial source acceptance excluded deployment/push; the later1.1.10 release is recorded above. Physical devices/assistive technology and broader hierarchy or
 setup redesign remain unassessed, not implied complete by headless tests. Further
 Image Feeds optimization remains feedback, not automatic next-sprint authority.
 
