@@ -104,7 +104,7 @@ const screensaverState = {
     weather: true,
     weatherLocation: true,
     indoorEnvironment: true,
-    qrcode: true,
+    qrcode: false,
     particles: false,  // Default: Low Power Mode
     auraglow: false,   // Default: Low Power Mode
     animations: false  // Default: Low Power Mode (0% CPU)

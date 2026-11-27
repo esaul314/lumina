@@ -80,7 +80,7 @@ const { normalizePoolPolicy } = require('../domain/poolRetention.js');
  * @typedef {object} PersistedSnapshot
  * @property {number} lastUpdated
  * @property {number} lastFeedUpdated
- * @property {{weatherLocation: boolean}} [widgets]
+ * @property {{weatherLocation: boolean, qrcode: boolean}} [widgets]
  * @property {CollectionSnapshot} feeds
  * @property {KeywordMap} [searchKeywords]
  * @property {FeedConfigMap} [feedConfigs]
@@ -245,9 +245,10 @@ function normalizePersistedSnapshot(rawData, { defaultCollections, defaultState,
   return {
     collections,
     persistedState: {
-      // ponytail: restore only the new preference; other widget defaults stay unchanged.
+      // ponytail: persist only supported preferences, leaving other widget defaults unchanged.
       widgets: {
         ...(defaultState.widgets ?? {}),
+        qrcode: typeof rawData?.widgets?.qrcode === 'boolean' ? rawData.widgets.qrcode : false,
         weatherLocation: typeof rawData?.widgets?.weatherLocation === 'boolean'
           ? rawData.widgets.weatherLocation
           : (defaultState.widgets?.weatherLocation ?? true)
@@ -301,7 +302,7 @@ function buildPersistedSnapshot(collections, state = {}, timestamp = Date.now())
   };
 
   if (widgets) {
-    payload.widgets = { weatherLocation: widgets.weatherLocation !== false };
+    payload.widgets = { weatherLocation: widgets.weatherLocation !== false, qrcode: widgets.qrcode === true };
   }
 
   if (searchKeywords) {
