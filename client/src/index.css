@@ -2490,3 +2490,61 @@ summary.remote-section-title::-webkit-details-marker {
 .unrated-playback-fields .remote-btn { min-height: 44px; margin: 0; }
 .unrated-playback-fields :focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
 .unrated-playback-control [role="status"]:empty { display: none; }
+
+/* One Google capture-date title belongs to the existing attribution card. */
+.photo-info-widget .single-slide-credit {
+  position: static; padding: 0; border: 0; max-width: 100%; background: none;
+  box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+/* Long attribution has a finite readable footprint; full strings stay in DOM/title. */
+.photo-title, .photo-author, .photo-category { overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.photo-title { -webkit-line-clamp: 3; }
+.photo-author, .photo-category { -webkit-line-clamp: 2; }
+
+/* Reserve attribution space instead of letting the optional badge cover it. */
+.lumina-tv-container:has(.slide.active .split-slide-container) .connection-widget { margin-bottom: 72px; }
+
+/* Short TV surfaces keep every forecast and reading, using columns inside the
+   weather card rather than shrinking the whole overlay or clipping its footer. */
+@media (max-width: 1000px) and (max-height: 740px) {
+  .tv-dashboard-ui { padding: 64px 12px 12px; gap: 6px; }
+  .tv-dashboard-ui .glass-widget { padding: 8px 12px; border-radius: 16px; min-width: 0; }
+  .clock-widget { gap: 2px; }
+  .clock-time { font-size: 2rem; }
+  .clock-period { font-size: 1rem; }
+  .clock-date { font-size: 0.9rem; margin: 0; white-space: normal; }
+  .weather-widget { gap: 6px; }
+  .weather-main { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; }
+  .weather-temp-row { grid-column: 1; grid-row: 1 / 4; gap: 8px; }
+  .weather-temp { font-size: 2.5rem; }
+  .weather-condition, .weather-humidity, .weather-city { grid-column: 2; margin: 0; }
+  .weather-condition { font-size: 1rem; }
+  .weather-humidity { font-size: 0.85rem; }
+  .weather-city { font-size: 0.8rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+  .indoor-environment { grid-column: 1 / -1; margin-top: 4px; }
+  .forecast-day svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .photo-info-widget { width: 100%; gap: 4px; }
+  .photo-title { font-size: 1rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+  .photo-author, .photo-category { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: 1; }
+  .photo-author { font-size: 0.85rem; }
+  .connection-widget { gap: 8px; }
+  .connection-info { min-width: 0; }
+  .slide-half-credit { left: 4px; right: 4px; max-width: none; padding: 6px 8px; }
+  .slide-half-credit .author { font-size: 0.75rem; }
+  .lumina-tv-container:has(.slide.active .split-slide-container) .tv-dashboard-ui { padding-bottom: 96px; }
+  .lumina-tv-container:has(.slide.active .split-slide-container) .connection-widget { margin-bottom: 0; }
+}
+
+@media (max-width: 1000px) and (max-height: 450px) and (min-aspect-ratio: 1/1) {
+  .tv-dashboard-ui { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); grid-template-rows: auto 1fr auto; gap: 6px 8px; }
+  .weather-widget { grid-column: 2; grid-row: 1 / -1; }
+  .connection-widget { grid-column: 1; grid-row: 2; }
+  .photo-info-widget { grid-column: 1; grid-row: 3; }
+  /* ponytail: a labeled left rail reuses both existing credits; no duplicate UI. */
+  .slide-half-credit { position: fixed; left: 12px; right: auto; width: calc((100vw - 32px) * 0.4); bottom: 60px; }
+  .slide-half:nth-child(2) .slide-half-credit { bottom: 8px; }
+  .slide-half:first-child .slide-half-credit .title::before { content: 'Left: '; }
+  .slide-half:nth-child(2) .slide-half-credit .title::before { content: 'Right: '; }
+  .lumina-tv-container:has(.slide.active .split-slide-container) .tv-dashboard-ui { padding-bottom: 12px; }
+  .lumina-tv-container:has(.slide.active .split-slide-container) .connection-widget { align-self: start; }
+}

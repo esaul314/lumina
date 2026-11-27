@@ -84,7 +84,8 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
   const currentFrame = getCurrentFrame(state);
   const primaryPhoto = getFramePhoto(state, 'primary');
   const secondaryPhoto = getFramePhoto(state, 'secondary');
-  const displayedPrimaryUrl = activeSlides.find(slide => slide.active)?.url;
+  const displayedSlide = activeSlides.find(slide => slide.active);
+  const displayedPrimaryUrl = displayedSlide?.url;
   const clockParts = formatClockParts(currentTime);
   const indoorTrend = formatIndoorTrend(environment, currentTime.getTime());
   const indoorPressure = convertPressure(environment?.indoor?.pressureRelativeHpa, environment?.units?.pressure);
@@ -774,8 +775,8 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
                       style={getSplitImageStyle(slide.url, slide.w, slide.h, slide.cropPercent, slide.cropPositionY)}
                     />
                     <div className="slide-half-credit">
-                      <div className="title">{slide.title}</div>
-                      <div className="author">by {slide.author}</div>
+                      <div className="title" title={slide.title}>{slide.title}</div>
+                      <div className="author" title={slide.author}>by {slide.author}</div>
                     </div>
                   </div>
                   <div className="slide-half">
@@ -784,8 +785,8 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
                       style={getSplitImageStyle(slide.url2, slide.w2, slide.h2, slide.cropPercent2, slide.cropPositionY2)}
                     />
                     <div className="slide-half-credit">
-                      <div className="title">{slide.title2}</div>
-                      <div className="author">by {slide.author2}</div>
+                      <div className="title" title={slide.title2}>{slide.title2}</div>
+                      <div className="author" title={slide.author2}>by {slide.author2}</div>
                     </div>
                   </div>
                 </div>
@@ -795,11 +796,7 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
                     className={`single-slide-image ${shouldAnimate ? 'animated' : ''}`}
                     style={getSingleImageStyle(slide.url, slide.w, slide.h, slide.cropPercent, slide.cropPositionY)}
                   />
-                  {slide.source === 'google_photos' && (
-                    <div className="single-slide-credit">
-                      <div className="title">{slide.title}</div>
-                    </div>
-                  )}
+
                 </div>
               )}
             </div>
@@ -925,7 +922,7 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
                   {weather.current.relative_humidity_2m}% Humidity
                 </div>
                 {state.widgets.weatherLocation !== false && (
-                  <div className="weather-city">
+                  <div className="weather-city" title={`${weather.location.city}, ${weather.location.regionName}`}>
                     <MapPin size={10} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
                     {weather.location.city}, {weather.location.regionName}
                   </div>
@@ -974,16 +971,18 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
           )}
 
           {/* D. Wallpaper Credits widget (Bottom Right) */}
-          {activeSlides.find(s => s.active) && !activeSlides.find(s => s.active).isSplit && (
+          {displayedSlide && !displayedSlide.isSplit && (
             <div className="glass-widget photo-info-widget">
-              <span className="photo-category">
-                {activeSlides.find(s => s.active).category ? activeSlides.find(s => s.active).category.split(',').join(' + ') : ''}
+              <span className="photo-category" title={displayedSlide.category}>
+                {displayedSlide.category ? displayedSlide.category.split(',').join(' + ') : ''}
               </span>
-              <div className="photo-title">
-                {activeSlides.find(s => s.active).title}
-              </div>
-              <div className="photo-author">
-                by {activeSlides.find(s => s.active).author}
+              {displayedSlide.source === 'google_photos' ? (
+                <div className="single-slide-credit">
+                  <div className="photo-title" title={displayedSlide.title}>{displayedSlide.title}</div>
+                </div>
+              ) : <div className="photo-title" title={displayedSlide.title}>{displayedSlide.title}</div>}
+              <div className="photo-author" title={displayedSlide.author}>
+                by {displayedSlide.author}
               </div>
             </div>
           )}
