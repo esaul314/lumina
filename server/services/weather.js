@@ -124,12 +124,39 @@ function classifyWeatherCode(code) {
 }
 
 /**
+ * Normalize consumed daily columns without compacting their original indices.
+ * Slot zero remains the provider's today slot, even when it is unavailable.
+ * Unused provider fields stay opaque; only the four consumed columns are admitted.
+ * @param {unknown} input
+ */
+const projectDailyForecast = input => {
+  const daily = /** @type {Record<string, unknown>} */ (
+    input && typeof input === 'object' && !Array.isArray(input) ? input : {}
+  );
+  const times = Array.isArray(daily.time) ? daily.time : [];
+  const rows = Array.from(times, (time, index) => {
+    const maximum = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[index] : undefined;
+    const minimum = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min[index] : undefined;
+    const code = Array.isArray(daily.weather_code) ? daily.weather_code[index] : undefined;
+    const validDate = typeof time === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(time)
+      && Number.isFinite(Date.parse(time)) && new Date(time).toISOString().slice(0, 10) === time;
+    return validDate && typeof maximum === 'number' && Number.isFinite(maximum)
+      && typeof minimum === 'number' && Number.isFinite(minimum) && minimum <= maximum
+      && typeof code === 'number' && Number.isFinite(code) ? { time, maximum, minimum, code } : null;
+  });
+  // ponytail: unavailable slots preserve alignment; no index marker or second cache.
+  return { ...daily, time: rows.map(row => row?.time ?? null),
+    temperature_2m_max: rows.map(row => row?.maximum ?? null),
+    temperature_2m_min: rows.map(row => row?.minimum ?? null), weather_code: rows.map(row => row?.code ?? null) };
+};
+
+/**
  * @typedef {{current: Record<string, unknown> & {temperature_2m: number, weather_code: number}, daily?: unknown}} WeatherForecast
  * @typedef {{fetchImpl?: typeof fetch, timeoutMs?: number}} ForecastLookupOptions
  */
 
-/** Validate only observations required for a coherent cache/physical update.
- * Daily fields and unknown numeric WMO codes retain their existing semantics.
+/** Admit current observations independently of unavailable daily slots.
+ * Unknown finite WMO codes retain the existing fallback classification.
  * @param {unknown} data
  * @returns {WeatherForecast}
  */
@@ -145,7 +172,7 @@ function validateWeatherForecast(data) {
     || typeof current.weather_code !== 'number' || !Number.isFinite(current.weather_code)) {
     throw new Error('Invalid Open-Meteo forecast response');
   }
-  return /** @type {WeatherForecast} */ (record);
+  return /** @type {WeatherForecast} */ ({ ...record, daily: projectDailyForecast(record.daily) });
 }
 
 /**
@@ -199,5 +226,6 @@ module.exports = {
   resolveActiveLocation,
   classifyWeatherCode,
   fetchWeatherForecast,
-  validateWeatherForecast
+  validateWeatherForecast,
+  projectDailyForecast
 };

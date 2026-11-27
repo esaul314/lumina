@@ -16,7 +16,7 @@ import {
 } from '../state/frameSelectors';
 import { toCssImageUrl } from '../state/cssImage.js';
 import { formatClockParts } from '../state/clock.js';
-import { convertPressure, convertTemperature, formatIndoorTrend, formatEnvironmentMetric } from '../state/environmentHistory.js';
+import { convertPressure, convertTemperature, formatIndoorTrend, formatEnvironmentMetric, projectForecastDays } from '../state/environmentHistory.js';
 import { isEscapeKey, isScreensaverDismissalActivity } from '../state/screensaverActivity.js';
 import { buildMediaOriginProbeUrl, decideMediaFailure } from '../state/mediaRecovery.js';
 import { getPhotoSlideTitle, projectSplitSlideTitles } from '../state/photoTitles.js';
@@ -88,6 +88,7 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
   const displayedPrimaryUrl = displayedSlide?.url;
   const clockParts = formatClockParts(currentTime);
   const indoorTrend = formatIndoorTrend(environment, currentTime.getTime());
+  const forecastDays = projectForecastDays(weather?.daily);
   const indoorPressure = convertPressure(environment?.indoor?.pressureRelativeHpa, environment?.units?.pressure);
 
   useEffect(() => {
@@ -939,11 +940,12 @@ function Dashboard({ state, socket, connectionInfo, allowScreensaverDismissal = 
               </div>
               <div className="weather-divider" />
               <div className="weather-forecast">
-                {weather.daily.time.slice(1, 4).map((time, idx) => {
-                  const dayName = new Date(time).toLocaleDateString([], { weekday: 'short' });
-                  const tempMax = Math.round(weather.daily.temperature_2m_max[idx + 1]);
-                  const tempMin = Math.round(weather.daily.temperature_2m_min[idx + 1]);
-                  const info = getWeatherInfo(weather.daily.weather_code[idx + 1]);
+                {forecastDays.length === 0 && <span role="status">Daily forecast unavailable</span>}
+                {forecastDays.map(({ time, maximum, minimum, code }, idx) => {
+                  const dayName = new Date(`${time}T12:00:00`).toLocaleDateString([], { weekday: 'short' });
+                  const tempMax = Math.round(maximum);
+                  const tempMin = Math.round(minimum);
+                  const info = getWeatherInfo(code);
                   return (
                     <div key={idx} className="forecast-day">
                       <span className="forecast-day-name">{dayName}</span>

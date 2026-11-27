@@ -187,3 +187,26 @@ export const formatIndoorTrend = (environment, now) => {
     .replace('°F', ' degrees Fahrenheit').replace('°C', ' degrees Celsius').replace(' pp', ' percentage points');
   return { text, label };
 };
+
+/**
+ * Defensive legacy-response boundary: skip the provider's slot zero BEFORE
+ * omitting unusable days. Do not shift today or backfill a later forecast slot.
+ * @param {unknown} input
+ * @returns {{time: string, maximum: number, minimum: number, code: number}[]}
+ */
+export const projectForecastDays = input => {
+  const daily = /** @type {Record<string, unknown>} */ (
+    input && typeof input === 'object' && !Array.isArray(input) ? input : {}
+  );
+  return (Array.isArray(daily.time) ? daily.time : []).slice(1, 4).flatMap((time, offset) => {
+    const index = offset + 1;
+    const maximum = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[index] : undefined;
+    const minimum = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min[index] : undefined;
+    const code = Array.isArray(daily.weather_code) ? daily.weather_code[index] : undefined;
+    const validDate = typeof time === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(time)
+      && Number.isFinite(Date.parse(time)) && new Date(time).toISOString().slice(0, 10) === time;
+    return validDate && typeof maximum === 'number' && Number.isFinite(maximum)
+      && typeof minimum === 'number' && Number.isFinite(minimum) && minimum <= maximum
+      && typeof code === 'number' && Number.isFinite(code) ? [{ time, maximum, minimum, code }] : [];
+  });
+};
