@@ -198,7 +198,7 @@ selected; **Reset to unrated** explicitly clears a score. Both `PATCH /api/photo
 and compatibility `POST /api/photos/rate` accept `{url, rating: null}`. Missing or
 invalid scores retain existing rejection behavior. Existing numeric scores,
 including legacy10, are not reclassified: their human/default provenance is unknown.
-**Accepted source-only, independently reviewed and not yet deployed:**
+**Released in1.1.11, independently reviewed:**
 unrated smart playback uses **System → General → Unrated playback weight**:
 an integer2–10, default10 for previous behavior. It is an effective selection
 weight within the chosen pool, not a human score; lower values favor rated

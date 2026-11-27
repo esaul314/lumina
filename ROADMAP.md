@@ -2,7 +2,28 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.10
+## Current release — 1.1.11
+
+Released2026-11-27 from independently accepted configurable unrated playback.
+Fresh958shared/371native/sensor/report tests, lint, private build and35headless
+journeys pass; strict remains203 inherited diagnostics, zero added/removed.
+Only nullish scores use the configurable2–10 fallback; stored scores, bans,
+exclusions, pool fairness/rotation and sequential playback remain unchanged.
+One native restart and compatible atomic assets/index publication preserve fresh
+automatic/inactive intent, all prior photos/comments/settings/history and private
+configuration. No TV activation or preference-save probe was forced. Read-only
+live API/socket/admin/TV, narrow/wide new-control geometry, gallery and arrangement
+checks pass with local preview substitutions and zero application mutations/errors.
+The unset preference reads default10 without a live preference write.
+Named1.1.10 artifact/assets retained. Actual old writer omits the new weight:
+0600 protected export, conflict-refusing merge into LATEST data and forward codec
+reconstruction are qualified offline for2/4/10, preserving comments/badge/filter,
+newer ratings/location/policies. Never restore an old whole user-data file over
+newer edits. No live downgrade or off-host recovery claim. Runtime/pin/provider
+credentials unchanged; no real-photo/provider-account/physical-TV/GPU/AT claim.
+Refresh an open admin page normally to load new assets. No next sprint selected.
+
+## Previous release — 1.1.10
 
 Released2026-11-27 from independently accepted Image Feeds usability source.
 Fresh958shared/363native/sensor/report tests, lint, private build and33headless
@@ -602,7 +623,7 @@ Retained regression owners: `server/domain/permanentGallery.test.js`,
 ### Metadata foundation
 
 - **Accepted source-only:** canonical `rating: null` for new/missing scores and explicit reset, with matching live admission, persistence, Google refresh and both admin controls. Existing defined scores are preserved, not reclassified.
-- **Accepted source-only — configurable unrated playback weight.**
+- **Released in1.1.11 — configurable unrated playback weight.**
   One existing global playback setting accepts an integer2–10, default10 for
   compatibility. Only nullish photo scores use it; no stored Unrated or explicit
   legacy score is rewritten or assigned new provenance. Weighted and smart-feed
@@ -618,10 +639,10 @@ Retained regression owners: `server/domain/permanentGallery.test.js`,
   built-browser journeys pass. Strict remains203 inherited, zero added/removed.
   Deterministic old-fallback, disabled-writer/old-codec and nonconfirming-response
   controls detect the corresponding regressions. Independent R1 review and parent
-  acceptance complete; no deployment/push/restart/live-setting writes.
-  Retained acceptance: `.agents/instruction-archives/unrated-playback-20261127/acceptance.md`. Older writers omit the new preference; a future authorized downgrade
+  source acceptance complete; later1.1.11 rollout is recorded above, without live-setting writes.
+  Initial source acceptance excluded rollout; separately authorized1.1.11 is recorded above. Older writers omit the new preference; an authorized downgrade
   must preserve it separately and reconcile into latest data, not restore an old
-  whole snapshot. Physical/AT and live preference acceptance remain unverified.
+  whole snapshot. Physical/AT and live preference-save acceptance remain unverified.
 - Keep rating`1` as banned and `isBroken` as a separate exclusion. Going forward numeric scores are explicit selections; do not infer human/default provenance for existing values.
 - Extend image metadata to support:
   - acquisition timestamp (`addedAt`)
