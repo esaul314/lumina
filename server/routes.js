@@ -1,6 +1,7 @@
 // @ts-check
 
 const os = require('os');
+const { galleryPageRequest, projectPermanentGallery } = require('./domain/permanentGallery.js');
 const { randomBytes, timingSafeEqual } = require('crypto');
 const { resolveActiveLocation, fetchWeatherForecast } = require('./services/weather.js');
 const googlePhotos = require('./services/googlePhotos.js');
@@ -293,8 +294,10 @@ module.exports = function configureRoutes({
       part ? { ...patch, ...part.responsePatch } : patch
     ), {})
   });
+  const getPoolPhotos = (name) => name === GOOGLE_PHOTOS_CATEGORY
+    ? buildExternalCollections()[name] : collections[name] || [];
   const buildPoolResponse = (name) => {
-    const photos = buildExternalCollections()[name] || collections[name] || [];
+    const photos = getPoolPhotos(name);
     return {
       name,
       keywords: (state.searchKeywords && state.searchKeywords[name]) || [],
@@ -762,6 +765,15 @@ module.exports = function configureRoutes({
     )
   ));
 
+  app.get('/api/admin/permanent-gallery', createAsyncRoute(async (req, res) => {
+    const paging = galleryPageRequest(req.query);
+    if (!paging) return sendError(res, 400, 'Positive integer page and pageSize (maximum 60) required.');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(projectPermanentGallery({ collections,
+      googlePhotos: googlePhotos.getCachedMediaItems({ readOnly: true, includeUnavailable: true }),
+      excludedKeywords: state.excludedKeywords, ...paging }));
+  }));
+
   app.get('/api/photos', createAsyncRoute(async (req, res) => {
     if (req.query.category) {
       if (!requireDispatcher(res, 'Category selection dispatcher unavailable.')) {
@@ -988,7 +1000,7 @@ module.exports = function configureRoutes({
       return;
     }
 
-    res.json(name === GOOGLE_PHOTOS_CATEGORY ? buildExternalCollections()[name] : collections[name]);
+    res.json(getPoolPhotos(name));
   });
 
   app.patch('/api/photos', createBatchCommandRoute({
