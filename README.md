@@ -362,3 +362,30 @@ An upgrade retains the latest settings file; a downgrade requires separately
 protecting this preference before an old writer runs and merging it into the
 latest document on forward return, never restoring an older whole data snapshot.
 This does not migrate other widgets or change QR generation/network policy.
+
+### Indoor elapsed trends
+
+The TV environment widget may show compact temperature/humidity changes labelled
+“vs ~24h ago.” This is the nearest comparable hourly observation23–25elapsed hours
+before the current indoor observation, not calendar yesterday or an aggregate.
+The current observation must be enabled, non-stale, no older than10minutes and
+not future-dated. Both observations need matching source, opaque configured
+profile/connection identity and exact finite weather-location coordinates.
+Missing, invalid, incomparable or failed history reads produce no trend row.
+The existing environment poll and display clock handle recovery and ageing;
+there is no additional timer, store or schema migration.
+
+Temperature deltas use C or F scale without the absolute32-degree offset; humidity
+changes use percentage points (`pp`). Direction is signed text, with expanded
+screen-reader units, not color alone. The row occupies at most two compact lines
+at qualified widths; missing trends reserve no space. Existing weather/credits
+stack on narrow screens so the complete comparison and forecast remain visible.
+
+Only newly recorded, identified indoor observations qualify. Old history rows use
+a constant model label and cannot prove device continuity, so they remain stored
+but excluded; expect up to a day before a comparison is available after rollout.
+Indoor timestamps describe adapter receipt/poll time, not hardware sampling time.
+The identity represents configured profile/connection, not hardware attestation:
+an unconfigured physical relocation/replacement is not detectable. Outdoor trends
+are deferred because outdoor cache values were stamped with the indoor poll time,
+not their own weather-observation time. No inference or backfill is performed.

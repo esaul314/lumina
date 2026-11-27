@@ -604,7 +604,28 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
 - Done: each hourly history row preserves the complete Ecowitt `get_livedata_info` payload under `gateway_metrics`, so optional rain, wind, UV/light, lightning, air-quality, soil, leaf, leak, distance, and multichannel sensor blocks are retained without schema changes.
 - Done: introduced a general capability-aware sensor adapter platform; Ecowitt GW1200 is now the first registered adapter rather than the platform contract itself, with adapter discovery at `GET /api/environment/adapters`.
 - Have widgets consume normalized sensor records plus source/device capability metadata.
-- Add temperature and humidity trends to the TV weather/environment display,
+- **SOURCE ACCEPTED — compact timestamp-aware indoor temperature/humidity trends.**
+  Initial scope is indoor only: outdoor history stamps cached weather with indoor
+  poll time, so outdoor observation freshness cannot be proven. Historical device
+  labels are constant; new observations carry an opaque configured-profile/URL key
+  in the existing device column, no schema/data migration. Legacy unproven rows
+  stay silent. Compare nearest observation24elapsed hours earlier within1hour;
+  current reading <=10minutes old, no future timestamp, matching source/device and
+  exact finite configured location; finite real metrics only. Label “vs ~24h ago”,
+  signed temperature delta in display units and humidity percentage points, no
+  charts/new timer/store. Missing/stale/failure/incomparable contexts render nothing.
+  Preserve other display/settings behavior. Narrow-screen qualification exposed
+  existing480px weather-card clipping and an implicit credits column: stack the
+  existing widgets below1000px without dropping forecasts; desktop layout unchanged.
+  Opaque identity is configured connection/profile, not physical hardware attestation;
+  no detection of an unconfigured relocation. New history may need a day to qualify.
+  Independent review accepted; 958 assertions/345 native cases, lint, build and
+  26 browser cases passed with exact candidate evidence. No deployment or push.
+  Short-height follow-up: with clock/weather/indoor and landscape credits at
+  320x568, the last ~72px of credits lie below screen. Add a height-aware credit
+  layout and short-height regression before claiming arbitrary phone-height fit;
+  weather/trend fit and qualified taller/portrait layouts remain accepted.
+- Temperature and humidity trends to the TV weather/environment display,
   using available hourly history where appropriate. Compare with a clearly
   defined earlier reference such as the corresponding time yesterday, and assess
   compact sparklines versus up/down indicators or warmer/cooler coloring. Decide

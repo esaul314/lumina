@@ -1,5 +1,19 @@
 # 📖 Lumina Developer Log & AI Learnings Journal
 
+## 2026-11-27 — elapsed comparisons require observation provenance
+
+An hourly row timestamp may describe a different sensor's poll, not the age of
+cached weather beside it. Restrict comparisons to provenance the record proves;
+do not rebrand a constant model label as device identity. Preserve legacy rows
+without inventing history, and carry a private-address-free configured identity
+through the existing recording/API path. Guard null before numeric conversion.
+A nearest elapsed-time reference needs an explicit tolerance, freshness and future
+gate, source/device/location agreement and per-metric finite checks. Keep the
+selector pure and the history read a small bounded effect; existing poll/clock
+can suppress failure/staleness without another scheduler. Compare actual built
+widget bounds: local text overflow checks miss an off-viewport parent grid track.
+The [indoor trend scope](./ROADMAP.md#phase-2) owns acceptance and outdoor deferral.
+
 ## 2026-11-27 — a setting needs both serialization and reconstruction
 
 A working toggle/state-sync can conceal a persistence whitelist omission. The QR
