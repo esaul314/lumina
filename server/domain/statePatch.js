@@ -84,19 +84,21 @@ const normalizeManualLocation = (manualLocation = {}) => {
   };
 };
 
-/** Identify the supported badge preference, including explicit false/no-op retries.
+/** Identify supported durable display preferences, including explicit false/no-op retries.
  * Public command decoding supplies an own-enumerable widget record; preserve its
  * existing truthiness semantics without widening persistence for unrelated patches.
  * @param {unknown} patch @returns {boolean}
  */
-const hasQrCodePreference = (patch) => {
+const hasDurableDisplayPreference = (patch) => {
   const widgets = /** @type {{widgets?: unknown} | null | undefined} */ (patch)?.widgets;
   return widgets !== null && typeof widgets === 'object' && !Array.isArray(widgets)
-    && Object.prototype.propertyIsEnumerable.call(widgets, 'qrcode');
+    && (Object.prototype.propertyIsEnumerable.call(widgets, 'qrcode')
+      || (Object.prototype.propertyIsEnumerable.call(widgets, 'blueLightFilter')
+        && typeof /** @type {Record<string, unknown>} */ (widgets).blueLightFilter === 'boolean'));
 };
 
 module.exports = {
-  hasQrCodePreference,
+  hasDurableDisplayPreference,
   normalizeManualLocation,
   normalizeVisionConfig,
   pickStatePatchFields,

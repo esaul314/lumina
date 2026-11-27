@@ -31,7 +31,7 @@ const {
 } = require('../utils/keywordSpecs.js');
 const { createIndexedInterpreter } = require('../utils/fn.js');
 const {
-  hasQrCodePreference,
+  hasDurableDisplayPreference,
   normalizeManualLocation,
   normalizeVisionConfig,
   STATE_PATCH_FIELDS
@@ -1575,7 +1575,8 @@ const readWidgetPatch = readPatchField('widgets', /** @type {WidgetPatchNormaliz
   }
 
   const normalizedEntries = Object.keys(/** @type {Record<string, unknown>} */ (widgets))
-    .filter((widgetName) => Object.prototype.hasOwnProperty.call(nextState.config.widgets, widgetName))
+    .filter((widgetName) => Object.prototype.hasOwnProperty.call(nextState.config.widgets, widgetName)
+      && (widgetName !== 'blueLightFilter' || typeof /** @type {Record<string, unknown>} */ (widgets)[widgetName] === 'boolean'))
     .map((widgetName) => [widgetName, Boolean(/** @type {Record<string, unknown>} */ (widgets)[widgetName])]);
 
   return normalizedEntries.length > 0 ? Object.fromEntries(normalizedEntries) : PATCH_SKIP;
@@ -1679,8 +1680,8 @@ function reduceStatePatchCommand(state, patch, env) {
   }));
 
   if (!context.changed) {
-    // ponytail: retry the same badge value after a failed write already applied memory.
-    return hasQrCodePreference(patch) && Object.prototype.hasOwnProperty.call(state.config.widgets, 'qrcode')
+    // ponytail: retry the same display preference after a failed write already applied memory.
+    return hasDurableDisplayPreference(patch) && readWidgetPatch(patch, state) !== PATCH_SKIP
       ? buildMutationResult(state, { persist: true, events: [{ type: 'state-sync' }] })
       : unchangedResult(state);
   }
