@@ -2,7 +2,25 @@
 
 Last updated: 2026-11-27
 
-## Current release — 1.1.7
+## Current release — 1.1.8
+
+Released2026-11-27 from independently accepted manual blue-light filter source.
+Fresh958 shared assertions/358 native cases, lint, isolated build and28 browser
+journeys pass, including durable saves/retries and TV-only warmth/pixel controls.
+Atomic hash-asset/index publication and one native-owner restart preserve latest
+photos/comments/settings/history and automatic display intent; no forced activation.
+Read-only live APIs/socket/admin/TV DOM verify default-off, the accessible manual
+switch and unfiltered admin; no live preference toggle was used. Existing open
+admin pages need a normal refresh for new frontend assets. Exact1.1.7 rollback
+artifact/old assets retained; actual old codec drops the new filter, so protected
+export and conflict-refusing merge into latest data are qualified offline for
+both booleans while retaining newer ratings/settings/comments/badge values.
+No live downgrade, real-photo visual, provider account, physical-TV warmth/GPU/AT
+claim. Runtime/private config unchanged; inherited compiler/vision debt and
+short-height credits follow-up remain separate. Planned collection gallery is
+not implemented; this release selects no next sprint or continuation.
+
+## Previous release — 1.1.7
 
 Released2026-11-27 from independently accepted indoor elapsed-time trends.
 Fresh958 shared assertions/345 native cases, lint, isolated build and26 browser
