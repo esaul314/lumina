@@ -13,7 +13,7 @@ test('permanent projection ignores feed selection, retains exclusions, exact ded
   const input = { collections, googlePhotos, excludedKeywords: ['hidden'], page: 1, pageSize: 24 };
   const first = projectPermanentGallery(input);
   assert.equal(first.total, 127); assert.equal(first.photos.length, 24);
-  assert.deepEqual(first.photos[0], { url: 'same', title: 'Hidden', pool: 'A', exclusions: ['Banned rating', 'Marked broken', 'Excluded keyword'] });
+  assert.deepEqual(first.photos[0], { url: 'same', title: 'Hidden', pool: 'A', author: null, exclusions: ['Banned rating', 'Marked broken', 'Excluded keyword'] });
   const last = projectPermanentGallery({ ...input, page: 999 });
   assert.equal(last.page, 6); assert.equal(last.photos.length, 7); assert.equal(last.photos.at(-1).url, 'google');
   assert.equal(JSON.stringify({ collections, googlePhotos }), before);
@@ -63,4 +63,19 @@ test('client read plan is GET-only and validates bounded response shape', async 
   for (const patch of [{ page: 0 }, { total: -1 }, { pages: 2 }, { pageSize: 100 }, { total: 1 }, { photos: [null] }]) {
     assert.throws(() => readPermanentGallery({ ...empty, ...patch }), /Invalid permanent/);
   }
+});
+
+
+test('saved attribution is optional read-only text, never private comments or fabricated provenance', async () => {
+  const collections={A:[{url:'artist',loved:true,author:'  Artist name  ',comment:'private'},
+    {url:'unknown',loved:true,author:7},{url:'blank',loved:true,author:'  '}]};
+  const before=JSON.stringify(collections);
+  const result=projectPermanentGallery({collections,page:1,pageSize:24});
+  assert.deepEqual(result.photos.map(p=>p.author),['Artist name',null,null]);
+  assert(!JSON.stringify(result).includes('private'));assert.equal(JSON.stringify(collections),before);
+  const source=fs.readFileSync(path.join(__dirname,'../../client/src/state/permanentGallery.js'),'utf8');
+  const {readPermanentGallery}=await import('data:text/javascript,'+encodeURIComponent(source));
+  assert.equal(readPermanentGallery(result),result);
+  assert.throws(()=>readPermanentGallery({...result,photos:result.photos.map((p,i)=>i? p:{...p,author:9})}),/Invalid permanent/);
+  assert.equal(readPermanentGallery({...result,photos:result.photos.map(({author,...p})=>p)}).photos.length,3);
 });

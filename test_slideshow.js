@@ -1513,12 +1513,150 @@ async function runHeaderCase(browser) {
   console.log('PASS: responsive header geometry, status/draft reflow and keyboard modes');
 }
 
+async function galleryExperienceFixture(browser, run) {
+  await withFixture(browser,async({page,fixture})=>{
+    fixture.collections.Library=Array.from({length:49},(_,i)=>({...photo(`browse-${i}`,i%3===0?'portrait':'landscape'),
+      loved:true,title:i%7===0?'A long saved-image title with meaningful attribution and an unbrokenword'.repeat(3):`Browse ${i}`,
+      author:i%2===0?'Fixture artist':'',rating:i===2?1:null,isBroken:i===2}));
+    const remote=await page.context().newPage();
+    await remote.route('**/fixtures/browse-*.svg',route=>{
+      const i=Number(new URL(route.request().url()).pathname.match(/browse-(\d+)/)[1]);
+      if(i===2)return route.fulfill({status:404,body:''});
+      return route.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="${i%3===0?960:360}"><rect width="640" height="960" fill="${i%2?'#596b7b':'#70595d'}"/><text x="20" y="70" fill="white" font-size="40">Image ${i}</text></svg>`});
+    });
+    await remote.goto(fixture.url+'/?mode=remote');await remote.getByRole('button',{name:'Image Feeds',exact:true}).click();
+    await remote.getByRole('button',{name:'Permanent Collection Gallery',exact:true}).click();
+    const gallery=remote.locator('.permanent-gallery');await expect(gallery.locator('.permanent-gallery-grid > li')).toHaveCount(24);
+    const before=JSON.stringify(fixture.collections),writes=fixture.persistence.collections.length,active=fixture.state.activePhoto.url;
+    await run({remote,gallery,fixture});
+    assert.equal(JSON.stringify(fixture.collections),before);assert.equal(fixture.persistence.collections.length,writes);assert.equal(fixture.state.activePhoto.url,active);
+    await remote.close();
+  });
+}
+async function runGalleryPrototypes(browser){
+  await galleryExperienceFixture(browser,async({remote,gallery})=>{
+    await gallery.locator('img').evaluateAll(imgs=>imgs.forEach(img=>{img.loading='eager';}));
+    await expect.poll(()=>gallery.locator('img').evaluateAll(imgs=>imgs.every(img=>img.complete))).toBe(true);
+    const rows=[];
+    for(const layout of ['regular','justified']){
+      const style=await remote.addStyleTag({content:`.permanent-gallery-grid {${layout==='regular'?'display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,160px),1fr));':'display:flex;flex-wrap:wrap;'}gap:16px;}.permanent-gallery-grid .gallery-media{aspect-ratio:${layout==='regular'?'4 / 3':'auto'};display:block;}.permanent-gallery-grid img{position:static;height:auto;aspect-ratio:${layout==='regular'?'4 / 3':'auto'};object-fit:contain;}.permanent-gallery-grid button span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}`});
+      if(layout==='justified')await gallery.locator('.permanent-gallery-grid > li').evaluateAll(items=>items.forEach(item=>{const img=item.querySelector('img'),ratio=img?.naturalWidth/img?.naturalHeight||4/3;item.style.flex=`${ratio} 1 ${150*ratio}px`;}));
+      for(const width of [320,375,1280]){
+        await remote.setViewportSize({width,height:900});await gallery.scrollIntoViewIfNeeded();
+        const geometry=await gallery.evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth,gridHeight:el.querySelector('ul').getBoundingClientRect().height,items:el.querySelectorAll('li').length}));
+        rows.push({layout,viewport:width,...geometry});await remote.screenshot({path:path.join(captureDirectory,`prototype-${layout}-${width}.png`)});
+      }
+      await style.evaluate(el=>el.remove());await gallery.locator('li').evaluateAll(items=>items.forEach(item=>item.removeAttribute('style')));
+    }
+    fs.writeFileSync(path.join(captureDirectory,'gallery-prototypes.json'),JSON.stringify(rows,null,2));
+  });console.log('PASS: built regular and justified gallery prototypes compared');
+}
+
+async function runGalleryExperience(browser){
+  await galleryExperienceFixture(browser,async({remote,gallery,fixture})=>{
+    await remote.emulateMedia({reducedMotion:'reduce'});
+    const measurements=[];
+    for(const [width,height] of [[320,568],[375,667],[1280,900]]){
+      await remote.setViewportSize({width,height});await gallery.scrollIntoViewIfNeeded();
+      const cards=gallery.locator('.permanent-gallery-grid > li');await expect(cards).toHaveCount(24);
+      const first=cards.first();await first.scrollIntoViewIfNeeded();
+      await expect(first.locator('img')).toBeVisible();
+      const media=await first.locator('img').boundingBox();assert(media&&media.height>=100,'readable image footprint');
+      const fit=await first.locator('img').evaluate(el=>{const image=el.getBoundingClientRect(),frame=el.parentElement.getBoundingClientRect();return {naturalWidth:el.naturalWidth,naturalHeight:el.naturalHeight,image:{width:image.width,height:image.height},frame:{width:frame.width,height:frame.height},fit:getComputedStyle(el).objectFit};});
+      assert(fit.image.width<=fit.frame.width+1&&fit.image.height<=fit.frame.height+1&&fit.fit==='contain','original is fully contained inside reserved frame');
+      const item=gallery.getByRole('button',{name:'Open Browse 4',exact:true});await item.scrollIntoViewIfNeeded();await item.focus();
+      const scroll=await remote.evaluate(()=>scrollY),grid=await gallery.locator('ul').boundingBox();
+      await remote.screenshot({path:path.join(captureDirectory,`gallery-grid-${width}.png`)});
+      await remote.keyboard.press('Enter');
+      await expect(gallery.getByRole('region',{name:'Expanded collection image'}).getByRole('heading')).toBeFocused();
+      const openedGrid=await gallery.locator('ul').boundingBox();
+      assert(Math.abs(openedGrid.y+await remote.evaluate(()=>scrollY)-grid.y-scroll)<=1,'inspection never displaces the grid document position');
+      const dialog=remote.getByRole('dialog',{name:'Collection image inspector'}),detail=dialog.getByRole('region',{name:'Expanded collection image'});
+      await expect(dialog).toBeVisible();await expect(detail.getByRole('heading')).toBeFocused();
+      assert(await dialog.evaluate(el=>el.matches(':modal')),'native modal isolates background');
+      await expect(detail.locator('.gallery-attribution')).toHaveText('Fixture artist');
+      assert.equal(await detail.locator('img').evaluate(el=>getComputedStyle(el).objectFit),'contain');
+      assert(Math.abs(await remote.evaluate(()=>scrollY)-scroll)<=1,'opening inspector keeps grid scroll');
+      const box=await dialog.boundingBox();assert(box.x>=-1&&box.y>=-1&&box.x+box.width<=width+1&&box.y+box.height<=height+1,'dialog viewport');
+      await remote.screenshot({path:path.join(captureDirectory,`gallery-inspector-${width}.png`)});
+      for(let i=0;i<5;i++)await remote.keyboard.press('Tab');
+      assert.equal(await remote.evaluate(()=>Boolean(document.activeElement.closest('.permanent-gallery-grid'))),false,'no tab focus behind modal');
+      await remote.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+      await expect.poll(()=>remote.evaluate(()=>Boolean(history.state?.luminaGalleryInspector))).toBe(false);await remote.clock.runFor(32);await expect(item).toBeFocused();
+      assert(Math.abs(await remote.evaluate(()=>scrollY)-scroll)<=1,'closing restores exact scroll');
+      const returned=await gallery.locator('ul').boundingBox();assert(Math.abs(returned.y-grid.y)<=1,'grid context stable');
+      measurements.push({width,height,media,dialog:box,scrollRestored:true});
+    }
+    await remote.setViewportSize({width:320,height:568});
+    const firstCard=gallery.locator('.permanent-gallery-grid button').first();await firstCard.click();
+    const longDetail=gallery.getByRole('region',{name:'Expanded collection image'});
+    await expect(longDetail.getByRole('heading')).toContainText(fixture.collections.Library[0].title);
+    await expect(longDetail.getByRole('button',{name:'Close image',exact:true})).toBeInViewport();
+    const mediaBounds=await longDetail.locator('.gallery-media').boundingBox(),bodyBounds=await longDetail.locator('.gallery-detail-content').boundingBox();
+    assert(mediaBounds.height>=120&&mediaBounds.y>=bodyBounds.y-1&&mediaBounds.y+mediaBounds.height<=bodyBounds.y+bodyBounds.height+1,'whole contained image remains visible with long title');
+    await longDetail.locator('.gallery-detail-content').evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    await expect(longDetail.locator('.gallery-attribution')).toBeInViewport();
+    const metadataBox=await longDetail.locator('.gallery-attribution').boundingBox(),controlsBox=await longDetail.locator('nav').boundingBox();
+    assert(metadataBox.y+metadataBox.height<=controlsBox.y+1,'footer never covers attribution');
+    await remote.evaluate(()=>{document.documentElement.style.fontSize='200%';});
+    assert(await remote.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'200% text does not overflow horizontally');
+    await expect(longDetail.getByRole('button',{name:'Close image',exact:true})).toBeInViewport();
+    await remote.screenshot({path:path.join(captureDirectory,'gallery-text-200.png')});
+    await remote.evaluate(()=>{document.documentElement.style.fontSize='';});
+    await longDetail.locator('.gallery-detail-content').evaluate(el=>{el.scrollTop=0;});
+    await remote.screenshot({path:path.join(captureDirectory,'gallery-long-detail.png')});
+    const url=remote.url();await remote.goBack();await remote.clock.runFor(32);await expect(longDetail).toHaveCount(0);
+    assert.equal(remote.url(),url,'Back dismisses inspector without leaving current remote');await expect(firstCard).toBeFocused();
+    const fourth=gallery.getByRole('button',{name:'Open Browse 4',exact:true});await fourth.click();
+    const expanded=gallery.getByRole('region',{name:'Expanded collection image'});
+    await remote.keyboard.press('ArrowLeft');await expect(expanded.locator('.gallery-attribution')).toHaveText('Attribution unavailable');
+    await remote.keyboard.press('ArrowLeft');await expect(expanded.getByRole('status')).toContainText('Image unavailable');
+    await expect(expanded).toContainText('Banned rating');await expect(expanded).toContainText('Marked broken');
+    await remote.keyboard.press('Escape');await expect(fourth).toBeFocused();
+    let pending,delayPage=2;
+    await remote.route('**/api/admin/permanent-gallery?*',route=>{
+      if(new URL(route.request().url()).searchParams.get('page')===String(delayPage)){pending=route;return;}
+      return route.continue();
+    });
+    await gallery.getByRole('button',{name:'Open Browse 23',exact:true}).click();await remote.keyboard.press('ArrowRight');
+    await expect.poll(()=>Boolean(pending)).toBe(true);
+    await expect(gallery.locator('p[role="status"]')).toContainText('Loading');
+    await expect(gallery.locator('.permanent-gallery-grid > li')).toHaveCount(24);
+    await expect(gallery.locator('.permanent-gallery-grid button').first()).toBeDisabled();
+    await remote.screenshot({path:path.join(captureDirectory,'gallery-loading.png')});
+    await pending.continue();await expect(expanded.getByRole('heading')).toContainText('Browse 24');
+    await remote.keyboard.press('Escape');
+    await expect.poll(()=>remote.evaluate(()=>Boolean(history.state?.luminaGalleryInspector))).toBe(false);await remote.clock.runFor(32);
+    await expect(gallery.getByRole('button',{name:'Open Browse 24',exact:true})).toBeFocused();
+    await expect(gallery.getByRole('button',{name:'Open Browse 24',exact:true})).toBeInViewport();
+    delayPage=3;pending=null;
+    await gallery.getByRole('button',{name:'Open Browse 47',exact:true}).click();await remote.keyboard.press('ArrowRight');
+    await expect.poll(()=>Boolean(pending)).toBe(true);await remote.goBack();await remote.clock.runFor(32);
+    await pending.continue();await expect(gallery.locator('p[role="status"]')).toContainText('Page 3 of 3');
+    await expect(gallery.getByRole('region',{name:'Expanded collection image'})).toHaveCount(0);
+    await expect(gallery.getByRole('heading',{name:'Permanent collection images'})).toBeFocused();
+    await remote.getByRole('button',{name:'Permanent Collection Gallery',exact:true}).click();
+    let initial;
+    await remote.route('**/api/admin/permanent-gallery?*',route=>{initial=route;});
+    await remote.getByRole('button',{name:'Permanent Collection Gallery',exact:true}).click();
+    await expect.poll(()=>Boolean(initial)).toBe(true);
+    await expect(gallery.locator('p[role="status"]')).toContainText('Loading');
+    await expect(gallery.locator('.gallery-loading .gallery-media')).toHaveCount(4);
+    await remote.screenshot({path:path.join(captureDirectory,'gallery-initial-loading.png')});
+    await initial.continue();await expect(gallery.locator('p[role="status"]')).toContainText('49 images');
+    assert.equal(fixture.events.filter(e=>['next-photo','mark-photo-broken','patch-state'].includes(e.event)).length,0);
+    fs.writeFileSync(path.join(captureDirectory,'gallery-experience.json'),JSON.stringify(measurements,null,2));
+  });console.log('PASS: image-first gallery modal context, attribution, reserved media and delayed paging are read-only');
+}
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    if(process.env.LUMINA_TEST_ONLY_GALLERY_BROWSE==='1'){await runGalleryExperience(browser);return;}
+    if(process.env.LUMINA_GALLERY_PROTOTYPES==='1'){await runGalleryPrototypes(browser);return;}
     if(process.env.LUMINA_TEST_ONLY_HEADER==='1'){await runHeaderCase(browser);return;}
     const otherFocused = ['OVERLAY','UNRATED','FEEDS','GALLERY','BLUE_LIGHT','TRENDS']
       .some(name => process.env[`LUMINA_TEST_ONLY_${name}`] === '1');
@@ -1583,6 +1721,7 @@ async function main() {
     }
     console.log(`${policyCases.length} pool policy browser regressions passed.`);
     await runHeaderCase(browser);
+    await runGalleryExperience(browser);
   } finally {
     await browser.close();
   }
