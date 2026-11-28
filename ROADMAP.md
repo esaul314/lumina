@@ -2,7 +2,24 @@
 
 Last updated: 2026-11-28
 
-## Current release — 1.1.15
+## Current release — 1.1.16
+
+The independently accepted G2/G3 read-only scoped-gallery/findability slice is
+released. Permanent membership, named local pools and retained Google cache share
+one bounded gallery; saved title/author/pool search and missing-last stable sorting
+precede paging, with scope/query preserved on inspector return. Deleted/renamed
+scopes remain unavailable; zero known Google rows remains unknown. No inferred
+provider subset, selection, editing, identity migration or manual-feed changes.
+Fresh958shared/418native tests, lint/private build and58headless journeys pass;
+strict203configured17gallery debt unchanged. Guarded live scoped API/socket/admin/
+TV probes pass without application mutations or provider images. All8132prior
+photos/fields/comments/settings and3166history keys survive the one native restart;
+fresh automatic intent retained without forced activation. Named1.1.15 artifact/
+assets and six actual-codec offline rollback cases retained. Physical/AT/nativezoom/
+provider/GPU/live downgrade remain unverified. Refresh an open admin normally.
+No next sprint is selected or implemented by this release.
+
+## Previous release — 1.1.15
 
 The independently accepted G0/G1 permanent-gallery browse/inspect slice is released.
 Image-first aspect-safe cards, optional saved attribution and a native inspector
@@ -788,7 +805,7 @@ authorized1.1.15 rollout is recorded above.
 Physical TV, assistive technology, provider and native-zoom acceptance remain unverified.
 The separately requested tiny sensor sparkline remains planning-only, not this slice.
 
-#### G2/G3 scoped read-only findability — SOURCE ACCEPTED
+#### G2/G3 scoped read-only findability — RELEASED in1.1.16
 
 One existing gallery now discovers permanent membership, named local pools and the
 retained Google cache. Tagged scope keys distinguish a local pool literally named
@@ -820,7 +837,7 @@ manifest and review-r1/report. Parent full-diff and independent review ACCEPT;
 958 shared assertions,418 native tests,58 browser journeys,lint and private build
 pass. Inherited203 configured/17 gallery strict diagnostics and4 lint warnings
 remain, not strict-clean. Scoped feature/test/acceptance commits complete this
-source-only sprint; live1.1.15 is unchanged. No further push/deployment or reminder.
+source-only sprint; the subsequent separately authorized1.1.16 rollout is recorded above. No further rollout or reminder is implied.
 G4–G8 and provider-specific G2 galleries remain deferred.
 
 #### Product experience and scope

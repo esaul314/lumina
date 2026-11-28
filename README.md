@@ -17,6 +17,16 @@ It is designed for a dedicated HTPC or living-room display running GNOME/Mutter.
   </tr>
 </table>
 
+## Released scoped galleries and findability — 1.1.16
+
+The existing gallery now browses permanent membership, named local pools and the
+retained Google cache. Saved title/author/pool search and deterministic sorting
+precede bounded paging; the inspector preserves scope/query context on return.
+Missing scopes are unavailable, empty local pools are empty, and zero Google rows
+remain unknown—not provider connectivity. No provider inference, selection,
+editing or manual-feed creation. Read-only live qualification uses guarded
+same-origin fixtures; physical-TV/AT/provider-byte checks remain unverified.
+
 ## Released image-first permanent gallery — 1.1.15
 
 Browse saved permanent images in aspect-safe cards and inspect them without losing
@@ -451,7 +461,7 @@ images across pools, independently of the active slideshow. Grid pages contain24
 images; open an image for next/previous buttons or arrow-key navigation across
 pages. Escape returns to its grid. Excluded and unavailable images are labelled;
 browsing never rates, crops, marks broken, changes membership or advances playback.
-The gallery is ephemeral, not a live snapshot. Permanent browse/inspect shipped in1.1.15; the scoped search/sort extension below is source-accepted, not yet deployed.
+The gallery is ephemeral, not a live snapshot. Permanent browse/inspect shipped in1.1.15; the scoped search/sort extension below shipped in1.1.16.
 
 `GET /api/admin/permanent-gallery?page=1&pageSize=24` is a read-only admin projection
 with no-store responses. Positive integer pages and page sizes1–60 are accepted;
