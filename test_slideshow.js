@@ -77,6 +77,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {}, 
       : writerRequire(name), { env: { NODE_ENV: 'isolated-browser-fixture' } }, path.dirname(writerPath)
   );
   const events = [];
+  let reportedViewport = null;
   const errors = [];
   const logs = [];
   // Explicit fixture-owned sinks; the real codec is closed over task-owned I/O.
@@ -153,6 +154,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {}, 
   });
   app.use(express.static(process.env.LUMINA_TEST_DIST || path.join(__dirname, 'client/dist')));
   io.on('connection', socket => {
+    socket.on('report-tv-viewport', payload => { reportedViewport = payload; });
     const supported = new Set(['next-photo', 'mark-photo-broken', 'report-photo-metadata']);
     SOCKET_DURABLE_COMMAND_SPECS.filter(spec => supported.has(spec.event)).forEach(spec => {
       socket.on(spec.event, payload => {
@@ -166,6 +168,7 @@ async function createFixture(photos, { screensaverActive = false, widgets = {}, 
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
     state, collections, weather, events, errors, logs, persistence, dispatch, commentStore, environmentControl,
+    get reportedViewport() { return reportedViewport; },
     saveLegacy: () => writerModule.exports.saveCuratedCollections(collections, state), readPersisted: () => JSON.parse(fs.readFileSync(commentPath, 'utf8')),
     readPersistedWidgets: () => fixtureCodec.loadCollectionsSnapshot({ jsonPath: commentPath,
       defaultCollections: {}, defaultState: {}, buildFeedConfigsFromKeywords: () => ({}) }).persistedState.widgets,
@@ -1123,6 +1126,8 @@ const overlayCases = overlayConfigurations.map(({split,badge,long,google})=>{
     }
     if(split&&badge&&long&&!baseline){
       await page.setViewportSize({width:568,height:320});
+      // Compare one settled React viewport, not pre-resize styles against post-resize styles.
+      await expect.poll(() => fixture.reportedViewport).toEqual({width:568,height:320});
       const imageStyles=await page.locator('.slide.active .slide-half-image').evaluateAll(els=>els.map(el=>el.getAttribute('style')));
       const originalBytes=await (await page.request.get(fixture.url+'/fixtures/p1.svg')).text();
       fixture.state.widgets.blueLightFilter=true;fixture.broadcastStateSync();
