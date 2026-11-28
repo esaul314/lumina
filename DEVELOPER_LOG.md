@@ -7466,3 +7466,37 @@ mode transitions, actual connection status, dirty form retention without saving,
 long labels, container narrowing and enlarged text. Measure44px targets and actual
 pointer hit reception. CSS-pixel reflow, text enlargement and native browser zoom
 are different evidence; do not substitute headless geometry for physical/AT proof.
+
+
+## Read-only gallery context is a contract, not just a GET label
+
+Inventory route effects as well as verbs: a category GET can select playback, and
+ordinary provider-cache getters can repair persisted data. Use the explicit bounded
+read-only owner, keep exact-URL gallery identity distinct from comment media IDs,
+and label unavailable/unknown metadata without inventing provenance or eligibility.
+Optional saved attribution is a read fact, not a new metadata-editing owner.
+
+Compare built layout alternatives on the same mixed images and containing widths.
+A regular aspect-safe frame avoids late intrinsic-dimension row recalculation.
+Percentage-sized grid images can still exceed an intrinsic frame; constrain their
+actual box inside the reserved slot and assert object-fit containment. Clamp an
+unpadded inner text span to avoid half-visible lines under padded line-clamp boxes.
+
+An inspector must not insert height above its grid. Native modal semantics isolate
+background interaction without a custom focus-trap framework. Keep one owned history
+entry, no private photo reference; settle its traversal before allowing a close/
+reopen. Browser history can restore an obsolete scroll after popstate, and focus on
+an already-focused node does not scroll it back into view. Restore exact same-page
+context, explicitly reveal current-page focus after cross-page movement, and reject
+late inspector expansion after Back. Retain empty/clamped/error races and negative
+old-assets geometry controls; unchanged transport/data must be part of the oracle.
+
+Keep inspector controls outside the scrollable metadata body rather than overlaying
+it with a sticky footer: long source/attribution lines must remain reachable without
+being covered, while close/navigation stay visible on short screens.
+
+Use existing `test_slideshow.js` with `LUMINA_TEST_ONLY_GALLERY_BROWSE=1` for
+the focused context/read-only oracle, or `LUMINA_GALLERY_PROTOTYPES=1` to compare
+fixture-only layout alternatives. Always set the exact private `LUMINA_TEST_DIST`
+and a fresh `LUMINA_TEST_ARTIFACTS`; prototype PASS means fixture completion, not
+source acceptance or a production layout preference.

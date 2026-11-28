@@ -710,7 +710,69 @@ feed. Search, sort, select images to build feeds, and manage comments and suppor
 attributes without leaving the gallery. This is the single product roadmap, not a
 second backlog or tracker. IDs are reference labels; planned does not mean selected,
 commissioned or implemented. Existing acceptance above remains historical evidence;
-current release and the separately selected header sprint are not displaced.
+released header acceptance remains historical evidence; only explicitly commissioned
+slices may be implemented.
+
+#### G0/G1 permanent browse/inspect — SOURCE ACCEPTED (2026-11-28)
+
+This bounded source-only slice delivers the read-only inventory/identity limits and
+permanent-gallery browsing/inspection, not all-feed rollout or later write stories.
+Built regular aspect-safe grid and justified-row prototypes were compared at320/375/
+1280px using the same24mixed images. Regular was chosen for predictable order/slots
+and no natural-dimension row engine; prototype grid height is layout evidence, not
+an efficiency benchmark. Dark restrained cards reserve4:3 media footprints, contain
+originals and keep full titles available in the inspector; saved author attribution
+is optional read-only text, unknown is explicit, not fabricated provider metadata.
+Lazy source URLs remain in use, not generated low-resolution thumbnail derivatives.
+
+The native modal retains the grid behind it, traps background interaction, focuses
+the detail heading and provides previous/next/Close/Escape/browser Back. A same-URL
+boolean-only history entry holds no photo URL/comment/identity. Same-page return
+restores exact scroll/focus; cross-page return reveals the current-page thumbnail.
+Loading retains labelled previous results with disabled interactions; error/empty/
+unavailable remain distinct. Back during a delayed cross-page read prevents later
+auto-reopening. Native history restoration required explicit current-grid restoration
+on paint; retained failing probes cover the repaired hidden-focus case. No new
+navigation framework/store/dependency/controller or persistence schema. Forward/deep-
+link reconstruction is not implemented; existing page counts reflect each read,
+not a frozen library snapshot. Native-dialog behavior is headless-qualified, not AT.
+
+**G0.1 actual owner/scope inventory (not a new feed catalogue API):**
+
+| Scope | Existing owner/read surface | Readiness and limits |
+| --- | --- | --- |
+| Permanent collection | `projectPermanentGallery`, `/api/admin/permanent-gallery`, curated `collections` then retained normalized Google cache | Strict `loved===true`, first exact-URL occurrence wins; bounded24UI rows/max60API; includes banned/broken/keyword-excluded rows, not playback filtering. Google read explicitly suppresses repair writes and includes unavailable metadata. |
+| Named local pools / Independent Rating Deck | Existing collection snapshot/codec and domain pool commands; `/api/pools/:name/photos` returns full stored local pool | No new gallery scope delivered. Full-pool payload is unbounded, not silently reused for browsing; current counts are pool summaries, not a new query/selection contract. |
+| Google Photos feed | `googlePhotos.js` normalized cache/media owner; ordinary pool access builds policy-filtered usable external collections | Ordinary getters can repair cache unless readOnly is explicit; current pool/playback reads are NOT the retained read-only gallery surface. Missing cache/zero known rows do not prove provider connectivity. |
+| Provider within pool | Existing `feedConfigs`/crawler strategies: reddit, picsum, bing, unsplash, wallhaven, tumblr, tumblrTags, metmuseum, artic, nasaApod, midjourney | Strategy keys are not guaranteed complete legacy row provenance; providers can share pools. Membership, stable scope IDs and unavailable-source envelopes remain G2 prerequisites; never infer from domains. |
+| Current playback feed | `/api/photos` and balanced-feed/selection owners | GET with category can dispatch category selection; not a side-effect-free catalogue/gallery route. Do not use it for discovery. |
+| Explicit manual-selection feed | No dedicated snapshot-membership owner exists; add-pool requires keywords | G0.3/G5 contracts remain NOT implementation-ready; no invented keywords, new manual owner or rule/feed migration here. |
+
+Current gallery **total** is distinct known permanent URLs; matching equals total
+only because there is no search/filter query. Selection count is not applicable
+(no selection feature); no formal eligibility count is exposed. Three displayed
+exclusion labels are not a complete playback/provider availability decision.
+
+**G0.2 bounded identity decision:** retain exact URLs/first-occurrence precedence
+for this read-only milestone, with a local page/index inspection cursor—not durable
+selection. Comments independently use `google:<mediaID>` or `url:<exactURL>`; these
+are not equivalent identity systems. Duplicate URLs share one gallery occurrence;
+same-looking distinct URLs remain distinct. Changed Google URLs can change gallery
+occurrence even when comments retain media-ID identity. No canonicalization, merge,
+migration, signed-URL durability, cross-view write conflict or human-data overwrite
+is claimed. Stronger identity and all supported writer/retention/rollback decisions
+still gate G4–G7. G2 per-feed availability/provenance/query contracts remain future;
+G3 search/sort, G4 selection, G5 manual feeds and G6 editing are not delivered.
+
+Fresh958shared/415native tests, lint/private build and57browser journeys pass;
+configured203/direct28 and gallery import-graph17 diagnostics remain inherited,
+zero added. Parent full-diff inspection and independent adversarial review ACCEPT
+the exact frozen candidate: history/unmount, delayed paging, error/retry, clamped/
+empty results, keyboard/long metadata and actual read-only API probes pass. Four
+nonblocking lint warnings remain (three quote-style and one unused test binding);
+lint exits0, not warning-free. Source accepted, no deployment/push/live writes.
+Physical TV, assistive technology, provider and native-zoom acceptance remain unverified.
+The separately requested tiny sensor sparkline remains planning-only, not this slice.
 
 #### Product experience and scope
 
