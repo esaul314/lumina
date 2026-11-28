@@ -7500,3 +7500,24 @@ the focused context/read-only oracle, or `LUMINA_GALLERY_PROTOTYPES=1` to compar
 fixture-only layout alternatives. Always set the exact private `LUMINA_TEST_DIST`
 and a fresh `LUMINA_TEST_ARTIFACTS`; prototype PASS means fixture completion, not
 source acceptance or a production layout preference.
+
+
+### Scoped gallery contracts: unknown is not empty
+
+A cache getter that intentionally collapses absent/read-error/empty into [] cannot
+support a stronger availability claim. Keep the existing read-only owner and expose
+unknown rather than introducing a second cache reader or inferring account status.
+Tag local scope names separately from external owners; a display-name collision
+must not change provenance. Name-based scopes deliberately become unavailable on
+rename/delete until discovery refresh, not stable identity aliases.
+
+Search/sort belong before bounded pagination. Keep raw saved-title presence for
+missing-last sorting while rendering a separate friendly placeholder; placeholders
+are not invented searchable metadata. Normalize once per field comparison with
+deterministic exact-URL ties, and use an explicit allowlist so private comments do
+not enter queries accidentally. Browser fixture snapshots can normalize bad owners
+before a test reaches the gallery; malformed-owner assertions therefore also need
+the actual HTTP seam. Compare object data, not JSON insertion order, after an
+intentional delete/reinsert race fixture. Native and browser regression owners:
+permanentGallery.test.js and test_slideshow.js; private candidate evidence links
+from the G2/G3 roadmap checkpoint.

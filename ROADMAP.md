@@ -788,6 +788,41 @@ authorized1.1.15 rollout is recorded above.
 Physical TV, assistive technology, provider and native-zoom acceptance remain unverified.
 The separately requested tiny sensor sparkline remains planning-only, not this slice.
 
+#### G2/G3 scoped read-only findability — SOURCE ACCEPTED
+
+One existing gallery now discovers permanent membership, named local pools and the
+retained Google cache. Tagged scope keys distinguish a local pool literally named
+Google Photos from cache ownership. Keys follow current names, not stable IDs:
+rename/delete makes an old key unavailable; refresh discovers current names.
+Empty local arrays are empty; malformed local owners are unavailable. The Google
+getter conflates absent/invalid/empty cache, so zero retained rows is explicitly
+unknown, never provider connectivity or confirmed emptiness. Cache rows can lack
+refresh metadata; presence is not a promise that image bytes are available. Provider
+subsets remain unready without reliable row provenance; no URL inference or I/O.
+
+Bounded literal AND-word search covers only saved title, author and owning pool
+name, with NFKC/case/whitespace normalization (200 code units, at most12 words).
+Private comments, descriptions, dates, ratings and inferred provider fields are
+not searched or sorted. Sort choices are stored order and title/author/pool A–Z
+or Z–A; missing saved title/author is last in either direction, normalized ties
+use exact URL. First exact occurrence still owns metadata within the selected
+scope. Filter/sort precede max60-row API paging (24UI); total and matching differ.
+Counts describe each read, not a persistent snapshot or selection.
+
+Scope/query/sort reset page; Apply search avoids per-keystroke requests. One
+bounded lazy grid and native inspector retain query/scope/sort on return.
+Previous results are labelled and inert during reads; cancellation and current
+guards reject obsolete completions. Empty/no-match/unknown/unavailable/error
+remain distinct, with explicit retry/refresh. No selection, comments/editing,
+manual-feed creation, provider writes, identity migration or deployment.
+Evidence owner: ignored gallery-scopes-20261128 implementation_plan and candidate
+manifest and review-r1/report. Parent full-diff and independent review ACCEPT;
+958 shared assertions,418 native tests,58 browser journeys,lint and private build
+pass. Inherited203 configured/17 gallery strict diagnostics and4 lint warnings
+remain, not strict-clean. Scoped feature/test/acceptance commits complete this
+source-only sprint; live1.1.15 is unchanged. No further push/deployment or reminder.
+G4–G8 and provider-specific G2 galleries remain deferred.
+
 #### Product experience and scope
 
 An image-first library with generous imagery, restrained chrome, clear selection,

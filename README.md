@@ -444,14 +444,14 @@ are deferred because outdoor cache values were stamped with the indoor poll time
 not their own weather-observation time. No inference or backfill is performed.
 
 
-### Permanent collection gallery (accepted source, not yet deployed)
+### Collection gallery
 
 In Image Feeds, open **Permanent Collection Gallery** to browse saved permanent
 images across pools, independently of the active slideshow. Grid pages contain24
 images; open an image for next/previous buttons or arrow-key navigation across
 pages. Escape returns to its grid. Excluded and unavailable images are labelled;
 browsing never rates, crops, marks broken, changes membership or advances playback.
-Close/reopen to refresh membership; the gallery is ephemeral, not a live snapshot.
+The gallery is ephemeral, not a live snapshot. Permanent browse/inspect shipped in1.1.15; the scoped search/sort extension below is source-accepted, not yet deployed.
 
 `GET /api/admin/permanent-gallery?page=1&pageSize=24` is a read-only admin projection
 with no-store responses. Positive integer pages and page sizes1–60 are accepted;
@@ -462,3 +462,32 @@ in curated-pool order, then Google. Existing source-local Google normalization i
 read-only here, with unavailable rows retained; no new identity migration or
 signed-provider metadata is returned. Existing Google image delivery can still
 contact its provider/cache; byte availability is not guaranteed by membership.
+
+The scoped extension retains this endpoint and adds optional `scope`, `q` and
+`sort` parameters. Scope defaults to `permanent` (strict loved membership);
+`local:<exact pool key>` browses all valid stored rows in that named pool, while
+`google-cache` browses retained normalized cache rows. Tagged keys avoid display-
+name collisions. Unknown/deleted/renamed or malformed local scopes return
+`status: unavailable`; an empty local array is available and empty. Zero Google
+rows is `unknown`, since its owner does not distinguish empty, absent and failed
+reads. Neither presence nor absence establishes connectivity. No provider-specific
+subset is inferred from URLs.
+
+Responses additionally contain `scope`, `status`, `scopes` (id/label/status),
+`q`, `sort`, `matching`, and optional saved `author` text per photo. `total`
+counts exact distinct URLs before search; `matching` controls page counts.
+Query is normalized NFKC/lowercase/whitespace, up to200 code units and12 literal
+AND words over saved title/author/pool name only. Comments, dates, ratings,
+descriptions and inferred metadata are excluded. Sort accepts `stored`, `title`,
+`author`, `pool` or the latter three with `-desc`; missing values are last in
+either direction and exact URLs deterministically break normalized ties.
+Filter/sort precede pagination. Invalid query/paging/sort returns400; unavailable
+scope is a200 envelope with no rows. Read-only metadata discovery never contacts
+providers or repairs caches.
+
+Use the scope/search/sort controls inside the existing gallery and Refresh
+collection to rediscover current keys. Search applies explicitly; changing applied
+query/sort/scope resets page. Inspector return preserves that context; labelled
+previous results are inert while loading. Name-based scope keys are not durable
+identities. Provider subsets, dates/ratings/comments querying, selection and
+editing remain outside this extension.
