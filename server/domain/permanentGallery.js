@@ -30,6 +30,7 @@ const projectPermanentGallery = ({ collections, googlePhotos = [], excludedKeywo
     page: currentPage, pageSize, total, pages,
     photos: rows.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(({ photo, pool }) => ({
       url: photo.url, title: typeof photo.title === 'string' ? photo.title : 'Untitled image', pool,
+      author: typeof photo.author === 'string' && photo.author.trim() ? photo.author.trim() : null,
       exclusions: [photo.rating === 1 && 'Banned rating', photo.isBroken && 'Marked broken',
         matchesExcludedKeywords(excludedKeywords, photo) && 'Excluded keyword'].filter(Boolean)
     }))

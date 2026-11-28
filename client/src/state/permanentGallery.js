@@ -13,6 +13,7 @@ const positive = value => typeof value === 'number' && Number.isSafeInteger(valu
 /** @param {unknown} photo */
 const isGalleryPhoto = photo => isRecord(photo) && typeof photo.url === 'string' && Boolean(photo.url.trim())
   && typeof photo.title === 'string' && typeof photo.pool === 'string'
+  && (photo.author === undefined || photo.author === null || typeof photo.author === 'string')
   && Array.isArray(photo.exclusions) && photo.exclusions.every(label => typeof label === 'string');
 
 /** @param {unknown} data */
