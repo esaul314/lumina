@@ -17,6 +17,16 @@ It is designed for a dedicated HTPC or living-room display running GNOME/Mutter.
   </tr>
 </table>
 
+## Released responsive remote header — 1.1.14
+
+The brand, connection status and mode switch now share a responsive header without
+narrow-screen collisions. The44px switch retains keyboard focus across modes and
+uses the selected theme; TV placement, preview and settings remain unchanged.
+Resize/status changes preserve unsaved drafts; switching modes retains its existing
+remote-unmount lifetime. Headless reflow/text qualification is not physical/AT or
+native400%browser-zoom acceptance. Gallery experience epics live only in ROADMAP:
+planned requirements, not implemented capabilities or a second backlog.
+
 ## Released daily forecast resilience — 1.1.13
 
 Malformed daily data no longer removes the TV or invents weather values. Valid

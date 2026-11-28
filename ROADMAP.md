@@ -2,7 +2,26 @@
 
 Last updated: 2026-11-28
 
-## Current release — 1.1.13
+## Current release — 1.1.14
+
+Released2026-11-28 from independently accepted responsive remote header source,
+including the accepted inline gallery roadmap plan (planning only, no gallery code).
+Fresh958shared/414native tests, lint/private build and56headless journeys pass,
+including54TV-overlay layouts. Strict203/direct28 inherited diagnostics unchanged.
+The stable shared header/button preserves brand/status, keyboard mode focus and
+selected theme, wraps within actual remote content width and retains44px targets.
+TV floating placement, preview, settings and existing draft lifetimes remain intact.
+One native restart and compatible atomic assets/index preserve freshly automatic/
+active intent without forced activation. All prior photos/fields/comments/settings/
+history/private configuration survive. Guarded live API/socket/admin/TV/header/modes
+pass with context-wide application mutation blocking and local preview substitutions.
+Named1.1.13 artifact/full assets retained; actual old codec latest-data rollback/
+forward and conflict refusal qualified offline. No stale whole-data restore.
+No runtime/pin/provider/config change, physical/AT/native400%zoom/GPU/QR or live
+provider-photo/account/downgrade/offhost recovery claim. Refresh an open admin
+normally for new frontend assets. No next-sprint selection or implementation here.
+
+## Previous release — 1.1.13
 
 Released2026-11-28 from independently accepted daily forecast resilience.
 Fresh958shared/414native tests, lint/private build and55headless journeys pass,
@@ -630,7 +649,7 @@ restoration. Initial source acceptance excluded deployment/push; the later1.1.10
 setup redesign remain unassessed, not implied complete by headless tests. Further
 Image Feeds optimization remains feedback, not automatic next-sprint authority.
 
-### Responsive remote header — independently reviewed and accepted source-only
+### Responsive remote header — independently reviewed and released in1.1.14
 
 Built baseline320/375px logo and floating mode switch collide; switch height35px.
 One stable App-owned header/button now shares the existing brand/status and wraps
@@ -646,8 +665,8 @@ Paired built captures/edge/intersection/containing-width/text/hit tests qualify3
 navigation, unsaved settings and all four themes. Old-assets oracle fails. Full
 958shared/414native tests, lint/private build and56browser journeys pass, including
 existing54TV-overlay layouts; stricter focused header assertions also pass. Strict
-203configured/28direct inherited diagnostics unchanged; not strict-clean. Source-only,
-three scoped source commits; no version/push/deploy/restart/live writes. Physical touch/AT/native browser
+203configured/28direct inherited diagnostics unchanged; not strict-clean. Initial
+source acceptance was source-only; separately authorized1.1.14 is recorded above. Physical touch/AT/native browser
 400% zoom remain unverified;320CSSpx reflow is not a native-zoom claim. Independent
 review accepted72 layout/theme/text probes,18TV-control checks and six focus-preserving
 keyboard round trips. Parent acceptance complete; gallery epics remain planned, untouched.
