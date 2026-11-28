@@ -1,8 +1,29 @@
 # Lumina Product Roadmap
 
-Last updated: 2026-11-27
+Last updated: 2026-11-28
 
-## Current release — 1.1.12
+## Current release — 1.1.13
+
+Released2026-11-28 from independently accepted daily forecast resilience.
+Fresh958shared/414native tests, lint/private build and55headless journeys pass,
+including54overlay layouts. Strict203/direct28 diagnostics remain inherited,
+zero additions. A retained browser fixture race compared pre/post-resize image
+styles; the fixture now awaits its existing viewport report before comparison.
+The unchanged crop/style oracle and full browser rerun pass; no application patch.
+Valid current conditions survive unavailable daily data. Coherent consumed rows
+preserve provider indices; display skips slot zero before filtering and uses local
+calendar labels. No invented values, backfill, freshness/TTL or location-policy change.
+One native restart plus compatible atomic assets/index preserves freshly automatic/
+inactive intent without activation. All prior photos/fields/comments/user settings/
+history and private configuration survive. Guarded live API/socket/admin/TV pass;
+automatic telemetry blocked before send, no application packets delivered or
+HTTP mutation attempts. Locally substituted previews avoid provider/broken-photo writes.
+Named1.1.12 artifact/assets retained; actual old-codec latest-data rollback/forward
+and conflict-refusing protected values merge qualified offline, not live downgrade.
+No physical/provider imagery/account/AT/GPU/QR/off-host recovery claim. Refresh open
+admin normally for new frontend. No next-sprint implementation in this release.
+
+## Previous release — 1.1.12
 
 Released2026-11-27 from independently accepted short-screen overlay coherence.
 Fresh958shared/371native/sensor/report checks, lint, private build and44headless
@@ -1146,7 +1167,7 @@ design work, not claims that the current behavior has already been changed.
   automatically. Source acceptance was source-only; the subsequent1.1.1 release
   verified live weather recovery and retained state through the native owner.
 
-- **Daily forecast schema resilience — source accepted after independent review.**
+- **Daily forecast schema resilience — independently reviewed and released in1.1.13.**
   Required current observations remain independent of unavailable daily forecasts.
   The provider boundary admits real ISO calendar dates, finite numeric WMO/max/min
   and coherent min<=max rows without coercion. Invalid consumed rows become aligned
@@ -1167,9 +1188,9 @@ design work, not claims that the current behavior has already been changed.
   Fresh958shared/414native tests, lint/private build and55browser journeys pass,
   including the existing54overlay layouts. Strict203 and direct-graph28diagnostics
   remain inherited, zero added. Independent review accepts the exact candidate with
-  424 schema/calendar probes and nine built-browser timezone cases. Source accepted
-  in scoped commits; no version change, deployment, push, restart or physical/provider
-  acceptance. Generic lessons and regressions retained in existing owners.
+  424 schema/calendar probes and nine built-browser timezone cases. Initial source
+  acceptance was source-only; the separately authorized1.1.13 release is recorded
+  above. No physical/provider acceptance. Generic lessons/regressions stay in existing owners.
   TTL/stale-age UI, location ABA ordering and other deferred work remain unselected.
 
 ### Backlog maintenance

@@ -7441,3 +7441,10 @@ framework. Actual HTTP/background tests must assert independent expected values 
 fail when admission is disabled. Exercise malformed legacy JSON through built assets,
 retain old-assets negative controls and paired screenshots, and capture fixture
 failures before teardown so a removed React tree is not misdiagnosed as image loading.
+
+
+When comparing render styles around a setting change, first await an observable
+acknowledgement that React has committed the requested viewport. A resize call can
+finish before resize-effect state does: otherwise pre-resize baseline dimensions
+can be misattributed to the filter change. Keep the original style/byte oracle;
+settle its input rather than adding a sleep or weakening the assertion.

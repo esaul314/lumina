@@ -17,6 +17,15 @@ It is designed for a dedicated HTPC or living-room display running GNOME/Mutter.
   </tr>
 </table>
 
+## Released daily forecast resilience — 1.1.13
+
+Malformed daily data no longer removes the TV or invents weather values. Valid
+current conditions remain visible; coherent future days are shown, or an explicit
+unavailable message. Original provider slots preserve the skip-today contract;
+calendar labels do not shift through UTC-midnight conversion. Zero/negative values
+and unknown finite WMO fallbacks remain supported. Only consumed daily columns are
+validated; this does not add freshness, sorting, backfill or location guarantees.
+
 ## Released TV layout — 1.1.12
 
 The short-screen overlay keeps clock, weather, indoor readings, all three forecast
