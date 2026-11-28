@@ -630,6 +630,28 @@ restoration. Initial source acceptance excluded deployment/push; the later1.1.10
 setup redesign remain unassessed, not implied complete by headless tests. Further
 Image Feeds optimization remains feedback, not automatic next-sprint authority.
 
+### Responsive remote header — independently reviewed and accepted source-only
+
+Built baseline320/375px logo and floating mode switch collide; switch height35px.
+One stable App-owned header/button now shares the existing brand/status and wraps
+within the remote's actual content width. TV retains its floating switch placement;
+44px target, visible keyboard focus, CSS hover/reduced motion and selected palette
+are preserved. Keeping the same button DOM across modes retains keyboard focus;
+RemoteControl still owns navigation, settings, preview and draft lifetimes. Resizing/
+connection-status changes do not save or discard drafts. Existing cross-mode remote
+unmount behavior is unchanged, not a new promise of persistent drafts across modes.
+No new state/ref/timer/store/dependency/module/navigation framework or backend change.
+Paired built captures/edge/intersection/containing-width/text/hit tests qualify320,
+375 and1280px, long status, actual disconnect/reconnect,200% text, keyboard modes/
+navigation, unsaved settings and all four themes. Old-assets oracle fails. Full
+958shared/414native tests, lint/private build and56browser journeys pass, including
+existing54TV-overlay layouts; stricter focused header assertions also pass. Strict
+203configured/28direct inherited diagnostics unchanged; not strict-clean. Source-only,
+three scoped source commits; no version/push/deploy/restart/live writes. Physical touch/AT/native browser
+400% zoom remain unverified;320CSSpx reflow is not a native-zoom claim. Independent
+review accepted72 layout/theme/text probes,18TV-control checks and six focus-preserving
+keyboard round trips. Parent acceptance complete; gallery epics remain planned, untouched.
+
 ### Permanent-collection gallery — released in 1.1.9, 2026-11-27
 
 Accepted source adds **Image Feeds → Permanent Collection Gallery** independently

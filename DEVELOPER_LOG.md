@@ -7448,3 +7448,21 @@ acknowledgement that React has committed the requested viewport. A resize call c
 finish before resize-effect state does: otherwise pre-resize baseline dimensions
 can be misattributed to the filter change. Keep the original style/byte oracle;
 settle its input rather than adding a sleep or weakening the assertion.
+
+
+## Responsive headers need one flow and stable control identity
+
+Measure brand, status and action intersections inside their actual container; page
+scroll width alone can miss a collision or clipped text. Put normal remote chrome
+in flow rather than reserving a floating exclusion lane. A shared mode action must
+keep its DOM identity across layout changes to retain keyboard focus; moving its
+JSX between component trees can remount it despite identical labels. Keep navigation/
+draft owners unchanged and distinguish resize retention from existing mode-unmount
+semantics. Theme variables inherit downward, so a common header needs the same
+existing theme at its common ancestor, not a second settings owner.
+
+Retain matched old/new captures and a failing old-assets oracle. Exercise keyboard
+mode transitions, actual connection status, dirty form retention without saving,
+long labels, container narrowing and enlarged text. Measure44px targets and actual
+pointer hit reception. CSS-pixel reflow, text enlargement and native browser zoom
+are different evidence; do not substitute headless geometry for physical/AT proof.
