@@ -1176,14 +1176,17 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
   combinations and6Google layouts. Initial source acceptance was source-only; the
   separately authorized1.1.12 rollout is recorded above. Physical acceptance remains
   outstanding. No automatic continuation selected.
-- Temperature and humidity trends to the TV weather/environment display,
-  using available hourly history where appropriate. Compare with a clearly
-  defined earlier reference such as the corresponding time yesterday, and assess
-  compact sparklines versus up/down indicators or warmer/cooler coloring. Decide
-  indoor and outdoor coverage explicitly, respect units and timestamps, and
-  handle missing, sparse, stale, or incomparable readings without inventing a
-  trend. Direction must remain understandable without color alone, with legible
-  contrast and a bounded display footprint.
+- **Planned tiny temperature/humidity sparkline — Alex, 2026-11-28.**
+  Adjust the TV weather/environment trend display to draw a tiny graph with two
+  distinguishable temperature and humidity lines over one shared, explicit time
+  window, using available hourly history where appropriate. Provide readable
+  units/labels and line distinctions that do not rely on color alone; distinguish
+  unlike units honestly rather than implying a common numeric scale. Decide indoor
+  versus outdoor coverage explicitly. Preserve honest missing, sparse, stale or
+  incomparable-history states without invented points or trends. Qualify a bounded
+  short-screen footprint and legible contrast. This is planned only, not part of
+  the current gallery commission; released1.1.7 delta/no-chart history above remains
+  historical evidence, not a prohibition on this separately planned sparkline.
 
 ## Phase 3
 
@@ -1248,9 +1251,13 @@ Goal: expand Lumina from a static-photo ambient display into a broader media eng
 - Publish flows omit non-shareable assets such as Google Photos.
 - Ecowitt-class devices ingest into normalized sensor records that the UI can render without device-specific logic.
 - Hourly sensor snapshots are recorded into local SQLite database and served via REST query/export API for Grafana.
-- Temperature and humidity trend presentation identifies its comparison window,
-  handles missing or stale data, and conveys direction without relying on color
-  alone; tests cover the selected sources and time boundaries.
+- Planned temperature/humidity trends include a tiny sparkline with two
+  distinguishable lines sharing an explicit time window, readable units/labels
+  and non-color-only identification. Acceptance covers selected indoor/outdoor
+  sources, time boundaries, missing/sparse/stale/incomparable history without
+  fabricated points, honest unlike-unit presentation and bounded readable
+  short-screen geometry. This future acceptance criterion is not an implementation
+  or deployment claim.
 
 ### Phase 3
 
