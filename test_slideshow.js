@@ -1071,7 +1071,7 @@ const overlayGeometry = () => {
   const elements=[...document.querySelectorAll('.tv-dashboard-ui > .glass-widget, .slide.active .slide-half-credit, .slide.active .single-slide-credit')];
   const boxes=elements.filter(el=>getComputedStyle(el).display!=='none').map(el=>({name:el.className,...rect(el)}));
   const overlaps=boxes.flatMap((a,i)=>boxes.slice(i+1).filter(b=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1).map(b=>[a.name,b.name]));
-  const controls=[document.querySelector('.desktop-settings-btn'),document.querySelector('.lumina-tv-container')?.parentElement?.querySelector(':scope > button')].filter(Boolean).map(rect);
+  const controls=[document.querySelector('.desktop-settings-btn'),document.querySelector('.device-mode-switch')||document.querySelector('.lumina-tv-container')?.parentElement?.querySelector(':scope > button')].filter(Boolean).map(rect);
   return {width:innerWidth,height:innerHeight,boxes,overlaps,controls,overflow:boxes.filter(b=>b.left< -1||b.top< -1||b.right>innerWidth+1||b.bottom>innerHeight+1),
     text:[...document.querySelectorAll('.clock-time,.clock-date,.weather-condition,.weather-city,.indoor-environment,.indoor-trend,.forecast-day,.photo-title,.photo-author,.photo-category,.slide.active .slide-half-credit .title,.slide.active .slide-half-credit .author,.connection-info')].map(el=>({name:el.className,font:parseFloat(getComputedStyle(el).fontSize),truncated:getComputedStyle(el).textOverflow==='ellipsis'||parseInt(getComputedStyle(el).webkitLineClamp)>0,width:el.clientWidth,scroll:el.scrollWidth,...rect(el)}))};
 };
@@ -1442,12 +1442,84 @@ const galleryCases = [
   }]
 ];
 
+const headerGeometry = () => {
+  const rect=el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
+  const brand=rect(document.querySelector('.remote-brand')||document.querySelector('.remote-header'));
+  const control=rect([...document.querySelectorAll('button')].find(el=>el.textContent.includes('Switch to TV View')));
+  const container=rect(document.querySelector('.remote-header'));
+  const button=[...document.querySelectorAll('button')].find(el=>el.textContent.includes('Switch to TV View'));
+  return {viewport:innerWidth,scroll:document.documentElement.scrollWidth,brand,control,container,
+    text:[...document.querySelectorAll('.remote-header h1,.remote-status span')].map(el=>({...rect(el),scroll:el.scrollWidth,client:el.clientWidth})),
+    hit:button.contains(document.elementFromPoint(control.x+control.width/2,control.y+control.height/2)),
+    overlap:Math.min(brand.right,control.right)-Math.max(brand.x,control.x)>1&&Math.min(brand.bottom,control.bottom)-Math.max(brand.y,control.y)>1};
+};
+async function runHeaderCase(browser) {
+  await withFixture(browser,async({page,fixture})=>{
+    await page.goto(fixture.url+'/?mode=remote');
+    await expect(page.getByRole('heading',{name:'LUMINA LINK'})).toBeVisible();
+    const measurements=[];
+    const check=async(label,width,height=900)=>{
+      await page.setViewportSize({width,height});
+      const g=await page.evaluate(headerGeometry);measurements.push({label,...g});
+      await page.screenshot({path:path.join(captureDirectory,`header-${label}-${width}.png`)});
+      if(process.env.LUMINA_HEADER_BASELINE!=='1'){
+        assert.equal(g.overlap,false,`brand/switch collision ${label} ${width}`);
+        assert(g.scroll<=width+1,`horizontal overflow ${label}`);
+        for(const b of [g.brand,g.control])assert(b.x>=-1&&b.right<=width+1&&b.y>=0,`header edges ${label}`);
+        assert(g.control.width>=44&&g.control.height>=44,'mode target >=44px');
+        assert(g.brand.x>=g.container.x-1&&g.brand.right<=g.container.right+1&&g.control.x>=g.container.x-1&&g.control.right<=g.container.right+1,'actual containing width');
+        assert(g.text.every(t=>t.x>=g.container.x-1&&t.right<=g.container.right+1&&t.scroll<=t.client+1),'header text is not clipped');
+        assert(g.hit,'mode switch receives pointer hit');
+      }
+    };
+    for(const width of [320,375,1280])await check('default',width);
+    fs.writeFileSync(path.join(captureDirectory,'header-default.json'),JSON.stringify(measurements,null,2));
+    if(process.env.LUMINA_HEADER_BASELINE==='1')return;
+    await page.getByRole('button',{name:'System',exact:true}).click();
+    const weight=page.getByRole('combobox',{name:'Unrated playback weight',exact:true});
+    await weight.selectOption('4');await weight.focus();
+    await check('draft',320);await expect(weight).toHaveValue('4');await expect(weight).toBeFocused();
+    await expect(page.getByRole('button',{name:'Save weight',exact:true})).toBeEnabled();
+    await page.evaluate(()=>window.__socket.disconnect());
+    await expect(page.locator('.remote-status')).toContainText('SEARCHING');
+    await check('disconnected',375);await expect(weight).toHaveValue('4');
+    // Stress presentation only, not a new connection status or persisted setting.
+    await page.locator('.remote-status span').evaluate(el=>{el.textContent='SEARCHING FOR A VERY LONG TELEVISION CLIENT STATUS WITH UNBROKENLABEL'.repeat(2);});
+    await check('long-status',320);
+    await page.locator('.remote-header').evaluate(el=>{el.style.maxWidth='288px';});
+    await check('narrow-container',1280);
+    await page.locator('.remote-header').evaluate(el=>{el.style.maxWidth='';});
+    await page.evaluate(()=>{document.documentElement.style.fontSize='200%';});
+    await check('text-200',320);
+    await page.evaluate(()=>{document.documentElement.style.fontSize='';window.__socket.connect();});
+    await expect(page.locator('.remote-status')).toContainText('CONNECTED');
+    const switcher=page.getByRole('button',{name:'Switch to TV View',exact:false});
+    await switcher.focus();await page.keyboard.press('Enter');
+    await expect(page.locator('.lumina-tv-container')).toBeVisible();
+    const back=page.getByRole('button',{name:'Switch to Remote',exact:false});
+    await expect(back).toBeVisible();await expect(back).toBeFocused();const box=await back.boundingBox();assert(box.height>=44);
+    await back.focus();await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading',{name:'LUMINA LINK'})).toBeVisible();
+    await expect(page.getByRole('button',{name:'Switch to TV View',exact:false})).toBeFocused();
+    await page.getByRole('button',{name:'Image Feeds',exact:true}).focus();await page.keyboard.press('Enter');
+    await expect(page.getByRole('button',{name:'Permanent Collection Gallery',exact:true})).toBeVisible();
+    for(const theme of ['Zen Retreat','Cosmic Night','Art Museum','Cyberpunk Rain']){
+      fixture.state.theme=theme;fixture.broadcastStateSync();
+      await expect.poll(()=>page.locator('.lumina-app').evaluate(el=>getComputedStyle(el).getPropertyValue('--accent-color'))).toBe({'Zen Retreat':'#10b981','Cosmic Night':'#6366f1','Art Museum':'#e7e5e4','Cyberpunk Rain':'#ec4899'}[theme]);
+    }
+    assert.equal(fixture.count('patch-state'),0,'header reflow/modes never save the draft or settings');
+    fs.writeFileSync(path.join(captureDirectory,'header-qualified.json'),JSON.stringify(measurements,null,2));
+  });
+  console.log('PASS: responsive header geometry, status/draft reflow and keyboard modes');
+}
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    if(process.env.LUMINA_TEST_ONLY_HEADER==='1'){await runHeaderCase(browser);return;}
     const otherFocused = ['OVERLAY','UNRATED','FEEDS','GALLERY','BLUE_LIGHT','TRENDS']
       .some(name => process.env[`LUMINA_TEST_ONLY_${name}`] === '1');
     if (!otherFocused || process.env.LUMINA_TEST_ONLY_FORECAST === '1') {
@@ -1510,6 +1582,7 @@ async function main() {
       console.log(`PASS: ${name}`);
     }
     console.log(`${policyCases.length} pool policy browser regressions passed.`);
+    await runHeaderCase(browser);
   } finally {
     await browser.close();
   }
