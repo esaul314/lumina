@@ -1529,7 +1529,7 @@ async function galleryExperienceFixture(browser, run) {
     const gallery=remote.locator('.permanent-gallery');await expect(gallery.locator('.permanent-gallery-grid > li')).toHaveCount(24);
     const before=JSON.stringify(fixture.collections),writes=fixture.persistence.collections.length,active=fixture.state.activePhoto.url;
     await run({remote,gallery,fixture});
-    assert.equal(JSON.stringify(fixture.collections),before);assert.equal(fixture.persistence.collections.length,writes);assert.equal(fixture.state.activePhoto.url,active);
+    assert.deepEqual(fixture.collections,JSON.parse(before));assert.equal(fixture.persistence.collections.length,writes);assert.equal(fixture.state.activePhoto.url,active);
     await remote.close();
   });
 }
@@ -1649,12 +1649,82 @@ async function runGalleryExperience(browser){
   });console.log('PASS: image-first gallery modal context, attribution, reserved media and delayed paging are read-only');
 }
 
+
+async function runScopedGallery(browser) {
+  await withFixture(browser, async ({page,fixture}) => {
+    fixture.collections['Google Photos'] = Array.from({length:1500},(_,i)=>({
+      ...photo('scope-'+i),title:'Scoped '+String(1500-i).padStart(4,'0'),author:i%2?'Artist':null,
+      comment:'PRIVATE_NOT_SEARCHABLE'
+    }));
+    fixture.collections.Empty=[];fixture.collections.Invalid=[];
+    const before=JSON.stringify(fixture.collections);
+    const remote=await page.context().newPage();
+    try {
+      await remote.setViewportSize({width:320,height:900});
+      await remote.goto(fixture.url+'/?mode=admin');
+      await remote.getByRole('button',{name:'Image Feeds',exact:true}).click();
+      await remote.getByRole('button',{name:'Permanent Collection Gallery',exact:true}).click();
+      const gallery=remote.locator('.permanent-gallery'),scope=gallery.getByLabel('Collection scope'),query=gallery.getByLabel('Search saved text');
+      await expect(scope.locator('option')).toHaveCount(6);
+      await scope.selectOption('local:Google Photos');
+      await expect(gallery.locator('p[role="status"]')).toContainText('1500 images');
+      await expect(gallery.locator('li')).toHaveCount(24);
+      await gallery.getByLabel('Sort images').selectOption('title');
+      await expect(gallery.getByRole('button',{name:'Open Scoped 0001',exact:true})).toBeVisible();
+      await gallery.getByRole('button',{name:'Next page',exact:true}).click();
+      await expect(gallery.locator('p[role="status"]')).toContainText('Page 2 of 63');
+      await query.fill('Scoped 0001');await gallery.getByRole('button',{name:'Search images',exact:true}).click();
+      await expect(gallery.locator('li')).toHaveCount(1);
+      await expect(gallery.locator('p[role="status"]')).toContainText('1500 images · 1 matching · Page 1');
+      await gallery.getByRole('button',{name:'Open Scoped 0001',exact:true}).click();
+      await remote.keyboard.press('Escape');
+      await expect(gallery.getByRole('button',{name:'Open Scoped 0001',exact:true})).toBeFocused();
+      await expect(query).toHaveValue('Scoped 0001');await expect(scope).toHaveValue('local:Google Photos');
+      await query.fill('PRIVATE_NOT_SEARCHABLE');await gallery.getByRole('button',{name:'Search images',exact:true}).click();
+      await expect(gallery).toContainText('No images match');
+      await query.fill('');await gallery.getByRole('button',{name:'Search images',exact:true}).click();
+      await expect(gallery.locator('li')).toHaveCount(24);
+      // Deliberately complete an old scoped read after a new context succeeds.
+      let held;
+      await remote.route('**/api/admin/permanent-gallery?*',route=>{
+        if(new URL(route.request().url()).searchParams.get('q')==='obsolete' && new URL(route.request().url()).searchParams.get('scope')==='local:Google Photos')held=route;
+        else return route.continue();
+      });
+      await query.fill('obsolete');await gallery.getByRole('button',{name:'Search images',exact:true}).click();
+      await expect.poll(()=>Boolean(held)).toBe(true);
+      await scope.selectOption('local:Empty');await expect(gallery).toContainText('This stored collection is empty');
+      await held.fulfill({status:500,body:'old error'}).catch(()=>{});
+      await remote.unroute('**/api/admin/permanent-gallery?*');
+      await query.fill('');await gallery.getByRole('button',{name:'Search images',exact:true}).click();
+      await expect(gallery.getByRole('alert')).toHaveCount(0);
+      await scope.selectOption('local:Invalid');await expect(gallery).toContainText('This stored collection is empty');
+      await scope.selectOption('google-cache');await expect(gallery).toContainText('Google cache availability unknown');
+      await scope.selectOption('local:Google Photos');await expect(gallery.locator('li')).toHaveCount(24);
+      delete fixture.collections['Google Photos'];
+      await gallery.getByRole('button',{name:'Refresh collection',exact:true}).click();
+      await expect(gallery).toContainText('Collection unavailable');await expect(scope).toHaveValue('local:Google Photos');
+      fixture.collections['Google Photos']=JSON.parse(before)['Google Photos'];
+      await gallery.getByRole('button',{name:'Refresh collection',exact:true}).click();await expect(gallery.locator('li')).toHaveCount(24);
+      for(const width of [320,375,1280]){
+        await remote.setViewportSize({width,height:900});
+        assert.equal(await gallery.evaluate(el=>el.scrollWidth<=el.clientWidth),true,'scoped controls reflow');
+        await remote.screenshot({path:path.join(captureDirectory,'scoped-gallery-'+width+'.png')});
+      }
+      assert.deepEqual(fixture.collections,JSON.parse(before));
+      assert.equal(fixture.persistence.collections.length,0);
+      assert.equal(fixture.events.filter(e=>['next-photo','mark-photo-broken','patch-state'].includes(e.event)).length,0);
+    } finally {await remote.close();}
+  });
+  console.log('PASS: scoped gallery search/sort before pagination, context, race, availability, narrow reflow and read-only1500 fixture');
+}
+
 async function main() {
   const browser = await chromium.launch({
     executablePath: process.env.LUMINA_CHROMIUM_PATH || '/usr/bin/chromium-browser',
     headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
   try {
+    if(process.env.LUMINA_TEST_ONLY_SCOPES==='1'){await runScopedGallery(browser);return;}
     if(process.env.LUMINA_TEST_ONLY_GALLERY_BROWSE==='1'){await runGalleryExperience(browser);return;}
     if(process.env.LUMINA_GALLERY_PROTOTYPES==='1'){await runGalleryPrototypes(browser);return;}
     if(process.env.LUMINA_TEST_ONLY_HEADER==='1'){await runHeaderCase(browser);return;}
@@ -1722,6 +1792,7 @@ async function main() {
     console.log(`${policyCases.length} pool policy browser regressions passed.`);
     await runHeaderCase(browser);
     await runGalleryExperience(browser);
+    await runScopedGallery(browser);
   } finally {
     await browser.close();
   }

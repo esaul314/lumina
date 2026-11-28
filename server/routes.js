@@ -767,7 +767,7 @@ module.exports = function configureRoutes({
 
   app.get('/api/admin/permanent-gallery', createAsyncRoute(async (req, res) => {
     const paging = galleryPageRequest(req.query);
-    if (!paging) return sendError(res, 400, 'Positive integer page and pageSize (maximum 60) required.');
+    if (!paging) return sendError(res, 400, 'Invalid gallery scope, query, sort or paging (maximum 60 rows).');
     res.setHeader('Cache-Control', 'no-store');
     return res.json(projectPermanentGallery({ collections,
       googlePhotos: googlePhotos.getCachedMediaItems({ readOnly: true, includeUnavailable: true }),
