@@ -34,3 +34,14 @@ body:has(.permanent-gallery-dialog[open]) { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .permanent-gallery *, .permanent-gallery-dialog { scroll-behavior: auto; transition: none; animation: none; } }
 
 .gallery-loading .gallery-media { border-radius: 12px; background: linear-gradient(120deg,#ffffff08,#ffffff14); }
+
+.gallery-query { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.gallery-query label { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; }
+.gallery-query form { display: flex; flex: 2 1 240px; gap: 8px; align-items: end; min-width: 0; }
+.gallery-query select, .gallery-query input { min-height: 44px; width: 100%; min-width: 0; padding: 8px; color: inherit; background: #101820; border: 1px solid var(--glass-border); border-radius: 8px; font: inherit; }
+
+@media (max-width: 480px) {
+  .gallery-query { flex-direction: column; }
+  .gallery-query form { flex: auto; flex-wrap: wrap; }
+  .gallery-query form label { flex-basis: 100%; }
+}

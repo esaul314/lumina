@@ -13,8 +13,9 @@ function GalleryImage({ photo, expanded = false }) {
 }
 
 function GalleryBrowser() {
-  const [request, setRequest] = useState({ page: 1, focus: false });
+  const [request, setRequest] = useState({ page: 1, focus: false, scope: 'permanent', q: '', sort: 'stored' });
   const [result, setResult] = useState({ status: 'loading' });
+  const [draftQuery, setDraftQuery] = useState('');
   const [selected, setSelected] = useState(null);
   const heading = useRef(null), expandedHeading = useRef(null), thumbnails = useRef([]);
   const returnIndex = useRef(0), returnScroll = useRef(null), inspectorHistory = useRef(null);
@@ -23,7 +24,7 @@ function GalleryBrowser() {
     const controller = new AbortController();
     let current = true;
     setResult(previous => ({ status: 'loading', data: previous.data }));
-    const { path, options } = permanentGalleryRequest(request.page);
+    const { path, options } = permanentGalleryRequest(request.page, { scope: request.scope, q: request.q, sort: request.sort });
     fetch(path, { ...options, signal: controller.signal })
       .then(response => {
         if (!response.ok) throw new Error('Permanent collection could not be loaded.');
@@ -56,7 +57,7 @@ function GalleryBrowser() {
   }, [selected]);
 
   const page = result.data;
-  const changePage = (next, expand) => { returnScroll.current = null; setSelected(null); setRequest({ page: next, focus: true, expand }); };
+  const changePage = (next, expand) => { returnScroll.current = null; setSelected(null); setRequest(previous => ({ ...previous, page: next, focus: true, expand })); };
   const restoreGrid = () => {
     const thumbnail = thumbnails.current[returnIndex.current];
     const target = thumbnail && !thumbnail.disabled ? thumbnail : heading.current;
@@ -109,11 +110,34 @@ function GalleryBrowser() {
       inspectorHistory.current = 'closing'; window.history.back();
     }
   }, [request, result]);
+  const changeContext = patch => {
+    returnScroll.current = null;
+    setSelected(null);
+    setResult(previous => ({ status: 'loading', data: previous.data }));
+    setRequest(previous => ({ ...previous, ...patch, page: 1, expand: undefined, focus: true }));
+  };
   const selectedPhoto = page?.photos[selected];
   const busy = result.status !== 'ready';
   return <div className="permanent-gallery-browser" aria-busy={result.status === 'loading'}>
     <h3 ref={heading} tabIndex={-1}>Permanent collection images</h3>
-    <p>Saved images across pools and Google Photos, including exclusions. Browsing never changes playback or your collection.</p>
+    <p>Browse stored images, including exclusions. Browsing never changes playback or your collection.</p>
+    <div className="gallery-query">
+      <label>Collection scope<select value={request.scope} onChange={event => changeContext({ scope: event.target.value })}>
+        {(page?.scopes ?? [{ id: request.scope, label: request.scope === 'permanent' ? 'Permanent collection' : request.scope }]).map(scope =>
+          <option key={scope.id} value={scope.id}>{scope.label}{scope.status && scope.status !== 'available' ? ' · ' + scope.status : ''}</option>)}
+        {page?.scopes && !page.scopes.some(scope => scope.id === request.scope) && <option value={request.scope}>Unavailable collection</option>}
+      </select></label>
+      <form onSubmit={event => { event.preventDefault(); changeContext({ q: draftQuery }); }}>
+        <label>Search saved text<input type="search" maxLength={200} value={draftQuery} onChange={event => setDraftQuery(event.target.value)} /></label>
+        <button type="submit">Search images</button>
+      </form>
+      <label>Sort images<select value={request.sort} onChange={event => changeContext({ sort: event.target.value })}>
+        {[['stored','Stored order'],['title','Title A–Z'],['title-desc','Title Z–A'],['author','Author A–Z'],['author-desc','Author Z–A'],['pool','Pool A–Z'],['pool-desc','Pool Z–A']].map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+      </select></label>
+    </div>
+    <button disabled={result.status === 'loading'} onClick={() => setRequest({ ...request, focus: true })}>Refresh collection</button>
+    <p>Viewing: {page?.scope === request.scope ? page.scopes?.find(scope => scope.id === request.scope)?.label ?? request.scope : request.scope}</p>
+    <small>Search: saved title, author and pool name; all words must match (up to 12). No comments, dates, ratings or inferred provider metadata. Missing sort values appear last. Google cache presence is not connectivity; zero known rows is unknown.</small>
     {result.status === 'loading' && <>
       <p role="status">Loading permanent collection…</p>
       {!page && <div className="gallery-loading" aria-hidden="true">
@@ -123,8 +147,10 @@ function GalleryBrowser() {
     {result.status === 'error' && <div role="alert"><p>{result.message}</p>
       <button onClick={() => setRequest({ ...request, focus: true })}>Retry collection</button></div>}
     {page && <>
-      <p role={busy ? undefined : "status"}>{busy && "Previous results · "}{page.total} images · Page {page.page} of {page.pages}</p>
-      {page.total === 0 ? <p>No permanent images yet. Use the Permanent Collection switch in the rating deck to save an image.</p> : <>
+      <p role={busy ? undefined : "status"}>{busy && "Previous results · "}{page.total} images · {page.matching ?? page.total} matching · Page {page.page} of {page.pages}</p>
+      {page.status === 'unavailable' ? <p role="alert">Collection unavailable. It may have been renamed, deleted or contain invalid data. Choose another scope or retry.</p>
+        : page.status === 'unknown' ? <p>Google cache availability unknown. No retained rows are known; this does not establish an empty or connected provider.</p>
+        : (page.matching ?? page.total) === 0 ? <p>{page.total ? 'No images match this search.' : request.scope === 'permanent' ? 'No permanent images yet. Use the Permanent Collection switch in the rating deck to save an image.' : 'This stored collection is empty.'}</p> : <>
         <nav aria-label="Collection pages">
           <button disabled={busy || page.page <= 1} onClick={() => changePage(page.page - 1)}>Previous page</button>
           <button disabled={busy || page.page >= page.pages} onClick={() => changePage(page.page + 1)}>Next page</button>
@@ -139,7 +165,7 @@ function GalleryBrowser() {
             }
           }}>
           <div className="gallery-detail-content">
-          <h4 ref={expandedHeading} tabIndex={-1}>{selectedPhoto.title} · Image {(page.page - 1) * 24 + selected + 1} of {page.total}</h4>
+          <h4 ref={expandedHeading} tabIndex={-1}>{selectedPhoto.title} · Image {(page.page - 1) * 24 + selected + 1} of {page.matching ?? page.total}</h4>
           <GalleryImage key={selectedPhoto.url} photo={selectedPhoto} expanded />
           <p className="gallery-attribution">{selectedPhoto.author || "Attribution unavailable"}</p>
           <p>{selectedPhoto.pool}{selectedPhoto.exclusions.length > 0 && ` · ${selectedPhoto.exclusions.join(' · ')}`}</p>
