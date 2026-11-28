@@ -17,6 +17,15 @@ It is designed for a dedicated HTPC or living-room display running GNOME/Mutter.
   </tr>
 </table>
 
+## Released image-first permanent gallery — 1.1.15
+
+Browse saved permanent images in aspect-safe cards and inspect them without losing
+the grid's place. Close, Escape or browser Back returns to browsing; adjacent-image
+controls work across pages. Optional saved attribution stays honest when unknown.
+Browsing does not change playback, ratings or collection membership. This is not
+all-feed search, selection, editing or manual-feed creation; later gallery stories
+remain planned. Headless qualification does not establish physical-TV/AT support.
+
 ## Released responsive remote header — 1.1.14
 
 The brand, connection status and mode switch now share a responsive header without
@@ -24,8 +33,9 @@ narrow-screen collisions. The44px switch retains keyboard focus across modes and
 uses the selected theme; TV placement, preview and settings remain unchanged.
 Resize/status changes preserve unsaved drafts; switching modes retains its existing
 remote-unmount lifetime. Headless reflow/text qualification is not physical/AT or
-native400%browser-zoom acceptance. Gallery experience epics live only in ROADMAP:
-planned requirements, not implemented capabilities or a second backlog.
+native400%browser-zoom acceptance. Later gallery experience epics remain planned in
+ROADMAP; the bounded1.1.15 browse/inspect slice above does not implement those later
+capabilities.
 
 ## Released daily forecast resilience — 1.1.13
 

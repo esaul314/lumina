@@ -2,7 +2,20 @@
 
 Last updated: 2026-11-28
 
-## Current release — 1.1.14
+## Current release — 1.1.15
+
+The independently accepted G0/G1 permanent-gallery browse/inspect slice is released.
+Image-first aspect-safe cards, optional saved attribution and a native inspector
+preserve grid context across Close, Escape, Back and adjacent-image paging. This
+is permanent-collection browsing, not all-feed search/editing or later G2+ scope.
+Release qualification and guarded live API/socket/admin/TV/gallery checks pass;
+private data, latest edits, history and settings remain preserved. One native
+restart preserves fresh automatic intent without forced activation. Named1.1.14
+source/artifact/assets and actual-codec offline rollback compatibility are retained.
+Physical TV/AT/native zoom/provider/GPU/live downgrade remain unverified. Refresh
+an open admin normally to load new assets. No next sprint is selected by rollout.
+
+## Previous release — 1.1.14
 
 Released2026-11-28 from independently accepted responsive remote header source,
 including the accepted inline gallery roadmap plan (planning only, no gallery code).
@@ -770,7 +783,8 @@ zero added. Parent full-diff inspection and independent adversarial review ACCEP
 the exact frozen candidate: history/unmount, delayed paging, error/retry, clamped/
 empty results, keyboard/long metadata and actual read-only API probes pass. Four
 nonblocking lint warnings remain (three quote-style and one unused test binding);
-lint exits0, not warning-free. Source accepted, no deployment/push/live writes.
+lint exits0, not warning-free. Initial source acceptance made no deployment/push/live writes; the separately
+authorized1.1.15 rollout is recorded above.
 Physical TV, assistive technology, provider and native-zoom acceptance remain unverified.
 The separately requested tiny sensor sparkline remains planning-only, not this slice.
 
