@@ -491,12 +491,39 @@ body {
 }
 
 .remote-header {
-  text-align: center;
-  margin-bottom: 24px;
+  width: 100%;
+  max-width: 512px;
+  margin: 0 auto;
+  padding: 24px 16px 0;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
+
+/* ponytail: the existing header owns remote layout; no floating exclusion lane. */
+.remote-brand { flex: 1 1 240px; min-width: 0; }
+.remote-header h1 { overflow-wrap: anywhere; }
+.remote-header .remote-status { justify-content: flex-start; }
+.remote-status span { min-width: 0; overflow-wrap: anywhere; }
+.remote-status .status-dot { flex-shrink: 0; }
+.device-mode-switch {
+  min-width: 44px; min-height: 44px; max-width: 100%; padding: 8px 14px;
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 12px;
+  background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+  font: inherit; font-size: 0.85rem; cursor: pointer; overflow-wrap: anywhere;
+  backdrop-filter: blur(10px); pointer-events: auto;
+  transition: background-color 0.3s, color 0.3s;
+}
+.device-mode-switch:hover { color: #fff; background: rgba(255,255,255,0.12); }
+.device-mode-switch:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 3px; }
+.tv-mode-header { position: absolute; top: 20px; right: 20px; z-index: 99999; }
+.lumina-app--remote { background: radial-gradient(circle at top, var(--theme-glow-color1) 0%, #06050b 80%); }
+.lumina-app--remote .lumina-remote-container { min-height: 0; background: transparent; }
+.status-dot.connected { background-color: #10b981; box-shadow: 0 0 10px #10b981; }
+.status-dot.disconnected { background-color: #ef4444; box-shadow: 0 0 10px #ef4444; }
+@media (prefers-reduced-motion: reduce) { .device-mode-switch { transition: none; } }
 
 .remote-header h1 {
   font-size: 1.8rem;

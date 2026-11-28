@@ -75,7 +75,7 @@ function formatTvPreviewMetaLabel(displayInfo, viewport) {
   return displayName;
 }
 
-function RemoteControl({ state, socket, setClientState, connected, connectionInfo }) {
+function RemoteControl({ state, socket, setClientState, connectionInfo }) {
   const [activeTab, setActiveTab] = useState('controls'); // controls, settings, photos
   const [googleClientId, setGoogleClientId] = useState('');
   const [googleClientSecret, setGoogleClientSecret] = useState('');
@@ -619,15 +619,6 @@ function RemoteControl({ state, socket, setClientState, connected, connectionInf
 
   return (
     <div className={`lumina-remote-container theme-${state.theme.toLowerCase().replace(' ', '-')}`}>
-      {/* 1. Header Section */}
-      <div className="remote-header">
-        <h1>LUMINA LINK</h1>
-        <div className="remote-status">
-          <div className="status-dot" style={{ backgroundColor: connected ? '#10b981' : '#ef4444', boxShadow: connected ? '0 0 10px #10b981' : '0 0 10px #ef4444' }} />
-          <span>{connected ? 'CONNECTED TO TV DASHBOARD' : 'SEARCHING FOR TV CLIENT...'}</span>
-        </div>
-      </div>
-
       {/* 2. Navigation Tabs */}
       <div style={{ display: 'flex', width: '100%', maxWidth: '480px', gap: '8px', marginBottom: '16px' }}>
         <button 

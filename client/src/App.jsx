@@ -140,20 +140,37 @@ function App() {
     );
   }
 
+  const modeSwitcher = (
+    <button className="device-mode-switch" onClick={toggleDeviceMode}>
+      🖥️ Switch to {deviceMode === 'tv' ? 'Remote' : 'TV View'}
+    </button>
+  );
+
   return (
-    <div style={{ 
+    <div className={`lumina-app lumina-app--${deviceMode} ${deviceMode === 'remote' ? `theme-${state.theme.toLowerCase().replace(' ', '-')}` : ''}`} style={{
       position: 'relative', 
       width: '100vw', 
       height: deviceMode === 'tv' ? '100vh' : 'auto', 
       minHeight: '100vh',
       overflow: deviceMode === 'tv' ? 'hidden' : 'visible'
     }}>
+      <header className={deviceMode === 'remote' ? 'remote-header' : 'tv-mode-header'}>
+        {deviceMode === 'remote' && (
+          <div className="remote-brand">
+            <h1>LUMINA LINK</h1>
+            <div className="remote-status">
+              <div className={`status-dot ${connected ? 'connected' : 'disconnected'}`} />
+              <span>{connected ? 'CONNECTED TO TV DASHBOARD' : 'SEARCHING FOR TV CLIENT...'}</span>
+            </div>
+          </div>
+        )}
+        {modeSwitcher}
+      </header>
       {deviceMode === 'remote' ? (
         <RemoteControl 
           state={state} 
           socket={socket} 
           setClientState={setState}
-          connected={connected} 
           connectionInfo={connectionInfo}
         />
       ) : (
@@ -164,39 +181,6 @@ function App() {
           allowScreensaverDismissal={isKioskSession}
         />
       )}
-      
-      {/* Smart Mode Switcher floating button */}
-      <button 
-        onClick={toggleDeviceMode}
-        style={{
-          position: 'absolute',
-          top: '20px',
-          right: '20px',
-          zIndex: 99999,
-          background: 'rgba(255, 255, 255, 0.08)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: '12px',
-          padding: '8px 14px',
-          color: 'rgba(255, 255, 255, 0.7)',
-          fontFamily: 'Outfit',
-          fontSize: '0.85rem',
-          fontWeight: 400,
-          cursor: 'pointer',
-          backdropFilter: 'blur(10px)',
-          transition: 'all 0.3s',
-          pointerEvents: 'auto'
-        }}
-        onMouseEnter={(e) => {
-          e.target.style.color = '#fff';
-          e.target.style.background = 'rgba(255, 255, 255, 0.12)';
-        }}
-        onMouseLeave={(e) => {
-          e.target.style.color = 'rgba(255, 255, 255, 0.7)';
-          e.target.style.background = 'rgba(255, 255, 255, 0.08)';
-        }}
-      >
-        🖥️ Switch to {deviceMode === 'tv' ? 'Remote' : 'TV View'}
-      </button>
     </div>
   );
 }
