@@ -661,6 +661,269 @@ Source acceptance was followed by the separately authorized1.1.9 release above.
 Retained regression owners: `server/domain/permanentGallery.test.js`,
 `server/services/googlePhotos.media.test.js` and `test_slideshow.js`.
 
+### Gallery experience — planned epics and sequenced user stories
+
+**Intent (Alex, 2026-11-28):** make the Permanent Collection Gallery stunning,
+slick and genuinely useful for curation; provide the same capabilities for every
+feed. Search, sort, select images to build feeds, and manage comments and supported
+attributes without leaving the gallery. This is the single product roadmap, not a
+second backlog or tracker. IDs are reference labels; planned does not mean selected,
+commissioned or implemented. Existing acceptance above remains historical evidence;
+current release and the separately selected header sprint are not displaced.
+
+#### Product experience and scope
+
+An image-first library with generous imagery, restrained chrome, clear selection,
+fast exploration, elegant detail inspection and discoverable editing—not a wall of
+metadata forms. Narrow screens retain capabilities through an accessible sheet or
+full-screen detail view; desktop may use a side inspector. Compare lightweight built
+prototypes, not screenshots alone. Preserve aspect ratios and attribution; no false
+sharpness, useful-content clipping, forced animation or hidden selection state.
+
+Coverage means permanent images, each named local pool, future manual feeds, Google
+Photos and every existing provider-backed feed/source with a distinct owner. An
+aggregate is not a substitute for each feed's gallery. A catalogue names actual
+scopes; disconnected/unavailable is not falsely empty. Determine provider-within-pool
+membership from actual provenance, never URL-domain guesses. No new provider,
+public sharing or external account writes are implied.
+
+**Journeys:** discover → inspect → select across pages → create/extend a manual feed
+→ verify/play; find → edit comment/rating → recover save failure → confirm across
+views; enter any feed → browse/search/sort → understand exclusions/availability.
+
+#### Shared Definition of Ready and Definition of Done
+
+Ready requires accepted dependencies, user outcome, owning data/API/UI boundary,
+representative fixtures, scope/exclusions, resolved behavioral decisions, measurable
+success/failure cases, compatibility/privacy implications and required candidate,
+review and release evidence. “Needs a decision” is NOT implementation-ready; its
+bounded discovery story may be ready. Estimates/status labels alone prove nothing.
+
+Done delivers a usable vertical journey, not an isolated component: meaningful
+unit, actual persistence/transport and built-browser tests; old-path/disabled-boundary
+negative controls where relevant; keyboard/narrow/wide visual review; immutable
+behavior; exact-candidate independent review; scoped commits; rollback/data
+compatibility; roadmap acceptance. Distinguish source, deployed and physical-device
+acceptance. Do not worsen inherited strict debt or silently reopen wider migrations.
+
+#### Sequence and readiness gates
+
+1. G0 discovery/contracts and G1 interaction prototypes may be selected first.
+2. G2 scoped browsing + G3 search/sort form the first coherent read-only milestone.
+3. G4 selection + G5 manual-feed creation follow accepted identity/membership/durability.
+4. G6 editing uses G0 contracts; design may overlap, but ship after navigation stabilizes.
+5. G7 bulk curation and G8 optional enhancements follow evidence of need.
+
+Every milestone uses G9. Parallel stories need independent writers and resolved
+contracts; these priorities do not authorize automatically launching all epics.
+
+#### G0 — Trustworthy gallery and feed contracts (P0 prerequisite)
+
+**G0.1 — Know what every gallery contains.** As a curator, distinguish permanent
+images, current feed members, provider subsets and filtered results. Ready inputs:
+actual curated/Google/source owners, routes, metadata retention and private comments.
+Deliver a membership/terminology table, total/matching/selected/eligible counts and
+removed/unavailable-source behavior. Fixtures include duplicates, excluded/broken/
+unrated images, empty feed, disconnected Google and providers shared across pools.
+Slideshow eligibility must not silently define the whole gallery.
+
+**G0.2 — Preserve image identity and human work.** As a curator, retain comments,
+selection and manual-feed membership through refresh, duplicates and changed URLs.
+NOT implementation-ready until a bounded identity decision is accepted. Current
+[gallery projection](server/domain/permanentGallery.js) deduplicates exact URLs;
+[comments](server/domain/photoComments.js) use Google media IDs or exact URLs.
+Decide source-qualified references, collision/duplicate precedence, shared versus
+occurrence attributes, refresh/removal/unavailable behavior, retention and any
+migration/rollback. Never silently canonicalize public URLs, persist expiring signed
+URLs as durable identity or merge distinct images. Test one image in two feeds,
+same-looking distinct images, changed Google URL and conflicting legacy metadata.
+If stronger identity is deferred for read-only browsing, document its exact limits;
+that does not make editing/feed creation ready.
+
+**G0.3 — Define manual-feed semantics and ownership.** As a curator, know whether
+membership is an explicit saved selection or a dynamic rule. Decide snapshot order,
+append/replace/remove, rename/duplicate/delete, missing placeholders, source retention
+and playback integration. Existing [pool commands](server/domain/commands.js) require
+keywords: do not invent keywords or silently convert crawler pools into manual feeds.
+Use the smallest existing domain/persistence extension, validated import/export,
+legacy-writer preservation and latest-data rollback. Smart/rule feeds are optional,
+separate from manual selections.
+
+#### G1 — Beautiful, coherent gallery interaction (P0)
+
+**G1.1 — Browse without clutter.** As a curator, see an image-first grid, consistent
+spacing/hierarchy, clear scope/counts and on-demand metadata. Ready: representative
+image/long-title/exclusion fixtures and interaction priorities. Compare at least two
+lightweight layouts (aspect-safe regular grid versus justified rows) for scanability,
+stability and implementation cost. Accept paired narrow/wide captures, skeletons,
+empty/error/unavailable states and no jumps moving a target; no new UI framework
+solely for polish.
+
+**G1.2 — Inspect and return effortlessly.** As a curator, open a crisp larger image,
+source/attribution and compact inspector, traverse previous/next and return to exact
+grid context. Test Escape/back, focus restoration, retained query/sort/page/scroll,
+cross-page boundaries, portrait/landscape, long metadata, missing media and reduced
+motion. Detail browsing is not slideshow control: errors never mark media broken or
+advance playback. Gestures are optional, never sole navigation or conflicting with
+selection/crop gestures.
+
+#### G2 — The same gallery for every feed (P0; after G0/G1)
+
+**G2.1 — Open any feed's gallery.** As a curator, enter from a named card/catalogue
+and switch to permanent images without losing context. Ready: G0 membership table
+and stable scope IDs. Test every supported scope, rename/deletion during viewing,
+selected-but-hidden playback feeds, exclusions and unavailable-source retry. Preserve
+Image Feeds arrangement/focus/drafts; do not permanently mount every image grid.
+
+**G2.2 — Load large collections predictably.** As a curator, browse thousands without
+freezing the remote or downloading every original. Ready: existing pagination versus
+measured virtualization need, deterministic ties and concurrent-change policy. Test
+bounded payload/DOM/image loads, lazy thumbnails, visible progress, cancelled/ignored
+obsolete responses, honest partial/unknown counts and context-preserving retry. Do
+not reuse full-pool endpoints as unbounded gallery payloads or add an index/database
+without measured need.
+
+#### G3 — Find the right images (P0; scoped browsing contracts)
+
+**G3.1 — Search within a gallery.** As a curator, search actual titles, descriptions,
+source names, tags and authorized private comments, knowing which fields participate.
+Ready: available-field inventory, null/locale/case/diacritic semantics, query limits
+and server matching before pagination. Start lexical, not AI/embeddings. Test whole-
+scope results, clear/reset, no-match versus unavailable, special characters, delayed/
+reordered responses and private-comment isolation. Never invent missing metadata or
+send comment text to shared snapshots, public endpoints, logs or providers.
+
+**G3.2 — Sort/filter honestly.** As a curator, sort known title, human rating or known
+acquisition date; filter unrated/ranges, permanent, source/feed, orientation, comment
+presence and exclusions only where fields exist. Ready: supported fields, stable ties,
+directions, missing-last policy and counts; filesystem/refresh time is not “date
+added.” Test cross-page determinism, zero versus missing, unrated versus10, banned
+versus broken, combined filters/reset/scopes. Query/sort resets page, not selection.
+Explain/omit unsupported filters; no fake controls or inferred human/default provenance
+for legacy scores.
+
+#### G4 — Deliberate multi-image selection (P1; G0 identity/G2/G3)
+
+**G4.1 — Select across pages without surprises.** As a curator, select individuals,
+optional ranges/all on this page, and see persistent count/reviewable tray. Ready:
+identity, lifetime, keyboard model and query/scope-change policy; prefer session-local
+unless durable recovery is justified. Test exact retention through sorting/pages,
+disclosed hidden selections, explicit remove/clear and deduped occurrences. Separate
+touch selection from opening; modifiers need accessible button equivalents. Document
+back/refresh behavior.
+
+**G4.2 — Distinguish page from all matching results.** As a curator, intentionally
+select all matches, never accidentally act on unseen content. NOT ready until query
+snapshot versus live membership, caps/cost and concurrency are decided. Test visible
+scope/count, review step, deselection exceptions and disappearing images. If deferred,
+ship explicit/page selection only and state limits; “all” must never imply more.
+
+#### G5 — Build feeds from selected images (P1; G0/G4)
+
+**G5.1 — Create a manual feed.** As a curator, name selected images, preview exact
+membership and choose playback enablement. Ready: accepted manual-feed/identity/
+reference/retention/order contract, name collision/validation, durable command and
+compatible rollback. Test explicit save/count, playback disabled by default unless
+chosen, disk/cold reload, identical retry without duplicate feeds/members, selection
+retained on failure, missing placeholders and unchanged source ratings/comments.
+A timeout never authorizes replaying uncertain creation.
+
+**G5.2 — Maintain a manual feed.** As a curator, append/remove membership, reorder,
+rename/duplicate with clear results. Ready: atomicity/conflict/precondition policy
+and referential cleanup. Test dedupe, concurrency, unavailable media, no silent
+replace and distinct remove-from-feed/unmark-permanent/delete-original meanings.
+Every supported writer/import/export must preserve membership and human metadata.
+Destructive source-file deletion is excluded.
+
+**G5.3 — Preview before use.** As a curator, see eligible/total counts and reasons
+members cannot play. Preview never advances live TV. Explicit activation reuses
+existing fairness, sequence, weight, crop and policy owners, not a second engine.
+
+#### G6 — Comments and supported attributes in any gallery (P1; G0/G2/G1 detail)
+
+**G6.1 — Private comments in the inspector.** As a curator, view/add/edit/clear without
+leaving the gallery. Ready: existing private-comment owner and cross-view/concurrent-
+edit policy. Test compact saved cue, distinct loading/no-comment/read-error, per-image
+drafts, explicit save/cancel, no navigation loss, failed/identical retry, delayed-ack
+isolation and cold reload. Resaving a stale value must not overwrite another client:
+review conflict/precondition semantics. Comments stay private; clear is explicit.
+
+**G6.2 — Edit human attributes; inspect provider facts.** As a curator, rate/unrate,
+change permanent membership and supported user-owned fields while inspecting origin,
+dimensions/tags/attribution/exclusions. Ready: ownership/editability/validation matrix,
+identity scope, playback effects, AI/provider overwrite rules and concurrency. Human
+values survive refresh/all writers; provider facts and advisory AI stay read-only
+without a separate override contract. Captions are not private comments. Distinguish
+rating1 ban, broken state, permanent and delete; unrate neither repairs broken media
+nor changes the playback default. Reuse the [metadata foundation](#metadata-foundation).
+
+**G6.3 — Crops with context, if justified.** After comments/ratings, preview existing
+supported crop at actual playback ratios. Ready: existing crop owner, shared/per-feed
+scope and portrait-side effects. Test keyboard alternative, cancel, aspect-safe view,
+save/reload; live playback changes only on explicit save. Provider originals stay untouched.
+
+#### G7 — Safe batch curation (P2; G4/G6 durable contracts)
+
+**G7.1 — Supported edits on a reviewed selection.** As a curator, batch-rate/unrate
+or change permanent membership and know what succeeded. Start reversible simple
+fields; batch comments await explicit replace/append need. Ready: bounded size,
+atomic/partial policy, per-item conflicts/retry identifiers. Test mixed/indeterminate
+values, exact scope/count, progress/cancel, per-item failure, reload and retry only
+failed items. Cancellation never pretends committed items were rolled back.
+
+**G7.2 — Recover mistakes safely.** As a curator, undo supported reversible membership/
+attribute changes or see confirmation before consequential actions. Ready: small
+session inverses with concurrency preconditions versus justified durable history,
+never blanket snapshot restore. Undo cannot overwrite newer edits; explain unsupported
+recovery. Safe actions must not accumulate unnecessary confirmation dialogs.
+
+#### G8 — Evidence-led options (P2/P3; not first-delivery prerequisites)
+
+**G8.1 — Revisit useful views:** recent scopes/session queries first; named saved
+views need usage evidence and retention/privacy/version rules.
+
+**G8.2 — Smart feeds:** reviewed saved search/filter rules need preview, refresh,
+membership/exclusion semantics; separate from manual selections.
+
+**G8.3 — Rich discovery:** related suggestions, advisory tag editing, duplicate review
+or comparison need metadata/provenance and measured need. No automatic merge/delete,
+AI provider calls or human-score replacement.
+
+**G8.4 — Portability:** validated local feed definitions/compatible metadata import/
+export follow reference/permission/rollback contracts. No private comments by default;
+references contain neither image bytes nor usage rights. Each option first needs a
+full DoR-ready story, not a falsely ready commitment.
+
+#### G9 — Non-functional acceptance across every epic (P0 gates)
+
+- **Accessibility:** target WCAG2.2AA for changed journeys: keyboard, unobscured visible
+  focus, names, logical DOM order, quiet status, non-color selection, contrast, reduced
+  motion and zoom/reflow. Prefer44px targets; justify exceptions. Test320/375/desktop,
+  200% text and400% zoom/reflow; touch and real AT separately from headless evidence.
+- **Performance:** measure the reference host with realistic1,500/10,000-image sets.
+  Proposed budgets:≤60rows/page, no full-resolution offscreen thumbnails/unbounded
+  mounted collections, local feedback≤100ms, first useful page≤2s on documented LAN
+  and cache conditions. Validate/adjust before readiness. Separate provider latency;
+  measure payload/DOM/RSS/CPU as needed, never invent efficiency. Index/virtualize only
+  on evidence.
+- **Consistency/durability:** query/sort/count share membership and stable ties;
+  obsolete-response isolation, explicit concurrency, disk/cold-reload confirmation.
+  Test refresh/removal during inspection, missing media/disk failure; preserve playback
+  and metadata across all supported writers/rollback.
+- **Privacy/security:** keep private admin boundaries private, sanitize rendered text,
+  validate queries/attributes/references; no traversal, arbitrary fetch/SSRF or browser/
+  log secrets. No new exposure/credentials assumptions or claim of hostile-client
+  hardening. Respect licenses/attribution/retention; available references are not
+  permission to copy, redistribute or permanently cache originals.
+- **Resilience/polish:** distinguish loading/empty/no-match/partial/offline/unavailable/
+  read-error/write-error; retries preserve work. Images/long text must not move targets
+  or overflow. Define focus/back/scroll/drafts/dark contrast for every state; media
+  failure never triggers curation/playback writes.
+- **Maintainability/delivery:** pure query/projection/selection with explicit I/O reuse
+  existing owners. No parallel library store, mandatory framework or background index
+  without need. Inspect configuration/writer consumers, measure complexity, simplify
+  existing paths and retain meaningful regressions/negative controls and limitations.
+
 ### Metadata foundation
 
 - **Accepted source-only:** canonical `rating: null` for new/missing scores and explicit reset, with matching live admission, persistence, Google refresh and both admin controls. Existing defined scores are preserved, not reclassified.
@@ -811,7 +1074,9 @@ Goal: make Lumina socially extensible and context-aware without mixing public an
 
 ### Review workflows
 
-- Add unrated-content workflows such as needs-review filters, bulk review flows, and coverage reporting.
+- Gallery unrated/search and reversible bulk curation are planned in the
+  [gallery experience epics G3/G7](#gallery-experience--planned-epics-and-sequenced-user-stories),
+  not a second workflow backlog. Cross-library coverage reporting remains separate.
 - Add publish-facing AI review that surfaces keyword mismatches, exclusion warnings, and missing descriptions before publish.
 - Persist generated descriptions for analyzable public-safe items, but only expose them publicly for non-private assets.
 
